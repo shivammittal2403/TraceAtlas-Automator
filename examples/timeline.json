@@ -1,0 +1,16 @@
+[
+  {
+    "timestamp": "2026-09-23T11:05:00+00:00",
+    "timezone": "UTC",
+    "event": "Public statement archived",
+    "source": "https://example.com/statement",
+    "confidence": 80
+  },
+  {
+    "timestamp": "2026-09-23T10:00:00+00:00",
+    "timezone": "UTC",
+    "event": "Initial observation",
+    "source": "analyst-note",
+    "confidence": 60
+  }
+]
