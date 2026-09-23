@@ -28,6 +28,10 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn("SOURCE_FINGERPRINT", script)
         self.assertIn("TRACEATLAS_FORCE_SETUP", script)
         self.assertIn("Recovering an interrupted setup lock", script)
+        self.assertIn("openosint-venv", script)
+        self.assertIn("TRACEATLAS_SKIP_OPENOSINT", script)
+        self.assertIn("uv sync --locked", script)
+        self.assertIn("-m openosint.cli --help", script)
 
     def test_launcher_uses_module_entrypoint_without_shell_eval(self):
         script = (ROOT / "start.sh").read_text(encoding="utf-8")

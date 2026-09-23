@@ -1,5 +1,7 @@
 # TraceAtlas Automator
 
+**RedKross TraceAtlas × OpenOSINT Fusion — version 0.6.0**
+
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
 human review where judgment, attribution, privacy or legal authority matters.
@@ -34,6 +36,28 @@ human review where judgment, attribution, privacy or legal authority matters.
   optional loopback-only Ollama analysis and coarse EXIF geography.
 - The core needs no paid API, JavaScript runtime or cloud account. HIBP, ORCID
   and WiGLE connectors use separately supplied credentials where required.
+- The OpenOSINT 2.29.0 MIT package is preserved under `packages/openosint`, with
+  all 20 upstream tools available through its isolated runtime and a governed,
+  allowlisted TraceAtlas bridge.
+- A RedKross-branded Vercel console creates local command plans without
+  executing scans, receiving targets, storing case data or accepting API keys.
+
+## Fusion architecture
+
+Both engines remain separately auditable. `./start.sh` creates one lightweight
+runtime for TraceAtlas and a second optional runtime for OpenOSINT, then checks
+both. This avoids dependency conflicts while the bridge enforces case,
+authorization, ownership/consent, command allowlisting and output redaction.
+
+```bash
+./start.sh openosint doctor --json
+
+./start.sh openosint run --case demo-001 --authorized --owned-asset \
+  -- dns example.com
+```
+
+See [FUSION.md](FUSION.md) for the component map, allowlisted commands and
+public-deployment boundary.
 
 ## Automation boundary
 
@@ -119,7 +143,9 @@ integration-readiness reports under `.traceatlas/`. Running it again repairs or
 revalidates the local runtime when source files change; unchanged verified
 installations start immediately. Use `./set.sh` or `./setup.sh` when setup-only
 behaviour is preferred. Set `TRACEATLAS_FORCE_SETUP=1` to force a full rebuild
-and regression run.
+and regression run. The bundled OpenOSINT package is installed into a separate
+`.traceatlas/openosint-venv`; set `TRACEATLAS_SKIP_OPENOSINT=1` only when the
+optional upstream runtime must be skipped.
 
 Pass CLI arguments directly through the launcher:
 
@@ -133,6 +159,20 @@ Pass CLI arguments directly through the launcher:
 Optional third-party binaries and commercial API credentials are reported but
 are not silently installed or invented. Core TraceAtlas operation is offline
 and has no mandatory third-party Python dependency.
+
+### Vercel deployment
+
+The included `vercel.json`, dependency-free Python functions and static
+RedKross interface deploy as a stateless planner:
+
+```bash
+vercel
+vercel --prod
+```
+
+The public deployment never runs reconnaissance or receives the entered target;
+the browser inserts it into argv templates locally. Clone the repository and
+run `./start.sh` for authorised collection, evidence storage and reports.
 
 ### Manual setup
 
@@ -356,6 +396,8 @@ traceatlas intel ingest --case ID --source SOURCE --file FILE [ATTESTATION]
 traceatlas intel collect --case ID --source SOURCE --target-type TYPE --target VALUE [ATTESTATION]
 traceatlas intel media --case ID --file FILE --authorized --owned-asset [--ocr|--transcribe|--ollama]
 traceatlas intel analyze --case ID --scan SCAN_ID --authorized [--ollama --output FILE]
+traceatlas openosint doctor [--json]
+traceatlas openosint run --case ID --authorized --owned-asset -- COMMAND TARGET
 traceatlas sensitive darkweb-monitor --case ID --domain DOMAIN --owned-domain ...
 traceatlas sensitive breach-catalog --case ID --domain DOMAIN --owned-domain ...
 traceatlas sensitive breach-domain --case ID --domain DOMAIN --owned-domain --hibp-domain-verified ...
@@ -425,7 +467,8 @@ entry includes the previous entry hash, making later edits detectable.
 
 ```bash
 python -m unittest discover -s tests -v
-python -m compileall -q src
+python -m compileall -q src api vercel_app_data.py
+node --check public/app.js
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for extension points and
@@ -433,3 +476,4 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for extension points and
 See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
 See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
 AI-assisted intelligence workflows.
+See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.

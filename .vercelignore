@@ -1,0 +1,16 @@
+.git
+.traceatlas
+cases
+reports
+build
+dist
+**/__pycache__
+**/*.pyc
+packages/openosint/tests
+packages/openosint/actors
+packages/openosint/cloud
+packages/openosint/db
+packages/openosint/openosint
+packages/openosint/uv.lock
+packages/openosint/Dockerfile
+packages/openosint/docker-compose.yml

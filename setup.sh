@@ -5,6 +5,8 @@ IFS=$'\n\t'
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR="$ROOT_DIR/.traceatlas"
 VENV_DIR="$STATE_DIR/venv"
+OPENOSINT_ROOT="$ROOT_DIR/packages/openosint"
+OPENOSINT_VENV="$STATE_DIR/openosint-venv"
 LOCK_DIR="$STATE_DIR/setup.lock"
 LOG_FILE="$STATE_DIR/setup.log"
 MARKER_FILE="$STATE_DIR/ready"
@@ -78,6 +80,23 @@ runtime_python() {
   return 1
 }
 
+openosint_python() {
+  local candidate
+  for candidate in "$OPENOSINT_VENV/bin/python" "$OPENOSINT_VENV/Scripts/python.exe"; do
+    if [[ -x "$candidate" ]] && python_compatible "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+openosint_healthy() {
+  local candidate="$1"
+  PYTHONPATH="$OPENOSINT_ROOT" "$candidate" -c \
+    'import openosint, fastapi, mcp, requests' >/dev/null 2>&1
+}
+
 RUNTIME_PYTHON=""
 if RUNTIME_PYTHON="$(runtime_python)"; then
   info "Existing isolated runtime is healthy."
@@ -105,6 +124,10 @@ digest = hashlib.sha256()
 paths = [root / ".gitignore", root / "pyproject.toml", root / "setup.sh", root / "set.sh", root / "start.sh"]
 paths.extend(sorted((root / "src").rglob("*.py")))
 paths.extend(sorted((root / "tests").rglob("*.py")))
+upstream = root / "packages" / "openosint"
+for name in ("pyproject.toml", "uv.lock", "LICENSE"):
+    paths.append(upstream / name)
+paths.extend(sorted((upstream / "openosint").rglob("*.py")))
 for path in paths:
     if path.is_file():
         digest.update(path.relative_to(root).as_posix().encode())
@@ -117,15 +140,26 @@ PY
 
 if [[ "${TRACEATLAS_FORCE_SETUP:-0}" != "1" && -f "$MARKER_FILE" ]]; then
   SAVED_FINGERPRINT="$(awk -F= '$1 == "fingerprint" {print $2}' "$MARKER_FILE")"
+  SAVED_OPENOSINT="$(awk -F= '$1 == "openosint" {print $2}' "$MARKER_FILE")"
   if [[ "$SAVED_FINGERPRINT" == "$SOURCE_FINGERPRINT" ]] && \
      VERSION="$("$RUNTIME_PYTHON" -m traceatlas.cli --version 2>/dev/null)"; then
-    info "TraceAtlas Automator $VERSION is already configured and verified."
-    exit 0
+    if [[ "${TRACEATLAS_SKIP_OPENOSINT:-0}" == "1" ]]; then
+      info "TraceAtlas Automator $VERSION is already configured and verified."
+      exit 0
+    fi
+    if [[ "$SAVED_OPENOSINT" == "ready" ]] && \
+       OPENOSINT_PYTHON="$(openosint_python)" && openosint_healthy "$OPENOSINT_PYTHON"; then
+      info "TraceAtlas Automator $VERSION and OpenOSINT are already configured and verified."
+      exit 0
+    fi
   fi
 fi
 
 info "Checking source compilation..."
 "$RUNTIME_PYTHON" -m compileall -q "$ROOT_DIR/src" >>"$LOG_FILE" 2>&1
+if [[ -d "$OPENOSINT_ROOT/openosint" ]]; then
+  "$RUNTIME_PYTHON" -m compileall -q "$OPENOSINT_ROOT/openosint" >>"$LOG_FILE" 2>&1
+fi
 
 if [[ "${TRACEATLAS_SKIP_TESTS:-0}" != "1" ]]; then
   info "Running complete regression tests..."
@@ -137,6 +171,47 @@ fi
 VERSION="$("$RUNTIME_PYTHON" -m traceatlas.cli --version)"
 info "TraceAtlas Automator $VERSION is operational."
 
+OPENOSINT_STATUS="unavailable"
+if [[ "${TRACEATLAS_SKIP_OPENOSINT:-0}" == "1" ]]; then
+  OPENOSINT_STATUS="skipped"
+  warn "OpenOSINT installation skipped because TRACEATLAS_SKIP_OPENOSINT=1."
+elif [[ ! -f "$OPENOSINT_ROOT/pyproject.toml" ]]; then
+  warn "The bundled OpenOSINT compatibility package is missing."
+else
+  OPENOSINT_PYTHON=""
+  if OPENOSINT_PYTHON="$(openosint_python)"; then
+    info "Existing OpenOSINT runtime found."
+  else
+    info "Creating a separate OpenOSINT runtime..."
+    if "$SYSTEM_PYTHON" -m venv "$OPENOSINT_VENV" >>"$LOG_FILE" 2>&1; then
+      OPENOSINT_PYTHON="$(openosint_python)" || true
+    else
+      warn "Could not create the optional OpenOSINT virtual environment."
+    fi
+  fi
+  if [[ -n "$OPENOSINT_PYTHON" ]] && ! openosint_healthy "$OPENOSINT_PYTHON"; then
+    info "Installing the bundled OpenOSINT package and declared compatible dependencies..."
+    if command -v uv >/dev/null 2>&1; then
+      UV_PROJECT_ENVIRONMENT="$OPENOSINT_VENV" uv sync --locked --no-dev \
+        --project "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1 || true
+    fi
+    if openosint_healthy "$OPENOSINT_PYTHON" || \
+       "$OPENOSINT_PYTHON" -m pip install --disable-pip-version-check \
+         -e "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1; then
+      info "OpenOSINT dependencies installed."
+    else
+      warn "OpenOSINT dependency installation failed; TraceAtlas core remains available."
+      warn "Review $LOG_FILE and rerun ./set.sh after network/package-manager recovery."
+    fi
+  fi
+  if [[ -n "$OPENOSINT_PYTHON" ]] && openosint_healthy "$OPENOSINT_PYTHON" && \
+     PYTHONPATH="$OPENOSINT_ROOT" "$OPENOSINT_PYTHON" -m openosint.cli --help \
+       >>"$LOG_FILE" 2>&1; then
+    OPENOSINT_STATUS="ready"
+    info "OpenOSINT compatibility runtime is operational."
+  fi
+fi
+
 info "Checking optional integrations..."
 "$RUNTIME_PYTHON" -m traceatlas.cli --workspace "$STATE_DIR/doctor-cases" \
   integrations doctor --json >"$STATE_DIR/integrations.json" 2>>"$LOG_FILE"
@@ -147,6 +222,7 @@ info "Checking optional integrations..."
   printf 'version=%s\n' "$VERSION"
   printf 'python=%s\n' "$RUNTIME_PYTHON"
   printf 'fingerprint=%s\n' "$SOURCE_FINGERPRINT"
+  printf 'openosint=%s\n' "$OPENOSINT_STATUS"
   printf 'verified_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } >"$MARKER_FILE"
 
@@ -154,3 +230,4 @@ info "Setup complete."
 info "Run: ./start.sh --help"
 info "Optional-tool report: $STATE_DIR/integrations.json"
 info "Intelligence readiness: $STATE_DIR/intelligence.json"
+info "OpenOSINT readiness: $OPENOSINT_STATUS"

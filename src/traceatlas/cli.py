@@ -19,6 +19,7 @@ from .spider.modules import MODULES
 from .integrations import CatalogStore, IntegrationRunner, PROFILES, TOOLS
 from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
 from .sensitive import SensitiveRunner
+from .openosint_bridge import OpenOSINTBridge
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -193,6 +194,18 @@ def parser() -> argparse.ArgumentParser:
 
     intel_doctor = intel_sub.add_parser("doctor", help="Show API and local media-analysis readiness")
     intel_doctor.add_argument("--json", action="store_true")
+
+    upstream = sub.add_parser("openosint", help="Use the preserved OpenOSINT compatibility package")
+    upstream_sub = upstream.add_subparsers(dest="openosint_command", required=True)
+    upstream_doctor = upstream_sub.add_parser("doctor", help="Check bundled OpenOSINT readiness")
+    upstream_doctor.add_argument("--json", action="store_true")
+    upstream_run = upstream_sub.add_parser("run", help="Run an approved direct OpenOSINT command")
+    upstream_run.add_argument("--case", required=True)
+    upstream_run.add_argument("--authorized", action="store_true")
+    upstream_run.add_argument("--subject-consent", action="store_true")
+    upstream_run.add_argument("--owned-asset", action="store_true")
+    upstream_run.add_argument("--timeout", type=int, default=300)
+    upstream_run.add_argument("arguments", nargs=argparse.REMAINDER)
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -539,6 +552,25 @@ def main(argv: list[str] | None = None) -> int:
                     args.case, args.file, authorized_data=args.authorized_data, **common
                 )
             print(json.dumps(result, indent=2))
+        elif args.command == "openosint":
+            bridge = OpenOSINTBridge(engine.db, args.workspace)
+            if args.openosint_command == "doctor":
+                result = bridge.doctor()
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    for key, value in result.items():
+                        print(f"{key}: {value}")
+            elif args.openosint_command == "run":
+                forwarded = list(args.arguments)
+                if forwarded and forwarded[0] == "--":
+                    forwarded = forwarded[1:]
+                result = bridge.run(
+                    args.case, forwarded, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_asset=args.owned_asset,
+                    timeout=args.timeout,
+                )
+                print(json.dumps(result, indent=2))
         return 0
     except (PolicyError, ValueError, KeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -1,0 +1,186 @@
+# Changelog
+
+All notable changes to OpenOSINT are documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+OpenOSINT adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [Unreleased]
+
+## [2.29.0] — 2026-09-17
+
+### Added
+- `openosint/tools/search_rdap.py`: RDAP (RFC 7482/9083) domain lookup tool — the structured-JSON replacement for WHOIS used by the `openosint-domain-recon` Apify Actor. Unlike legacy WHOIS, gTLD RDAP is required by ICANN policy to redact registrant PII by default, and nothing prints a terms-of-service banner to stdout.
+- `openosint/tools/search_dns.py`: `mailProfile` classification (`"no-mail"` / `"sending"` / `"unknown"`) for `analyze_email_security()`, plus the `GRADING_RUBRIC` constant documenting the full A-F rubric. A confirmed non-mail domain (RFC 7505 null MX, or no MX at all, with a strict `-all` SPF authorizing no sender — `example.com` is the canonical case) is no longer capped for "missing DKIM"; DKIM isn't required for a domain that can't send mail in the first place.
+- Structured (non-text) helper functions across the OSINT tools — `run_username_osint_structured()`, `build_sherlock_site_data()`, `collect_dns_records()`, `parse_rdap_domain()` — returning machine-readable dicts/dataclasses instead of formatted strings, for Apify Actors and other callers that need structured output rather than CLI display text.
+
+### Changed
+- `openosint-username-recon` Actor: monetization switched from per-(username, platform)-hit charging (`username-found`) to per-username charging (`username-scanned`, once per username that produces at least a partial result set). Fixes unpredictable run cost — a popular username matching 100+ sites previously cost over $1 at $0.01/hit; the new model is a flat $0.04/username. The Actor now checks the remaining charge budget before starting each username and stops cleanly if the next username wouldn't fit, and reports the number of sites skipped due to timeouts per username in both the run status message and a new `SUMMARY` key-value-store record.
+
+### Fixed
+- `openosint-domain-recon` Actor: a domain with a correctly locked-down non-mail posture (null MX, `SPF -all`, `DMARC p=reject`) was previously capped at grade C for "missing DKIM," even though a domain that can't send mail has no use for DKIM.
+
+## [2.28.2] — 2026-09-14
+
+### Fixed
+- **With `--provider openai`, gpt-4o refused to run tools that use API keys**, reporting the credentials as missing even when correctly configured. Tool descriptions said "Requires <VAR>", which the model treated as a precondition it had to verify and could not. Tools are now always called, and whatever error they return is reported.
+- README: optional features install via extras, e.g. `pip install "openosint[openai]"`.
+
+## [2.28.0] — 2026-09-13
+
+### Changed — BREAKING
+- **Web UI: locally-held provider keys are now gated by bind address, not an
+  env var.** Previously, whether a request could use a key from your `.env`
+  depended on `OPENOSINT_DEMO_MODE`, which defaulted to off — meaning a
+  server bound to a non-loopback interface used your keys for any caller
+  unless you remembered to set that variable. It's now a network-exposure
+  invariant: bound to `127.0.0.1`/`localhost`, keys work as before, no
+  change needed. Bound to anything else (`--host 0.0.0.0` with
+  `--allow-remote`, or an undeterminable bind address) — your keys are
+  never used to serve a request; callers must supply their own, and
+  `search_breach` is disabled outright regardless of key source.
+  `OPENOSINT_DEMO_MODE` still exists but can now only add restriction, never
+  remove it. **If you were exposing the web UI on your LAN and relying on
+  your own `.env` keys with no other authentication in front of it, that no
+  longer works** — see the README's Web UI section.
+- **Cloud API: request logs no longer contain the target you queried.**
+  `cloud/main.py`'s INFO-level root logger was letting every tool module's
+  free-text log line (built for CLI/MCP debugging, and including the raw
+  target) through. Cloud logging is now limited to a redacted customer
+  identifier, tool name, elapsed time, and outcome status.
+- **Web UI: a loopback bind behind a reverse proxy is no longer silently
+  trusted.** A request carrying proxy-forwarding headers
+  (`X-Forwarded-For`/`-Proto`/`-Host`, `Forwarded`, `CF-Connecting-IP`) is
+  now treated the same as a non-loopback bind — local keys withheld, breach
+  blocked — unless the new `OPENOSINT_TRUSTED_PROXY=true` is set. This is a
+  separate variable from `TRUSTED_PROXY` (rate-limit IP attribution only,
+  a lower-stakes setting some self-hosters already have on) — see the
+  README before setting it, including the note that doing so makes you the
+  controller for anyone the proxy relays to this instance.
+
+### Deprecated
+- `OPENOSINT_MODEL` is deprecated in favor of `ANTHROPIC_MODEL`, consistent with `OPENAI_MODEL`. The old name still works and logs a one-time warning.
+
+### Fixed
+- **`.env` was ignored with a regular `pip install openosint`.** The CLI and web server looked for `.env` inside site-packages instead of the directory the command runs from. All entry points now share one loader:
+  - CLI and web UI: `$OPENOSINT_ENV_FILE`, then `.env` searching upward from the current directory, then the repo root (source checkouts).
+  - MCP server: `$OPENOSINT_ENV_FILE`, then the repo root, then the current directory, because MCP clients start it from an arbitrary directory.
+
+  Real environment variables always win. `[*] Loaded .env: <path>` is printed to stderr. If `OPENOSINT_ENV_FILE` points to a missing file, OpenOSINT prints one error line and exits with code 2. Missing-key errors now say when no `.env` was found.
+- **`search_dorks_live`: Bright Data failures showed a `JSONDecodeError`
+  traceback instead of the actual error.** Bright Data returns HTTP 200 at
+  the API level even when the fetch failed, reporting the real outcome in
+  `x-brd-*` response headers. These are now read and turned into a clear
+  message, e.g. `Bright Data 502 captcha: redirect location was rejected`.
+  Rate-limit and CAPTCHA failures add a hint about the 15-second block.
+  There is no automatic retry: Bright Data blocks a repeated identical
+  query for at least 15 seconds, and cataloged errors are not billed.
+- A failed dork no longer stops the scan or prints a traceback: it logs a
+  warning, the remaining dorks run, and if all fail the summary lists the
+  distinct error codes.
+- 401/403 responses now include Bright Data's own redacted body, with a
+  specific hint when the API key has expired.
+- Result URLs are normalized: opaque Google `/goto?url=...` redirect
+  tokens and snippet text leaking into the URL field are no longer shown
+  as links. Unresolvable links render as `(unresolved)`.
+- The Twitter dork is now grouped as `("{target}") (site:x.com OR
+  site:twitter.com)`; the previous form let Google match either the
+  quoted term or a site independently, returning unrelated results.
+
+## [2.27.0] — 2026-08-26
+
+### Added
+- **Local graph visualization in the web UI** — a new `/graph` explorer renders
+  the FollowTheMoney entity graph store (Cytoscape.js, vendored offline) with
+  node color/shape by schema, solid confirmed edges, dashed `same_as` candidate
+  edges labeled with their score, canonical-cluster grouping, and a node side
+  panel showing every statement with full provenance. Includes a **human review
+  queue** for `same_as` candidates: two entities aligned property-by-property
+  with provenance, the rule-based match score (labeled as such, not a
+  probability), and Accept / Reject / Skip / Undo — one pair at a time, no bulk
+  actions. New read-only, localhost-only endpoints (`/api/graph/subgraph`,
+  `/api/graph/entity`, `/api/graph/review/candidates`, `/api/graph/review/decide`)
+  read the local SQLite store only and make no outbound network calls.
+
+### Fixed
+- **A fresh install got a broken MCP server — the `mcp` dependency is now
+  pinned to `>=1.0.0,<2`.** The previous requirement (`mcp>=1.0.0`) let a
+  clean install resolve mcp 2.x, whose breaking API changes (`Server.list_tools`
+  and `mcp.server.fastmcp` were removed) make `openosint.mcp_server` crash on
+  import. **This affects 2.26.0: a fresh `pip install openosint==2.26.0` today
+  installs a non-functional MCP server.** Existing environments that already
+  had mcp 1.x are unaffected. Upgrade to 2.27.0, or in an affected 2.26.0
+  environment run `pip install "mcp<2"`.
+- **The web UI loaded Cytoscape from a CDN, and one of those tags was already
+  broken in production.** `index.html` pulled `cytoscape` and `cytoscape-fcose`
+  from third-party CDNs; the `cytoscape-fcose` tag never actually worked (its
+  `cose-base`/`layout-base` dependencies were never loaded, so it silently fell
+  back to the built-in layout), and any CDN request leaks that the tool is
+  running to a third party. Cytoscape.js is now vendored into the repo and
+  served locally; the dead `cytoscape-fcose` CDN tag was removed.
+- **The web UI no longer contacts any third-party CDN.** The remaining
+  runtime CDN dependencies — Alpine.js (jsdelivr), Tailwind
+  (`cdn.tailwindcss.com`, the browser JIT build Tailwind itself says is not
+  for production), and the Inter / JetBrains Mono fonts (Google Fonts, which
+  transmits the visitor's IP to Google on every page load) — are now served
+  locally: Alpine.js 3.14.1 is vendored, Tailwind 3.4.17 is a prebuilt CSS
+  file committed to the repo (regenerated with the standalone CLI, no Node
+  toolchain required), and the fonts are self-hosted woff2 files with their
+  SIL OFL 1.1 licenses recorded alongside. Loading the web UI now makes zero
+  external requests.
+
+## [2.26.0] — 2026-08-25
+
+### Added
+- **Graph module (`openosint.graph`), an additive FollowTheMoney entity
+  graph** — turns scan results into FollowTheMoney (FtM) entities with
+  statement-level provenance, an append-only SQLite store, non-destructive
+  same_as deduplication, and a human review queue. It sits alongside the
+  existing Entity Correlation Graph without changing anything about it, and
+  is entirely opt-in behind two new extras. See
+  [docs/graph.md](docs/graph.md) for the full guide.
+  - `pip install "openosint[graph]"` (Python 3.10+) enables entity mapping,
+    the append-only store, and two new MCP tools: `graph_export` (streams
+    the graph as newline-delimited FtM entity JSON, with support for
+    excluding whole datasets — e.g. omitting all HaveIBeenPwned-derived
+    breach data) and `graph_neighbors` (traverses the graph from one entity
+    out to a given depth, with per-edge provenance).
+  - `pip install "openosint[graph-dedup]"` **requires Python 3.11+** — this
+    is nomenklatura's own requirement, not a choice made by this project;
+    `openosint` itself still supports Python 3.10+. It adds non-destructive
+    same_as candidate scoring and the third new MCP tool,
+    `graph_review_candidates`: nothing in this module ever auto-merges
+    entities — a human must explicitly accept or reject every suggested
+    match, and a rejected pair is never re-suggested.
+
+### Fixed
+- **Breach findings never actually expanded an investigation.** The internal
+  parser that turns `search_breach` (HaveIBeenPwned) results into pivotable
+  entities had a regex bug that meant a breach name was never recognized,
+  even when breaches were found and reported to the user. This silently
+  disabled breach-triggered pivoting in the auto-pivot investigation engine
+  (`investigate_graph`) — an investigation that found breaches never chased
+  the breach name any further. No prior test exercised this path. Past
+  investigations that relied on auto-pivoting from a breached email may have
+  missed connections the breach data would have revealed. Fixed.
+
+## [2.25.1] — 2026-08-24
+
+### Breaking
+- Client-supplied AI backend destinations (a request-supplied `openai_base_url`
+  or a non-default `ollama_host` sent to `POST /api/chat` or
+  `POST /api/openai/test`) are now **rejected by default** — see
+  **GHSA-q6cw-g86h-m2cq** below. The shipped web UI does not currently send
+  either field with a real value: its "OpenAI-compat" BYOK panel talks to
+  providers directly from the browser and never reaches these endpoints, so
+  this should not affect normal use of the bundled UI. If you have custom
+  client code (browser extension, direct API integration, or a modified
+  build) that relies on sending these fields to your own server, set
+  `OPENOSINT_ALLOW_CLIENT_BACKEND=1` there to keep it working.
+
+### Security
+- **[GHSA-q6cw-g86h-m2cq]** `POST /api/chat` and `POST /api/openai/test`
+  filled a missing `openai_api_key` from the server's `OPENAI_API_KEY`
+  environment variable even when the destination `openai_base_url` came from

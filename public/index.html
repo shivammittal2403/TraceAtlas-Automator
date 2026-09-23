@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="RedKross TraceAtlas and OpenOSINT fusion console for authorised defensive research.">
+  <title>RedKross — TraceAtlas × OpenOSINT</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="shell nav">
+    <a class="brand" href="/" aria-label="RedKross home">
+      <span class="brand-mark" aria-hidden="true"><span>RK</span></span>
+      <span><b>REDKROSS</b><small>RESEARCH FOUNDATION</small></span>
+    </a>
+    <div class="status"><i aria-hidden="true"></i> PLANNER ONLINE · NO SCAN EXECUTION</div>
+  </header>
+
+  <main>
+    <section class="shell hero">
+      <div class="eyebrow"><span>01</span> AUTHORISED INTELLIGENCE SYSTEM</div>
+      <h1>Two engines.<br><em>One evidence trail.</em></h1>
+      <p class="hero-copy">TraceAtlas governance meets the preserved OpenOSINT engine. Build a lawful local workflow, correlate evidence, and keep every conclusion reviewable.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#planner">BUILD A LOCAL PLAN <span>↗</span></a>
+        <a class="button ghost" href="https://github.com/shivammittal2403/TraceAtlas-Automator" rel="noreferrer">VIEW SOURCE</a>
+      </div>
+      <div class="rail" aria-label="Platform metrics">
+        <div><strong data-metric="playbooks">40</strong><span>PLAYBOOKS</span></div>
+        <div><strong data-metric="external_adapters">34</strong><span>ADAPTERS</span></div>
+        <div><strong data-metric="openosint_tools">20</strong><span>UPSTREAM TOOLS</span></div>
+        <div><strong data-metric="intelligence_sources">16</strong><span>INTEL SOURCES</span></div>
+        <div><strong data-metric="spider_modules">9</strong><span>SPIDER MODULES</span></div>
+      </div>
+    </section>
+
+    <section class="shell engines" aria-labelledby="engines-title">
+      <div class="section-heading">
+        <div><span class="kicker">SYSTEM / FUSION</span><h2 id="engines-title">Built to work together.</h2></div>
+        <p>Both codebases remain independently auditable. A narrow bridge joins them only where authorization, provenance and redaction can be enforced.</p>
+      </div>
+      <div class="engine-grid">
+        <article class="engine-card red">
+          <span class="card-index">A</span><div class="engine-icon">TA</div>
+          <h3>TraceAtlas</h3><p>Cases, 40 governed playbooks, SpiderFoot-style event correlation, evidence custody, reports and controlled external adapters.</p>
+          <ul><li>Dependency-free core</li><li>Bounded passive pivots</li><li>Fact / inference separation</li></ul>
+        </article>
+        <div class="join" aria-hidden="true"><span>+</span></div>
+        <article class="engine-card pale">
+          <span class="card-index">B</span><div class="engine-icon">OS</div>
+          <h3>OpenOSINT 2.29</h3><p>The upstream MIT package preserved beside TraceAtlas and installed into its own isolated runtime.</p>
+          <ul><li>20 upstream tools</li><li>Allowlisted direct commands</li><li>Redacted evidence bridge</li></ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="planner" class="planner-wrap">
+      <div class="shell planner-grid">
+        <div class="planner-intro">
+          <span class="kicker">LOCAL COMMAND PLANNER</span>
+          <h2>Plan here.<br>Run on your machine.</h2>
+          <p>Your target stays in this browser. The Vercel API receives only target type, engine choice and authorization confirmation.</p>
+          <div class="boundary"><b>PUBLIC DEPLOYMENT BOUNDARY</b><span>No scans · No target storage · No API keys · No database</span></div>
+        </div>
+        <form id="plan-form" class="planner" novalidate>
+          <div class="field-row">
+            <label><span>Target type</span><select id="target-type" name="target_type">
+              <option value="domain">Domain</option><option value="ip">IP address</option>
+              <option value="url">URL</option><option value="email">Email</option>
+              <option value="username">Username</option><option value="hash">File hash</option>
+            </select></label>
+            <label><span>Engine</span><select id="engine" name="engine">
+              <option value="fusion">Fusion — both</option><option value="traceatlas">TraceAtlas</option>
+              <option value="openosint">OpenOSINT bridge</option>
+            </select></label>
+          </div>
+          <label><span>Authorised target</span><input id="target" name="target" autocomplete="off" spellcheck="false" placeholder="example.com" required></label>
+          <label class="check"><input id="authorized" type="checkbox" required><span>I confirm I own this asset or have explicit permission / subject consent.</span></label>
+          <button class="button primary submit" type="submit">GENERATE COMMAND PLAN <span>↗</span></button>
+          <p id="form-error" class="form-error" role="alert" aria-live="polite"></p>
+        </form>
+      </div>
+      <div id="result" class="shell result" hidden>
+        <div class="result-head"><div><span class="kicker">READY / LOCAL EXECUTION</span><h3 id="result-title">Command plan</h3></div><span id="privacy-badge">TARGET NEVER SENT</span></div>
+        <ol id="commands" class="commands"></ol>
+        <p class="result-note">Review each command and provide required provider credentials through documented environment variables—never command-line flags.</p>
+      </div>
+    </section>
+
+    <section class="shell safeguards">
+      <span class="kicker">OPERATING STANDARD</span><h2>Evidence over assumptions.</h2>
+      <div class="guard-grid">
+        <article><span>01</span><h3>Permission first</h3><p>Every network or identity workflow requires explicit authorization and the relevant ownership or consent attestation.</p></article>
+        <article><span>02</span><h3>Minimise data</h3><p>Contacts, credentials, precise home locations and identifiers are redacted or excluded from normalized evidence.</p></article>
+        <article><span>03</span><h3>Analyst review</h3><p>Matches and AI output are leads—not identity claims, attribution, guilt or proof.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell footer"><div class="brand compact"><span class="brand-mark"><span>RK</span></span><span><b>REDKROSS</b></span></div><p>Defensive research infrastructure · v<span id="version">0.6.0</span></p></footer>
+</body>
+</html>
