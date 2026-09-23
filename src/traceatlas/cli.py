@@ -17,6 +17,7 @@ from .spider import SpiderEngine
 from .spider.export import export_scan
 from .spider.modules import MODULES
 from .integrations import CatalogStore, IntegrationRunner, PROFILES, TOOLS
+from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
 from .sensitive import SensitiveRunner
 
 
@@ -126,6 +127,72 @@ def parser() -> argparse.ArgumentParser:
     int_pipeline.add_argument("--verify", action="store_true")
     int_pipeline.add_argument("--allow-active", action="store_true")
     int_pipeline.add_argument("--max-assets", type=int, default=25)
+
+    intel = sub.add_parser(
+        "intel", help="Collect, ingest and analyse governed multi-source intelligence"
+    )
+    intel_sub = intel.add_subparsers(dest="intel_command", required=True)
+    intel_sources = intel_sub.add_parser("sources", help="List supported intelligence sources")
+    intel_sources.add_argument("--json", action="store_true")
+
+    def add_intel_attestations(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--authorized", action="store_true")
+        command.add_argument("--subject-consent", action="store_true")
+        command.add_argument("--owned-org", action="store_true")
+        command.add_argument("--owned-asset", action="store_true")
+        command.add_argument("--public-record-basis", action="store_true")
+
+    intel_ingest = intel_sub.add_parser(
+        "ingest", help="Normalize an official, authoritative or otherwise approved export"
+    )
+    intel_ingest.add_argument("--case", required=True)
+    intel_ingest.add_argument("--source", required=True, choices=sorted(SOURCES))
+    intel_ingest.add_argument("--file", type=Path, required=True)
+    add_intel_attestations(intel_ingest)
+
+    intel_collect = intel_sub.add_parser(
+        "collect", help="Query a supported official/public API connector"
+    )
+    intel_collect.add_argument("--case", required=True)
+    intel_collect.add_argument(
+        "--source", required=True,
+        choices=sorted(name for name, spec in SOURCES.items() if spec.live_connector),
+    )
+    intel_collect.add_argument(
+        "--target-type", required=True,
+        choices=["username", "channel", "invite", "ip", "domain", "url", "hash"],
+    )
+    intel_collect.add_argument("--target", required=True)
+    add_intel_attestations(intel_collect)
+
+    intel_media = intel_sub.add_parser(
+        "media", help="Analyse authorised image, audio or video evidence locally"
+    )
+    intel_media.add_argument("--case", required=True)
+    intel_media.add_argument("--file", type=Path, required=True)
+    intel_media.add_argument("--authorized", action="store_true")
+    intel_media.add_argument("--subject-consent", action="store_true")
+    intel_media.add_argument("--owned-asset", action="store_true")
+    intel_media.add_argument("--ocr", action="store_true")
+    intel_media.add_argument("--transcribe", action="store_true")
+    intel_media.add_argument("--whisper-model", default="tiny")
+    intel_media.add_argument("--ollama", action="store_true")
+    intel_media.add_argument("--model", default="llava:7b")
+    intel_media.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+
+    intel_analyze = intel_sub.add_parser(
+        "analyze", help="Create fact/inference-separated analysis of a stored scan"
+    )
+    intel_analyze.add_argument("--case", required=True)
+    intel_analyze.add_argument("--scan", required=True)
+    intel_analyze.add_argument("--authorized", action="store_true")
+    intel_analyze.add_argument("--ollama", action="store_true")
+    intel_analyze.add_argument("--model", default="qwen2.5:7b")
+    intel_analyze.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    intel_analyze.add_argument("--output", type=Path)
+
+    intel_doctor = intel_sub.add_parser("doctor", help="Show API and local media-analysis readiness")
+    intel_doctor.add_argument("--json", action="store_true")
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -358,6 +425,75 @@ def main(argv: list[str] | None = None) -> int:
                     verify=args.verify, allow_active=args.allow_active,
                     max_assets=args.max_assets,
                 )
+                print(json.dumps(result, indent=2))
+        elif args.command == "intel":
+            hub = IntelligenceHub(engine.db, args.workspace)
+            if args.intel_command == "sources":
+                rows = hub.sources()
+                if args.json:
+                    print(json.dumps(rows, indent=2))
+                else:
+                    for row in rows:
+                        live = "LIVE" if row["live_connector"] else "IMPORT"
+                        print(f"{row['name']:20} {live:6} {row['category']:24} {row['description']}")
+            elif args.intel_command == "doctor":
+                rows = hub.sources()
+                credentials = {
+                    key: bool(__import__("os").environ.get(key))
+                    for row in rows for key in row["credential_env"]
+                }
+                result = {
+                    "sources": len(rows),
+                    "live_connectors": sum(row["live_connector"] for row in rows),
+                    "credentials": credentials,
+                    "media_tools": MediaAnalyzer.capabilities(),
+                    "local_ai": {"provider": "Ollama", "configured_on_request": True},
+                }
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(f"Sources: {result['sources']}")
+                    print(f"Live connectors: {result['live_connectors']}")
+                    print("Credentials: " + json.dumps(credentials, sort_keys=True))
+                    print("Media tools: " + json.dumps(result["media_tools"], sort_keys=True))
+            elif args.intel_command in {"ingest", "collect"}:
+                common = {
+                    "authorized": args.authorized,
+                    "subject_consent": args.subject_consent,
+                    "owned_org": args.owned_org,
+                    "owned_asset": args.owned_asset,
+                    "public_record_basis": args.public_record_basis,
+                }
+                if args.intel_command == "ingest":
+                    result = hub.ingest(args.case, args.source, args.file, **common)
+                else:
+                    result = hub.collect(
+                        args.case, args.source, args.target_type, args.target, **common
+                    )
+                print(json.dumps(result, indent=2))
+            elif args.intel_command == "media":
+                result = MediaAnalyzer(engine.db, args.workspace).analyze(
+                    args.case, args.file, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_asset=args.owned_asset,
+                    ocr=args.ocr, transcribe=args.transcribe,
+                    whisper_model=args.whisper_model, use_ollama=args.ollama,
+                    ollama_model=args.model, ollama_url=args.ollama_url,
+                )
+                print(json.dumps(result, indent=2))
+            elif args.intel_command == "analyze":
+                if not args.authorized:
+                    raise PolicyError("Intelligence analysis requires explicit --authorized confirmation")
+                scan = engine.db.spider_scan(args.scan)
+                if not scan or scan["case_id"] != args.case:
+                    raise PolicyError("Scan does not belong to the specified case")
+                analyzer = IntelligenceAnalyzer(engine.db)
+                result = analyzer.analyze(
+                    args.scan, use_ollama=args.ollama,
+                    model=args.model, base_url=args.ollama_url,
+                )
+                if args.output:
+                    analyzer.write(result, args.output)
+                    result["output"] = str(args.output)
                 print(json.dumps(result, indent=2))
         elif args.command == "sensitive":
             runner = SensitiveRunner(engine.db, args.workspace)

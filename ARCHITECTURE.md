@@ -14,6 +14,15 @@ flowchart TD
     Policy --> Runner[External-tool runner]
     Runner --> Binaries[Installed CLI adapters]
     Binaries --> Normalize[Normalized findings]
+    Policy --> Intel[Governed intelligence hub]
+    Intel --> APIs[Fixed-host public APIs]
+    Intel --> Imports[Approved exports]
+    Intel --> Media[Local media tools]
+    APIs --> Redact
+    Imports --> Redact
+    Media --> Redact
+    Redact --> LocalAI[Optional loopback Ollama]
+    LocalAI --> Graph
     Policy --> Sensitive[Sensitive policy gate]
     Sensitive --> Vendors[Approved metadata APIs]
     Vendors --> Redact[Minimize and hash]
@@ -55,6 +64,17 @@ flowchart TD
   raw breach rows are not copied into the case workspace.
 - **Repeatable monitoring:** normalized sensitive results are hashed into case
   snapshots so scheduled runs report whether the redacted result set changed.
+- **Platform-compliant social intelligence:** official/public APIs are used
+  where available; access-restricted social networks use operator-supplied
+  official or approved exports instead of authentication bypass or private
+  scraping.
+- **Untrusted-content isolation:** imported text, OCR and transcripts are data,
+  never instructions. AI prompts explicitly separate evidence and all model
+  output remains low-confidence advisory analysis.
+- **Fixed connector destinations:** live intelligence connectors construct URLs
+  for known API hosts. User input cannot select an arbitrary API endpoint.
+- **Loopback-only AI:** optional Ollama analysis accepts only localhost HTTP
+  endpoints, preventing accidental cloud disclosure of case evidence.
 
 ## Extension contract
 
@@ -79,7 +99,7 @@ bypass and never interpret absence as proof.
 
 ## Production roadmap
 
-1. Add optional RDAP, DNS record-type, EXIF and media keyframe adapters.
+1. Add optional RDAP, DNS record-type and media-keyframe adapters.
 2. Add encrypted-at-rest case storage and role-based access control.
 3. Add asynchronous queues with per-source rate limiting.
 4. Add signed report manifests and external timestamping.

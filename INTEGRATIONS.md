@@ -19,6 +19,11 @@ machine-readable output format and normalized event type. The runner:
 Third-party tools are not bundled, auto-installed or silently updated. API keys
 remain in their native tool configuration or environment.
 
+Version 0.5 also includes a separate governed intelligence hub with six native
+fixed-host API connectors and ten approved-export source adapters. These are
+implemented in Python rather than subprocess adapters, so they are not included
+in the external-tool count below. See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md).
+
 ## Adapter matrix
 
 | Tool | Mode | Accepted target | Normalized purpose |

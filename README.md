@@ -22,6 +22,16 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Five controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
+- Governed intelligence hub covering 16 social, code, video, community,
+  internet-exposure, business, employee, public-record and threat-intelligence
+  sources.
+- Six live official/public API connectors: GitHub, YouTube, Discord invite
+  metadata, Shodan, Censys and VirusTotal.
+- Authorised API/export ingestion for LinkedIn, Instagram, Facebook, TikTok,
+  Snapchat, MalwareBazaar, business registries, employee directories,
+  sanctions and court records.
+- Local image/audio/video metadata, OCR and transcription orchestration with
+  optional loopback-only Ollama analysis and coarse EXIF geography.
 - The core needs no paid API, JavaScript runtime or cloud account. HIBP, ORCID
   and WiGLE connectors use separately supplied credentials where required.
 
@@ -42,6 +52,53 @@ breach summaries, consented professional-profile candidates, k-anonymous
 exposure checks and coarse geolocation of an owned BSSID. Every such run needs
 two explicit confirmations plus a recorded lawful purpose and workflow-specific
 ownership or consent attestation.
+
+Social-platform support does not bypass authentication or scrape private
+profiles. Where an official public API is unavailable, TraceAtlas accepts only
+an official, authoritative or otherwise approved export supplied by the
+operator. Court filings, sanctions entries, AI output and username matches are
+leads that require source review; they are never converted into claims of guilt.
+
+## Multi-source intelligence hub
+
+Version 0.5 adds a governed intelligence layer for social-media, professional,
+business, employee, media, geography, community and threat-intelligence data.
+
+```bash
+# Inventory sources, credentials and optional local analysis tools
+traceatlas intel sources
+traceatlas intel doctor --json
+
+# Collect a consenting public GitHub profile through the public API
+traceatlas intel collect --case demo-001 --source github \
+  --target-type username --target example --subject-consent --authorized
+
+# Ingest an owned organisation's official LinkedIn/API export
+traceatlas intel ingest --case demo-001 --source linkedin \
+  --file ./linkedin-export.json --owned-org --authorized
+
+# Ingest authoritative company data
+traceatlas intel ingest --case demo-001 --source business_registry \
+  --file ./company-record.json --public-record-basis --authorized
+
+# Analyse an authorised image locally; OCR is optional
+traceatlas intel media --case demo-001 --file ./evidence.jpg \
+  --owned-asset --authorized --ocr
+
+# Add advisory local-AI analysis without sending evidence to a cloud provider
+traceatlas intel analyze --case demo-001 --scan SCAN_ID \
+  --authorized --ollama --model qwen2.5:7b --output reports/intelligence.json
+```
+
+Image metadata uses ExifTool when installed. Audio/video technical metadata uses
+FFprobe, OCR uses Tesseract and transcription uses Whisper. AI is off by
+default; when enabled, the endpoint must be loopback Ollama. Exact GPS is not
+stored—only coordinates rounded to two decimal places. Direct contacts,
+credentials, government identifiers and home addresses are redacted or
+removed during ingestion.
+
+See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for the source matrix, API
+variables, result schema and legal/operational boundaries.
 
 ## Quick start
 
@@ -261,6 +318,12 @@ traceatlas integrations profile PROFILE --case ID --target-type TYPE --target VA
 traceatlas integrations catalog-import --file FILE
 traceatlas integrations catalog-search [QUERY]
 traceatlas integrations pipeline --case ID --domain DOMAIN [--verify --allow-active]
+traceatlas intel sources [--json]
+traceatlas intel doctor [--json]
+traceatlas intel ingest --case ID --source SOURCE --file FILE [ATTESTATION]
+traceatlas intel collect --case ID --source SOURCE --target-type TYPE --target VALUE [ATTESTATION]
+traceatlas intel media --case ID --file FILE --authorized --owned-asset [--ocr|--transcribe|--ollama]
+traceatlas intel analyze --case ID --scan SCAN_ID --authorized [--ollama --output FILE]
 traceatlas sensitive darkweb-monitor --case ID --domain DOMAIN --owned-domain ...
 traceatlas sensitive breach-catalog --case ID --domain DOMAIN --owned-domain ...
 traceatlas sensitive breach-domain --case ID --domain DOMAIN --owned-domain --hibp-domain-verified ...
@@ -336,3 +399,5 @@ python -m compileall -q src
 See [ARCHITECTURE.md](ARCHITECTURE.md) for extension points and
 [METHOD_COVERAGE.md](METHOD_COVERAGE.md) for the complete coverage matrix.
 See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
+See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
+AI-assisted intelligence workflows.
