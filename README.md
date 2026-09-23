@@ -104,6 +104,38 @@ variables, result schema and legal/operational boundaries.
 
 Requires Python 3.10+.
 
+### One-command automatic setup
+
+```bash
+git clone https://github.com/shivammittal2403/TraceAtlas-Automator.git
+cd TraceAtlas-Automator
+./start.sh
+```
+
+`start.sh` automatically runs the idempotent setup, selects Python 3.10+,
+creates an isolated runtime when supported, falls back safely when `venv` is
+unavailable, compiles the source, runs the complete regression suite and writes
+integration-readiness reports under `.traceatlas/`. Running it again repairs or
+revalidates the local runtime when source files change; unchanged verified
+installations start immediately. Use `./set.sh` or `./setup.sh` when setup-only
+behaviour is preferred. Set `TRACEATLAS_FORCE_SETUP=1` to force a full rebuild
+and regression run.
+
+Pass CLI arguments directly through the launcher:
+
+```bash
+./start.sh --version
+./start.sh intel doctor --json
+./start.sh init demo-001 --title "Example review" \
+  --purpose "Authorised review of organisation-owned assets"
+```
+
+Optional third-party binaries and commercial API credentials are reported but
+are not silently installed or invented. Core TraceAtlas operation is offline
+and has no mandatory third-party Python dependency.
+
+### Manual setup
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
