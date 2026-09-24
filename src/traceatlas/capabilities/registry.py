@@ -17,10 +17,12 @@ class CapabilitySpec:
     safety: tuple[str, ...] = ("authorization",)
     executable: bool = True
     restriction: str = ""
+    protocol: str = "export"
+    allowed_tool_prefixes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         row = asdict(self)
-        for key in ("capabilities", "binaries", "credential_env", "safety"):
+        for key in ("capabilities", "binaries", "credential_env", "safety", "allowed_tool_prefixes"):
             row[key] = list(row[key])
         return row
 
@@ -52,7 +54,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {spec.id: spec for spec in (
     _s("apify-mcp", "Apify MCP", "github.com/apify/apify-mcp-server", "Apache-2.0", "mcp",
        ("actors", "datasets", "key-value-stores", "tasks", "schedules", "builds"),
        binaries=("apify-mcp-server",), credential_env=("APIFY_TOKEN",),
-       safety=("authorization", "actor-allowlist", "bounded-output")),
+       safety=("authorization", "actor-allowlist", "bounded-output"), protocol="mcp",
+       allowed_tool_prefixes=("get-actor", "get_actor", "get-dataset", "get_dataset", "list-actors", "list_actors")),
     _s("browser-use", "Browser Use", "github.com/browser-use/browser-use", "MIT", "adapter",
        ("browser-agent", "cdp", "dom-references", "screenshots", "pdf", "structured-output"),
        binaries=("browser-use",), safety=("authorization", "isolated-profile", "domain-allowlist", "no-captcha-bypass")),
@@ -64,7 +67,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {spec.id: spec for spec in (
     _s("exa-mcp", "Exa MCP", "github.com/exa-labs/exa-mcp-server", "MIT", "mcp",
        ("semantic-search", "people-search", "company-search", "code-search", "deep-research"),
        binaries=("exa-mcp-server",), credential_env=("EXA_API_KEY",),
-       safety=("authorization", "subject-consent", "bounded-output")),
+       safety=("authorization", "subject-consent", "bounded-output"), protocol="mcp",
+       allowed_tool_prefixes=("web_search", "research_paper", "get_code_context", "company_research")),
     _s("firecrawl", "Firecrawl", "github.com/firecrawl/firecrawl", "AGPL-3.0", "service",
        ("search", "scrape", "crawl", "map", "batch", "interact", "agent"),
        credential_env=("FIRECRAWL_API_KEY",), safety=("authorization", "service-boundary", "ssrf-guard"),
@@ -72,7 +76,8 @@ CAPABILITIES: dict[str, CapabilitySpec] = {spec.id: spec for spec in (
     _s("firecrawl-mcp", "Firecrawl MCP", "github.com/firecrawl/firecrawl-mcp-server", "MIT", "mcp",
        ("26-tools", "change-monitoring", "scientific-search", "developer-search", "alexandria"),
        binaries=("firecrawl-mcp",), credential_env=("FIRECRAWL_API_KEY",),
-       safety=("authorization", "tool-allowlist", "bounded-output")),
+       safety=("authorization", "tool-allowlist", "bounded-output"), protocol="mcp",
+       allowed_tool_prefixes=("firecrawl_search", "firecrawl_scrape", "firecrawl_map", "firecrawl_extract", "firecrawl_check")),
     _s("gpt-researcher", "GPT Researcher", "github.com/assafelovic/gpt-researcher", "CONFLICTING", "adapter",
        ("deep-research", "multi-agent-review", "local-docs", "citations", "report-export"),
        binaries=("gpt-researcher",), executable=False,
@@ -82,11 +87,13 @@ CAPABILITIES: dict[str, CapabilitySpec] = {spec.id: spec for spec in (
        binaries=("last30days",), safety=("authorization", "public-data-only", "rate-limit")),
     _s("mcp-maigret", "MCP Maigret", "github.com/BurtTheCoder/mcp-maigret", "MIT", "mcp",
        ("username-search", "url-parse", "tag-filters", "reports"), binaries=("mcp-maigret",),
-       safety=("authorization", "subject-consent", "exact-identifier", "no-bulk-enumeration")),
+       safety=("authorization", "subject-consent", "exact-identifier", "no-bulk-enumeration"), protocol="mcp",
+       allowed_tool_prefixes=("search_username", "parse_url", "get_supported")),
     _s("osint-agent", "OSINT Agent", "local-supplied/osint-agent", "MIT", "workflow",
        ("multilingual", "searxng", "translation", "satellite", "vector-memory"),
        credential_env=("SEARXNG_URL",), safety=("authorization", "source-provenance", "fact-inference-separation")),
     _s("osint-mcp-server", "OSINT MCP Server", "github.com/soxoj/osint-mcp-server", "MIT", "mcp",
        ("37-tools", "spf-chain", "dns-srv", "m365", "bgp", "geoip", "rate-limits", "cache"),
-       binaries=("osint-mcp-server",), safety=("authorization", "tool-allowlist", "rate-limit", "bounded-output")),
+       binaries=("osint-mcp-server",), safety=("authorization", "tool-allowlist", "rate-limit", "bounded-output"),
+       protocol="mcp", allowed_tool_prefixes=("dns_", "whois_", "rdap_", "spf_", "wayback_", "bgp_", "geoip_", "m365_")),
 )}

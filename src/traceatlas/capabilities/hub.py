@@ -4,13 +4,18 @@ import json
 import os
 import re
 import shutil
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from ..db import CaseDB
 from ..evidence import EvidenceStore
 from ..policy import PolicyError
 from .registry import CAPABILITIES
+from .mcp import MCPClient
+from .workflow import ResearchWorkflow
+from .service import ServiceClient
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
@@ -61,6 +66,129 @@ class CapabilityHub:
                 "optional engines execute outside the core process",
             ],
         }
+
+    @staticmethod
+    def _validate_arguments(value: Any, *, depth: int = 0) -> None:
+        if depth > 10:
+            raise PolicyError("MCP arguments exceed nesting limit")
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if SECRET_KEYS.search(str(key)):
+                    raise PolicyError("Credentials and session material cannot be passed in MCP arguments")
+                CapabilityHub._validate_arguments(child, depth=depth + 1)
+        elif isinstance(value, list):
+            if len(value) > 500:
+                raise PolicyError("MCP argument arrays are limited to 500 entries")
+            for child in value:
+                CapabilityHub._validate_arguments(child, depth=depth + 1)
+        elif isinstance(value, str):
+            if len(value) > 10000:
+                raise PolicyError("MCP string argument is too long")
+            parsed = urlparse(value)
+            host = parsed.hostname if parsed.scheme in {"http", "https"} else value
+            try:
+                address = ip_address(host)
+            except ValueError:
+                address = None
+            if address and (address.is_private or address.is_loopback or address.is_link_local or address.is_reserved):
+                raise PolicyError("Private, loopback, link-local and reserved network targets are blocked")
+            if parsed.hostname and parsed.hostname.lower() in {"localhost", "localhost.localdomain"}:
+                raise PolicyError("Localhost targets are blocked")
+
+    def _mcp_client(self, source: str, timeout: int) -> MCPClient:
+        if source not in CAPABILITIES:
+            raise PolicyError(f"Unknown capability source: {source}")
+        spec = CAPABILITIES[source]
+        if spec.protocol != "mcp":
+            raise PolicyError(f"{source} is not an MCP server integration")
+        binary = self._binary(spec)
+        if not binary:
+            raise PolicyError(f"{source} is not installed; run capabilities doctor")
+        return MCPClient(spec, binary, timeout)
+
+    def mcp_tools(self, source: str, *, authorized: bool, timeout: int = 30) -> list[dict[str, Any]]:
+        if not authorized:
+            raise PolicyError("MCP discovery requires explicit --authorized confirmation")
+        return self._mcp_client(source, timeout).list_tools()
+
+    def mcp_call(self, case_id: str, source: str, tool: str, arguments: dict[str, Any], *,
+                 authorized: bool, subject_consent: bool = False, owned_org: bool = False,
+                 timeout: int = 30) -> dict[str, Any]:
+        if not authorized:
+            raise PolicyError("MCP execution requires explicit --authorized confirmation")
+        if not self.db.get_case(case_id):
+            raise PolicyError(f"Unknown case: {case_id}")
+        spec = CAPABILITIES.get(source)
+        if not spec:
+            raise PolicyError(f"Unknown capability source: {source}")
+        if "subject-consent" in spec.safety and not (subject_consent or owned_org):
+            raise PolicyError("This MCP source requires --subject-consent or --owned-org")
+        self._validate_arguments(arguments)
+        raw = self._mcp_client(source, timeout).call_tool(tool, arguments)
+        normalized = self._sanitize(raw)
+        output_dir = self.workspace / "capability-imports" / case_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"{source}-{tool}.normalized.json"
+        output.write_text(json.dumps({
+            "source": source, "tool": tool,
+            "classification": "unverified MCP observations; analyst review required",
+            "facts": normalized, "inferences": [],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"mcp:{source}:{tool}")
+        return {"status": "completed", "source": source, "tool": tool,
+                "output": str(output), "sha256": record["sha256"], "review_required": True}
+
+    @staticmethod
+    def research_plan(objective: str, scope_type: str, authority: str,
+                      subject_consent: bool = False) -> dict[str, Any]:
+        return ResearchWorkflow.plan(objective, scope_type, authority, subject_consent=subject_consent)
+
+    def research_brief(self, case_id: str, path: Path, *, authorized: bool) -> dict[str, Any]:
+        if not authorized:
+            raise PolicyError("Research synthesis requires explicit --authorized confirmation")
+        if not self.db.get_case(case_id):
+            raise PolicyError(f"Unknown case: {case_id}")
+        data = self._load(path)
+        if isinstance(data, dict):
+            data = data.get("records", data.get("facts", [data]))
+        if not isinstance(data, list):
+            raise PolicyError("Research input must be a JSON/JSONL record list")
+        brief = ResearchWorkflow.brief(self._sanitize(data))
+        output_dir = self.workspace / "research" / case_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"{path.stem}.brief.json"
+        output.write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
+        record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, "research:brief")
+        return {**brief, "output": str(output), "sha256": record["sha256"]}
+
+    def service_call(self, case_id: str, source: str, action: str, target: str,
+                     options: dict[str, Any], *, authorized: bool,
+                     owned_org: bool = False, timeout: int = 60) -> dict[str, Any]:
+        if not authorized or not owned_org:
+            raise PolicyError("Acquisition service calls require --authorized and --owned-org")
+        if not self.db.get_case(case_id):
+            raise PolicyError(f"Unknown case: {case_id}")
+        self._validate_arguments(options)
+        if source == "crawl4ai":
+            if action != "crawl":
+                raise PolicyError("Crawl4AI supports only the bounded crawl action")
+            raw = ServiceClient.crawl4ai(target, options, timeout)
+        elif source == "firecrawl":
+            raw = ServiceClient.firecrawl(action, target, options, timeout)
+        else:
+            raise PolicyError("Unsupported acquisition service")
+        normalized = self._sanitize(raw)
+        output_dir = self.workspace / "capability-imports" / case_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"{source}-{action}.normalized.json"
+        output.write_text(json.dumps({
+            "source": source, "action": action, "target": "[HASHED]",
+            "target_sha256": __import__("hashlib").sha256(target.encode()).hexdigest(),
+            "facts": normalized, "inferences": [], "review_required": True,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"service:{source}:{action}")
+        return {"status": "completed", "source": source, "action": action,
+                "output": str(output), "sha256": record["sha256"], "review_required": True}
 
     @classmethod
     def _sanitize(cls, value: Any, *, depth: int = 0) -> Any:

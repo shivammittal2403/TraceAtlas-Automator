@@ -20,7 +20,7 @@ from .integrations import CatalogStore, IntegrationRunner, PROFILES, TOOLS
 from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
-from .capabilities import CAPABILITIES, CapabilityHub
+from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -227,6 +227,48 @@ def parser() -> argparse.ArgumentParser:
     cap_ingest.add_argument("--authorized", action="store_true")
     cap_ingest.add_argument("--subject-consent", action="store_true")
     cap_ingest.add_argument("--owned-org", action="store_true")
+    cap_mcp_tools = cap_sub.add_parser("mcp-tools", help="List policy-allowed tools from an installed MCP server")
+    cap_mcp_tools.add_argument("--source", required=True, choices=sorted(
+        key for key, value in CAPABILITIES.items() if value.protocol == "mcp"
+    ))
+    cap_mcp_tools.add_argument("--authorized", action="store_true")
+    cap_mcp_tools.add_argument("--timeout", type=int, default=30)
+    cap_mcp_call = cap_sub.add_parser("mcp-call", help="Call one allowlisted MCP tool and preserve its result")
+    cap_mcp_call.add_argument("--case", required=True)
+    cap_mcp_call.add_argument("--source", required=True, choices=sorted(
+        key for key, value in CAPABILITIES.items() if value.protocol == "mcp"
+    ))
+    cap_mcp_call.add_argument("--tool", required=True)
+    cap_mcp_call.add_argument("--arguments-file", type=Path, required=True)
+    cap_mcp_call.add_argument("--authorized", action="store_true")
+    cap_mcp_call.add_argument("--subject-consent", action="store_true")
+    cap_mcp_call.add_argument("--owned-org", action="store_true")
+    cap_mcp_call.add_argument("--timeout", type=int, default=30)
+    cap_plan = cap_sub.add_parser("research-plan", help="Build an authority-bound investigation DAG")
+    cap_plan.add_argument("--objective", required=True)
+    cap_plan.add_argument("--scope-type", required=True, choices=["organisation", "domain", "topic", "person"])
+    cap_plan.add_argument("--authority", required=True)
+    cap_plan.add_argument("--subject-consent", action="store_true")
+    cap_brief = cap_sub.add_parser("research-brief", help="Deduplicate evidence and separate facts from inferences")
+    cap_brief.add_argument("--case", required=True)
+    cap_brief.add_argument("--file", type=Path, required=True)
+    cap_brief.add_argument("--authorized", action="store_true")
+    cap_service = cap_sub.add_parser("service-call", help="Call a bounded Crawl4AI or Firecrawl worker")
+    cap_service.add_argument("--case", required=True)
+    cap_service.add_argument("--source", required=True, choices=["crawl4ai", "firecrawl"])
+    cap_service.add_argument("--action", required=True, choices=["crawl", "search", "scrape", "map", "extract"])
+    cap_service.add_argument("--target", required=True)
+    cap_service.add_argument("--options-file", type=Path)
+    cap_service.add_argument("--authorized", action="store_true")
+    cap_service.add_argument("--owned-org", action="store_true")
+    cap_service.add_argument("--timeout", type=int, default=60)
+    cap_training_validate = cap_sub.add_parser("training-validate", help="Validate a FreeOSINT-style JSON module")
+    cap_training_validate.add_argument("--file", type=Path, required=True)
+    cap_training_record = cap_sub.add_parser("training-record", help="Record local lesson progress")
+    cap_training_record.add_argument("--module", required=True)
+    cap_training_record.add_argument("--lesson", required=True)
+    cap_training_record.add_argument("--score", required=True, type=int)
+    cap_sub.add_parser("training-progress", help="Show local training progress")
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -619,6 +661,56 @@ def main(argv: list[str] | None = None) -> int:
                     subject_consent=args.subject_consent, owned_org=args.owned_org,
                 )
                 print(json.dumps(result, indent=2))
+            elif args.capability_command == "mcp-tools":
+                result = hub.mcp_tools(
+                    args.source, authorized=args.authorized, timeout=args.timeout
+                )
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "mcp-call":
+                try:
+                    arguments = json.loads(args.arguments_file.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise PolicyError(f"Invalid MCP arguments file: {exc}") from exc
+                if not isinstance(arguments, dict):
+                    raise PolicyError("MCP arguments file must contain one JSON object")
+                result = hub.mcp_call(
+                    args.case, args.source, args.tool, arguments,
+                    authorized=args.authorized, subject_consent=args.subject_consent,
+                    owned_org=args.owned_org, timeout=args.timeout,
+                )
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "research-plan":
+                result = hub.research_plan(
+                    args.objective, args.scope_type, args.authority,
+                    subject_consent=args.subject_consent,
+                )
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "research-brief":
+                result = hub.research_brief(
+                    args.case, args.file, authorized=args.authorized
+                )
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "service-call":
+                options = {}
+                if args.options_file:
+                    try:
+                        options = json.loads(args.options_file.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as exc:
+                        raise PolicyError(f"Invalid service options file: {exc}") from exc
+                    if not isinstance(options, dict):
+                        raise PolicyError("Service options file must contain one JSON object")
+                result = hub.service_call(
+                    args.case, args.source, args.action, args.target, options,
+                    authorized=args.authorized, owned_org=args.owned_org, timeout=args.timeout,
+                )
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "training-validate":
+                print(json.dumps(TrainingStore.validate_module(args.file), indent=2))
+            elif args.capability_command == "training-record":
+                result = TrainingStore(args.workspace).record(args.module, args.lesson, args.score)
+                print(json.dumps(result, indent=2))
+            elif args.capability_command == "training-progress":
+                print(json.dumps(TrainingStore(args.workspace).progress(), indent=2))
         return 0
     except (PolicyError, ValueError, KeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)

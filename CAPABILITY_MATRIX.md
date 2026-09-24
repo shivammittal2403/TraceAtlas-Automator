@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 0.7 adds a governed compatibility layer for all 19 supplied and
+TraceAtlas 0.8 includes a governed compatibility layer for all 19 supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -45,3 +45,23 @@ facts separate from an empty inference section for analyst review.
 The public Vercel application remains a stateless command planner. Optional
 engines run only on the operator's machine or separately controlled service and
 are never invoked by Vercel.
+
+## Version 0.8 execution status
+
+- `OpenOSINT` remains fully bundled in its isolated runtime.
+- `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
+  use a real MCP stdio client. Only registered read/research tool prefixes are
+  exposed; arbitrary Actor execution and destructive tools are blocked.
+- `Crawl4AI` uses a loopback-only `/crawl` worker. Runtime code hooks, JavaScript,
+  cookies, custom headers, proxies and reusable browser sessions are rejected.
+- `Firecrawl` supports bounded search, scrape, map and extract calls to the
+  approved HTTPS API endpoint; its AGPL backend is not copied into this project.
+- Claude/IOP/Agentic/GPT-Researcher/Last30Days concepts are implemented as a
+  deterministic authority-bound research DAG, evidence-gap analysis,
+  deduplication and strict fact/inference separation. This is a native TraceAtlas
+  implementation, not copied upstream code.
+- FreeOSINT-style JSON modules, eight exercise types and local lesson-progress
+  tracking are implemented without importing the upstream portal.
+- Browser Use, DeerFlow and social-session backends remain external isolated
+  workers. TraceAtlas accepts their sanitized exports; it intentionally does not
+  import browser cookies or run arbitrary agent prompts inside the core process.

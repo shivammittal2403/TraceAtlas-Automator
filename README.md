@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 0.7.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 0.8.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -45,9 +45,49 @@ human review where judgment, attribution, privacy or legal authority matters.
   licence-aware adapter, MCP, service, workflow, training and export boundaries.
 - Approved JSON/JSONL results from those engines can be sanitized, preserved in
   the evidence ledger and kept separate from analyst inferences.
+- A dependency-free MCP stdio client performs real handshakes, policy-filtered
+  tool discovery and bounded tool calls for installed compatible servers.
+- Bounded Crawl4AI and Firecrawl acquisition bridges, deterministic research
+  DAGs, evidence-gap briefs and local JSON training progress are included.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) for every engine, capability,
 licence boundary and execution gate.
+
+## Unified capability runtime
+
+Version 0.8 turns the reviewed engine catalogue into an operational boundary.
+Optional packages remain separately installed, but TraceAtlas can call their
+approved interfaces and preserve normalized output in the case ledger.
+
+```bash
+# Inspect readiness and registered contracts
+./start.sh capabilities doctor --json
+
+# Discover only policy-allowed tools from an installed MCP server
+./start.sh capabilities mcp-tools --source osint-mcp-server --authorized
+
+# Arguments are supplied in a file so credentials never appear in argv
+./start.sh capabilities mcp-call --case demo-001 \
+  --source osint-mcp-server --tool dns_lookup \
+  --arguments-file ./dns-query.json --owned-org --authorized
+
+# Use a separately deployed Crawl4AI worker bound to loopback
+export CRAWL4AI_URL=http://127.0.0.1:11235
+./start.sh capabilities service-call --case demo-001 \
+  --source crawl4ai --action crawl --target https://example.com \
+  --owned-org --authorized
+
+# Create an auditable research dependency DAG
+./start.sh capabilities research-plan \
+  --objective "Review organisation-owned public exposure" \
+  --scope-type organisation \
+  --authority "Approved by the organisation security owner"
+```
+
+MCP execution never uses a shell, never downloads packages automatically and
+does not accept credentials/cookies inside tool arguments. Arbitrary Apify Actor
+execution, deletion/cancellation, CAPTCHA bypass, private-network targets and
+browser-session import are excluded. See [WORKER_INTEGRATIONS.md](WORKER_INTEGRATIONS.md).
 
 ## Fusion architecture
 
