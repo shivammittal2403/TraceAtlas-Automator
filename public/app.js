@@ -10,6 +10,10 @@ const placeholders = {
   hash: "64-character SHA-256 hash",
 };
 
+if (location.hostname !== "osint-tools.vercel.app") {
+  document.querySelectorAll(".legacy-link").forEach((link) => { link.hidden = true; });
+}
+
 function isPrivateIPv4(value) {
   const parts = value.split(".").map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
