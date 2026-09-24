@@ -52,6 +52,14 @@ class VercelAppTests(unittest.TestCase):
         self.assertEqual(headers["X-Frame-Options"], "DENY")
         self.assertEqual(config["functions"]["api/*.py"]["maxDuration"], 10)
 
+    def test_legacy_directory_is_bundled_and_routed(self):
+        config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+        rewrites = {item["source"]: item["destination"] for item in config["rewrites"]}
+        legacy = (ROOT / "public/legacy.html").read_text(encoding="utf-8")
+        self.assertEqual(rewrites["/legacy"], "/public/legacy.html")
+        self.assertIn("<title>TraceAtlas", legacy)
+        self.assertIn("Built for ethical research", legacy)
+
 
 if __name__ == "__main__":
     unittest.main()
