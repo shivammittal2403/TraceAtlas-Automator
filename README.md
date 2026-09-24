@@ -165,6 +165,9 @@ and has no mandatory third-party Python dependency.
 The included `vercel.json`, dependency-free Python functions and static
 RedKross interface deploy as a stateless planner:
 
+- Live RedKross Fusion console: https://osint-tools-nine.vercel.app/
+- Preserved original TraceAtlas directory: https://osint-tools-nine.vercel.app/legacy
+
 ```bash
 vercel
 vercel --prod
@@ -477,3 +480,4 @@ See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
 See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
 AI-assisted intelligence workflows.
 See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.
+
