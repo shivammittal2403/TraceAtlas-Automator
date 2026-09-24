@@ -25,6 +25,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn("compileall", script)
         self.assertIn("integrations doctor", script)
         self.assertIn("intel doctor", script)
+        self.assertIn("capabilities doctor", script)
         self.assertIn("SOURCE_FINGERPRINT", script)
         self.assertIn("TRACEATLAS_FORCE_SETUP", script)
         self.assertIn("Recovering an interrupted setup lock", script)

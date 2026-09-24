@@ -20,6 +20,7 @@ from .integrations import CatalogStore, IntegrationRunner, PROFILES, TOOLS
 from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
+from .capabilities import CAPABILITIES, CapabilityHub
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -206,6 +207,26 @@ def parser() -> argparse.ArgumentParser:
     upstream_run.add_argument("--owned-asset", action="store_true")
     upstream_run.add_argument("--timeout", type=int, default=300)
     upstream_run.add_argument("arguments", nargs=argparse.REMAINDER)
+
+    capabilities = sub.add_parser(
+        "capabilities", help="Inspect and ingest results from optional upstream engines"
+    )
+    cap_sub = capabilities.add_subparsers(dest="capability_command", required=True)
+    cap_list = cap_sub.add_parser("list", help="List all governed upstream integrations")
+    cap_list.add_argument("--json", action="store_true")
+    cap_show = cap_sub.add_parser("show", help="Show one integration contract")
+    cap_show.add_argument("source", choices=sorted(CAPABILITIES))
+    cap_doctor = cap_sub.add_parser("doctor", help="Check adapters, licences and safety gates")
+    cap_doctor.add_argument("--json", action="store_true")
+    cap_ingest = cap_sub.add_parser(
+        "ingest", help="Normalize and preserve an approved JSON/JSONL engine export"
+    )
+    cap_ingest.add_argument("--case", required=True)
+    cap_ingest.add_argument("--source", required=True, choices=sorted(CAPABILITIES))
+    cap_ingest.add_argument("--file", type=Path, required=True)
+    cap_ingest.add_argument("--authorized", action="store_true")
+    cap_ingest.add_argument("--subject-consent", action="store_true")
+    cap_ingest.add_argument("--owned-org", action="store_true")
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -569,6 +590,33 @@ def main(argv: list[str] | None = None) -> int:
                     args.case, forwarded, authorized=args.authorized,
                     subject_consent=args.subject_consent, owned_asset=args.owned_asset,
                     timeout=args.timeout,
+                )
+                print(json.dumps(result, indent=2))
+        elif args.command == "capabilities":
+            hub = CapabilityHub(engine.db, args.workspace)
+            if args.capability_command == "list":
+                rows = hub.inventory()
+                if args.json:
+                    print(json.dumps(rows, indent=2))
+                else:
+                    for row in rows:
+                        state = "READY" if row["ready"] else "GATED"
+                        print(f"{row['id']:22} {state:5} {row['integration']:11} {row['name']}")
+            elif args.capability_command == "show":
+                row = next(item for item in hub.inventory() if item["id"] == args.source)
+                print(json.dumps(row, indent=2))
+            elif args.capability_command == "doctor":
+                result = hub.doctor()
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(f"Upstream engines: {result['upstream_engines']}")
+                    print(f"Ready: {result['ready']}")
+                    print("Restricted: " + (", ".join(result["restricted"]) or "none"))
+            elif args.capability_command == "ingest":
+                result = hub.ingest(
+                    args.case, args.source, args.file, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_org=args.owned_org,
                 )
                 print(json.dumps(result, indent=2))
         return 0

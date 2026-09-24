@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 TARGET_TYPES = ("domain", "ip", "url", "email", "username", "hash")
 ENGINES = ("fusion", "traceatlas", "openosint")
 
@@ -22,6 +22,7 @@ CATALOG: dict[str, Any] = {
         "openosint_tools": 20,
         "intelligence_sources": 16,
         "spider_modules": 9,
+        "upstream_capability_engines": 19,
     },
     "engines": [
         {

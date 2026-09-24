@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 0.6.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 0.7.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -41,6 +41,13 @@ human review where judgment, attribution, privacy or legal authority matters.
   allowlisted TraceAtlas bridge.
 - A RedKross-branded Vercel console creates local command plans without
   executing scans, receiving targets, storing case data or accepting API keys.
+- A unified capability registry covers all 19 reviewed upstream engines with
+  licence-aware adapter, MCP, service, workflow, training and export boundaries.
+- Approved JSON/JSONL results from those engines can be sanitized, preserved in
+  the evidence ledger and kept separate from analyst inferences.
+
+See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) for every engine, capability,
+licence boundary and execution gate.
 
 ## Fusion architecture
 

@@ -217,6 +217,8 @@ info "Checking optional integrations..."
   integrations doctor --json >"$STATE_DIR/integrations.json" 2>>"$LOG_FILE"
 "$RUNTIME_PYTHON" -m traceatlas.cli --workspace "$STATE_DIR/doctor-cases" \
   intel doctor --json >"$STATE_DIR/intelligence.json" 2>>"$LOG_FILE"
+"$RUNTIME_PYTHON" -m traceatlas.cli --workspace "$STATE_DIR/doctor-cases" \
+  capabilities doctor --json >"$STATE_DIR/capabilities.json" 2>>"$LOG_FILE"
 
 {
   printf 'version=%s\n' "$VERSION"
@@ -230,4 +232,5 @@ info "Setup complete."
 info "Run: ./start.sh --help"
 info "Optional-tool report: $STATE_DIR/integrations.json"
 info "Intelligence readiness: $STATE_DIR/intelligence.json"
+info "Upstream capability readiness: $STATE_DIR/capabilities.json"
 info "OpenOSINT readiness: $OPENOSINT_STATUS"
