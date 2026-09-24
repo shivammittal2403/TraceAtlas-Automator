@@ -165,6 +165,10 @@ and has no mandatory third-party Python dependency.
 The included `vercel.json`, dependency-free Python functions and static
 RedKross interface deploy as a stateless planner:
 
+- Canonical source repository: https://github.com/shivammittal2403/TraceAtlas-Automator
+- Both the RedKross console and original TraceAtlas directory are included in
+  this repository under `public/`.
+
 - Live RedKross Fusion console: https://osint-tools-nine.vercel.app/
 - Preserved original TraceAtlas directory: https://osint-tools-nine.vercel.app/legacy
 
@@ -176,6 +180,8 @@ vercel --prod
 The public deployment never runs reconnaissance or receives the entered target;
 the browser inserts it into argv templates locally. Clone the repository and
 run `./start.sh` for authorised collection, evidence storage and reports.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for repository ownership and deployment
+mirroring details.
 
 ### Manual setup
 
@@ -480,4 +486,3 @@ See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
 See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
 AI-assisted intelligence workflows.
 See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.
-
