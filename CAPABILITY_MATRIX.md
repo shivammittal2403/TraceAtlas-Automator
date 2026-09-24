@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 0.8 includes a governed compatibility layer for all 19 supplied and
+TraceAtlas 0.9 includes a governed compatibility layer for all 31 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -26,6 +26,18 @@ training, export or bundled boundary.
 | MCP Maigret | MCP | Username candidates, tags, reports | Exact identifier, consent, no bulk enumeration |
 | OSINT Agent | Workflow | Multilingual search, translation, satellite | Provenance and fact/inference separation |
 | OSINT MCP Server | MCP | 37 DNS/BGP/GeoIP/M365 tools | Tool allowlist, caching and rate limits |
+| CTI-to-MITRE NLP | Design only | CTI classification and ATT&CK mapping research | CC BY-SA assets not bundled |
+| OSINTIQ | Export | IOC enrichment, ATT&CK/kill-chain reasoning | Missing licence file: no code copied |
+| ThreatWatch | Export | Feeds, CVE dedup, trends, alerts | Non-commercial code not copied |
+| IntelOwl | Service | Observable/file analysis, plugins and playbooks | External AGPL service only |
+| OpenCTI CE | Service/export | STIX graph, connectors, GraphQL/TAXII | Community interoperability only |
+| ZettelForge | Adapter | CTI memory, aliases, graph, OCSF audit | Optional local adapter |
+| Pharos | Design only | Workspace, graph, search and reports | Proprietary: no code/assets copied |
+| CTINexus | Adapter | Entity alignment and link prediction | AI output requires human validation |
+| Watcher | Service/export | CERT feeds, leak/domain/CT monitoring | External AGPL service only |
+| SearXNG | Service | Private metasearch, categories and filters | Loopback operator instance only |
+| MCP SearXNG | MCP | Search, suggestions, info and bounded URL read | Read-only prefix allowlist |
+| ScrapeGraphAI | Service | Structured LLM extraction and multi-page graphs | Loopback; generated code blocked |
 
 ## Commands
 
@@ -46,7 +58,7 @@ The public Vercel application remains a stateless command planner. Optional
 engines run only on the operator's machine or separately controlled service and
 are never invoked by Vercel.
 
-## Version 0.8 execution status
+## Version 0.9 execution status
 
 - `OpenOSINT` remains fully bundled in its isolated runtime.
 - `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
@@ -65,3 +77,6 @@ are never invoked by Vercel.
 - Browser Use, DeerFlow and social-session backends remain external isolated
   workers. TraceAtlas accepts their sanitized exports; it intentionally does not
   import browser cookies or run arbitrary agent prompts inside the core process.
+- The native CTI pipeline independently implements IOC/CVE/ATT&CK extraction,
+  evidence-labelled co-occurrence graphs, CVE-aware feed deduplication and STIX
+  2.1 export. SearXNG and ScrapeGraphAI have bounded loopback service bridges.

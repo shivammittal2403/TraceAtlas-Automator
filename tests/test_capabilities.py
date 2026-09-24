@@ -10,6 +10,7 @@ from traceatlas.capabilities import (
 )
 from traceatlas.db import CaseDB
 from traceatlas.policy import PolicyError
+from traceatlas.cti import CTIEngine
 
 
 class CapabilityTests(unittest.TestCase):
@@ -25,7 +26,7 @@ class CapabilityTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_all_analyzed_repositories_are_registered(self):
-        self.assertEqual(len(CAPABILITIES), 19)
+        self.assertEqual(len(CAPABILITIES), 31)
         for name in ("agent-reach", "crawl4ai", "firecrawl-mcp", "mcp-maigret",
                      "osint-mcp-server", "openosint", "browser-use"):
             self.assertIn(name, CAPABILITIES)
@@ -39,7 +40,7 @@ class CapabilityTests(unittest.TestCase):
     def test_doctor_is_secret_safe(self):
         encoded = json.dumps(self.hub.doctor())
         self.assertNotIn("API_KEY=", encoded)
-        self.assertEqual(self.hub.doctor()["upstream_engines"], 19)
+        self.assertEqual(self.hub.doctor()["upstream_engines"], 31)
 
     def test_ingest_requires_authorization_and_consent(self):
         export = self.root / "agent.json"
@@ -122,6 +123,42 @@ class CapabilityTests(unittest.TestCase):
             ServiceClient.crawl4ai("https://example.com", {"hooks": "malicious"})
         with self.assertRaisesRegex(PolicyError, "Private"):
             ServiceClient.crawl4ai("http://10.0.0.8/internal", {})
+        with self.assertRaisesRegex(PolicyError, "Unsafe"):
+            ServiceClient.scrapegraph("https://example.com", {"script_code": "run()"})
+
+    def test_new_licence_boundaries_and_mcp_allowlist(self):
+        self.assertFalse(CAPABILITIES["pharos"].executable)
+        self.assertFalse(CAPABILITIES["threatwatch"].executable)
+        self.assertEqual(CAPABILITIES["intelowl"].integration, "service")
+        client = MCPClient(CAPABILITIES["mcp-searxng"], "/tmp/mcp-searxng")
+        self.assertTrue(client.tool_allowed("searxng_web_search"))
+        self.assertTrue(client.tool_allowed("web_url_read"))
+        self.assertFalse(client.tool_allowed("delete_history"))
+
+    def test_cti_extract_feed_dedup_and_stix(self):
+        report = self.root / "report.txt"
+        report.write_text(
+            "CVE-2025-12345 was discussed with T1059 and 203.0.113.9. "
+            "The report references https://example.com/advisory and " + "a" * 64,
+            encoding="utf-8",
+        )
+        engine = CTIEngine(self.db, self.root)
+        result = engine.extract("case-1", report, authorized=True)
+        graph = json.loads(Path(result["output"]).read_text(encoding="utf-8"))
+        self.assertIn("cve", {row["type"] for row in graph["entities"]})
+        self.assertIn("attack-pattern", {row["type"] for row in graph["entities"]})
+        stix = engine.to_stix(graph)
+        self.assertEqual(stix["type"], "bundle")
+        self.assertTrue(any(row["type"] == "indicator" for row in stix["objects"]))
+
+        feed = self.root / "feed.json"
+        feed.write_text(json.dumps({"items": [
+            {"title": "Patch CVE-2025-12345", "url": "https://example.com/a"},
+            {"title": "Patch CVE-2025-12345", "url": "https://example.com/a"},
+        ]}), encoding="utf-8")
+        ingested = engine.ingest_feed("case-1", feed, "fixture", authorized=True)
+        self.assertEqual(ingested["added"], 1)
+        self.assertEqual(engine.trends("case-1")["top_cves"][0][0], "CVE-2025-12345")
 
     def test_training_module_validation_and_progress(self):
         module = self.root / "module.json"

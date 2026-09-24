@@ -21,6 +21,7 @@ from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, 
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
 from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
+from .cti import CTIEngine
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -255,7 +256,7 @@ def parser() -> argparse.ArgumentParser:
     cap_brief.add_argument("--authorized", action="store_true")
     cap_service = cap_sub.add_parser("service-call", help="Call a bounded Crawl4AI or Firecrawl worker")
     cap_service.add_argument("--case", required=True)
-    cap_service.add_argument("--source", required=True, choices=["crawl4ai", "firecrawl"])
+    cap_service.add_argument("--source", required=True, choices=["crawl4ai", "firecrawl", "searxng", "scrapegraph-ai"])
     cap_service.add_argument("--action", required=True, choices=["crawl", "search", "scrape", "map", "extract"])
     cap_service.add_argument("--target", required=True)
     cap_service.add_argument("--options-file", type=Path)
@@ -269,6 +270,26 @@ def parser() -> argparse.ArgumentParser:
     cap_training_record.add_argument("--lesson", required=True)
     cap_training_record.add_argument("--score", required=True, type=int)
     cap_sub.add_parser("training-progress", help="Show local training progress")
+
+    cti = sub.add_parser("cti", help="Extract, correlate and exchange cyber threat intelligence")
+    cti_sub = cti.add_subparsers(dest="cti_command", required=True)
+    cti_extract = cti_sub.add_parser("extract", help="Extract IOCs, CVEs and ATT&CK references from a report")
+    cti_extract.add_argument("--case", required=True)
+    cti_extract.add_argument("--file", type=Path, required=True)
+    cti_extract.add_argument("--mapping-file", type=Path)
+    cti_extract.add_argument("--authorized", action="store_true")
+    cti_feed = cti_sub.add_parser("feed-ingest", help="Normalize and CVE-deduplicate an approved JSON/RSS feed")
+    cti_feed.add_argument("--case", required=True)
+    cti_feed.add_argument("--file", type=Path, required=True)
+    cti_feed.add_argument("--source", required=True)
+    cti_feed.add_argument("--authorized", action="store_true")
+    cti_trends = cti_sub.add_parser("trends", help="Summarize source and CVE counts from ingested records")
+    cti_trends.add_argument("--case", required=True)
+    cti_stix = cti_sub.add_parser("export-stix", help="Export an extracted graph as a STIX 2.1 bundle")
+    cti_stix.add_argument("--case", required=True)
+    cti_stix.add_argument("--graph", type=Path, required=True)
+    cti_stix.add_argument("--output", type=Path, required=True)
+    cti_stix.add_argument("--authorized", action="store_true")
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -711,6 +732,24 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(result, indent=2))
             elif args.capability_command == "training-progress":
                 print(json.dumps(TrainingStore(args.workspace).progress(), indent=2))
+        elif args.command == "cti":
+            cti_engine = CTIEngine(engine.db, args.workspace)
+            if args.cti_command == "extract":
+                result = cti_engine.extract(
+                    args.case, args.file, authorized=args.authorized,
+                    mapping_file=args.mapping_file,
+                )
+            elif args.cti_command == "feed-ingest":
+                result = cti_engine.ingest_feed(
+                    args.case, args.file, args.source, authorized=args.authorized,
+                )
+            elif args.cti_command == "trends":
+                result = cti_engine.trends(args.case)
+            elif args.cti_command == "export-stix":
+                result = cti_engine.export_stix(
+                    args.case, args.graph, args.output, authorized=args.authorized,
+                )
+            print(json.dumps(result, indent=2))
         return 0
     except (PolicyError, ValueError, KeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)

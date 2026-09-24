@@ -42,6 +42,27 @@ export FIRECRAWL_API_KEY='set-in-your-secret-manager'
   --action search --target 'authorised public topic' --owned-org --authorized
 ```
 
+## SearXNG and ScrapeGraphAI
+
+Both services must be operator-controlled and bound to loopback. SearXNG
+supports search with bounded filters. ScrapeGraphAI exposes only `/extract`.
+
+```bash
+export SEARXNG_URL=http://127.0.0.1:8080
+./start.sh capabilities service-call --case demo-001 --source searxng \
+  --action search --target 'authorised public topic' --owned-org --authorized
+
+export SCRAPEGRAPH_URL=http://127.0.0.1:8001
+./start.sh capabilities service-call --case demo-001 --source scrapegraph-ai \
+  --action extract --target https://example.com/public-report \
+  --options-file extraction-options.json --owned-org --authorized
+```
+
+SearXNG accepts pages 1-10 and a small set of documented filters.
+ScrapeGraphAI accepts only prompt, schema, model and max-pages. Scripts,
+executable code, cookies, headers, credentials, proxies and reusable browser
+profiles are rejected before the worker is contacted.
+
 ## Research and training
 
 ```bash
@@ -63,5 +84,6 @@ deduplicates supplied observations while keeping inferences in a separate array.
 - Browser-cookie/profile import and CAPTCHA bypass
 - Arbitrary Apify Actor execution
 - Crawl hooks or runtime code execution
+- ScrapeGraphAI generated scripts, credentials or reusable browser sessions
 - Private, loopback, link-local or reserved reconnaissance targets
 - Copying the unlicensed IOP code or vendoring the AGPL Firecrawl backend

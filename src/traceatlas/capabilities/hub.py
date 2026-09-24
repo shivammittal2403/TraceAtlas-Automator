@@ -123,6 +123,8 @@ class CapabilityHub:
             raise PolicyError(f"Unknown capability source: {source}")
         if "subject-consent" in spec.safety and not (subject_consent or owned_org):
             raise PolicyError("This MCP source requires --subject-consent or --owned-org")
+        if "owned-org" in spec.safety and not owned_org:
+            raise PolicyError("This MCP source requires --owned-org")
         self._validate_arguments(arguments)
         raw = self._mcp_client(source, timeout).call_tool(tool, arguments)
         normalized = self._sanitize(raw)
@@ -175,6 +177,14 @@ class CapabilityHub:
             raw = ServiceClient.crawl4ai(target, options, timeout)
         elif source == "firecrawl":
             raw = ServiceClient.firecrawl(action, target, options, timeout)
+        elif source == "searxng":
+            if action != "search":
+                raise PolicyError("SearXNG supports only the bounded search action")
+            raw = ServiceClient.searxng(target, options, timeout)
+        elif source == "scrapegraph-ai":
+            if action != "extract":
+                raise PolicyError("ScrapeGraphAI supports only the bounded extract action")
+            raw = ServiceClient.scrapegraph(target, options, timeout)
         else:
             raise PolicyError("Unsupported acquisition service")
         normalized = self._sanitize(raw)
@@ -247,6 +257,8 @@ class CapabilityHub:
         spec = CAPABILITIES[source]
         if "subject-consent" in spec.safety and not (subject_consent or owned_org):
             raise PolicyError("This source requires --subject-consent or --owned-org")
+        if "owned-org" in spec.safety and not owned_org:
+            raise PolicyError("This source requires --owned-org")
         normalized = self._sanitize(self._load(path))
         output_dir = self.workspace / "capability-imports" / case_id
         output_dir.mkdir(parents=True, exist_ok=True)
