@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import importlib.util
 import json
 import mimetypes
 import re
@@ -31,7 +32,55 @@ class MediaAnalyzer:
 
     @staticmethod
     def capabilities() -> dict[str, bool]:
-        return {name: shutil.which(name) is not None for name in ("exiftool", "ffprobe", "tesseract", "whisper")}
+        result = {name: shutil.which(name) is not None for name in ("exiftool", "ffprobe", "tesseract", "whisper")}
+        result["pillow"] = importlib.util.find_spec("PIL") is not None
+        return result
+
+    @staticmethod
+    def _image_magic(data: bytes) -> str | None:
+        if data.startswith(b"\xff\xd8\xff"):
+            return "jpeg"
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "png"
+        if data.startswith((b"GIF87a", b"GIF89a")):
+            return "gif"
+        if data.startswith((b"II*\x00", b"MM\x00*")):
+            return "tiff"
+        if data.startswith(b"BM"):
+            return "bmp"
+        if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            return "webp"
+        return None
+
+    @staticmethod
+    def _perceptual_hashes(path: Path) -> dict[str, Any]:
+        try:
+            from PIL import Image, ImageOps
+        except ImportError:
+            return {}
+        Image.MAX_IMAGE_PIXELS = 50_000_000
+        with Image.open(path) as probe:
+            probe.verify()
+        with Image.open(path) as opened:
+            image = ImageOps.exif_transpose(opened).convert("L")
+            average = image.resize((8, 8))
+            flatten = getattr(average, "get_flattened_data", None)
+            pixels = list(flatten() if flatten else average.getdata())
+            mean = sum(pixels) / len(pixels)
+            ahash_bits = "".join("1" if value >= mean else "0" for value in pixels)
+            difference = image.resize((9, 8))
+            flatten = getattr(difference, "get_flattened_data", None)
+            dpixels = list(flatten() if flatten else difference.getdata())
+            dhash_bits = "".join(
+                "1" if dpixels[row * 9 + col] > dpixels[row * 9 + col + 1] else "0"
+                for row in range(8) for col in range(8)
+            )
+            return {
+                "average_hash": f"{int(ahash_bits, 2):016x}",
+                "difference_hash": f"{int(dhash_bits, 2):016x}",
+                "width": image.width, "height": image.height,
+                "purpose": "near-duplicate triage only; not proof of common origin",
+            }
 
     @staticmethod
     def _run(command: list[str], timeout: int = 120) -> str:
@@ -75,7 +124,8 @@ class MediaAnalyzer:
         media_class = media_type.split("/", 1)[0]
         if media_class not in {"image", "audio", "video"}:
             raise PolicyError("Only image, audio and video files are supported")
-        sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        media_bytes = path.read_bytes()
+        sha256 = hashlib.sha256(media_bytes).hexdigest()
         scan_id = str(uuid4())
         seed_value = f"media:{sha256[:16]}"
         self.db.start_spider_scan(scan_id, case_id, "FILE", seed_value, "intel:media")
@@ -91,6 +141,16 @@ class MediaAnalyzer:
         }
         location = None
         errors: list[str] = []
+        if media_class == "image":
+            detected_format = self._image_magic(media_bytes[:32])
+            if detected_format is None:
+                raise PolicyError("Image content does not match a supported image signature")
+            metadata["detected_format"] = detected_format
+            if tools.get("pillow", False):
+                try:
+                    metadata["perceptual_hashes"] = self._perceptual_hashes(path)
+                except Exception as exc:
+                    errors.append(f"pillow: {type(exc).__name__}: {exc}")
         if media_class == "image" and tools["exiftool"]:
             try:
                 rows = json.loads(self._run([shutil.which("exiftool") or "exiftool", "-json", "-n", str(path)]))
@@ -185,8 +245,8 @@ class MediaAnalyzer:
         events = self.db.spider_events(scan_id)
         stats = {
             "events": len(events), "media_type": media_type, "sha256": sha256,
-            "capabilities": tools, "coarse_geography": location is not None, "errors": errors,
+            "capabilities": tools, "coarse_geography": location is not None,
+            "perceptual_hashes": "perceptual_hashes" in metadata, "errors": errors,
         }
         self.db.end_spider_scan(scan_id, "partial" if errors else "completed", stats)
         return {"scan_id": scan_id, "status": "partial" if errors else "completed", "stats": stats}
-

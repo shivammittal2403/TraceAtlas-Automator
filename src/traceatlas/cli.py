@@ -22,6 +22,7 @@ from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
 from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
 from .cti import CTIEngine
+from .fusion_board import FusionBoard, SCOPES
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -228,6 +229,12 @@ def parser() -> argparse.ArgumentParser:
     cap_ingest.add_argument("--authorized", action="store_true")
     cap_ingest.add_argument("--subject-consent", action="store_true")
     cap_ingest.add_argument("--owned-org", action="store_true")
+    cap_stage = cap_sub.add_parser("stage-file", help="Safely stage a local file for document/geospatial MCP tools")
+    cap_stage.add_argument("--case", required=True)
+    cap_stage.add_argument("--file", type=Path, required=True)
+    cap_stage.add_argument("--authorized", action="store_true")
+    cap_stage.add_argument("--owned-asset", action="store_true")
+    cap_stage.add_argument("--owned-org", action="store_true")
     cap_mcp_tools = cap_sub.add_parser("mcp-tools", help="List policy-allowed tools from an installed MCP server")
     cap_mcp_tools.add_argument("--source", required=True, choices=sorted(
         key for key, value in CAPABILITIES.items() if value.protocol == "mcp"
@@ -290,6 +297,24 @@ def parser() -> argparse.ArgumentParser:
     cti_stix.add_argument("--graph", type=Path, required=True)
     cti_stix.add_argument("--output", type=Path, required=True)
     cti_stix.add_argument("--authorized", action="store_true")
+
+    fusion = sub.add_parser("fusion", help="Rank multi-source evidence with explicit contradictions and uncertainty")
+    fusion_sub = fusion.add_subparsers(dest="fusion_command", required=True)
+    fusion_rank = fusion_sub.add_parser("rank", help="Build a deterministic evidence candidate board")
+    fusion_rank.add_argument("--case", required=True)
+    fusion_rank.add_argument("--file", type=Path, required=True)
+    fusion_rank.add_argument("--scope", required=True, choices=sorted(SCOPES))
+    fusion_rank.add_argument("--authorized", action="store_true")
+    fusion_rank.add_argument("--subject-consent", action="store_true")
+    fusion_rank.add_argument("--owned-asset", action="store_true")
+    fusion_rank.add_argument("--owned-org", action="store_true")
+    fusion_geo = fusion_sub.add_parser("geojson", help="Export coarse consented/owned location candidates")
+    fusion_geo.add_argument("--case", required=True)
+    fusion_geo.add_argument("--file", type=Path, required=True)
+    fusion_geo.add_argument("--output", type=Path, required=True)
+    fusion_geo.add_argument("--authorized", action="store_true")
+    fusion_geo.add_argument("--subject-consent", action="store_true")
+    fusion_geo.add_argument("--owned-asset", action="store_true")
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -682,6 +707,12 @@ def main(argv: list[str] | None = None) -> int:
                     subject_consent=args.subject_consent, owned_org=args.owned_org,
                 )
                 print(json.dumps(result, indent=2))
+            elif args.capability_command == "stage-file":
+                result = hub.stage_file(
+                    args.case, args.file, authorized=args.authorized,
+                    owned_asset=args.owned_asset, owned_org=args.owned_org,
+                )
+                print(json.dumps(result, indent=2))
             elif args.capability_command == "mcp-tools":
                 result = hub.mcp_tools(
                     args.source, authorized=args.authorized, timeout=args.timeout
@@ -748,6 +779,20 @@ def main(argv: list[str] | None = None) -> int:
             elif args.cti_command == "export-stix":
                 result = cti_engine.export_stix(
                     args.case, args.graph, args.output, authorized=args.authorized,
+                )
+            print(json.dumps(result, indent=2))
+        elif args.command == "fusion":
+            board = FusionBoard(engine.db, args.workspace)
+            if args.fusion_command == "rank":
+                result = board.rank(
+                    args.case, args.file, args.scope, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_asset=args.owned_asset,
+                    owned_org=args.owned_org,
+                )
+            elif args.fusion_command == "geojson":
+                result = board.geojson(
+                    args.case, args.file, args.output, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_asset=args.owned_asset,
                 )
             print(json.dumps(result, indent=2))
         return 0

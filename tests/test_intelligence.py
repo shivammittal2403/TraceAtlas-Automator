@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import tempfile
 import unittest
@@ -143,6 +144,18 @@ class IntelligenceTests(unittest.TestCase):
             MediaAnalyzer(self.db, self.root).analyze(
                 "case-1", image, authorized=True
             )
+
+    def test_media_perceptual_hashes_are_local_similarity_hints(self):
+        if not MediaAnalyzer.capabilities().get("pillow"):
+            self.skipTest("Pillow is optional")
+        image = self.root / "pixel.png"
+        image.write_bytes(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        ))
+        hashes = MediaAnalyzer._perceptual_hashes(image)
+        self.assertEqual(len(hashes["average_hash"]), 16)
+        self.assertEqual(len(hashes["difference_hash"]), 16)
+        self.assertIn("not proof", hashes["purpose"])
 
 
 if __name__ == "__main__":

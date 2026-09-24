@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 0.9 includes a governed compatibility layer for all 31 unique supplied and
+TraceAtlas 1.0 includes a governed compatibility layer for all 40 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -38,6 +38,15 @@ training, export or bundled boundary.
 | SearXNG | Service | Private metasearch, categories and filters | Loopback operator instance only |
 | MCP SearXNG | MCP | Search, suggestions, info and bounded URL read | Read-only prefix allowlist |
 | ScrapeGraphAI | Service | Structured LLM extraction and multi-page graphs | Loopback; generated code blocked |
+| Data Commons | MCP | Public indicators, place statistics and time series | Public data, read-only tools |
+| Citra | MCP | PDF page/bbox proof, tables, compare, OCR and trust | Staged local files; read-only tools |
+| Docling MCP | MCP | Document conversion, OCR, tables, search and RAG | Staged local files; generation blocked |
+| SIDA | Design only | Deepfake detection, localization and explanations | No licence: no code/model copied |
+| Alethia | Design only | Reverse image, hashes, bias and geo reconciliation | No licence: independent concepts only |
+| Geo Sleuth | Export | Terrain/OSM/camera evidence geolocation | Consent/ownership; no live tracking |
+| LocateAnything | Export | Local VLM locations and GeoJSON | Custom non-commercial licence |
+| GeoAI | MCP | Remote sensing segmentation, classification and change | Owned scope; imagery download blocked |
+| GeoCLIP | Adapter | Worldwide visual geolocation and GPS embeddings | External model outputs; coarse retention |
 
 ## Commands
 
@@ -58,7 +67,7 @@ The public Vercel application remains a stateless command planner. Optional
 engines run only on the operator's machine or separately controlled service and
 are never invoked by Vercel.
 
-## Version 0.9 execution status
+## Version 1.0 execution status
 
 - `OpenOSINT` remains fully bundled in its isolated runtime.
 - `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
@@ -80,3 +89,7 @@ are never invoked by Vercel.
 - The native CTI pipeline independently implements IOC/CVE/ATT&CK extraction,
   evidence-labelled co-occurrence graphs, CVE-aware feed deduplication and STIX
   2.1 export. SearXNG and ScrapeGraphAI have bounded loopback service bridges.
+- Data Commons, Citra, Docling and GeoAI use the existing real MCP runtime with
+  narrowly read-only tool prefixes. Local inputs must pass `stage-file` first.
+- The native Fusion Board ranks multi-provider evidence, retains contrary
+  signals and discounts inference/model output. Location exports stay coarse.

@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 0.9.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.0.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -41,7 +41,7 @@ human review where judgment, attribution, privacy or legal authority matters.
   allowlisted TraceAtlas bridge.
 - A RedKross-branded Vercel console creates local command plans without
   executing scans, receiving targets, storing case data or accepting API keys.
-- A unified capability registry covers all 31 reviewed upstream engines with
+- A unified capability registry covers all 40 unique reviewed upstream engines with
   licence-aware adapter, MCP, service, workflow, training and export boundaries.
 - Approved JSON/JSONL results from those engines can be sanitized, preserved in
   the evidence ledger and kept separate from analyst inferences.
@@ -54,13 +54,20 @@ human review where judgment, attribution, privacy or legal authority matters.
   STIX 2.1 without requiring a model or paid service.
 - SearXNG search and ScrapeGraphAI extraction can run through loopback-only
   workers; MCP SearXNG uses the same read-only tool allowlist as other MCPs.
+- A deterministic Fusion Board ranks evidence from independent providers,
+  preserves contradictions, discounts model-generated claims and supports
+  privacy-reduced GeoJSON for consented or organisation-owned investigations.
+- Local image verification now records content signatures plus optional aHash
+  and dHash for near-duplicate triage. Citra, Docling, Data Commons and GeoAI
+  MCP contracts add document proof, public statistics and geospatial analysis.
 
-See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md) and [CTI_ENGINE.md](CTI_ENGINE.md) for every engine, capability,
+See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
+[COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
 licence boundary and execution gate.
 
 ## Unified capability runtime
 
-Version 0.9 turns the reviewed engine catalogue into an operational boundary.
+Version 1.0 turns the reviewed engine catalogue into an operational boundary.
 Optional packages remain separately installed, but TraceAtlas can call their
 approved interfaces and preserve normalized output in the case ledger.
 

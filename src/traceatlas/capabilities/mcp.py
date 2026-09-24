@@ -91,7 +91,7 @@ class MCPClient:
                 self._request(proc, output, 1, "initialize", {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {},
-                    "clientInfo": {"name": "traceatlas", "version": "0.9.0"},
+                    "clientInfo": {"name": "traceatlas", "version": "1.0.0"},
                 })
                 assert proc.stdin is not None
                 proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")

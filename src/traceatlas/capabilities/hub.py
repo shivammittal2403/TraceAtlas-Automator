@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import mimetypes
 import os
 import re
 import shutil
@@ -19,6 +21,12 @@ from .service import ServiceClient
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
+MAX_STAGED_BYTES = 100 * 1024 * 1024
+STAGED_EXTENSIONS = {
+    ".pdf", ".docx", ".pptx", ".xlsx", ".html", ".htm", ".md", ".txt", ".csv",
+    ".json", ".geojson", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp",
+    ".gpkg", ".shp", ".geojson",
+}
 SECRET_KEYS = re.compile(r"(?:password|passwd|secret|token|api[_-]?key|cookie|authorization|credential)", re.I)
 PII_KEYS = re.compile(r"(?:home[_-]?address|government[_-]?id|ssn|national[_-]?id)", re.I)
 
@@ -106,6 +114,65 @@ class CapabilityHub:
             raise PolicyError(f"{source} is not installed; run capabilities doctor")
         return MCPClient(spec, binary, timeout)
 
+    def stage_file(self, case_id: str, path: Path, *, authorized: bool,
+                   owned_asset: bool = False, owned_org: bool = False) -> dict[str, Any]:
+        if not authorized or not (owned_asset or owned_org):
+            raise PolicyError("File staging requires --authorized and --owned-asset or --owned-org")
+        if not self.db.get_case(case_id):
+            raise PolicyError(f"Unknown case: {case_id}")
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_STAGED_BYTES:
+            raise PolicyError("Input must be a regular non-symlink file up to 100 MiB")
+        suffix = path.suffix.lower()
+        if suffix not in STAGED_EXTENSIONS:
+            raise PolicyError("Unsupported staged document/image/geospatial file type")
+        with path.open("rb") as handle:
+            head = handle.read(32)
+        image_magic = (
+            head.startswith((b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a", b"BM"))
+            or (len(head) >= 12 and head[:4] == b"RIFF" and head[8:12] == b"WEBP")
+            or head.startswith((b"II*\x00", b"MM\x00*"))
+        )
+        if suffix == ".pdf" and not head.startswith(b"%PDF-"):
+            raise PolicyError("PDF extension does not match file content")
+        if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"} and not image_magic:
+            raise PolicyError("Image extension does not match file content")
+        if suffix in {".docx", ".pptx", ".xlsx"} and not head.startswith(b"PK"):
+            raise PolicyError("Office extension does not match OOXML content")
+        if suffix in {".html", ".htm", ".md", ".txt", ".csv", ".json", ".geojson"} and b"\x00" in head:
+            raise PolicyError("Text document contains binary content")
+        hasher = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        digest = hasher.hexdigest()
+        stage_dir = self.workspace / "capability-inputs" / case_id
+        stage_dir.mkdir(parents=True, exist_ok=True)
+        staged = stage_dir / f"{digest}{suffix}"
+        if not staged.exists():
+            shutil.copy2(path, staged)
+        record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(staged, "capability:staged-input")
+        return {"status": "staged", "path": str(staged.resolve()), "sha256": record["sha256"],
+                "size": staged.stat().st_size, "media_type": mimetypes.guess_type(staged.name)[0]}
+
+    def _validate_staged_paths(self, case_id: str, value: Any, *, key: str = "") -> None:
+        if isinstance(value, dict):
+            for child_key, child in value.items():
+                self._validate_staged_paths(case_id, child, key=str(child_key))
+        elif isinstance(value, list):
+            for child in value:
+                self._validate_staged_paths(case_id, child, key=key)
+        elif isinstance(value, str):
+            if urlparse(value).scheme in {"http", "https"}:
+                return
+            suffix = Path(value).suffix.lower()
+            path_like_key = any(part in key.lower() for part in ("path", "file", "source", "before", "after"))
+            if not path_like_key and suffix not in STAGED_EXTENSIONS:
+                return
+            candidate = Path(value).expanduser().resolve()
+            stage_root = (self.workspace / "capability-inputs" / case_id).resolve()
+            if not candidate.is_file() or not candidate.is_relative_to(stage_root):
+                raise PolicyError("MCP local files must first be added with capabilities stage-file")
+
     def mcp_tools(self, source: str, *, authorized: bool, timeout: int = 30) -> list[dict[str, Any]]:
         if not authorized:
             raise PolicyError("MCP discovery requires explicit --authorized confirmation")
@@ -126,6 +193,8 @@ class CapabilityHub:
         if "owned-org" in spec.safety and not owned_org:
             raise PolicyError("This MCP source requires --owned-org")
         self._validate_arguments(arguments)
+        if "staged-files-only" in spec.safety:
+            self._validate_staged_paths(case_id, arguments)
         raw = self._mcp_client(source, timeout).call_tool(tool, arguments)
         normalized = self._sanitize(raw)
         output_dir = self.workspace / "capability-imports" / case_id

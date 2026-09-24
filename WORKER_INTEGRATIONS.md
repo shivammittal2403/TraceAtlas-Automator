@@ -13,11 +13,19 @@ Git branches or unpinned container tags.
 ```bash
 ./start.sh capabilities mcp-tools --source osint-mcp-server --authorized
 ./start.sh capabilities mcp-tools --source mcp-maigret --authorized
+./start.sh capabilities mcp-tools --source datacommons-mcp --authorized
+./start.sh capabilities mcp-tools --source citra --authorized
+./start.sh capabilities mcp-tools --source docling-mcp --authorized
+./start.sh capabilities mcp-tools --source geoai --authorized
 ```
 
 `mcp-call` performs initialize/initialized negotiation, invokes one allowlisted
 tool and stores a sanitized JSON result in the case evidence ledger. Responses
 are limited to 4 MiB, inputs to 64 KiB and execution to 120 seconds.
+
+Citra, Docling and GeoAI local inputs must first pass `capabilities stage-file`.
+Their MCP allowlists exclude document generation, cache deletion, satellite
+downloads and arbitrary filesystem access.
 
 ## Crawl4AI
 

@@ -11,6 +11,7 @@ from traceatlas.capabilities import (
 from traceatlas.db import CaseDB
 from traceatlas.policy import PolicyError
 from traceatlas.cti import CTIEngine
+from traceatlas.fusion_board import FusionBoard
 
 
 class CapabilityTests(unittest.TestCase):
@@ -26,7 +27,7 @@ class CapabilityTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_all_analyzed_repositories_are_registered(self):
-        self.assertEqual(len(CAPABILITIES), 31)
+        self.assertEqual(len(CAPABILITIES), 40)
         for name in ("agent-reach", "crawl4ai", "firecrawl-mcp", "mcp-maigret",
                      "osint-mcp-server", "openosint", "browser-use"):
             self.assertIn(name, CAPABILITIES)
@@ -40,7 +41,7 @@ class CapabilityTests(unittest.TestCase):
     def test_doctor_is_secret_safe(self):
         encoded = json.dumps(self.hub.doctor())
         self.assertNotIn("API_KEY=", encoded)
-        self.assertEqual(self.hub.doctor()["upstream_engines"], 31)
+        self.assertEqual(self.hub.doctor()["upstream_engines"], 40)
 
     def test_ingest_requires_authorization_and_consent(self):
         export = self.root / "agent.json"
@@ -134,6 +135,55 @@ class CapabilityTests(unittest.TestCase):
         self.assertTrue(client.tool_allowed("searxng_web_search"))
         self.assertTrue(client.tool_allowed("web_url_read"))
         self.assertFalse(client.tool_allowed("delete_history"))
+        self.assertFalse(CAPABILITIES["sida"].executable)
+        self.assertFalse(CAPABILITIES["alethia"].executable)
+        citra = MCPClient(CAPABILITIES["citra"], "/tmp/citra")
+        self.assertTrue(citra.tool_allowed("read_pdf"))
+        self.assertFalse(citra.tool_allowed("write_pdf"))
+        geoai = MCPClient(CAPABILITIES["geoai"], "/tmp/geoai-mcp-server")
+        self.assertTrue(geoai.tool_allowed("detect_temporal_changes"))
+        self.assertFalse(geoai.tool_allowed("download_satellite_imagery"))
+
+    def test_document_staging_validates_content_and_mcp_path_scope(self):
+        fake = self.root / "not-really.pdf"
+        fake.write_text("not a pdf", encoding="utf-8")
+        with self.assertRaisesRegex(PolicyError, "does not match"):
+            self.hub.stage_file("case-1", fake, authorized=True, owned_asset=True)
+        pdf = self.root / "evidence.pdf"
+        pdf.write_bytes(b"%PDF-1.4\nfixture\n%%EOF")
+        staged = self.hub.stage_file("case-1", pdf, authorized=True, owned_asset=True)
+        self.hub._validate_staged_paths("case-1", {"path": staged["path"]})
+        with self.assertRaisesRegex(PolicyError, "stage-file"):
+            self.hub._validate_staged_paths("case-1", {"path": str(pdf)})
+
+    def test_fusion_board_ranks_diverse_evidence_and_coarsens_location(self):
+        rows = [
+            {"candidate": "Candidate A", "source": "exif", "signal": "embedded GPS",
+             "evidence": "sha-a", "confidence": 95, "supports": True,
+             "classification": "observed", "latitude": 28.613912, "longitude": 77.209013},
+            {"candidate": "Candidate A", "source": "visual-model", "signal": "architecture match",
+             "evidence": "sha-b", "confidence": 60, "supports": True,
+             "classification": "model-output"},
+            {"candidate": "Candidate A", "source": "reverse-search", "signal": "different city",
+             "evidence": "sha-c", "confidence": 70, "supports": False,
+             "classification": "observed"},
+            {"candidate": "Candidate B", "source": "visual-model", "signal": "weak scene match",
+             "evidence": "sha-d", "confidence": 40, "supports": True,
+             "classification": "model-output"},
+        ]
+        ranked = FusionBoard.rank_rows(rows, "location")
+        self.assertEqual(ranked["candidates"][0]["candidate"], "Candidate A")
+        self.assertEqual(ranked["candidates"][0]["coarse_coordinates"], {
+            "latitude_coarse": 28.61, "longitude_coarse": 77.21,
+        })
+        self.assertEqual(len(ranked["candidates"][0]["contradictions"]), 1)
+
+        signals = self.root / "signals.json"
+        signals.write_text(json.dumps({"signals": rows}), encoding="utf-8")
+        with self.assertRaisesRegex(PolicyError, "consent"):
+            FusionBoard(self.db, self.root).rank(
+                "case-1", signals, "location", authorized=True,
+            )
 
     def test_cti_extract_feed_dedup_and_stix(self):
         report = self.root / "report.txt"

@@ -23,6 +23,11 @@ flowchart TD
     Media --> Redact
     Redact --> LocalAI[Optional loopback Ollama]
     LocalAI --> Graph
+    Policy --> MCP[Allowlisted MCP client]
+    MCP --> Stage[Validated staged files]
+    MCP --> Graph
+    Graph --> Fusion[Contradiction-aware Fusion Board]
+    Fusion --> Evidence
     Policy --> Sensitive[Sensitive policy gate]
     Sensitive --> Vendors[Approved metadata APIs]
     Vendors --> Redact[Minimize and hash]
@@ -75,6 +80,12 @@ flowchart TD
   for known API hosts. User input cannot select an arbitrary API endpoint.
 - **Loopback-only AI:** optional Ollama analysis accepts only localhost HTTP
   endpoints, preventing accidental cloud disclosure of case evidence.
+- **Staged-file boundary:** document/geospatial MCPs see only regular,
+  content-validated, case-staged files; symlinks and arbitrary filesystem paths
+  are rejected.
+- **Contradiction-first fusion:** repeated claims from one source are capped;
+  model outputs and inferences are discounted, and contrary evidence survives
+  into the final analyst view.
 
 ## Extension contract
 
