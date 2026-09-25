@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -29,6 +30,26 @@ SAFE_DIRECT_COMMANDS: frozenset[str] = frozenset({
     "email", "username", "shodan", "virustotal", "censys", "github",
     "dns", "abuseipdb", "ip2location", "playbook",
 })
+
+
+def _project_version(pyproject: Path) -> str:
+    """Read the bundled package version on every supported Python version."""
+    if not pyproject.is_file():
+        return "unknown"
+    content = pyproject.read_text(encoding="utf-8")
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # Python 3.10
+        project = re.search(r"(?ms)^\[project\]\s*$\n(.*?)(?=^\[|\Z)", content)
+        version = re.search(
+            r"(?m)^version\s*=\s*['\"]([^'\"]+)['\"]\s*$",
+            project.group(1) if project else "",
+        )
+        return version.group(1) if version else "unknown"
+    try:
+        return str(tomllib.loads(content)["project"]["version"])
+    except (KeyError, ValueError):
+        return "unknown"
 
 
 class OpenOSINTBridge:
@@ -79,14 +100,8 @@ class OpenOSINTBridge:
         return None
 
     def doctor(self) -> dict[str, Any]:
-        version = "unknown"
         pyproject = self.package_root / "pyproject.toml"
-        if pyproject.is_file():
-            try:
-                import tomllib
-                version = str(tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"])
-            except (KeyError, ValueError):
-                pass
+        version = _project_version(pyproject)
         runtime = self.runtime()
         return {
             "bundled": self.package_root.is_dir(),
@@ -199,4 +214,3 @@ class OpenOSINTBridge:
             stats = {"command": command_name, "timed_out": True, "events": 1}
             self.db.end_spider_scan(scan_id, "failed", stats)
             return {"scan_id": scan_id, "status": "failed", "stats": stats}
-

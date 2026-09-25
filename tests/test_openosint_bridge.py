@@ -9,7 +9,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from traceatlas.engine import Engine
-from traceatlas.openosint_bridge import OpenOSINTBridge, SAFE_DIRECT_COMMANDS, UPSTREAM_TOOLS
+from traceatlas.openosint_bridge import (
+    OpenOSINTBridge,
+    SAFE_DIRECT_COMMANDS,
+    UPSTREAM_TOOLS,
+    _project_version,
+)
 from traceatlas.policy import PolicyError
 
 
@@ -37,6 +42,13 @@ class OpenOSINTBridgeTests(unittest.TestCase):
             doctor = self.bridge.doctor()
         self.assertEqual(doctor["upstream_version"], "2.29.0")
         self.assertFalse(doctor["public_web_exposed"])
+
+    def test_version_reader_supports_python_310_without_tomllib(self):
+        with patch.dict(sys.modules, {"tomllib": None}):
+            self.assertEqual(
+                _project_version(ROOT / "packages/openosint/pyproject.toml"),
+                "2.29.0",
+            )
 
     def test_authorization_consent_and_allowlist_are_mandatory(self):
         with self.assertRaisesRegex(PolicyError, "--authorized"):
