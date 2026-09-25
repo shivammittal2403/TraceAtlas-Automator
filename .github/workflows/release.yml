@@ -1,0 +1,33 @@
+name: Release evidence
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -v
+      - run: python -m pip wheel --no-deps . -w dist
+      - run: python scripts/generate_sbom.py
+      - run: sha256sum dist/* artifacts/sbom.cdx.json > artifacts/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: traceatlas-${{ github.ref_name }}
+          path: |
+            dist/*
+            artifacts/*
+          if-no-files-found: error
+          retention-days: 90

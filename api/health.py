@@ -4,6 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from vercel_app_data import VERSION
+from vercel_control import configured
 
 
 class handler(BaseHTTPRequestHandler):
@@ -23,6 +24,8 @@ class handler(BaseHTTPRequestHandler):
             "service": "redkross-traceatlas-fusion",
             "version": VERSION,
             "scan_execution": False,
+            "control_plane": "configured" if configured() else "local_planner_only",
+            "isolated_worker": True,
         })
 
     def do_POST(self) -> None:

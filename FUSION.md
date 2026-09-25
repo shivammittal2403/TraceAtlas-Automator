@@ -38,11 +38,8 @@ command line.
 
 ## Vercel boundary
 
-The deployed RedKross site is intentionally a stateless planner, not a hosted
-reconnaissance service. It serves the feature catalog, validates consent and
-returns argv templates. The target remains in browser memory and is inserted
-into a shell-safe command locally. No target, credential, scan result or case
-database is sent to or stored by the Vercel functions.
-
-This division makes the public interface safe to deploy while keeping network
-collection, credentials and evidence on the authorised operator's machine.
+The planner remains stateless and never receives its target. The optional
+signed-in control plane separately stores only explicitly enrolled,
+organisation-owned domains, public IPs, public URLs and hashes, then queues
+fixed passive jobs for an isolated worker. Vercel executes no reconnaissance
+and receives no provider or worker secrets. Identity investigations stay local.

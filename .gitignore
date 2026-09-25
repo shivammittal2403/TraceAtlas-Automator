@@ -8,3 +8,8 @@ build/
 cases/
 .traceatlas/
 .vercel/
+.env
+.env.*
+!.env.example
+artifacts/
+worker-cases/

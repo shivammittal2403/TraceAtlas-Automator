@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 TARGET_TYPES = ("domain", "ip", "url", "email", "username", "hash")
 ENGINES = ("fusion", "traceatlas", "openosint")
 
@@ -43,9 +43,13 @@ CATALOG: dict[str, Any] = {
     ],
     "deployment_boundary": {
         "executes_scans": False,
-        "stores_targets": False,
         "accepts_api_keys": False,
-        "target_processed_locally": True,
+        "local_planner_stores_targets": False,
+        "local_planner_processes_target_in_browser": True,
+        "control_plane_stores_enrolled_owned_assets": True,
+        "optional_control_plane": True,
+        "worker_executes_allowlisted_jobs": True,
+        "identity_targets_cloud_enabled": False,
     },
 }
 

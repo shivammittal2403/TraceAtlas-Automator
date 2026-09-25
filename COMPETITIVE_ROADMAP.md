@@ -14,7 +14,7 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.0 foundation
+## Current 1.1 foundation
 
 | Capability | Current state |
 |---|---|
@@ -27,9 +27,17 @@ axis; evidence quality and governed automation are first-class differentiators.
 | Documents | Citra and Docling staged-file MCP integration |
 | Public statistics | Data Commons MCP integration |
 | Geospatial | GeoAI MCP, coarse GeoJSON, GeoCLIP/Geo-Sleuth export contracts |
-| Deployment | One-command local setup plus stateless Vercel planner |
+| Deployment | One-command local setup, Vercel control plane, Supabase RLS and isolated worker |
 
 ## Delivery plan
+
+### Delivered production foundation
+
+- tenant/case/asset/job/evidence/entity/edge schema with RLS;
+- same-origin authenticated control API using HttpOnly session cookies;
+- atomic fixed-workflow queue claims, worker leases and stale-job recovery;
+- case-scoped evidence graph workspace;
+- CI, CodeQL, Dependabot, release SBOMs and secret scanning.
 
 ### Phase 1 — analyst graph (next)
 

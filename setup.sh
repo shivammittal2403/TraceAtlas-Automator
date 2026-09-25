@@ -11,7 +11,7 @@ LOCK_DIR="$STATE_DIR/setup.lock"
 LOG_FILE="$STATE_DIR/setup.log"
 MARKER_FILE="$STATE_DIR/ready"
 
-info() { printf '[traceatlas] %s\n' "$*"; }
+info() { printf '[traceatlas] %s\n' "$*" >&2; }
 warn() { printf '[traceatlas] WARNING: %s\n' "$*" >&2; }
 die() { printf '[traceatlas] ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -97,6 +97,15 @@ openosint_healthy() {
     'import openosint, fastapi, mcp, requests' >/dev/null 2>&1
 }
 
+run_optional_install() {
+  local limit="${TRACEATLAS_OPENOSINT_TIMEOUT:-180}"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --signal=TERM --kill-after=10s "${limit}s" "$@"
+  else
+    "$@"
+  fi
+}
+
 RUNTIME_PYTHON=""
 if RUNTIME_PYTHON="$(runtime_python)"; then
   info "Existing isolated runtime is healthy."
@@ -152,6 +161,11 @@ if [[ "${TRACEATLAS_FORCE_SETUP:-0}" != "1" && -f "$MARKER_FILE" ]]; then
       info "TraceAtlas Automator $VERSION and OpenOSINT are already configured and verified."
       exit 0
     fi
+    if [[ "$SAVED_OPENOSINT" != "ready" && "${TRACEATLAS_RETRY_OPENOSINT:-0}" != "1" ]]; then
+      info "TraceAtlas Automator $VERSION core is already configured and verified."
+      warn "Optional OpenOSINT setup previously ended as $SAVED_OPENOSINT; set TRACEATLAS_RETRY_OPENOSINT=1 to retry."
+      exit 0
+    fi
   fi
 fi
 
@@ -192,11 +206,11 @@ else
   if [[ -n "$OPENOSINT_PYTHON" ]] && ! openosint_healthy "$OPENOSINT_PYTHON"; then
     info "Installing the bundled OpenOSINT package and declared compatible dependencies..."
     if command -v uv >/dev/null 2>&1; then
-      UV_PROJECT_ENVIRONMENT="$OPENOSINT_VENV" uv sync --locked --no-dev \
-        --project "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1 || true
+      run_optional_install env UV_PROJECT_ENVIRONMENT="$OPENOSINT_VENV" \
+        uv sync --locked --no-dev --project "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1 || true
     fi
     if openosint_healthy "$OPENOSINT_PYTHON" || \
-       "$OPENOSINT_PYTHON" -m pip install --disable-pip-version-check \
+       run_optional_install "$OPENOSINT_PYTHON" -m pip install --disable-pip-version-check \
          -e "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1; then
       info "OpenOSINT dependencies installed."
     else

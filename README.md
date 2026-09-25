@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.0.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.1.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -39,8 +39,12 @@ human review where judgment, attribution, privacy or legal authority matters.
 - The OpenOSINT 2.29.0 MIT package is preserved under `packages/openosint`, with
   all 20 upstream tools available through its isolated runtime and a governed,
   allowlisted TraceAtlas bridge.
-- A RedKross-branded Vercel console creates local command plans without
-  executing scans, receiving targets, storing case data or accepting API keys.
+- A dual-mode RedKross console: a stateless local command planner plus an
+  optional authenticated control plane for organisations, cases, enrolled
+  organisation-owned assets, jobs and evidence graphs.
+- A Supabase schema with tenant RLS, narrow Data API grants, audit events and
+  atomic job claiming, plus a separately deployed non-root worker for four
+  fixed passive cloud workflows. Vercel never runs scanners or provider keys.
 - A unified capability registry covers all 40 unique reviewed upstream engines with
   licence-aware adapter, MCP, service, workflow, training and export boundaries.
 - Approved JSON/JSONL results from those engines can be sanitized, preserved in
@@ -67,7 +71,7 @@ licence boundary and execution gate.
 
 ## Unified capability runtime
 
-Version 1.0 turns the reviewed engine catalogue into an operational boundary.
+Version 1.1 turns the reviewed engine catalogue into an operational boundary.
 Optional packages remain separately installed, but TraceAtlas can call their
 approved interfaces and preserve normalized output in the case ledger.
 
@@ -222,25 +226,34 @@ and has no mandatory third-party Python dependency.
 ### Vercel deployment
 
 The included `vercel.json`, dependency-free Python functions and static
-RedKross interface deploy as a stateless planner:
+RedKross interface deploy as a local planner and optional authenticated control
+plane:
 
 - Canonical source repository: https://github.com/shivammittal2403/TraceAtlas-Automator
 - Both the RedKross console and original TraceAtlas directory are included in
   this repository under `public/`.
-
-- Live RedKross Fusion console: https://osint-tools-nine.vercel.app/
-- Preserved original TraceAtlas directory: https://osint-tools-nine.vercel.app/legacy
 
 ```bash
 vercel
 vercel --prod
 ```
 
-The public deployment never runs reconnaissance or receives the entered target;
-the browser inserts it into argv templates locally. Clone the repository and
-run `./start.sh` for authorised collection, evidence storage and reports.
-See [DEPLOYMENT.md](DEPLOYMENT.md) for repository ownership and deployment
-mirroring details.
+Planner targets stay in the browser. When Supabase is configured, signed-in
+members may store only enrolled organisation-owned domains, public IPs, public
+URLs and hashes, then queue a fixed passive workflow. Email, username, person
+profiling, leaked credentials, private addresses and arbitrary commands are not
+accepted by the cloud path. Collection runs in the isolated worker, not Vercel.
+
+No production URL is claimed until a dedicated Vercel project is linked to this
+repository and its deployed commit is verified. See [DEPLOYMENT.md](DEPLOYMENT.md)
+and [PRODUCTION_ARCHITECTURE.md](PRODUCTION_ARCHITECTURE.md).
+
+### CI, release and security
+
+Pull requests and `main` run tests, compilation, launcher/JavaScript checks and
+secret scanning on Python 3.10 and 3.12. CodeQL and Dependabot cover source,
+actions and the worker image. Tagged releases build a wheel, CycloneDX SBOM and
+SHA-256 checksums. See [SECURITY.md](SECURITY.md).
 
 ### Manual setup
 

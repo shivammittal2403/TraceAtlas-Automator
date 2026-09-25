@@ -1,35 +1,44 @@
 # Deployment ownership
 
-`shivammittal2403/TraceAtlas-Automator` is the canonical source repository for
-the complete project. It contains the TraceAtlas engine, bundled OpenOSINT
-package, compatibility bridge, tests, setup launchers, RedKross console,
-serverless APIs and the preserved legacy directory.
+`shivammittal2403/TraceAtlas-Automator` is the only source of truth. A Vercel
+project is valid only when its Git repository is this repository and the
+production deployment SHA matches `main`. Do not deploy this tree into existing
+projects that track a different repository.
 
-## Routes
+## Components
 
-| Route | Source | Purpose |
+| Component | Runtime | Responsibility |
 |---|---|---|
-| `/` | `public/index.html` | RedKross Fusion console |
-| `/legacy` | `public/legacy.html` | Original TraceAtlas directory |
-| `/api/catalog` | `api/catalog.py` | Public feature catalog |
-| `/api/health` | `api/health.py` | Deployment health |
-| `/api/plan` | `api/plan.py` | Validated local command plans |
+| Local CLI | Operator machine | Full authorised collection and local evidence |
+| Planner | Browser | Validates targets and fills command templates locally |
+| Control API | Vercel Python | Auth, RLS-scoped CRUD and allowlisted job requests |
+| Database | Dedicated Supabase project | Tenants, cases, owned assets, jobs, graph and audit |
+| Worker | Separate container host | Claims fixed jobs and writes minimised results |
 
-## Vercel
+Vercel uses only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The worker alone
+receives `SUPABASE_SECRET_KEY`. Never put the worker secret in Vercel or browser
+code.
 
-Deploy this repository directly after linking the Vercel project:
+## Required sequence
 
-```bash
-vercel link
-vercel --prod
-```
+1. Create a dedicated Supabase project in the intended organisation.
+2. Apply `supabase/migrations/20260925000100_traceatlas_control_plane.sql`.
+3. Run `supabase/tests/traceatlas_rls.test.sql` on a disposable database.
+4. Create a new Vercel project linked to the canonical GitHub repository.
+5. Set only publishable Supabase variables on Vercel.
+6. Deploy `worker/Dockerfile` on an isolated container host with the worker-only key.
+7. Create the first controlled Auth user, sign in, create an organisation and
+   explicitly enrol owned assets.
+8. Verify health, auth, tenant isolation, enqueue/claim/complete, graph rendering
+   and that production SHA equals `main`.
 
-The currently published Vercel project may use a small deployment mirror while
-its Git integration remains attached to an older repository. That mirror is not
-the source of truth and must not receive independent feature development. Any
-deployment mirror should be generated from this repository's `public/`, `api/`,
-`vercel_app_data.py`, `vercel.json` and `.vercelignore` files.
+## Production gates
 
-The hosted UI is deliberately a stateless planner. Actual authorised
-collection, credentials, case databases, evidence and reports stay on the
-operator's machine and run through `./start.sh`.
+- CI and CodeQL are green for the exact SHA; Vercel reports `READY`.
+- `anon` has no table privileges and authenticated users cannot call worker RPCs.
+- Vercel contains no secret/service-role key.
+- Cross-tenant writes, private/identity targets, arbitrary job kinds and
+  cross-origin mutations fail closed.
+- Backups, restore and rollback are tested.
+
+Until these gates pass, this is deployment-ready code—not a verified production service.

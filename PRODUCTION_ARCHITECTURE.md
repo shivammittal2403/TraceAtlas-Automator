@@ -1,0 +1,28 @@
+# Production architecture
+
+```mermaid
+flowchart TD
+    Browser[Browser planner and workspace] --> Vercel[Vercel control API]
+    Vercel --> Supabase[(Supabase Auth and RLS)]
+    Worker[Isolated passive worker] --> Supabase
+    Worker --> Sources[Allowlisted public sources]
+    Local[Local CLI] --> LocalCase[(Local evidence case)]
+```
+
+## Trust boundaries
+
+- Planner targets are browser-local. Signed-in cloud assets are explicit,
+  organisation-owned records; the browser never receives server credentials.
+- Vercel validates same-origin mutations and delegates object authorization to
+  RLS. It cannot claim jobs or alter evidence.
+- Only the worker has a server secret. It accepts fixed database job records,
+  not arbitrary commands, URLs, packages, prompts or shell fragments.
+- Cloud jobs are limited to passive domain, public-IP, public-URL metadata and
+  file-hash reputation. Identity and private-network targets remain local.
+- Provider content is untrusted data and is normalized, minimized and separated
+  from analyst conclusions before persistence.
+
+Atomic claiming and a 15-minute lease prevent simultaneous ownership. Failed or
+stale jobs are bounded to five attempts. This foundation does not claim mature
+collaboration, secret management or verified production operation until hosted
+integration, monitoring and backup/restore gates are passed.

@@ -110,9 +110,11 @@ bypass and never interpret absence as proof.
 
 ## Production roadmap
 
-1. Add optional RDAP, DNS record-type and media-keyframe adapters.
-2. Add encrypted-at-rest case storage and role-based access control.
-3. Add asynchronous queues with per-source rate limiting.
-4. Add signed report manifests and external timestamping.
-5. Add organization-specific source connectors through configuration.
-6. Add a web dashboard only after the CLI and policy model are stable.
+Version 1.1 adds the authenticated tenant/RLS, fixed queue, isolated worker and
+read-only graph foundation. It deliberately does not turn Vercel into a scanner.
+
+1. Verify RLS on a dedicated hosted project and automate disposable integration tests.
+2. Deploy the worker with per-source egress and rate budgets.
+3. Add encrypted secret references, member administration and approval workflows.
+4. Add signed report manifests, external timestamping and backup restoration tests.
+5. Add graph merge/split history, saved views and collaboration conflict rules.

@@ -15,7 +15,7 @@
       <span class="brand-mark" aria-hidden="true"><span>RK</span></span>
       <span><b>REDKROSS</b><small>RESEARCH FOUNDATION</small></span>
     </a>
-    <div class="status"><i aria-hidden="true"></i> PLANNER ONLINE · NO SCAN EXECUTION</div>
+    <div class="status"><i aria-hidden="true"></i> <span id="platform-status">PLANNER ONLINE · NO SCAN EXECUTION</span></div>
   </header>
 
   <main>
@@ -63,7 +63,7 @@
           <span class="kicker">LOCAL COMMAND PLANNER</span>
           <h2>Plan here.<br>Run on your machine.</h2>
           <p>Your target stays in this browser. The Vercel API receives only target type, engine choice and authorization confirmation.</p>
-          <div class="boundary"><b>PUBLIC DEPLOYMENT BOUNDARY</b><span>No scans · No target storage · No API keys · No database</span></div>
+          <div class="boundary"><b>LOCAL PLANNER BOUNDARY</b><span>No scans · target remains in this browser · no API keys</span></div>
         </div>
         <form id="plan-form" class="planner" novalidate>
           <div class="field-row">
@@ -90,6 +90,34 @@
       </div>
     </section>
 
+    <section id="control-plane" class="shell control-plane" aria-labelledby="control-title">
+      <div class="section-heading">
+        <div><span class="kicker">OPTIONAL / AUTHENTICATED</span><h2 id="control-title">Case control plane.</h2></div>
+        <p>Enrol organisation-owned assets, queue fixed passive workflows and review evidence-backed graph records. Collection runs only in an isolated worker.</p>
+      </div>
+      <div id="control-disabled" class="control-notice" hidden>Cloud control is not configured. The local planner remains fully available.</div>
+      <form id="login-form" class="control-card login-card" hidden>
+        <h3>Analyst sign-in</h3>
+        <label><span>Email</span><input id="login-email" type="email" autocomplete="username" required></label>
+        <label><span>Password</span><input id="login-password" type="password" autocomplete="current-password" minlength="8" required></label>
+        <button class="button primary" type="submit">SIGN IN</button><p id="login-error" class="form-error" role="alert"></p>
+      </form>
+      <div id="workspace" hidden>
+        <div class="workspace-head"><span id="analyst-label">Authenticated analyst</span><button id="logout" class="button ghost" type="button">SIGN OUT</button></div>
+        <p id="workspace-error" class="form-error" role="alert"></p>
+        <div class="control-grid">
+          <form id="organisation-form" class="control-card"><h3>1. Organisation</h3><label><span>Name</span><input id="organisation-name" maxlength="120" required></label><button class="button primary" type="submit">CREATE</button></form>
+          <form id="case-form" class="control-card"><h3>2. Case</h3><label><span>Organisation</span><select id="case-organisation" required></select></label><label><span>Title</span><input id="case-title" maxlength="160" required></label><label><span>Lawful purpose</span><textarea id="case-purpose" maxlength="1000" required></textarea></label><button class="button primary" type="submit">OPEN CASE</button></form>
+          <form id="asset-form" class="control-card"><h3>3. Owned asset</h3><label><span>Organisation</span><select id="asset-organisation" required></select></label><label><span>Label</span><input id="asset-label" maxlength="120" required></label><label><span>Type</span><select id="asset-type"><option value="domain">Domain</option><option value="ip">Public IP</option><option value="url">Public URL</option><option value="hash">File hash</option></select></label><label><span>Value</span><input id="asset-value" maxlength="2048" required></label><label><span>Authority basis</span><select id="asset-basis"><option value="owned_asset">Owned asset</option><option value="written_authorization">Written authorization</option></select></label><label class="check"><input id="asset-authorized" type="checkbox" required><span>I confirm this asset is owned or covered by written authorization.</span></label><button class="button primary" type="submit">ENROL</button></form>
+          <form id="job-form" class="control-card"><h3>4. Passive job</h3><label><span>Case</span><select id="job-case" required></select></label><label><span>Owned asset</span><select id="job-asset" required></select></label><label class="check"><input id="job-authorized" type="checkbox" required><span>I authorize this bounded passive workflow.</span></label><button class="button primary" type="submit">QUEUE JOB</button></form>
+        </div>
+        <div class="workspace-panels">
+          <article class="control-card"><h3>Jobs</h3><div id="job-list"></div></article>
+          <article class="control-card graph-card"><h3>Evidence graph</h3><select id="graph-case"></select><p id="graph-empty" class="empty-state">Select a case.</p><svg id="case-graph" viewBox="0 0 800 420" role="img" aria-label="Case evidence graph"></svg></article>
+        </div>
+      </div>
+    </section>
+
     <section class="shell safeguards">
       <span class="kicker">OPERATING STANDARD</span><h2>Evidence over assumptions.</h2>
       <div class="guard-grid">
@@ -100,6 +128,6 @@
     </section>
   </main>
 
-  <footer class="shell footer"><div class="brand compact"><span class="brand-mark"><span>RK</span></span><span><b>REDKROSS</b></span></div><p>Defensive research infrastructure · v<span id="version">0.6.0</span></p></footer>
+  <footer class="shell footer"><div class="brand compact"><span class="brand-mark"><span>RK</span></span><span><b>REDKROSS</b></span></div><p>Defensive research infrastructure · v<span id="version">1.1.0</span></p></footer>
 </body>
 </html>

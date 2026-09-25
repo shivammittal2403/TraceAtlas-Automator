@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 1.0 includes a governed compatibility layer for all 40 unique supplied and
+TraceAtlas 1.1 includes a governed compatibility layer for all 40 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -63,11 +63,12 @@ passwords, home addresses and government identifiers are never retained.
 Imported observations remain explicitly unverified; the normalized record keeps
 facts separate from an empty inference section for analyst review.
 
-The public Vercel application remains a stateless command planner. Optional
-engines run only on the operator's machine or separately controlled service and
-are never invoked by Vercel.
+The planner path remains stateless and processes targets only in the browser.
+The optional control plane stores explicitly enrolled organisation-owned
+domains, public IPs, public URLs and hashes and requests four fixed passive job
+types. Engines run locally or in an isolated worker, never inside Vercel.
 
-## Version 1.0 execution status
+## Version 1.1 execution status
 
 - `OpenOSINT` remains fully bundled in its isolated runtime.
 - `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
