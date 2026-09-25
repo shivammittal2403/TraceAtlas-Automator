@@ -25,6 +25,8 @@ from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
 from .research_cli import add_research_parser, run_research
 from .search_index import bm25_search
+from .automation import AutomationManager
+from .deployment import DeploymentDoctor
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -72,6 +74,43 @@ def parser() -> argparse.ArgumentParser:
     monitor.add_argument("--target-type", required=True)
     monitor.add_argument("--target", required=True)
     monitor.add_argument("--authorized", action="store_true")
+
+    automation = sub.add_parser("automation", help="Manage durable local schedules and alerts")
+    auto_sub = automation.add_subparsers(dest="automation_command", required=True)
+    auto_add = auto_sub.add_parser("add", help="Create an authority-bound deterministic schedule")
+    auto_add.add_argument("--case", required=True)
+    auto_add.add_argument("--name", required=True)
+    auto_add.add_argument("--method", required=True)
+    auto_add.add_argument("--target-type", required=True, choices=[
+        "url", "domain", "ip", "email", "username", "phone", "crypto", "text"
+    ])
+    auto_add.add_argument("--target", required=True)
+    auto_add.add_argument("--every-minutes", required=True, type=int)
+    auto_add.add_argument("--authority", required=True)
+    auto_add.add_argument("--authorized", action="store_true")
+    auto_list = auto_sub.add_parser("list", help="List persisted schedules")
+    auto_list.add_argument("--case")
+    auto_list.add_argument("--json", action="store_true")
+    auto_due = auto_sub.add_parser("run-due", help="Claim and execute due schedules once")
+    auto_due.add_argument("--limit", type=int, default=10)
+    auto_history = auto_sub.add_parser("history", help="Show schedule execution history")
+    auto_history.add_argument("--schedule")
+    auto_history.add_argument("--limit", type=int, default=100)
+    auto_alerts = auto_sub.add_parser("alerts", help="Show local change/failure alerts")
+    auto_alerts.add_argument("--case")
+    auto_alerts.add_argument("--open-only", action="store_true")
+    auto_alerts.add_argument("--limit", type=int, default=100)
+    auto_ack = auto_sub.add_parser("ack", help="Acknowledge one open alert")
+    auto_ack.add_argument("--alert", required=True)
+    for action in ("enable", "disable"):
+        command = auto_sub.add_parser(action, help=f"{action.title()} one persisted schedule")
+        command.add_argument("--schedule", required=True)
+
+    deployment = sub.add_parser("deployment", help="Check repository and production readiness")
+    deploy_sub = deployment.add_subparsers(dest="deployment_command", required=True)
+    deploy_doctor = deploy_sub.add_parser("doctor", help="Run non-mutating deployment checks")
+    deploy_doctor.add_argument("--production", action="store_true")
+    deploy_doctor.add_argument("--json", action="store_true")
 
     spider = sub.add_parser("spider", help="Event-driven SpiderFoot-style correlation engine")
     spider_sub = spider.add_subparsers(dest="spider_command", required=True)
@@ -490,6 +529,54 @@ def main(argv: list[str] | None = None) -> int:
             key = f"{args.method}:{args.target_type}:{args.target}"
             result["changed"] = engine.db.snapshot(args.case, key, digest, stable_payload)
             print(json.dumps(result, indent=2))
+        elif args.command == "automation":
+            manager = AutomationManager(engine)
+            if args.automation_command == "add":
+                result = manager.add(
+                    args.case, args.name, args.method, args.target_type, args.target,
+                    args.every_minutes, args.authority, authorized=args.authorized,
+                )
+                print(json.dumps(result, indent=2))
+            elif args.automation_command == "list":
+                rows = engine.db.automation_jobs(args.case)
+                if args.json:
+                    print(json.dumps(rows, indent=2))
+                elif not rows:
+                    print("No local schedules configured.")
+                else:
+                    for row in rows:
+                        state = "ENABLED" if row["enabled"] else "DISABLED"
+                        print(f"{row['id']} {state:8} {row['method_key']:24} "
+                              f"next={row['next_run_at']} {row['name']}")
+            elif args.automation_command == "run-due":
+                print(json.dumps(manager.run_due(args.limit), indent=2))
+            elif args.automation_command == "history":
+                if not 1 <= args.limit <= 500:
+                    raise PolicyError("History limit must be between 1 and 500")
+                print(json.dumps(engine.db.automation_runs(args.schedule, args.limit), indent=2))
+            elif args.automation_command == "alerts":
+                if not 1 <= args.limit <= 500:
+                    raise PolicyError("Alert limit must be between 1 and 500")
+                print(json.dumps(engine.db.alerts(args.case, args.open_only, args.limit), indent=2))
+            elif args.automation_command == "ack":
+                if not engine.db.acknowledge_alert(args.alert):
+                    raise PolicyError("Open alert not found")
+                print(json.dumps({"alert": args.alert, "status": "acknowledged"}))
+            elif args.automation_command in {"enable", "disable"}:
+                enabled = args.automation_command == "enable"
+                if not engine.db.set_automation_enabled(args.schedule, enabled):
+                    raise PolicyError("Schedule not found")
+                print(json.dumps({"schedule": args.schedule,
+                                  "status": "enabled" if enabled else "disabled"}))
+        elif args.command == "deployment":
+            result = DeploymentDoctor().run(production=args.production)
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                for row in result["checks"]:
+                    print(f"{row['state'].upper():4} {row['name']:42} {row['detail']}")
+                print("Summary: " + json.dumps(result["summary"], sort_keys=True))
+            return 0 if result["ready"] else 2
         elif args.command == "spider":
             if args.spider_command == "modules":
                 rows = [{
@@ -532,8 +619,8 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(rows, indent=2))
                 else:
                     for row in rows:
-                        state = "BLOCKED" if row["mode"] == "blocked" else "READY" if row["installed"] else "MISSING"
-                        print(f"{row['name']:15} {state:8} {row['mode']:8} {row['description']}")
+                        print(f"{row['name']:15} {row['readiness'].upper():26} "
+                              f"{row['verification'].upper():9} {row['description']}")
             elif args.integration_command == "show":
                 row = next(item for item in runner.inventory() if item["name"] == args.tool)
                 print(json.dumps(row, indent=2))
@@ -543,6 +630,8 @@ def main(argv: list[str] | None = None) -> int:
                     "supported": len(rows),
                     "executable_adapters": sum(row["executable"] for row in rows),
                     "installed": sum(row["installed"] and row["executable"] for row in rows),
+                    "verified": sum(row["verification"] == "verified" for row in rows),
+                    "degraded": [row["name"] for row in rows if row["verification"] in {"degraded", "failed"}],
                     "missing": [row["name"] for row in rows if row["executable"] and not row["installed"]],
                     "blocked": [row["name"] for row in rows if not row["executable"]],
                     "profiles": {name: list(tools) for name, tools in PROFILES.items()},
@@ -552,7 +641,9 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(f"Supported: {summary['supported']}")
                     print(f"Executable adapters: {summary['executable_adapters']}")
-                    print(f"Installed and ready: {summary['installed']}")
+                    print(f"Installed: {summary['installed']}")
+                    print(f"Execution verified: {summary['verified']}")
+                    print("Degraded/failed: " + (", ".join(summary["degraded"]) or "none"))
                     print("Missing: " + (", ".join(summary["missing"]) or "none"))
                     print("Blocked by policy: " + ", ".join(summary["blocked"]))
             elif args.integration_command == "run":

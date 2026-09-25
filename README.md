@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.3.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.4.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -16,11 +16,15 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Finding deduplication, source/provenance, confidence and severity fields.
 - JSON and Markdown reports.
 - Monitoring snapshots with change detection.
+- Durable local schedules with bounded claiming, failure-safe leases, execution
+  history and acknowledgeable change/failure alerts.
 - Explicit authorization gates for medium/high-risk workflows.
 - SpiderFoot-style typed-event engine with bounded recursive pivots.
 - Entity graph persistence, explainable correlations and JSON/GEXF export.
 - 34 governed external-tool adapters, including Recon-ng, Amass and the
   ProjectDiscovery reconnaissance pipeline.
+- Truthful adapter readiness states distinguish registered, installed,
+  execution-verified, degraded, unavailable and policy-blocked tools.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Five controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
@@ -69,6 +73,9 @@ human review where judgment, attribution, privacy or legal authority matters.
   and 959 fully resolvable prior-art triage links. It powers offline BM25/MMR search,
   gap-driven collection plans, explainable entity comparison and temporal
   conflict analysis without adding a runtime dependency.
+- A non-mutating deployment doctor checks required artifacts, version drift,
+  non-root worker configuration, public/secret boundaries and production
+  environment readiness without deploying or modifying resources.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
@@ -77,7 +84,7 @@ documents the corpus audit, algorithms, commands and limitations.
 
 ## Unified capability runtime
 
-Version 1.2 turns the reviewed engine catalogue into an operational boundary.
+The capability runtime turns the reviewed engine catalogue into an operational boundary.
 Optional packages remain separately installed, but TraceAtlas can call their
 approved interfaces and preserve normalized output in the case ledger.
 
@@ -173,7 +180,7 @@ leads that require source review; they are never converted into claims of guilt.
 
 ## Multi-source intelligence hub
 
-Version 0.5 adds a governed intelligence layer for social-media, professional,
+The governed intelligence layer covers social-media, professional,
 business, employee, media, geography, community and threat-intelligence data.
 
 ```bash
@@ -244,6 +251,25 @@ Pass CLI arguments directly through the launcher:
   --purpose "Authorised review of organisation-owned assets"
 ```
 
+### Durable local automation
+
+Schedules store a fixed playbook and validated target, never an arbitrary command.
+Only deterministic `high` or `partial` playbooks are eligible; sensitive workflows
+and file paths are rejected. Run `automation run-due` from cron/systemd or another
+local supervisor. The first run creates a baseline; later evidence changes and
+failures create local alerts.
+
+```bash
+./start.sh automation add --case demo-001 --name "Daily domain baseline" \
+  --method domain-map --target-type domain --target example.com \
+  --every-minutes 1440 --authority "Written approval from the asset owner" --authorized
+./start.sh automation run-due
+./start.sh automation alerts --case demo-001 --open-only
+```
+
+This scheduler is local and pull-based. It does not create a background daemon,
+send data to a third party or claim guaranteed delivery.
+
 Optional third-party binaries and commercial API credentials are reported but
 are not silently installed or invented. Core TraceAtlas operation is offline
 and has no mandatory third-party Python dependency.
@@ -272,6 +298,13 @@ accepted by the cloud path. Collection runs in the isolated worker, not Vercel.
 No production URL is claimed until a dedicated Vercel project is linked to this
 repository and its deployed commit is verified. See [DEPLOYMENT.md](DEPLOYMENT.md)
 and [PRODUCTION_ARCHITECTURE.md](PRODUCTION_ARCHITECTURE.md).
+
+Run static readiness checks before any deployment:
+
+```bash
+./start.sh deployment doctor --json
+./start.sh deployment doctor --production --json
+```
 
 ### CI, release and security
 
@@ -348,7 +381,7 @@ are available solely through separately gated external-tool adapters.
 
 ## External tool integrations
 
-Version 0.4 can orchestrate installed OSINT/recon binaries without using a
+TraceAtlas can orchestrate installed OSINT/recon binaries without using a
 shell. It does not silently download or install third-party software.
 
 ```bash

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class VercelAppTests(unittest.TestCase):
     def test_catalog_matches_integrated_platform(self):
-        self.assertEqual(CATALOG["version"], "1.3.0")
+        self.assertEqual(CATALOG["version"], "1.4.0")
         self.assertEqual(CATALOG["metrics"]["research_papers"], 4096)
         self.assertEqual(CATALOG["metrics"]["playbooks"], 40)
         self.assertEqual(CATALOG["metrics"]["openosint_tools"], 20)

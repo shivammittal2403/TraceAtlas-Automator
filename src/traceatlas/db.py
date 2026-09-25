@@ -10,6 +10,7 @@ from .models import Finding, utc_now
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS cases (
   id TEXT PRIMARY KEY, title TEXT NOT NULL, purpose TEXT NOT NULL,
   created_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open'
@@ -68,6 +69,38 @@ CREATE TABLE IF NOT EXISTS connector_health (
   source TEXT PRIMARY KEY, last_success_at TEXT, last_failure_at TEXT,
   consecutive_failures INTEGER NOT NULL DEFAULT 0, last_error_message TEXT
 );
+CREATE TABLE IF NOT EXISTS integration_health (
+  tool TEXT PRIMARY KEY, last_success_at TEXT, last_failure_at TEXT,
+  consecutive_failures INTEGER NOT NULL DEFAULT 0, last_status TEXT NOT NULL,
+  last_error_type TEXT
+);
+CREATE TABLE IF NOT EXISTS automation_jobs (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, name TEXT NOT NULL,
+  method_key TEXT NOT NULL, target_kind TEXT NOT NULL, target_value TEXT NOT NULL,
+  authority TEXT NOT NULL, interval_minutes INTEGER NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1, next_run_at TEXT NOT NULL,
+  lease_until TEXT, last_run_at TEXT, last_status TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS automation_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
+  started_at TEXT NOT NULL, completed_at TEXT, status TEXT NOT NULL,
+  baseline INTEGER NOT NULL DEFAULT 0, changed INTEGER NOT NULL DEFAULT 0,
+  result_json TEXT, error_type TEXT,
+  FOREIGN KEY(job_id) REFERENCES automation_jobs(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS alerts (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, source TEXT NOT NULL,
+  kind TEXT NOT NULL, severity TEXT NOT NULL, message TEXT NOT NULL,
+  details_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL, acknowledged_at TEXT,
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS automation_due_idx
+  ON automation_jobs(enabled,next_run_at) WHERE enabled=1;
+CREATE INDEX IF NOT EXISTS automation_runs_job_idx ON automation_runs(job_id,started_at);
+CREATE INDEX IF NOT EXISTS alerts_case_status_idx ON alerts(case_id,status,created_at);
 """
 
 
@@ -186,6 +219,187 @@ class CaseDB:
         return [dict(row) for row in self.conn.execute(
             "SELECT * FROM connector_health ORDER BY source"
         ).fetchall()]
+
+    def record_integration_result(self, tool: str, status: str,
+                                  error_type: str | None = None) -> None:
+        now = utc_now()
+        success = status == "completed"
+        if success:
+            self.conn.execute(
+                """INSERT INTO integration_health
+                (tool,last_success_at,consecutive_failures,last_status,last_error_type)
+                VALUES(?,?,0,?,NULL) ON CONFLICT(tool) DO UPDATE SET
+                last_success_at=excluded.last_success_at,consecutive_failures=0,
+                last_status=excluded.last_status,last_error_type=NULL""",
+                (tool, now, status),
+            )
+        else:
+            self.conn.execute(
+                """INSERT INTO integration_health
+                (tool,last_failure_at,consecutive_failures,last_status,last_error_type)
+                VALUES(?,?,1,?,?) ON CONFLICT(tool) DO UPDATE SET
+                last_failure_at=excluded.last_failure_at,
+                consecutive_failures=integration_health.consecutive_failures+1,
+                last_status=excluded.last_status,last_error_type=excluded.last_error_type""",
+                (tool, now, status, (error_type or "ToolExecutionError")[:120]),
+            )
+        self.conn.commit()
+
+    def integration_health(self) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.conn.execute(
+            "SELECT * FROM integration_health ORDER BY tool"
+        ).fetchall()]
+
+    def latest_snapshot_hash(self, case_id: str, key: str) -> str | None:
+        row = self.conn.execute(
+            "SELECT content_hash FROM snapshots WHERE case_id=? AND monitor_key=? "
+            "ORDER BY id DESC LIMIT 1", (case_id, key),
+        ).fetchone()
+        return str(row["content_hash"]) if row else None
+
+    def add_automation_job(self, row: dict[str, Any]) -> None:
+        self.conn.execute(
+            """INSERT INTO automation_jobs
+            (id,case_id,name,method_key,target_kind,target_value,authority,interval_minutes,
+             enabled,next_run_at,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (row["id"], row["case_id"], row["name"], row["method_key"],
+             row["target_kind"], row["target_value"], row["authority"],
+             row["interval_minutes"], 1, row["next_run_at"], row["created_at"],
+             row["created_at"]),
+        )
+        self.conn.commit()
+
+    def automation_jobs(self, case_id: str | None = None) -> list[dict[str, Any]]:
+        if case_id:
+            rows = self.conn.execute(
+                "SELECT * FROM automation_jobs WHERE case_id=? ORDER BY created_at,id", (case_id,),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM automation_jobs ORDER BY created_at,id"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def automation_job(self, job_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("SELECT * FROM automation_jobs WHERE id=?", (job_id,)).fetchone()
+        return dict(row) if row else None
+
+    def set_automation_enabled(self, job_id: str, enabled: bool) -> bool:
+        cur = self.conn.execute(
+            "UPDATE automation_jobs SET enabled=?,lease_until=NULL,updated_at=? WHERE id=?",
+            (int(enabled), utc_now(), job_id),
+        )
+        self.conn.commit()
+        return bool(cur.rowcount)
+
+    def claim_due_automation_jobs(self, now: str, lease_until: str,
+                                  limit: int) -> list[dict[str, Any]]:
+        claimed: list[dict[str, Any]] = []
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            rows = self.conn.execute(
+                """SELECT * FROM automation_jobs
+                WHERE enabled=1 AND next_run_at<=? AND (lease_until IS NULL OR lease_until<?)
+                ORDER BY next_run_at,id LIMIT ?""", (now, now, limit),
+            ).fetchall()
+            for row in rows:
+                cur = self.conn.execute(
+                    """UPDATE automation_jobs SET lease_until=?,updated_at=?
+                    WHERE id=? AND enabled=1 AND (lease_until IS NULL OR lease_until<?)""",
+                    (lease_until, now, row["id"], now),
+                )
+                if cur.rowcount:
+                    claimed.append(dict(row))
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        return claimed
+
+    def start_automation_run(self, job_id: str) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO automation_runs(job_id,started_at,status) VALUES(?,?,?)",
+            (job_id, utc_now(), "running"),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def finish_automation_run(self, run_id: int, job_id: str, status: str, *,
+                              baseline: bool, changed: bool, result: Any,
+                              error_type: str | None, next_run_at: str) -> None:
+        now = utc_now()
+        self.conn.execute(
+            """UPDATE automation_runs SET completed_at=?,status=?,baseline=?,changed=?,
+            result_json=?,error_type=? WHERE id=?""",
+            (now, status, int(baseline), int(changed),
+             json.dumps(result, sort_keys=True, default=str) if result is not None else None,
+             error_type, run_id),
+        )
+        self.conn.execute(
+            """UPDATE automation_jobs SET lease_until=NULL,last_run_at=?,last_status=?,
+            next_run_at=?,updated_at=? WHERE id=?""",
+            (now, status, next_run_at, now, job_id),
+        )
+        self.conn.commit()
+
+    def automation_runs(self, job_id: str | None = None,
+                        limit: int = 100) -> list[dict[str, Any]]:
+        if job_id:
+            rows = self.conn.execute(
+                "SELECT * FROM automation_runs WHERE job_id=? ORDER BY id DESC LIMIT ?",
+                (job_id, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM automation_runs ORDER BY id DESC LIMIT ?", (limit,),
+            ).fetchall()
+        output = []
+        for row in rows:
+            item = dict(row)
+            raw = item.pop("result_json")
+            item["result"] = json.loads(raw) if raw else None
+            output.append(item)
+        return output
+
+    def add_alert(self, row: dict[str, Any]) -> None:
+        self.conn.execute(
+            """INSERT INTO alerts
+            (id,case_id,source,kind,severity,message,details_json,status,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (row["id"], row["case_id"], row["source"], row["kind"], row["severity"],
+             row["message"], json.dumps(row.get("details", {}), sort_keys=True, default=str),
+             "open", row["created_at"]),
+        )
+        self.conn.commit()
+
+    def alerts(self, case_id: str | None = None, open_only: bool = False,
+               limit: int = 100) -> list[dict[str, Any]]:
+        clauses, values = [], []
+        if case_id:
+            clauses.append("case_id=?")
+            values.append(case_id)
+        if open_only:
+            clauses.append("status='open'")
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = self.conn.execute(
+            f"SELECT * FROM alerts{where} ORDER BY created_at DESC LIMIT ?",  # nosec: fixed clauses
+            (*values, limit),
+        ).fetchall()
+        output = []
+        for row in rows:
+            item = dict(row)
+            item["details"] = json.loads(item.pop("details_json"))
+            output.append(item)
+        return output
+
+    def acknowledge_alert(self, alert_id: str) -> bool:
+        cur = self.conn.execute(
+            """UPDATE alerts SET status='acknowledged',acknowledged_at=?
+            WHERE id=? AND status='open'""", (utc_now(), alert_id),
+        )
+        self.conn.commit()
+        return bool(cur.rowcount)
 
     def runs(self, case_id: str) -> list[dict[str, Any]]:
         return [dict(r) for r in self.conn.execute(

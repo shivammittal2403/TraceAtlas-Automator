@@ -40,13 +40,30 @@ class IntegrationRunner:
         return None
 
     def inventory(self) -> list[dict[str, Any]]:
+        health = {row["tool"]: row for row in self.db.integration_health()}
         rows = []
         for spec in TOOLS.values():
             binary = self.resolve_binary(spec)
+            history = health.get(spec.name)
+            if spec.mode == "blocked":
+                readiness = "blocked"
+            elif binary is None:
+                readiness = "unavailable"
+            elif spec.required_options:
+                readiness = "ready-with-runtime-options"
+            else:
+                readiness = "ready"
+            verification = "untested"
+            if history:
+                verification = {
+                    "completed": "verified", "partial": "degraded", "failed": "failed",
+                }.get(str(history["last_status"]), "unknown")
             rows.append({
                 **spec.to_dict(), "installed": binary is not None,
                 "binary_path": binary, "executable": spec.mode != "blocked",
                 "env_configured": {key: bool(os.environ.get(key)) for key in spec.optional_env},
+                "readiness": readiness, "verification": verification,
+                "last_execution": history,
             })
         return rows
 
@@ -178,9 +195,14 @@ class IntegrationRunner:
                     "command": [Path(command[0]).name, *command[1:]],
                 }
                 self.db.end_spider_scan(scan_id, status, stats)
+                self.db.record_integration_result(
+                    tool_name, status, "TimeoutExpired" if timed_out else
+                    ("NonZeroExit" if exit_code else None),
+                )
                 return {"scan_id": scan_id, "status": status, "stats": stats}
-        except Exception:
+        except Exception as exc:
             self.db.end_spider_scan(scan_id, "failed", {"tool": tool_name, "events": 1})
+            self.db.record_integration_result(tool_name, "failed", type(exc).__name__)
             raise
 
     def run_profile(self, case_id: str, profile: str, target_type: str, target: str, *,

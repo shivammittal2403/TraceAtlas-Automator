@@ -21,6 +21,11 @@ code.
 
 ## Required sequence
 
+Before step 1, run `./start.sh deployment doctor --json`. After environment
+variables are configured, run `./start.sh deployment doctor --production --json`.
+The doctor is static and non-mutating; a passing result does not replace hosted
+tenant-isolation, queue, backup or restore tests.
+
 1. Create a dedicated Supabase project in the intended organisation.
 2. Apply `supabase/migrations/20260925000100_traceatlas_control_plane.sql`, then
    `supabase/migrations/20260925000200_traceatlas_fk_indexes.sql`.

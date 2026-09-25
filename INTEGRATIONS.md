@@ -19,6 +19,19 @@ machine-readable output format and normalized event type. The runner:
 Third-party tools are not bundled, auto-installed or silently updated. API keys
 remain in their native tool configuration or environment.
 
+## Readiness truth model
+
+`integrations list` and `integrations doctor` deliberately separate four facts:
+
+- **registered**: an adapter contract exists in source;
+- **installed**: a compatible executable is currently resolvable on `PATH`;
+- **execution-verified**: this workspace recorded a successful managed run;
+- **blocked**: policy intentionally prevents execution.
+
+Installed tools may still report `untested`, and a non-zero or timed-out run is
+shown as `degraded` or `failed`. Execution history stores only status, timestamps
+and error type; provider responses and secrets are excluded.
+
 Version 0.5 also includes a separate governed intelligence hub with six native
 fixed-host API connectors and ten approved-export source adapters. These are
 implemented in Python rather than subprocess adapters, so they are not included
