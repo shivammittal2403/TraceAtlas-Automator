@@ -36,6 +36,20 @@ server, proxy controls, remote binding or anti-bot scraping. Provider secrets
 belong in documented environment variables and are rejected on the bridge
 command line.
 
+## Automatic case ranking
+
+Fusion no longer requires hand-authored signal JSON for the common path. Stored case
+events can be converted to scope-specific signals and ranked directly:
+
+```bash
+traceatlas fusion auto-rank --case rk-001 --scope infrastructure \
+  --authorized --owned-org
+```
+
+Identity, location, organisation and infrastructure scopes retain their existing
+consent/ownership gates. Manual `fusion rank --file ...` remains available for
+approved observations collected outside TraceAtlas.
+
 ## Vercel boundary
 
 The planner remains stateless and never receives its target. The optional

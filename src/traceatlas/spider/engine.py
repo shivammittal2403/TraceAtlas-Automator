@@ -57,9 +57,10 @@ class SpiderEngine:
                 except Exception as exc:
                     errors.append(f"{module.name}: {type(exc).__name__}: {exc}")
         events = self.db.spider_events(scan_id)
-        rules = correlate(events)
+        edges = self.db.spider_edges(scan_id)
+        rules = correlate(events, edges)
         stats = {
-            "events": len(events), "edges": len(self.db.spider_edges(scan_id)),
+            "events": len(events), "edges": len(edges),
             "event_types": dict(Counter(e["event_type"] for e in events)),
             "module_runs": dict(module_counts), "correlations": len(rules),
             "truncated": bool(queue), "errors": errors,
@@ -81,4 +82,3 @@ class SpiderEngine:
                 raise PolicyError(f"Unknown spider module: {clean}")
             selected.append(MODULES[clean])
         return selected
-

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 TARGET_TYPES = ("domain", "ip", "url", "email", "username", "hash")
 ENGINES = ("fusion", "traceatlas", "openosint")
 

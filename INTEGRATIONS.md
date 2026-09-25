@@ -77,6 +77,21 @@ traceatlas integrations run --case demo-001 --tool recon-ng \
 Module availability and API requirements remain Recon-ng concerns. TraceAtlas
 captures and normalizes its resulting console output.
 
+## theHarvester sources
+
+The default passive source set is `crtsh,certspotter,commoncrawl,duckduckgo,otx,rapiddns,urlscan`.
+Operators may select sources supported by their installed theHarvester version:
+
+```bash
+traceatlas integrations run --case demo-001 --tool theharvester \
+  --target-type domain --target example.com --authorized \
+  --tool-option sources=crtsh,otx,certspotter
+```
+
+TraceAtlas validates the comma-separated source names but does not inject provider
+credentials. Sources such as Shodan, Hunter or SecurityTrails require configuration
+in theHarvester itself and remain subject to their current terms and quotas.
+
 ## Wordlist adapters
 
 Gobuster and FFUF require an explicit wordlist path. TraceAtlas does not choose

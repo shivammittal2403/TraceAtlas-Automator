@@ -19,6 +19,7 @@ from .registry import PROFILES, TOOLS, ToolSpec
 
 
 MAX_CAPTURE_BYTES = 10 * 1024 * 1024
+DEFAULT_THEHARVESTER_SOURCES = "crtsh,certspotter,commoncrawl,duckduckgo,otx,rapiddns,urlscan"
 
 
 class ToolUnavailable(ValueError):
@@ -61,10 +62,17 @@ class IntegrationRunner:
             module = options["module"]
             if ".." in module or not re.fullmatch(r"[A-Za-z0-9_./-]+", module):
                 raise PolicyError("Recon-ng module name contains unsupported characters")
+        if options.get("sources"):
+            sources = options["sources"]
+            if not re.fullmatch(r"[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*", sources):
+                raise PolicyError("theHarvester sources must be comma-separated source names")
+            if len(sources.split(",")) > 50:
+                raise PolicyError("theHarvester source selection is limited to 50 entries")
         output_path = temp_dir / spec.output_file if spec.output_file else None
         values = {
             "binary": binary, "target": target, "case": case_id,
             "output": str(output_path) if output_path else "",
+            "sources": DEFAULT_THEHARVESTER_SOURCES,
             **options,
         }
         command: list[str] = []

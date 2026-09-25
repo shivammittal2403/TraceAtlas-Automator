@@ -207,14 +207,22 @@ class IntelligenceHub:
         self._gate(case_id, spec, authorized=authorized, subject_consent=subject_consent,
                    owned_org=owned_org, owned_asset=owned_asset,
                    public_record_basis=public_record_basis)
-        url, headers = self._live_request(spec, target_type, target)
-        status, raw = self.requester(url, headers, 30)
-        if status != 200:
-            raise ValueError(f"{spec.title} returned HTTP {status}")
-        data = json.loads(raw.decode("utf-8"))
-        records = data if isinstance(data, list) else [data]
-        return self._store(
-            case_id, spec, records, mode="intel:live",
-            target_fingerprint=fingerprint([source, target_type, target]),
-        )
-
+        try:
+            url, headers = self._live_request(spec, target_type, target)
+            status, raw = self.requester(url, headers, 30)
+            if status != 200:
+                raise ValueError(f"{spec.title} returned HTTP {status}")
+            data = json.loads(raw.decode("utf-8"))
+            records = data if isinstance(data, list) else [data]
+            result = self._store(
+                case_id, spec, records, mode="intel:live",
+                target_fingerprint=fingerprint([source, target_type, target]),
+            )
+        except Exception as exc:
+            # Never persist provider URLs, headers or response bodies: they may contain keys.
+            self.db.record_connector_result(
+                source, False, f"{type(exc).__name__}: connector request failed"
+            )
+            raise
+        self.db.record_connector_result(source, True)
+        return result

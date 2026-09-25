@@ -72,7 +72,7 @@ _add(ToolSpec(
     "theharvester", ("theHarvester", "theharvester"),
     "Collect public hosts, emails and related intelligence from selected sources.",
     "osint-framework", ("domain",), "passive",
-    ("{binary}", "-d", "{target}", "-b", "crtsh,duckduckgo"),
+    ("{binary}", "-d", "{target}", "-b", "{sources}"),
     output_format="mixed", emitted_type="OSINT_INDICATOR", timeout=600,
     homepage="https://github.com/laramies/theHarvester",
     install_hint="Use the official theHarvester installation guide and uv environment.",

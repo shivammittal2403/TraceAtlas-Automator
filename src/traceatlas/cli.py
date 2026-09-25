@@ -24,6 +24,7 @@ from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
 from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
 from .research_cli import add_research_parser, run_research
+from .search_index import bm25_search
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -57,6 +58,11 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--case", required=True)
     report.add_argument("--output", type=Path, default=Path("reports"))
 
+    search = sub.add_parser("search", help="Search findings and events in one local case")
+    search.add_argument("query")
+    search.add_argument("--case", required=True)
+    search.add_argument("--limit", type=int, default=20)
+
     verify = sub.add_parser("verify", help="Verify a case evidence ledger")
     verify.add_argument("--case", required=True)
 
@@ -85,7 +91,7 @@ def parser() -> argparse.ArgumentParser:
     spider_events.add_argument("--scan", required=True)
     spider_export = spider_sub.add_parser("export", help="Export a scan graph")
     spider_export.add_argument("--scan", required=True)
-    spider_export.add_argument("--format", choices=["json", "gexf"], default="json")
+    spider_export.add_argument("--format", choices=["json", "gexf", "html"], default="json")
     spider_export.add_argument("--output", type=Path, required=True)
 
     integrations = sub.add_parser("integrations", help="Manage external OSINT/recon tool adapters")
@@ -198,6 +204,8 @@ def parser() -> argparse.ArgumentParser:
 
     intel_doctor = intel_sub.add_parser("doctor", help="Show API and local media-analysis readiness")
     intel_doctor.add_argument("--json", action="store_true")
+    intel_health = intel_sub.add_parser("health", help="Show live connector success/failure history")
+    intel_health.add_argument("--json", action="store_true")
 
     upstream = sub.add_parser("openosint", help="Use the preserved OpenOSINT compatibility package")
     upstream_sub = upstream.add_subparsers(dest="openosint_command", required=True)
@@ -309,6 +317,13 @@ def parser() -> argparse.ArgumentParser:
     fusion_rank.add_argument("--subject-consent", action="store_true")
     fusion_rank.add_argument("--owned-asset", action="store_true")
     fusion_rank.add_argument("--owned-org", action="store_true")
+    fusion_auto = fusion_sub.add_parser("auto-rank", help="Rank signals already stored in a case")
+    fusion_auto.add_argument("--case", required=True)
+    fusion_auto.add_argument("--scope", required=True, choices=sorted(SCOPES))
+    fusion_auto.add_argument("--authorized", action="store_true")
+    fusion_auto.add_argument("--subject-consent", action="store_true")
+    fusion_auto.add_argument("--owned-asset", action="store_true")
+    fusion_auto.add_argument("--owned-org", action="store_true")
     fusion_geo = fusion_sub.add_parser("geojson", help="Export coarse consented/owned location candidates")
     fusion_geo.add_argument("--case", required=True)
     fusion_geo.add_argument("--file", type=Path, required=True)
@@ -407,7 +422,7 @@ def _key_values(items: list[str]) -> dict[str, str]:
             raise PolicyError(f"Tool option must use KEY=VALUE: {item}")
         key, value = item.split("=", 1)
         key = key.strip().lower()
-        if not key or key not in {"module", "wordlist", "resolvers"}:
+        if not key or key not in {"module", "wordlist", "resolvers", "sources"}:
             raise PolicyError(f"Unsupported tool option: {key or '<empty>'}")
         result[key] = value.strip()
     return result
@@ -442,6 +457,18 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "report":
             paths = write_reports(engine.db, args.case, args.output)
             print(json.dumps({"json": str(paths[0]), "markdown": str(paths[1])}, indent=2))
+        elif args.command == "search":
+            if not engine.db.get_case(args.case):
+                raise PolicyError(f"Unknown case: {args.case}")
+            if not 1 <= args.limit <= 100:
+                raise PolicyError("Search result limit must be between 1 and 100")
+            if not args.query.strip() or len(args.query) > 500:
+                raise PolicyError("Search query must contain 1-500 characters")
+            results = bm25_search(
+                engine.db.searchable_documents(args.case), args.query, limit=args.limit
+            )
+            print(json.dumps({"case_id": args.case, "query": args.query,
+                              "results": results}, indent=2, ensure_ascii=False))
         elif args.command == "verify":
             ok, entries = EvidenceStore(args.workspace, engine.db, args.case).verify_ledger()
             print(json.dumps({"valid": ok, "entries": entries}))
@@ -587,6 +614,19 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Live connectors: {result['live_connectors']}")
                     print("Credentials: " + json.dumps(credentials, sort_keys=True))
                     print("Media tools: " + json.dumps(result["media_tools"], sort_keys=True))
+            elif args.intel_command == "health":
+                rows = engine.db.connector_health()
+                for row in rows:
+                    row["warning"] = row["consecutive_failures"] >= 3
+                if args.json:
+                    print(json.dumps(rows, indent=2))
+                elif not rows:
+                    print("No live connector calls recorded in this workspace.")
+                else:
+                    for row in rows:
+                        state = "WARN" if row["warning"] else "OK"
+                        print(f"{row['source']:16} {state:4} failures={row['consecutive_failures']} "
+                              f"last_success={row['last_success_at'] or 'never'}")
             elif args.intel_command in {"ingest", "collect"}:
                 common = {
                     "authorized": args.authorized,
@@ -795,6 +835,12 @@ def main(argv: list[str] | None = None) -> int:
             if args.fusion_command == "rank":
                 result = board.rank(
                     args.case, args.file, args.scope, authorized=args.authorized,
+                    subject_consent=args.subject_consent, owned_asset=args.owned_asset,
+                    owned_org=args.owned_org,
+                )
+            elif args.fusion_command == "auto-rank":
+                result = board.auto_rank(
+                    args.case, args.scope, authorized=args.authorized,
                     subject_consent=args.subject_consent, owned_asset=args.owned_asset,
                     owned_org=args.owned_org,
                 )

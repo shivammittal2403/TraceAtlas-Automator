@@ -17,6 +17,15 @@ MAX_FUSION_BYTES = 10 * 1024 * 1024
 SCOPES = {"location", "source", "claim", "identity", "organisation", "infrastructure"}
 CLASSIFICATIONS = {"observed", "inference", "model-output"}
 SECRET_KEY = re.compile(r"password|passwd|secret|token|api[_-]?key|cookie|authorization", re.I)
+SCOPE_EVENTS = {
+    "identity": {"ACCOUNT_CANDIDATE", "PROFESSIONAL_PROFILE", "SOCIAL_PROFILE", "CODE_PROFILE"},
+    "organisation": {"BUSINESS_RECORD", "PROFESSIONAL_RECORD", "DOMAIN", "HOSTNAME"},
+    "infrastructure": {"DOMAIN", "HOSTNAME", "IP_ADDRESS", "TLS_CERTIFICATE", "CERTIFICATE_NAME",
+                       "HTTP_RESPONSE", "TECHNOLOGY", "INTERNET_EXPOSURE", "OPEN_PORT"},
+    "location": {"LOCATION", "GEOLOCATION", "FILE_METADATA"},
+    "source": set(),
+    "claim": set(),
+}
 
 
 class FusionBoard:
@@ -25,6 +34,60 @@ class FusionBoard:
     def __init__(self, db: CaseDB, workspace: Path):
         self.db = db
         self.workspace = workspace
+
+    @staticmethod
+    def _event_candidate(event: dict[str, Any]) -> str:
+        data = event.get("data")
+        if not isinstance(data, dict):
+            return str(data or "")[:300]
+        observation = data.get("observation")
+        if isinstance(observation, dict):
+            data = observation
+        for key in ("candidate", "domain", "host", "hostname", "ip", "address", "url",
+                    "username", "name", "platform", "asn", "value", "subject"):
+            value = data.get(key)
+            if isinstance(value, (str, int, float)) and str(value).strip():
+                return str(value).strip()[:300]
+        return event.get("event_type", "observation").replace("_", " ").title()
+
+    def from_case(self, case_id: str, scope: str) -> list[dict[str, Any]]:
+        if scope not in SCOPES:
+            raise PolicyError("Unsupported fusion scope")
+        if not self.db.get_case(case_id):
+            raise PolicyError(f"Unknown case: {case_id}")
+        allowed = SCOPE_EVENTS[scope]
+        rows: list[dict[str, Any]] = []
+        for scan in self.db.spider_scans(case_id):
+            for event in self.db.spider_events(scan["id"]):
+                if event["event_type"] == "TEXT" and "redacted-seed" in event.get("tags", []):
+                    continue
+                if allowed and event["event_type"] not in allowed:
+                    continue
+                candidate = self._event_candidate(event)
+                if not candidate:
+                    continue
+                rows.append({
+                    "candidate": candidate,
+                    "source": event["source_module"],
+                    "signal": f"{event['event_type'].replace('_', ' ').title()} observed in scan {scan['id'][:8]}",
+                    "evidence": event["id"],
+                    "confidence": event["confidence"],
+                    "classification": "model-output" if "ollama" in event["source_module"] else "observed",
+                    "supports": True,
+                })
+        return rows
+
+    @staticmethod
+    def _authorize_scope(scope: str, *, authorized: bool, subject_consent: bool,
+                         owned_asset: bool, owned_org: bool) -> None:
+        if not authorized:
+            raise PolicyError("Fusion ranking requires explicit --authorized confirmation")
+        if scope == "identity" and not subject_consent:
+            raise PolicyError("Identity fusion requires explicit --subject-consent")
+        if scope == "location" and not (subject_consent or owned_asset):
+            raise PolicyError("Location fusion requires --subject-consent or --owned-asset")
+        if scope in {"organisation", "infrastructure"} and not owned_org:
+            raise PolicyError("Organisation/infrastructure fusion requires --owned-org")
 
     @staticmethod
     def _load(path: Path) -> list[dict[str, Any]]:
@@ -135,16 +198,12 @@ class FusionBoard:
     def rank(self, case_id: str, path: Path, scope: str, *, authorized: bool,
              subject_consent: bool = False, owned_asset: bool = False,
              owned_org: bool = False) -> dict[str, Any]:
-        if not authorized:
-            raise PolicyError("Fusion ranking requires explicit --authorized confirmation")
+        self._authorize_scope(
+            scope, authorized=authorized, subject_consent=subject_consent,
+            owned_asset=owned_asset, owned_org=owned_org,
+        )
         if not self.db.get_case(case_id):
             raise PolicyError(f"Unknown case: {case_id}")
-        if scope == "identity" and not subject_consent:
-            raise PolicyError("Identity fusion requires explicit --subject-consent")
-        if scope == "location" and not (subject_consent or owned_asset):
-            raise PolicyError("Location fusion requires --subject-consent or --owned-asset")
-        if scope in {"organisation", "infrastructure"} and not owned_org:
-            raise PolicyError("Organisation/infrastructure fusion requires --owned-org")
         result = self.rank_rows(self._load(path), scope)
         result["case_id"] = case_id
         output_dir = self.workspace / "fusion" / case_id
@@ -154,6 +213,28 @@ class FusionBoard:
         record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"fusion:{scope}")
         return {"status": "completed", "candidates": len(result["candidates"]),
                 "output": str(output), "sha256": record["sha256"], "review_required": True}
+
+    def auto_rank(self, case_id: str, scope: str, *, authorized: bool,
+                  subject_consent: bool = False, owned_asset: bool = False,
+                  owned_org: bool = False) -> dict[str, Any]:
+        self._authorize_scope(
+            scope, authorized=authorized, subject_consent=subject_consent,
+            owned_asset=owned_asset, owned_org=owned_org,
+        )
+        rows = self.from_case(case_id, scope)
+        result = self.rank_rows(rows, scope)
+        result["case_id"] = case_id
+        result["input"] = "case-events"
+        output_dir = self.workspace / "fusion" / case_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"automatic-{scope}.ranked.json"
+        output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(
+            output, f"fusion:auto:{scope}"
+        )
+        return {"status": "completed", "signals": len(rows),
+                "candidates": len(result["candidates"]), "output": str(output),
+                "sha256": record["sha256"], "review_required": True}
 
     def geojson(self, case_id: str, ranked_file: Path, output: Path, *, authorized: bool,
                 subject_consent: bool = False, owned_asset: bool = False) -> dict[str, Any]:

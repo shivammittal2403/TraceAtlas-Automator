@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.2.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.3.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -296,6 +296,7 @@ traceatlas run --case demo-001 --method website-legitimacy \
   --target-type url --target https://example.com
 
 traceatlas report --case demo-001 --output reports
+traceatlas search --case demo-001 "shared infrastructure" --limit 20
 ```
 
 ## Spider event engine
@@ -322,7 +323,7 @@ traceatlas spider scan --case demo-001 \
 # Use the scan_id returned above
 traceatlas spider events --scan SCAN_ID
 traceatlas spider export --scan SCAN_ID \
-  --format gexf --output reports/domain-graph.gexf
+  --format html --output reports/domain-graph.html
 ```
 
 Built-in modules:
@@ -483,11 +484,12 @@ traceatlas init CASE_ID --title TITLE --purpose PURPOSE
 traceatlas run --case ID --method ID_OR_SLUG --target-type TYPE --target VALUE [--authorized]
 traceatlas monitor --case ID --method ID_OR_SLUG --target-type TYPE --target VALUE [--authorized]
 traceatlas report --case ID [--output DIRECTORY]
+traceatlas search --case ID "QUERY" [--limit 20]
 traceatlas verify --case ID
 traceatlas spider modules [--json]
 traceatlas spider scan --case ID --seed-type TYPE --seed VALUE [--modules LIST] [--authorized]
 traceatlas spider events --scan SCAN_ID
-traceatlas spider export --scan SCAN_ID --format json|gexf --output FILE
+traceatlas spider export --scan SCAN_ID --format json|gexf|html --output FILE
 traceatlas integrations list [--json] [--installed]
 traceatlas integrations doctor [--json]
 traceatlas integrations show TOOL
@@ -498,10 +500,12 @@ traceatlas integrations catalog-search [QUERY]
 traceatlas integrations pipeline --case ID --domain DOMAIN [--verify --allow-active]
 traceatlas intel sources [--json]
 traceatlas intel doctor [--json]
+traceatlas intel health [--json]
 traceatlas intel ingest --case ID --source SOURCE --file FILE [ATTESTATION]
 traceatlas intel collect --case ID --source SOURCE --target-type TYPE --target VALUE [ATTESTATION]
 traceatlas intel media --case ID --file FILE --authorized --owned-asset [--ocr|--transcribe|--ollama]
 traceatlas intel analyze --case ID --scan SCAN_ID --authorized [--ollama --output FILE]
+traceatlas fusion auto-rank --case ID --scope SCOPE --authorized [ATTESTATION]
 traceatlas openosint doctor [--json]
 traceatlas openosint run --case ID --authorized --owned-asset -- COMMAND TARGET
 traceatlas sensitive darkweb-monitor --case ID --domain DOMAIN --owned-domain ...

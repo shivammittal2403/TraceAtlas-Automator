@@ -47,6 +47,14 @@ Tokens remain in environment variables and are never written to events,
 reports or evidence. The connectors call fixed HTTPS hosts and do not accept a
 user-controlled API base URL.
 
+## Connector health
+
+Every attempted live collection records only its source, success/failure time and
+failure streak. Error history deliberately excludes request URLs, headers, response
+bodies and exception text that could contain credentials. Inspect it with
+`traceatlas intel health`; three consecutive failures are flagged as a warning.
+This is observability, not an availability guarantee or automatic retry system.
+
 ## Export ingestion
 
 JSON, JSONL, CSV and TSV are accepted up to 10 MiB. Processing is capped at

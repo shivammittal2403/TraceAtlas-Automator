@@ -23,7 +23,7 @@ flowchart TD
     Dedup -->|Yes| Queue
     Dedup -->|No| Drop[Drop duplicate]
     Store --> Rules[Correlation rules]
-    Store --> Export[JSON or GEXF]
+    Store --> Export[JSON, GEXF or offline HTML]
 ```
 
 ## Event fields
@@ -68,10 +68,20 @@ Instantiate it in `spider/modules.py::MODULES`. A production module should:
 
 ## Correlation policy
 
-Correlation rules are deterministic and explain their basis. Current rules flag
-multiple resolved addresses, non-public DNS results, redirects and unobserved
-common response-security headers. “Not observed” never means “does not exist,”
-and every rule sets `requires_review: true`.
+Correlation rules are registered as independent deterministic handlers and explain
+their basis. The catalog flags multiple resolved addresses, non-public DNS results,
+redirects, unobserved response-security headers, exact shared-IP observations,
+certificate-metadata reuse, exact technology-marker overlap and redirect convergence.
+The engine records extra provenance edges when two parents emit the same deduplicated
+child. “Not observed” never means “does not exist,” and every rule sets
+`requires_review: true`. No rule asserts identity, ownership or intent.
+
+## Offline graph view
+
+`traceatlas spider export --scan SCAN_ID --format html --output graph.html`
+creates a self-contained, read-only graph. It has event-type and confidence filters,
+node details and PNG export. The case data stays inside the exported local file; no
+CDN or public API endpoint is required.
 
 ## Safety envelope
 
@@ -81,4 +91,3 @@ and every rule sets `requires_review: true`.
 - Network and identity seeds require `--authorized` in the CLI.
 - Account URLs are tagged as unverified candidates.
 - Recursion and total output have hard limits.
-

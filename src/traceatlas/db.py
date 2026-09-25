@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS sensitive_audit (
   started_at TEXT NOT NULL, completed_at TEXT, result_summary_json TEXT,
   FOREIGN KEY(case_id) REFERENCES cases(id)
 );
+CREATE TABLE IF NOT EXISTS connector_health (
+  source TEXT PRIMARY KEY, last_success_at TEXT, last_failure_at TEXT,
+  consecutive_failures INTEGER NOT NULL DEFAULT 0, last_error_message TEXT
+);
 """
 
 
@@ -136,6 +140,53 @@ class CaseDB:
             output.append(item)
         return output
 
+    def searchable_documents(self, case_id: str) -> list[dict[str, str]]:
+        """Flatten case facts for local lexical search without creating another data copy."""
+        documents: list[dict[str, str]] = []
+        for row in self.findings(case_id):
+            documents.append({
+                "id": row["id"], "source_type": "finding",
+                "text": " ".join((row["title"], row["observation"], row["source"],
+                                    json.dumps(row["value"], ensure_ascii=False, default=str))),
+            })
+        rows = self.conn.execute(
+            "SELECT id,event_type,data_json,source_module,tags_json FROM spider_events "
+            "WHERE case_id=? ORDER BY created_at,id", (case_id,),
+        ).fetchall()
+        for row in rows:
+            documents.append({
+                "id": row["id"], "source_type": "spider_event",
+                "text": " ".join((row["event_type"], row["source_module"],
+                                    row["data_json"], row["tags_json"])),
+            })
+        return documents
+
+    def record_connector_result(self, source: str, success: bool,
+                                error: str | None = None) -> None:
+        now = utc_now()
+        if success:
+            self.conn.execute(
+                """INSERT INTO connector_health(source,last_success_at,consecutive_failures,last_error_message)
+                VALUES(?,?,0,NULL) ON CONFLICT(source) DO UPDATE SET
+                last_success_at=excluded.last_success_at,consecutive_failures=0,last_error_message=NULL""",
+                (source, now),
+            )
+        else:
+            self.conn.execute(
+                """INSERT INTO connector_health(source,last_failure_at,consecutive_failures,last_error_message)
+                VALUES(?,?,1,?) ON CONFLICT(source) DO UPDATE SET
+                last_failure_at=excluded.last_failure_at,
+                consecutive_failures=connector_health.consecutive_failures+1,
+                last_error_message=excluded.last_error_message""",
+                (source, now, (error or "connector request failed")[:300]),
+            )
+        self.conn.commit()
+
+    def connector_health(self) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.conn.execute(
+            "SELECT * FROM connector_health ORDER BY source"
+        ).fetchall()]
+
     def runs(self, case_id: str) -> list[dict[str, Any]]:
         return [dict(r) for r in self.conn.execute(
             "SELECT * FROM runs WHERE case_id=? ORDER BY id", (case_id,)
@@ -193,10 +244,18 @@ class CaseDB:
              event.get("parent_id"), event["depth"], event["confidence"], event["risk"],
              json.dumps(event.get("tags", [])), event["fingerprint"], event["created_at"]),
         )
-        if cur.rowcount and event.get("parent_id"):
+        child_id = event["id"]
+        if not cur.rowcount:
+            existing = self.conn.execute(
+                "SELECT id FROM spider_events WHERE scan_id=? AND fingerprint=?",
+                (event["scan_id"], event["fingerprint"]),
+            ).fetchone()
+            if existing:
+                child_id = existing["id"]
+        if event.get("parent_id") and child_id != event["parent_id"]:
             self.conn.execute(
                 "INSERT OR IGNORE INTO spider_edges(scan_id,parent_id,child_id,module) VALUES(?,?,?,?)",
-                (event["scan_id"], event["parent_id"], event["id"], event["source_module"]),
+                (event["scan_id"], event["parent_id"], child_id, event["source_module"]),
             )
         self.conn.commit()
         return bool(cur.rowcount)
