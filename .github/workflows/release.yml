@@ -23,7 +23,7 @@ jobs:
       - run: python -m pip wheel --no-deps . -w dist
       - run: python scripts/generate_sbom.py
       - run: sha256sum dist/* artifacts/sbom.cdx.json > artifacts/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: traceatlas-${{ github.ref_name }}
           path: |
