@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "traceatlas-automator"
-version = "1.1.0"
+version = "1.2.0"
 description = "Evidence-first, AI-assisted and analyst-in-the-loop OSINT workflow automation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,9 +15,13 @@ dependencies = []
 [project.scripts]
 traceatlas = "traceatlas.cli:main"
 traceatlas-worker = "traceatlas.worker_cli:main"
+traceatlas-research = "traceatlas.research_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"traceatlas.research.data" = ["*.json", "*.jsonl.gz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

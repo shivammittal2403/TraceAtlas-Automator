@@ -110,7 +110,7 @@ bypass and never interpret absence as proof.
 
 ## Production roadmap
 
-Version 1.1 adds the authenticated tenant/RLS, fixed queue, isolated worker and
+Version 1.2 adds the authenticated tenant/RLS, fixed queue, isolated worker and
 read-only graph foundation. It deliberately does not turn Vercel into a scanner.
 
 1. Verify RLS on a dedicated hosted project and automate disposable integration tests.

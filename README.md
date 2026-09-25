@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.1.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.2.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -64,14 +64,20 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Local image verification now records content signatures plus optional aHash
   and dHash for near-duplicate triage. Citra, Docling, Data Commons and GeoAI
   MCP contracts add document proof, public statistics and geospatial analysis.
+- An audited, metadata-only research pack selects 4,096 unique pre-2027 papers
+  across all 16 supplied OSINT subtopics, plus 500 patents, 1,000 gap hypotheses
+  and 959 fully resolvable prior-art triage links. It powers offline BM25/MMR search,
+  gap-driven collection plans, explainable entity comparison and temporal
+  conflict analysis without adding a runtime dependency.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
-licence boundary and execution gate.
+licence boundary and execution gate. [RESEARCH_ENGINE.md](RESEARCH_ENGINE.md)
+documents the corpus audit, algorithms, commands and limitations.
 
 ## Unified capability runtime
 
-Version 1.1 turns the reviewed engine catalogue into an operational boundary.
+Version 1.2 turns the reviewed engine catalogue into an operational boundary.
 Optional packages remain separately installed, but TraceAtlas can call their
 approved interfaces and preserve normalized output in the case ledger.
 
@@ -104,6 +110,25 @@ MCP execution never uses a shell, never downloads packages automatically and
 does not accept credentials/cookies inside tool arguments. Arbitrary Apify Actor
 execution, deletion/cancellation, CAPTCHA bypass, private-network targets and
 browser-session import are excluded. See [WORKER_INTEGRATIONS.md](WORKER_INTEGRATIONS.md).
+
+## Research intelligence pack
+
+The research engine uses 4,096 audited bibliographic records instead of making
+unsupported claims about “implementing” thousands of full papers. Metadata is
+integrity-checked, deduplicated and balanced across the supplied topics. Long
+abstracts and personal review assignments are excluded from the repository.
+
+```bash
+./start.sh research status --verify
+./start.sh research search "entity resolution provenance" --limit 10
+./start.sh research gaps "privacy-preserving cross-platform correlation"
+./start.sh research plan --objective "real-time evidence provenance"
+./start.sh research prior-art --paper-id RES-NEW-01645
+```
+
+Search results retain DOI/URL provenance and matched terms. Gap and patent
+matches remain review-only metadata hypotheses, never novelty or legal opinions.
+See [RESEARCH_ENGINE.md](RESEARCH_ENGINE.md).
 
 ## Fusion architecture
 

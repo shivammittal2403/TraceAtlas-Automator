@@ -14,7 +14,7 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.1 foundation
+## Current 1.2 foundation
 
 | Capability | Current state |
 |---|---|
@@ -28,6 +28,7 @@ axis; evidence quality and governed automation are first-class differentiators.
 | Public statistics | Data Commons MCP integration |
 | Geospatial | GeoAI MCP, coarse GeoJSON, GeoCLIP/Geo-Sleuth export contracts |
 | Deployment | One-command local setup, Vercel control plane, Supabase RLS and isolated worker |
+| Research intelligence | 4,096-paper audited metadata pack, BM25/MMR search, gap planning and temporal review |
 
 ## Delivery plan
 

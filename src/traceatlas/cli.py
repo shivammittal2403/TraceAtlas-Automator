@@ -23,6 +23,7 @@ from .openosint_bridge import OpenOSINTBridge
 from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
 from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
+from .research_cli import add_research_parser, run_research
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -316,6 +317,8 @@ def parser() -> argparse.ArgumentParser:
     fusion_geo.add_argument("--subject-consent", action="store_true")
     fusion_geo.add_argument("--owned-asset", action="store_true")
 
+    add_research_parser(sub)
+
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
     )
@@ -420,6 +423,12 @@ def main(argv: list[str] | None = None) -> int:
             for method in selected:
                 print(f"{method.id:02d}  {method.slug:24} {method.automation:9} {method.title}")
         return 0
+    if args.command == "research":
+        try:
+            return run_research(args)
+        except (PolicyError, ValueError, KeyError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     engine = Engine(args.workspace)
     try:
         if args.command == "init":

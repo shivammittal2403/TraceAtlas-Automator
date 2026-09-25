@@ -36,7 +36,9 @@ jobs:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -v
       - name: Validate launchers and JavaScript
-        run: bash -n setup.sh start.sh set.sh && node --check public/app.js
+        run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js
+      - name: Verify research pack integrity
+        run: traceatlas-research status --verify > /dev/null
       - name: Scan committed source for secrets
         run: python scripts/check_secrets.py
 

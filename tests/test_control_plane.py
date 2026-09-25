@@ -48,6 +48,17 @@ class ControlPlaneTests(unittest.TestCase):
         self.assertIn("grant execute on function public.claim_next_investigation_job(text) to service_role", sql)
         self.assertNotIn("grant execute on function public.claim_next_investigation_job(text) to authenticated", sql)
 
+    def test_supabase_foreign_keys_have_covering_indexes(self):
+        sql = (ROOT / "supabase/migrations/20260925000200_traceatlas_fk_indexes.sql").read_text()
+        self.assertEqual(sql.count("create index if not exists"), 21)
+        for marker in (
+            "evidence_items_case_org_fk_idx",
+            "graph_edges_source_org_fk_idx",
+            "investigation_jobs_asset_org_fk_idx",
+            "job_events_job_org_fk_idx",
+        ):
+            self.assertIn(marker, sql)
+
 
 if __name__ == "__main__":
     unittest.main()

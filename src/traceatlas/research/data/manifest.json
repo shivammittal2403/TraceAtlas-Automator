@@ -1,0 +1,73 @@
+{
+  "datasets": {
+    "gaps": {
+      "bytes": 26034,
+      "file": "gaps.jsonl.gz",
+      "records": 1000,
+      "sha256": "f5e88911d1caf8a09d8c630ca49dd8c2ce538ef357fc3cdd25da2580cb50702b",
+      "uncompressed_sha256": "4d8740a1ca711fb54be85c4ec72c31c8fffb4d020b16a1bb21b91a78cf734cbf"
+    },
+    "matches": {
+      "bytes": 14197,
+      "file": "matches.jsonl.gz",
+      "records": 959,
+      "sha256": "4c4b202bb4c98129f26280bd402cdc0707a690b01c9ff13e3156eb3ed80fbe70",
+      "uncompressed_sha256": "39abf2fd5f96ab30ddeacafcb9deacefac498575b277c0184a6f79f97dc7679e"
+    },
+    "papers": {
+      "bytes": 446915,
+      "file": "papers.jsonl.gz",
+      "records": 4096,
+      "sha256": "b7f1fad98999d5b0b44178271c126e51434fa82a9ba418faf8850af0189a557b",
+      "uncompressed_sha256": "24ddb1adc17dc26b53cd73373cb57648cda2e6c8d5829a6963b1aedbbcdcd230"
+    },
+    "patents": {
+      "bytes": 19747,
+      "file": "patents.jsonl.gz",
+      "records": 500,
+      "sha256": "eee631a441cf9761568cde3cf9afc87ae65b9dd6828a87ab966cfb432687fcc7",
+      "uncompressed_sha256": "2011d1b1895911d4b762500b19a7d5d29eaf612b96c5455d997a341ea8d51b79"
+    }
+  },
+  "limitations": [
+    "Bibliographic metadata is not the full text of the papers.",
+    "Quality scores are deterministic triage aids, not scientific merit scores.",
+    "Gap and patent-match rows are metadata hypotheses, not novelty or legal opinions.",
+    "English-indexed sources dominate the supplied workbook."
+  ],
+  "schema": "traceatlas-research-pack-1.0",
+  "selection": {
+    "abstracts_included": false,
+    "deduplication": "normalized title; highest metadata quality retained",
+    "excluded_cross_match_records": 41,
+    "excluded_match_research_ids": [
+      "OSINT-PA-0399",
+      "RES-NEW-00020",
+      "RES-NEW-00026",
+      "RES-NEW-00130",
+      "RES-NEW-00242",
+      "RES-NEW-00381",
+      "RES-NEW-00440",
+      "RES-NEW-00843",
+      "RES-NEW-01458",
+      "RES-NEW-01828",
+      "RES-NEW-01956",
+      "RES-NEW-02007",
+      "RES-NEW-02238",
+      "RES-NEW-03168",
+      "RES-NEW-03558",
+      "RES-NEW-03966",
+      "RES-NEW-04089",
+      "RES-NEW-04334",
+      "RES-NEW-04450"
+    ],
+    "max_year": 2026,
+    "papers": 4096,
+    "source_cross_match_records": 1000,
+    "stratification": "proportional across 16 supplied subtopics; gap and resolvable match evidence forced",
+    "unresolved_gap_paper_ids": [],
+    "unresolved_match_paper_ids": []
+  },
+  "source_description": "OSINT prior-art master metadata snapshot retrieved 2026-09-02",
+  "source_sha256": "784529b18c6c511569043a9bd9b8aa5c183d28ccff8cecfcb7772e0dbfdfc477"
+}

@@ -22,7 +22,8 @@ code.
 ## Required sequence
 
 1. Create a dedicated Supabase project in the intended organisation.
-2. Apply `supabase/migrations/20260925000100_traceatlas_control_plane.sql`.
+2. Apply `supabase/migrations/20260925000100_traceatlas_control_plane.sql`, then
+   `supabase/migrations/20260925000200_traceatlas_fk_indexes.sql`.
 3. Run `supabase/tests/traceatlas_rls.test.sql` on a disposable database.
 4. Create a new Vercel project linked to the canonical GitHub repository.
 5. Set only publishable Supabase variables on Vercel.

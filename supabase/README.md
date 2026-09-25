@@ -1,8 +1,10 @@
 # Supabase control plane
 
-Apply `migrations/20260925000100_traceatlas_control_plane.sql` to a dedicated
-TraceAtlas project, then run the pgTAP file in `tests/` against a disposable
-database before production.
+Apply `migrations/20260925000100_traceatlas_control_plane.sql` and then
+`migrations/20260925000200_traceatlas_fk_indexes.sql` to a dedicated TraceAtlas
+project. Run the pgTAP file in `tests/` against a disposable database before
+production. The second migration adds a covering index for every foreign-key
+sequence reported by the hosted performance advisor.
 
 - Vercel: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TRACEATLAS_ALLOWED_ORIGINS`
 - Worker only: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `TRACEATLAS_WORKER_ID`
