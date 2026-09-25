@@ -59,6 +59,15 @@ class ControlPlaneTests(unittest.TestCase):
         ):
             self.assertIn(marker, sql)
 
+    def test_analyst_workflow_uses_rls_and_rpc_only_decisions(self):
+        sql = (ROOT / "supabase/migrations/20260925000300_analyst_workflow.sql").read_text()
+        self.assertEqual(sql.count(" enable row level security;"), 2)
+        self.assertIn("grant select, insert on public.review_tasks to authenticated", sql)
+        self.assertNotIn("grant update on public.review_tasks to authenticated", sql)
+        self.assertIn("p_decision not in ('accepted', 'rejected')", sql)
+        self.assertIn("private.is_org_member(v_organisation_id", sql)
+        self.assertIn("revoke all on function public.decide_review_task", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

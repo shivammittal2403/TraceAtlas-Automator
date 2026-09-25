@@ -14,7 +14,7 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.2 foundation
+## Current 1.5 foundation
 
 | Capability | Current state |
 |---|---|
@@ -39,13 +39,18 @@ axis; evidence quality and governed automation are first-class differentiators.
 - atomic fixed-workflow queue claims, worker leases and stale-job recovery;
 - case-scoped evidence graph workspace;
 - CI, CodeQL, Dependabot, release SBOMs and secret scanning.
+- provider response contracts, bounded retries and secret-safe health telemetry;
+- persistent human entity-resolution decisions without auto-merge;
+- hosted case notes and review tasks protected by tenant RLS;
+- binary-integrity lockfiles and evidence-backed release-readiness gates.
 
-### Phase 1 — analyst graph (next)
+### Phase 1 — analyst graph (in progress)
 
-- persistent entity/relationship schema with merge/split history;
+- persistent entity/relationship schema; reviewed candidate decisions are delivered,
+  while reversible merge/split history is still pending;
 - transform marketplace manifest with signed packages and permissions;
 - graph filtering, path finding, timelines and confidence overlays;
-- case-level saved views, notes and evidence citations;
+- case notes and evidence citations are delivered; saved graph views remain pending;
 - CSV/STIX/MISP/GraphML interchange.
 
 ### Phase 2 — team operations

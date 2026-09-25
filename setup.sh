@@ -25,10 +25,20 @@ trap on_error ERR
 
 mkdir -p "$STATE_DIR"
 touch "$LOG_FILE"
+setup_process_active() {
+  local pid="$1" command_line=""
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  if [[ -r "/proc/$pid/cmdline" ]]; then
+    command_line="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+  elif command -v ps >/dev/null 2>&1; then
+    command_line="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+  fi
+  [[ "$command_line" == *"setup.sh"* ]]
+}
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   LOCK_PID=""
   [[ -f "$LOCK_DIR/pid" ]] && LOCK_PID="$(sed -n '1p' "$LOCK_DIR/pid")"
-  if [[ "$LOCK_PID" =~ ^[0-9]+$ ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+  if [[ "$LOCK_PID" != "$$" ]] && setup_process_active "$LOCK_PID"; then
     die "Another setup is running with process ID $LOCK_PID."
   fi
   warn "Recovering an interrupted setup lock."
@@ -133,6 +143,12 @@ digest = hashlib.sha256()
 paths = [root / ".gitignore", root / "pyproject.toml", root / "setup.sh", root / "set.sh", root / "start.sh"]
 paths.extend(sorted((root / "src").rglob("*.py")))
 paths.extend(sorted((root / "tests").rglob("*.py")))
+paths.extend(sorted((root / "api").rglob("*.py")))
+paths.extend(sorted((root / "public").glob("*.js")))
+paths.extend(sorted((root / "public").glob("*.html")))
+paths.extend(sorted((root / "public").glob("*.css")))
+paths.extend(sorted((root / "supabase" / "migrations").glob("*.sql")))
+paths.extend(sorted((root / "supabase" / "tests").glob("*.sql")))
 upstream = root / "packages" / "openosint"
 for name in ("pyproject.toml", "uv.lock", "LICENSE"):
     paths.append(upstream / name)
@@ -146,6 +162,28 @@ for path in paths:
 print(digest.hexdigest())
 PY
 )"
+OPENOSINT_FINGERPRINT="$("$SYSTEM_PYTHON" - "$OPENOSINT_ROOT" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+digest = hashlib.sha256()
+for name in ("pyproject.toml", "uv.lock"):
+    path = root / name
+    if path.is_file():
+        digest.update(name.encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+print(digest.hexdigest())
+PY
+)"
+
+SAVED_OPENOSINT_FINGERPRINT=""
+if [[ -f "$MARKER_FILE" ]]; then
+  SAVED_OPENOSINT_FINGERPRINT="$(awk -F= '$1 == "openosint_fingerprint" {print $2}' "$MARKER_FILE")"
+fi
 
 if [[ "${TRACEATLAS_FORCE_SETUP:-0}" != "1" && -f "$MARKER_FILE" ]]; then
   SAVED_FINGERPRINT="$(awk -F= '$1 == "fingerprint" {print $2}' "$MARKER_FILE")"
@@ -203,22 +241,36 @@ else
       warn "Could not create the optional OpenOSINT virtual environment."
     fi
   fi
-  if [[ -n "$OPENOSINT_PYTHON" ]] && ! openosint_healthy "$OPENOSINT_PYTHON"; then
+  OPENOSINT_INSTALL_OK=1
+  OPENOSINT_NEEDS_SYNC=0
+  if [[ "$SAVED_OPENOSINT_FINGERPRINT" != "$OPENOSINT_FINGERPRINT" ]]; then
+    OPENOSINT_NEEDS_SYNC=1
+  fi
+  if [[ -n "$OPENOSINT_PYTHON" ]] && \
+     { ! openosint_healthy "$OPENOSINT_PYTHON" || [[ "$OPENOSINT_NEEDS_SYNC" == "1" ]]; }; then
     info "Installing the bundled OpenOSINT package and declared compatible dependencies..."
+    OPENOSINT_INSTALL_OK=0
     if command -v uv >/dev/null 2>&1; then
-      run_optional_install env UV_PROJECT_ENVIRONMENT="$OPENOSINT_VENV" \
-        uv sync --locked --no-dev --project "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1 || true
+      if run_optional_install env UV_PROJECT_ENVIRONMENT="$OPENOSINT_VENV" \
+         uv sync --locked --no-dev --project "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1; then
+        OPENOSINT_INSTALL_OK=1
+      fi
     fi
-    if openosint_healthy "$OPENOSINT_PYTHON" || \
+    if [[ "$OPENOSINT_INSTALL_OK" != "1" ]] && \
        run_optional_install "$OPENOSINT_PYTHON" -m pip install --disable-pip-version-check \
          -e "$OPENOSINT_ROOT" >>"$LOG_FILE" 2>&1; then
+      OPENOSINT_INSTALL_OK=1
+    fi
+    if [[ "$OPENOSINT_INSTALL_OK" == "1" ]] && openosint_healthy "$OPENOSINT_PYTHON"; then
       info "OpenOSINT dependencies installed."
     else
+      OPENOSINT_INSTALL_OK=0
       warn "OpenOSINT dependency installation failed; TraceAtlas core remains available."
       warn "Review $LOG_FILE and rerun ./set.sh after network/package-manager recovery."
     fi
   fi
-  if [[ -n "$OPENOSINT_PYTHON" ]] && openosint_healthy "$OPENOSINT_PYTHON" && \
+  if [[ "$OPENOSINT_INSTALL_OK" == "1" && -n "$OPENOSINT_PYTHON" ]] && \
+     openosint_healthy "$OPENOSINT_PYTHON" && \
      PYTHONPATH="$OPENOSINT_ROOT" "$OPENOSINT_PYTHON" -m openosint.cli --help \
        >>"$LOG_FILE" 2>&1; then
     OPENOSINT_STATUS="ready"
@@ -239,6 +291,7 @@ info "Checking optional integrations..."
   printf 'python=%s\n' "$RUNTIME_PYTHON"
   printf 'fingerprint=%s\n' "$SOURCE_FINGERPRINT"
   printf 'openosint=%s\n' "$OPENOSINT_STATUS"
+  printf 'openosint_fingerprint=%s\n' "$OPENOSINT_FINGERPRINT"
   printf 'verified_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } >"$MARKER_FILE"
 

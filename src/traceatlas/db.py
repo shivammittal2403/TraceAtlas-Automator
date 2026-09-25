@@ -97,10 +97,30 @@ CREATE TABLE IF NOT EXISTS alerts (
   created_at TEXT NOT NULL, acknowledged_at TEXT,
   FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS case_notes (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, author TEXT NOT NULL,
+  classification TEXT NOT NULL CHECK(classification IN ('fact','analysis','question')),
+  body TEXT NOT NULL, created_at TEXT NOT NULL,
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS entity_resolution_candidates (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, source TEXT NOT NULL,
+  left_json TEXT NOT NULL, right_json TEXT NOT NULL,
+  classification TEXT NOT NULL, score REAL, comparisons_json TEXT NOT NULL,
+  fingerprint TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending'
+    CHECK(status IN ('pending','accepted','rejected')),
+  authority TEXT NOT NULL, created_at TEXT NOT NULL,
+  decided_at TEXT, reviewer TEXT, rationale TEXT,
+  UNIQUE(case_id,fingerprint),
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
 CREATE INDEX IF NOT EXISTS automation_due_idx
   ON automation_jobs(enabled,next_run_at) WHERE enabled=1;
 CREATE INDEX IF NOT EXISTS automation_runs_job_idx ON automation_runs(job_id,started_at);
 CREATE INDEX IF NOT EXISTS alerts_case_status_idx ON alerts(case_id,status,created_at);
+CREATE INDEX IF NOT EXISTS case_notes_case_idx ON case_notes(case_id,created_at);
+CREATE INDEX IF NOT EXISTS resolution_queue_idx
+  ON entity_resolution_candidates(case_id,status,created_at);
 """
 
 
@@ -397,6 +417,75 @@ class CaseDB:
         cur = self.conn.execute(
             """UPDATE alerts SET status='acknowledged',acknowledged_at=?
             WHERE id=? AND status='open'""", (utc_now(), alert_id),
+        )
+        self.conn.commit()
+        return bool(cur.rowcount)
+
+    def add_case_note(self, row: dict[str, Any]) -> None:
+        self.conn.execute(
+            """INSERT INTO case_notes(id,case_id,author,classification,body,created_at)
+            VALUES(?,?,?,?,?,?)""",
+            (row["id"], row["case_id"], row["author"], row["classification"],
+             row["body"], row["created_at"]),
+        )
+        self.conn.commit()
+
+    def case_notes(self, case_id: str) -> list[dict[str, Any]]:
+        return [dict(row) for row in self.conn.execute(
+            "SELECT * FROM case_notes WHERE case_id=? ORDER BY created_at,id", (case_id,),
+        ).fetchall()]
+
+    def add_resolution_candidate(self, row: dict[str, Any]) -> bool:
+        cur = self.conn.execute(
+            """INSERT OR IGNORE INTO entity_resolution_candidates
+            (id,case_id,source,left_json,right_json,classification,score,comparisons_json,
+             fingerprint,status,authority,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,'pending',?,?)""",
+            (row["id"], row["case_id"], row["source"],
+             json.dumps(row["left"], sort_keys=True, ensure_ascii=False),
+             json.dumps(row["right"], sort_keys=True, ensure_ascii=False),
+             row["classification"], row.get("score"),
+             json.dumps(row.get("comparisons", []), sort_keys=True), row["fingerprint"],
+             row["authority"], row["created_at"]),
+        )
+        self.conn.commit()
+        return bool(cur.rowcount)
+
+    @staticmethod
+    def _resolution_row(row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        item["left"] = json.loads(item.pop("left_json"))
+        item["right"] = json.loads(item.pop("right_json"))
+        item["comparisons"] = json.loads(item.pop("comparisons_json"))
+        item.pop("fingerprint", None)
+        return item
+
+    def resolution_candidate(self, candidate_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM entity_resolution_candidates WHERE id=?", (candidate_id,),
+        ).fetchone()
+        return self._resolution_row(row) if row else None
+
+    def resolution_candidates(self, case_id: str, status: str | None = None) -> list[dict[str, Any]]:
+        if status:
+            rows = self.conn.execute(
+                """SELECT * FROM entity_resolution_candidates
+                WHERE case_id=? AND status=? ORDER BY created_at,id""", (case_id, status),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT * FROM entity_resolution_candidates
+                WHERE case_id=? ORDER BY created_at,id""", (case_id,),
+            ).fetchall()
+        return [self._resolution_row(row) for row in rows]
+
+    def decide_resolution_candidate(self, candidate_id: str, decision: str, *,
+                                    reviewer: str, rationale: str) -> bool:
+        cur = self.conn.execute(
+            """UPDATE entity_resolution_candidates
+            SET status=?,decided_at=?,reviewer=?,rationale=?
+            WHERE id=? AND status='pending'""",
+            (decision, utc_now(), reviewer, rationale, candidate_id),
         )
         self.conn.commit()
         return bool(cur.rowcount)

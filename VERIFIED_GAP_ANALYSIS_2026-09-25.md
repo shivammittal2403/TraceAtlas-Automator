@@ -78,7 +78,7 @@ claims, not independently verified results. TraceAtlas's own suite was executed.
 | 14 | True: CTI baseline is regex | Optional context/NER remains a planned enhancement; regex output already requires review |
 | 15 | True: no native ledger collector | Deferred pending provider budgets, chain-specific schemas and privacy/threat-model review |
 | 16 | Partly true: core has no ASN module, but the governed OSINT MCP capability advertises BGP/GeoIP tools | Native RIPEstat connector remains planned |
-| 17 | True: native hub lacks shared retry/rate-budget transport | Deferred as a transport refactor; connector health was implemented first so failures are visible |
+| 17 | True at review time: native hub lacked shared retry/schema transport | Implemented in 1.5: bounded retry for 429/5xx/transport failures, response-size limits, provider-specific schema checks and secret-safe failure codes |
 | 18 | Partly true: no native hub source, while the preserved OpenOSINT bridge exposes allowlisted paste search | No unverified `psbdmp.ws` dependency added |
 | 19 | True: research BM25 did not search cases | Implemented offline case search across findings and spider/intelligence events |
 | 20 | True: no behavioral bot scoring | Deferred; a generic score without comparable platform data risks false accusation |
@@ -122,8 +122,20 @@ case sync, transform/plugin economics, queue resumability and mature rate-budget
 transport. The largest honest gaps are not the number of documented “features”; they
 are reliable maintained connectors, safe multi-user operations and analyst UX.
 
-A credible order of work is: shared HTTP transport/rate budgets; native RIPEstat and
-authoritative company-registry connectors; resumable priority scans; authenticated
+A credible order of work is: native RIPEstat and authoritative company-registry
+connectors; resumable priority scans; authenticated
 local graph/case UI; optional PDF; then a sandboxed connector SDK. Building hundreds
 of URL templates, reversible sensitive-target storage or arbitrary in-process plugins
 would increase risk faster than capability and is not recommended.
+
+## Implemented in TraceAtlas 1.5
+
+1. Bounded, secret-safe provider retry and response-contract validation.
+2. Persistent non-sensitive entity-resolution proposals and human decisions;
+   candidate order is deduplicated and automatic merging remains prohibited.
+3. RLS-protected hosted case notes and review tasks with decisions restricted to
+   an authorization-checking `SECURITY DEFINER` RPC.
+4. Private workers create one analyst review task for every completed evidence job.
+5. Installed external binaries can be SHA-256 locked and verified for drift.
+6. `traceatlas readiness` separates core, production and competitive readiness
+   and exposes unmet operational gates instead of converting catalog counts into claims.

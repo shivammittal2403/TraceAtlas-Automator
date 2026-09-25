@@ -25,6 +25,7 @@ class DeploymentDoctor:
         required_files = (
             "vercel.json", "public/index.html", "api/health.py", "worker/Dockerfile",
             "supabase/migrations/20260925000100_traceatlas_control_plane.sql",
+            "supabase/migrations/20260925000300_analyst_workflow.sql",
             "supabase/tests/traceatlas_rls.test.sql",
         )
         for relative in required_files:

@@ -115,6 +115,8 @@
         <div class="workspace-panels">
           <article class="control-card"><h3>Jobs</h3><div id="job-list"></div></article>
           <article class="control-card graph-card"><h3>Evidence graph</h3><select id="graph-case"></select><p id="graph-empty" class="empty-state">Select a case.</p><svg id="case-graph" viewBox="0 0 800 420" role="img" aria-label="Case evidence graph"></svg></article>
+          <article class="control-card"><h3>Human review queue</h3><select id="review-case"></select><div id="review-list"><p class="empty-state">Select a case.</p></div><form id="review-decision-form" hidden><input id="review-task" type="hidden"><label><span>Decision rationale</span><textarea id="review-rationale" minlength="10" maxlength="2000" required></textarea></label><div class="review-actions"><button id="review-accept" class="button primary" type="submit" value="accepted">ACCEPT</button><button id="review-reject" class="button ghost" type="submit" value="rejected">REJECT</button></div></form></article>
+          <article class="control-card"><h3>Case notes</h3><form id="note-form"><select id="notes-case" required></select><label><span>Classification</span><select id="note-classification"><option value="fact">Observed fact</option><option value="analysis">Analysis</option><option value="question">Question</option></select></label><label><span>Note</span><textarea id="note-body" maxlength="4000" required></textarea></label><button class="button primary" type="submit">ADD NOTE</button></form><div id="note-list"></div></article>
         </div>
       </div>
     </section>
@@ -129,6 +131,6 @@
     </section>
   </main>
 
-  <footer class="shell footer"><div class="brand compact"><span class="brand-mark"><span>RK</span></span><span><b>REDKROSS</b></span></div><p>Defensive research infrastructure · v<span id="version">1.4.0</span></p></footer>
+  <footer class="shell footer"><div class="brand compact"><span class="brand-mark"><span>RK</span></span><span><b>REDKROSS</b></span></div><p>Defensive research infrastructure · v<span id="version">1.5.0</span></p></footer>
 </body>
 </html>

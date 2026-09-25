@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.4.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.5.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -25,6 +25,8 @@ human review where judgment, attribution, privacy or legal authority matters.
   ProjectDiscovery reconnaissance pipeline.
 - Truthful adapter readiness states distinguish registered, installed,
   execution-verified, degraded, unavailable and policy-blocked tools.
+- Installed external binaries can be hash-locked and later verified for missing,
+  changed or untracked tool drift.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Five controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
@@ -33,6 +35,9 @@ human review where judgment, attribution, privacy or legal authority matters.
   sources.
 - Six live official/public API connectors: GitHub, YouTube, Discord invite
   metadata, Shodan, Censys and VirusTotal.
+- Live connectors use bounded retries for rate limits/provider outages, strict
+  response-size limits, source-specific JSON contract checks and secret-safe
+  failure classifications.
 - Authorised API/export ingestion for LinkedIn, Instagram, Facebook, TikTok,
   Snapchat, MalwareBazaar, business registries, employee directories,
   sanctions and court records.
@@ -76,6 +81,13 @@ human review where judgment, attribution, privacy or legal authority matters.
 - A non-mutating deployment doctor checks required artifacts, version drift,
   non-root worker configuration, public/secret boundaries and production
   environment readiness without deploying or modifying resources.
+- A persistent explainable entity-resolution queue records public-label
+  candidates, analyst rationales and accept/reject decisions without automatic
+  identity merging.
+- Local and hosted case notes plus an RLS-protected review-task lifecycle make
+  the analyst-in-the-loop requirement operational rather than documentary.
+- A readiness scorecard refuses to label the system competitive or production
+  ready until runtime, provider, external-tool and hosted-control evidence exists.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
@@ -258,6 +270,28 @@ Only deterministic `high` or `partial` playbooks are eligible; sensitive workflo
 and file paths are rejected. Run `automation run-due` from cron/systemd or another
 local supervisor. The first run creates a baseline; later evidence changes and
 failures create local alerts.
+
+### Human review and release truth
+
+```bash
+# Compare only non-sensitive public labels; this creates a pending candidate.
+./start.sh resolve propose --case demo-001 --left ./left.json --right ./right.json \
+  --source "approved public exports" --authority "Written approval held by owner" --authorized
+
+./start.sh resolve queue --case demo-001
+./start.sh resolve decide --candidate CANDIDATE_ID --decision accepted \
+  --reviewer analyst-1 --rationale "Independent public attributes agree." --authorized
+
+# Detect external binary drift and score evidence-backed maturity.
+./start.sh integrations lock
+./start.sh integrations verify-lock
+./start.sh readiness --production --json
+```
+
+An accepted resolution remains a documented analyst judgement, not automatic
+proof of identity. The readiness command deliberately fails competitive gates
+when tools, providers or the hosted deployment are only registered rather than
+execution-verified. See [REMEDIATION_STATUS.md](REMEDIATION_STATUS.md).
 
 ```bash
 ./start.sh automation add --case demo-001 --name "Daily domain baseline" \

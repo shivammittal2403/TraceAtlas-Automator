@@ -111,6 +111,9 @@ h2 { margin: 13px 0 0; font-size: clamp(2.7rem, 6vw, 5.7rem); line-height: .94; 
 .workspace-panels { display: grid; grid-template-columns: .7fr 1.3fr; gap: 18px; margin-top: 18px; }
 .record { display: grid; grid-template-columns: 1fr auto; gap: 7px 15px; padding: 13px 0; border-bottom: 1px solid var(--line); font: .67rem var(--mono); }
 .record > span:last-child { grid-column: 1 / -1; color: var(--muted); }
+.review-record { width: 100%; text-align: left; color: inherit; background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.review-record:hover, .review-record:focus-visible { background: rgba(201, 36, 47, .06); outline: none; }
+.review-actions { display: flex; gap: 10px; margin-top: 12px; }
 .ready { color: #66e398; }
 .failed { color: #ff8b98; }
 .empty-state { color: var(--muted); font: .7rem/1.6 var(--mono); }

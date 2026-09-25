@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from . import __version__
 from .engine import Engine
@@ -16,7 +17,7 @@ from .report import write_reports
 from .spider import SpiderEngine
 from .spider.export import export_scan
 from .spider.modules import MODULES
-from .integrations import CatalogStore, IntegrationRunner, PROFILES, TOOLS
+from .integrations import CatalogStore, IntegrationLock, IntegrationRunner, PROFILES, TOOLS
 from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
@@ -27,6 +28,10 @@ from .research_cli import add_research_parser, run_research
 from .search_index import bm25_search
 from .automation import AutomationManager
 from .deployment import DeploymentDoctor
+from .resolution import ResolutionService
+from .models import utc_now
+from .intelligence.sanitize import sanitize_text
+from .readiness import ReadinessScorecard
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -112,6 +117,10 @@ def parser() -> argparse.ArgumentParser:
     deploy_doctor.add_argument("--production", action="store_true")
     deploy_doctor.add_argument("--json", action="store_true")
 
+    readiness = sub.add_parser("readiness", help="Score verified core, production and competitive readiness")
+    readiness.add_argument("--production", action="store_true")
+    readiness.add_argument("--json", action="store_true")
+
     spider = sub.add_parser("spider", help="Event-driven SpiderFoot-style correlation engine")
     spider_sub = spider.add_subparsers(dest="spider_command", required=True)
     spider_modules = spider_sub.add_parser("modules", help="List event modules")
@@ -142,6 +151,10 @@ def parser() -> argparse.ArgumentParser:
     int_show.add_argument("tool", choices=sorted(TOOLS))
     int_doctor = int_sub.add_parser("doctor", help="Summarize integration readiness")
     int_doctor.add_argument("--json", action="store_true")
+    int_lock = int_sub.add_parser("lock", help="Hash-lock currently installed external binaries")
+    int_lock.add_argument("--output", type=Path, default=Path(".traceatlas/integration-lock.json"))
+    int_verify_lock = int_sub.add_parser("verify-lock", help="Detect missing, changed or untracked binaries")
+    int_verify_lock.add_argument("--file", type=Path, default=Path(".traceatlas/integration-lock.json"))
     int_run = int_sub.add_parser("run", help="Run one managed external tool")
     int_run.add_argument("--case", required=True)
     int_run.add_argument("--tool", required=True, choices=sorted(TOOLS))
@@ -373,6 +386,43 @@ def parser() -> argparse.ArgumentParser:
 
     add_research_parser(sub)
 
+    resolve = sub.add_parser(
+        "resolve", help="Queue and adjudicate explainable public-entity match candidates"
+    )
+    resolve_sub = resolve.add_subparsers(dest="resolve_command", required=True)
+    resolve_propose = resolve_sub.add_parser(
+        "propose", help="Compare two public records and create a human-review candidate"
+    )
+    resolve_propose.add_argument("--case", required=True)
+    resolve_propose.add_argument("--left", type=Path, required=True)
+    resolve_propose.add_argument("--right", type=Path, required=True)
+    resolve_propose.add_argument("--source", required=True)
+    resolve_propose.add_argument("--authority", required=True)
+    resolve_propose.add_argument("--authorized", action="store_true")
+    resolve_queue = resolve_sub.add_parser("queue", help="List resolution candidates")
+    resolve_queue.add_argument("--case", required=True)
+    resolve_queue.add_argument(
+        "--status", choices=["pending", "accepted", "rejected", "all"], default="pending"
+    )
+    resolve_decide = resolve_sub.add_parser(
+        "decide", help="Record a human decision without automatic identity merging"
+    )
+    resolve_decide.add_argument("--candidate", required=True)
+    resolve_decide.add_argument("--decision", choices=["accepted", "rejected"], required=True)
+    resolve_decide.add_argument("--reviewer", required=True)
+    resolve_decide.add_argument("--rationale", required=True)
+    resolve_decide.add_argument("--authorized", action="store_true")
+
+    casework = sub.add_parser("casework", help="Manage analyst notes and review context")
+    casework_sub = casework.add_subparsers(dest="casework_command", required=True)
+    note_add = casework_sub.add_parser("note-add", help="Add a privacy-reduced case note")
+    note_add.add_argument("--case", required=True)
+    note_add.add_argument("--author", required=True)
+    note_add.add_argument("--classification", choices=["fact", "analysis", "question"], required=True)
+    note_add.add_argument("--body", required=True)
+    note_list = casework_sub.add_parser("notes", help="List case notes")
+    note_list.add_argument("--case", required=True)
+
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
     )
@@ -467,6 +517,16 @@ def _key_values(items: list[str]) -> dict[str, str]:
     return result
 
 
+def _json_object(path: Path) -> dict:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PolicyError(f"Invalid JSON record: {path}") from exc
+    if not isinstance(value, dict):
+        raise PolicyError("Entity record files must contain one JSON object")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     if args.command == "methods":
@@ -508,6 +568,38 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps({"case_id": args.case, "query": args.query,
                               "results": results}, indent=2, ensure_ascii=False))
+        elif args.command == "resolve":
+            resolver = ResolutionService(engine.db)
+            if args.resolve_command == "propose":
+                result = resolver.propose(
+                    args.case, _json_object(args.left), _json_object(args.right),
+                    source=args.source, authority=args.authority, authorized=args.authorized,
+                )
+            elif args.resolve_command == "queue":
+                result = {"case_id": args.case, "status": args.status,
+                          "candidates": resolver.queue(args.case, status=args.status)}
+            else:
+                result = resolver.decide(
+                    args.candidate, args.decision, reviewer=args.reviewer,
+                    rationale=args.rationale, authorized=args.authorized,
+                )
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        elif args.command == "casework":
+            if not engine.db.get_case(args.case):
+                raise PolicyError(f"Unknown case: {args.case}")
+            if args.casework_command == "note-add":
+                author, body = args.author.strip(), sanitize_text(args.body.strip(), 4000)
+                if (not 2 <= len(author) <= 120 or any(ord(char) < 32 for char in author)
+                        or not body):
+                    raise PolicyError("Case note requires a valid author and non-empty body")
+                row = {"id": str(uuid4()), "case_id": args.case, "author": author,
+                       "classification": args.classification, "body": body,
+                       "created_at": utc_now()}
+                engine.db.add_case_note(row)
+                result = row
+            else:
+                result = {"case_id": args.case, "notes": engine.db.case_notes(args.case)}
+            print(json.dumps(result, indent=2, ensure_ascii=False))
         elif args.command == "verify":
             ok, entries = EvidenceStore(args.workspace, engine.db, args.case).verify_ledger()
             print(json.dumps({"valid": ok, "entries": entries}))
@@ -529,6 +621,17 @@ def main(argv: list[str] | None = None) -> int:
             key = f"{args.method}:{args.target_type}:{args.target}"
             result["changed"] = engine.db.snapshot(args.case, key, digest, stable_payload)
             print(json.dumps(result, indent=2))
+        elif args.command == "readiness":
+            result = ReadinessScorecard(engine.db, args.workspace).run(production=args.production)
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Core ready: {result['core_ready']}")
+                print(f"Production ready: {result['production_ready']}")
+                print(f"Competitive ready: {result['competitive_ready']}")
+                print(f"Verified score: {result['score']}/100")
+                for row in result["gates"]:
+                    print(f"{row['state'].upper():4} {row['name']}: {row['observed']}")
         elif args.command == "automation":
             manager = AutomationManager(engine)
             if args.automation_command == "add":
@@ -646,6 +749,13 @@ def main(argv: list[str] | None = None) -> int:
                     print("Degraded/failed: " + (", ".join(summary["degraded"]) or "none"))
                     print("Missing: " + (", ".join(summary["missing"]) or "none"))
                     print("Blocked by policy: " + ", ".join(summary["blocked"]))
+            elif args.integration_command == "lock":
+                print(json.dumps(IntegrationLock(runner).write(args.output), indent=2))
+            elif args.integration_command == "verify-lock":
+                result = IntegrationLock(runner).verify(args.file)
+                print(json.dumps(result, indent=2))
+                if not result["valid"]:
+                    return 2
             elif args.integration_command == "run":
                 result = runner.run(
                     args.case, args.tool, args.target_type, args.target,

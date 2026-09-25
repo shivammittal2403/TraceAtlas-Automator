@@ -92,7 +92,8 @@ class SupabaseAdminGateway:
         return result[0]
 
     def insert(self, table: str, payload: dict[str, Any]) -> Any:
-        if table not in {"job_events", "evidence_items", "graph_entities", "graph_edges"}:
+        if table not in {"job_events", "evidence_items", "graph_entities", "graph_edges",
+                         "review_tasks"}:
             raise WorkerError("Blocked worker insert")
         return self.request("POST", f"/rest/v1/{table}", payload=payload, prefer="return=representation")
 
@@ -255,6 +256,14 @@ class CloudWorker:
                 "level": "info", "event_type": "worker_completed",
                 "message": "Allowlisted workflow completed; analyst review is required.",
                 "details": {"worker_id": self.identity, "content_hash": content_hash},
+            })
+            self.gateway.insert("review_tasks", {
+                "organisation_id": organisation_id, "case_id": case_id,
+                "evidence_id": evidence_id, "kind": "evidence",
+                "title": f"Review {job['kind']} evidence",
+                "priority": "normal",
+                "context": {"job_id": job_id, "content_hash": content_hash,
+                            "review_required": True},
             })
             completed = self.gateway.rpc("complete_investigation_job", {
                 "p_job_id": job_id, "p_worker_id": self.identity, "p_status": "completed",

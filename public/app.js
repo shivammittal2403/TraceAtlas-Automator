@@ -113,7 +113,7 @@ fetch("/api/catalog").then((response) => response.ok ? response.json() : Promise
     }
   }).catch(() => {});
 
-const control = { organisations: [], cases: [], assets: [], jobs: [] };
+const control = { organisations: [], cases: [], assets: [], jobs: [], reviews: [], notes: [] };
 const workflowForType = { domain: "domain_passive", ip: "ip_passive", url: "url_metadata", hash: "hash_reputation" };
 
 async function api(path, options = {}) {
@@ -165,6 +165,64 @@ function renderJobs() {
   }
 }
 
+function renderReviews() {
+  const list = $("#review-list");
+  list.replaceChildren();
+  if (!control.reviews.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No review tasks for this case.";
+    list.append(empty);
+    $("#review-decision-form").hidden = true;
+    return;
+  }
+  for (const task of control.reviews) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "record review-record";
+    const title = document.createElement("b");
+    const state = document.createElement("span");
+    const meta = document.createElement("span");
+    title.textContent = task.title;
+    state.textContent = task.status.toUpperCase();
+    state.className = task.status === "pending" ? "running" : task.status === "accepted" ? "ready" : "failed";
+    meta.textContent = `${task.kind} · ${task.priority}`;
+    row.append(title, state, meta);
+    if (task.status === "pending") row.addEventListener("click", () => {
+      $("#review-task").value = task.id;
+      $("#review-rationale").value = "";
+      $("#review-decision-form").hidden = false;
+      $("#review-rationale").focus();
+    });
+    list.append(row);
+  }
+}
+
+function renderNotes() {
+  const list = $("#note-list");
+  list.replaceChildren();
+  for (const note of control.notes) {
+    const row = document.createElement("div");
+    row.className = "record";
+    const title = document.createElement("b");
+    const body = document.createElement("span");
+    title.textContent = note.classification.toUpperCase();
+    body.textContent = note.body;
+    row.append(title, body);
+    list.append(row);
+  }
+}
+
+async function loadReviews(caseIdValue) {
+  control.reviews = caseIdValue ? (await api(`/api/reviews?case_id=${encodeURIComponent(caseIdValue)}`)).reviews || [] : [];
+  renderReviews();
+}
+
+async function loadNotes(caseIdValue) {
+  control.notes = caseIdValue ? (await api(`/api/notes?case_id=${encodeURIComponent(caseIdValue)}`)).notes || [] : [];
+  renderNotes();
+}
+
 function syncAssetChoices() {
   const selectedCase = control.cases.find((item) => item.id === $("#job-case").value);
   const assets = selectedCase ? control.assets.filter((item) => item.organisation_id === selectedCase.organisation_id) : [];
@@ -183,6 +241,8 @@ async function loadWorkspace() {
   fillSelect($("#asset-organisation"), control.organisations, "organisation");
   fillSelect($("#job-case"), control.cases, "case");
   fillSelect($("#graph-case"), control.cases, "case");
+  fillSelect($("#review-case"), control.cases, "case");
+  fillSelect($("#notes-case"), control.cases, "case");
   syncAssetChoices();
   renderJobs();
 }
@@ -324,6 +384,40 @@ $("#job-form").addEventListener("submit", async (event) => {
 
 $("#graph-case").addEventListener("change", (event) => {
   loadGraph(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
+});
+
+$("#review-case").addEventListener("change", (event) => {
+  loadReviews(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
+});
+
+$("#notes-case").addEventListener("change", (event) => {
+  loadNotes(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
+});
+
+$("#review-decision-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const submitter = event.submitter;
+    await api("/api/reviews", { method: "POST", body: JSON.stringify({
+      task_id: $("#review-task").value,
+      decision: submitter?.value || "rejected",
+      rationale: $("#review-rationale").value,
+    }) });
+    await loadReviews($("#review-case").value);
+  } catch (error) { $("#workspace-error").textContent = error.message; }
+});
+
+$("#note-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await api("/api/notes", { method: "POST", body: JSON.stringify({
+      case_id: $("#notes-case").value,
+      classification: $("#note-classification").value,
+      body: $("#note-body").value,
+    }) });
+    $("#note-body").value = "";
+    await loadNotes($("#notes-case").value);
+  } catch (error) { $("#workspace-error").textContent = error.message; }
 });
 
 bootControlPlane();

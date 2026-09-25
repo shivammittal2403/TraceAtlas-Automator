@@ -9,6 +9,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 from uuid import uuid4
@@ -19,6 +20,7 @@ from ..policy import PolicyError, validate_target
 from ..spider.events import Event, child
 from .sanitize import fingerprint, sanitize_record
 from .sources import SOURCES, SourceSpec
+from .provider import ProviderError, ResilientJSONClient
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
@@ -27,15 +29,23 @@ Requester = Callable[[str, dict[str, str], int], tuple[int, bytes]]
 
 def _request(url: str, headers: dict[str, str], timeout: int) -> tuple[int, bytes]:
     request = Request(url, headers=headers, method="GET")
-    with urlopen(request, timeout=timeout) as response:
-        return int(response.status), response.read(10 * 1024 * 1024)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return int(response.status), response.read(10 * 1024 * 1024)
+    except HTTPError as exc:
+        # Convert HTTP status into the transport contract. The caller classifies
+        # it and never persists the URL, headers or response body.
+        return int(exc.code), exc.read(64 * 1024)
 
 
 class IntelligenceHub:
-    def __init__(self, db: CaseDB, workspace: Path, requester: Requester | None = None):
+    def __init__(self, db: CaseDB, workspace: Path, requester: Requester | None = None,
+                 *, sleeper: Callable[[float], None] | None = None):
         self.db = db
         self.workspace = workspace
         self.requester = requester or _request
+        kwargs = {"sleeper": sleeper} if sleeper is not None else {}
+        self.provider = ResilientJSONClient(self.requester, **kwargs)
 
     @staticmethod
     def sources() -> list[dict[str, Any]]:
@@ -209,19 +219,24 @@ class IntelligenceHub:
                    public_record_basis=public_record_basis)
         try:
             url, headers = self._live_request(spec, target_type, target)
-            status, raw = self.requester(url, headers, 30)
-            if status != 200:
-                raise ValueError(f"{spec.title} returned HTTP {status}")
-            data = json.loads(raw.decode("utf-8"))
+            provider_result = self.provider.get(source, url, headers, 30)
+            data = provider_result.data
             records = data if isinstance(data, list) else [data]
             result = self._store(
                 case_id, spec, records, mode="intel:live",
                 target_fingerprint=fingerprint([source, target_type, target]),
             )
+            result["provider"] = {
+                "attempts": provider_result.attempts,
+                "bytes_received": provider_result.bytes_received,
+                "schema_validated": True,
+            }
         except Exception as exc:
             # Never persist provider URLs, headers or response bodies: they may contain keys.
             self.db.record_connector_result(
-                source, False, f"{type(exc).__name__}: connector request failed"
+                source, False,
+                exc.code if isinstance(exc, ProviderError) else
+                f"{type(exc).__name__}: connector request failed"
             )
             raise
         self.db.record_connector_result(source, True)
