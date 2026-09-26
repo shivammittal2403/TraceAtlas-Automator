@@ -83,9 +83,6 @@ jobs:
           HTTP_PROXY: ""
           HTTPS_PROXY: ""
           ALL_PROXY: ""
-          http_proxy: ""
-          https_proxy: ""
-          all_proxy: ""
         run: |
           .openosint-test-venv/bin/python -m pytest packages/openosint/tests -q \
             --ignore=packages/openosint/tests/test_docs_consistency.py \
