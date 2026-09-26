@@ -64,7 +64,6 @@ using ((select private.is_org_member(organisation_id, null)));
 create policy case_notes_insert on public.case_notes for insert to authenticated
 with check (
   created_by = (select auth.uid())
-  and assigned_to is null
   and (select private.is_org_member(organisation_id, array['owner','admin','analyst']))
 );
 create policy review_tasks_select on public.review_tasks for select to authenticated

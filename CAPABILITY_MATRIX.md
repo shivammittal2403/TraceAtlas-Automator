@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 1.2 includes a governed compatibility layer for all 40 unique supplied and
+TraceAtlas 1.6 includes a governed compatibility layer for all 40 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -68,7 +68,7 @@ The optional control plane stores explicitly enrolled organisation-owned
 domains, public IPs, public URLs and hashes and requests four fixed passive job
 types. Engines run locally or in an isolated worker, never inside Vercel.
 
-## Version 1.2 execution status
+## Version 1.6 execution status
 
 - `OpenOSINT` remains fully bundled in its isolated runtime.
 - `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
@@ -78,6 +78,9 @@ types. Engines run locally or in an isolated worker, never inside Vercel.
   cookies, custom headers, proxies and reusable browser sessions are rejected.
 - `Firecrawl` supports bounded search, scrape, map and extract calls to the
   approved HTTPS API endpoint; its AGPL backend is not copied into this project.
+- `IntelOwl` supports explicit-analyzer observable submission through a
+  loopback or HTTPS host-allowlisted service. Files, arbitrary runtime options
+  and execute-all-analyzers behaviour remain blocked.
 - Claude/IOP/Agentic/GPT-Researcher/Last30Days concepts are implemented as a
   deterministic authority-bound research DAG, evidence-gap analysis,
   deduplication and strict fact/inference separation. This is a native TraceAtlas

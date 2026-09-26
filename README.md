@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.5.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.6.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -28,13 +28,16 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Installed external binaries can be hash-locked and later verified for missing,
   changed or untracked tool drift.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
-- Five controlled sensitive-workflow automations with hashed targets, explicit
+- Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 16 social, code, video, community,
+- Governed intelligence hub covering 26 social, code, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
-- Six live official/public API connectors: GitHub, YouTube, Discord invite
-  metadata, Shodan, Censys and VirusTotal.
+- Eleven live official/public API connectors: GitHub, YouTube, Discord invite
+  metadata, Shodan, Censys, VirusTotal, RDAP, Google DNS-over-HTTPS, Internet
+  Archive CDX metadata, Shodan InternetDB and Bluesky AppView.
+- Bounded 1-12-source collection plans enforce a wall-clock budget, isolate
+  provider failures and open a circuit after three consecutive failures.
 - Live connectors use bounded retries for rate limits/provider outages, strict
   response-size limits, source-specific JSON contract checks and secret-safe
   failure classifications.
@@ -62,6 +65,9 @@ human review where judgment, attribution, privacy or legal authority matters.
   tool discovery and bounded tool calls for installed compatible servers.
 - Bounded Crawl4AI and Firecrawl acquisition bridges, deterministic research
   DAGs, evidence-gap briefs and local JSON training progress are included.
+- IntelOwl observable analysis is available through a separately deployed,
+  host-allowlisted service boundary. Every call requires an explicit analyzer
+  list; file execution and runtime analyzer configuration are excluded.
 - A native CTI engine extracts IOCs, CVEs and explicit ATT&CK references,
   builds non-causal entity graphs, deduplicates JSON/RSS feeds and exports
   STIX 2.1 without requiring a model or paid service.
@@ -71,7 +77,9 @@ human review where judgment, attribution, privacy or legal authority matters.
   preserves contradictions, discounts model-generated claims and supports
   privacy-reduced GeoJSON for consented or organisation-owned investigations.
 - Local image verification now records content signatures plus optional aHash
-  and dHash for near-duplicate triage. Citra, Docling, Data Commons and GeoAI
+  and dHash for near-duplicate triage, extension/signature consistency and
+  bounded entropy signals. AI advisories must pass a strict JSON schema before
+  they can enter the event graph. Citra, Docling, Data Commons and GeoAI
   MCP contracts add document proof, public statistics and geospatial analysis.
 - An audited, metadata-only research pack selects 4,096 unique pre-2027 papers
   across all 16 supplied OSINT subtopics, plus 500 patents, 1,000 gap hypotheses
@@ -86,6 +94,10 @@ human review where judgment, attribution, privacy or legal authority matters.
   identity merging.
 - Local and hosted case notes plus an RLS-protected review-task lifecycle make
   the analyst-in-the-loop requirement operational rather than documentary.
+- A unified case workspace exposes coverage, source health, timeline, review
+  queue and evidence gaps in both local CLI and authenticated API form.
+- The hosted schema now includes source-run provenance, per-case retention and
+  legal-hold policy, append-only audit enforcement and request correlation IDs.
 - A readiness scorecard refuses to label the system competitive or production
   ready until runtime, provider, external-tool and hosted-control evidence exists.
 
@@ -117,6 +129,16 @@ export CRAWL4AI_URL=http://127.0.0.1:11235
 ./start.sh capabilities service-call --case demo-001 \
   --source crawl4ai --action crawl --target https://example.com \
   --owned-org --authorized
+
+# Submit one owned observable to IntelOwl with an explicit bounded analyzer set
+cat > intelowl-options.json <<'JSON'
+{"observable_classification":"domain","analyzers_requested":["DNSResolver"],"tlp":"AMBER"}
+JSON
+export INTELOWL_URL=http://127.0.0.1:80
+export INTELOWL_API_KEY=YOUR_LOCAL_SERVICE_TOKEN
+./start.sh capabilities service-call --case demo-001 \
+  --source intelowl --action analyze --target example.com \
+  --options-file ./intelowl-options.json --owned-org --authorized
 
 # Create an auditable research dependency DAG
 ./start.sh capabilities research-plan \
@@ -204,6 +226,16 @@ traceatlas intel doctor --json
 traceatlas intel collect --case demo-001 --source github \
   --target-type username --target example --subject-consent --authorized
 
+# Execute a bounded multi-source plan (targets are never echoed in the result)
+cat > source-plan.json <<'JSON'
+{"sources":[
+  {"source":"dns","target_type":"domain","target":"example.com"},
+  {"source":"wayback","target_type":"domain","target":"example.com"}
+]}
+JSON
+traceatlas intel batch --case demo-001 --plan source-plan.json \
+  --budget-seconds 120 --owned-asset --authorized
+
 # Ingest an owned organisation's official LinkedIn/API export
 traceatlas intel ingest --case demo-001 --source linkedin \
   --file ./linkedin-export.json --owned-org --authorized
@@ -219,6 +251,9 @@ traceatlas intel media --case demo-001 --file ./evidence.jpg \
 # Add advisory local-AI analysis without sending evidence to a cloud provider
 traceatlas intel analyze --case demo-001 --scan SCAN_ID \
   --authorized --ollama --model qwen2.5:7b --output reports/intelligence.json
+
+# Produce a single analyst view of timeline, coverage, health and review gaps
+traceatlas casework workspace --case demo-001 --output reports/workspace.json
 ```
 
 Image metadata uses ExifTool when installed. Audio/video technical metadata uses

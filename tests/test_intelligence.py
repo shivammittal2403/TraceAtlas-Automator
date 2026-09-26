@@ -29,8 +29,9 @@ class IntelligenceTests(unittest.TestCase):
             "github", "discord", "shodan", "censys", "virustotal", "malwarebazaar",
             "business_registry", "employee_directory", "sanctions", "court_records",
         }
-        self.assertEqual(expected, set(SOURCES))
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 6)
+        self.assertTrue(expected.issubset(SOURCES))
+        self.assertTrue({"rdap", "dns", "wayback", "internetdb", "bluesky"}.issubset(SOURCES))
+        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 11)
 
     def test_personal_source_requires_consent_or_owned_org(self):
         source = self.root / "linkedin.json"

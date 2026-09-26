@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
@@ -62,7 +63,9 @@ class IntelligenceHub:
             raise PolicyError(
                 f"{spec.title} personal/professional data requires --subject-consent or --owned-org"
             )
-        if spec.category in {"internet-intelligence", "threat-intelligence"} and not owned_asset:
+        if spec.category in {
+            "internet-intelligence", "threat-intelligence", "internet-registration", "web-archive"
+        } and not owned_asset:
             raise PolicyError(f"{spec.title} collection requires --owned-asset")
         if spec.public_record and not (public_record_basis or owned_org):
             raise PolicyError(f"{spec.title} ingestion requires --public-record-basis or --owned-org")
@@ -152,6 +155,42 @@ class IntelligenceHub:
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
         headers = {"User-Agent": "TraceAtlas-Automator/0.5"}
+        if spec.name == "rdap":
+            if target_type not in {"domain", "ip"}:
+                raise PolicyError("RDAP target must be a domain or public IP")
+            validate_target(target_type, target)
+            if target_type == "ip" and not ipaddress.ip_address(target).is_global:
+                raise PolicyError("RDAP accepts public IPs only")
+            return f"https://rdap.org/{target_type}/{quote(target)}", headers
+        if spec.name == "dns":
+            if target_type != "domain":
+                raise PolicyError("DNS collection requires a domain target")
+            validate_target("domain", target)
+            return "https://dns.google/resolve?" + urlencode({"name": target, "type": "A"}), headers
+        if spec.name == "wayback":
+            if target_type != "domain":
+                raise PolicyError("Wayback index collection requires a domain target")
+            validate_target("domain", target)
+            query = urlencode({
+                "url": f"{target}/*", "output": "json", "filter": "statuscode:200",
+                "collapse": "urlkey", "limit": "100",
+                "fl": "timestamp,original,statuscode,mimetype,digest",
+            })
+            return f"https://web.archive.org/cdx/search/cdx?{query}", headers
+        if spec.name == "internetdb":
+            if target_type != "ip":
+                raise PolicyError("InternetDB collection requires a public IP target")
+            validate_target("ip", target)
+            if not ipaddress.ip_address(target).is_global:
+                raise PolicyError("InternetDB accepts public IPs only")
+            return f"https://internetdb.shodan.io/{quote(target)}", headers
+        if spec.name == "bluesky":
+            if target_type != "username" or not re.fullmatch(
+                r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?", target.strip()
+            ):
+                raise PolicyError("Bluesky target must be a valid public handle")
+            query = urlencode({"actor": target.strip().lower()})
+            return f"https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?{query}", headers
         if spec.name == "github":
             validate_target("username", target)
             token = os.environ.get("GITHUB_TOKEN")
@@ -231,6 +270,8 @@ class IntelligenceHub:
                 "bytes_received": provider_result.bytes_received,
                 "schema_validated": True,
             }
+        except PolicyError:
+            raise
         except Exception as exc:
             # Never persist provider URLs, headers or response bodies: they may contain keys.
             self.db.record_connector_result(

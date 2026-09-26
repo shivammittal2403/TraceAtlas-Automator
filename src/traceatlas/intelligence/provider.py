@@ -42,6 +42,19 @@ def _validate_shape(source: str, data: Any) -> None:
         valid = isinstance(data, dict) and isinstance(data.get("result"), dict)
     elif source == "virustotal":
         valid = isinstance(data, dict) and isinstance(data.get("data"), dict)
+    elif source == "rdap":
+        valid = isinstance(data, dict) and isinstance(data.get("objectClassName"), str)
+    elif source == "dns":
+        valid = isinstance(data, dict) and isinstance(data.get("Status"), int)
+    elif source == "wayback":
+        valid = (
+            isinstance(data, list) and (not data or isinstance(data[0], list))
+            and len(data) <= 101
+        )
+    elif source == "internetdb":
+        valid = isinstance(data, dict) and isinstance(data.get("ip"), str)
+    elif source == "bluesky":
+        valid = isinstance(data, dict) and isinstance(data.get("handle"), str)
     if not valid:
         raise ProviderError("provider_schema_mismatch")
 

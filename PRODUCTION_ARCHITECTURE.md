@@ -26,3 +26,19 @@ Atomic claiming and a 15-minute lease prevent simultaneous ownership. Failed or
 stale jobs are bounded to five attempts. This foundation does not claim mature
 collaboration, secret management or verified production operation until hosted
 integration, monitoring and backup/restore gates are passed.
+
+## Enterprise controls added in 1.6
+
+- Every provider execution can be represented as a tenant-scoped `source_runs`
+  record with idempotency, record counts, bounded failure codes and RLS.
+- Per-case retention is restricted to owner/admin RPC calls. Legal holds block
+  case deletion at the database boundary.
+- Audit events reject update and delete operations at the database boundary.
+- API responses include a validated or generated `X-Request-ID` for log and
+  incident correlation.
+- The authenticated `/api/workspace` endpoint returns a bounded timeline,
+  coverage view and review queue using only RLS-filtered case objects.
+
+MFA/SSO/SCIM, customer-managed KMS, verified backups, incident on-call and an
+external penetration test are still deployment/operator obligations; this
+repository does not claim them as complete.

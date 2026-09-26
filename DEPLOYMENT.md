@@ -27,16 +27,17 @@ The doctor is static and non-mutating; a passing result does not replace hosted
 tenant-isolation, queue, backup or restore tests.
 
 1. Create a dedicated Supabase project in the intended organisation.
-2. Apply `supabase/migrations/20260925000100_traceatlas_control_plane.sql`, then
-   `supabase/migrations/20260925000200_traceatlas_fk_indexes.sql`.
+2. Apply all migrations in lexical order: control plane, FK indexes, analyst
+   workflow, then enterprise controls (`20260926000100_enterprise_controls.sql`).
 3. Run `supabase/tests/traceatlas_rls.test.sql` on a disposable database.
 4. Create a new Vercel project linked to the canonical GitHub repository.
 5. Set only publishable Supabase variables on Vercel.
 6. Deploy `worker/Dockerfile` on an isolated container host with the worker-only key.
 7. Create the first controlled Auth user, sign in, create an organisation and
    explicitly enrol owned assets.
-8. Verify health, auth, tenant isolation, enqueue/claim/complete, graph rendering
-   and that production SHA equals `main`.
+8. Verify health, auth, tenant isolation, enqueue/claim/complete, source-run
+   provenance, legal hold, append-only audit, workspace rendering and that
+   production SHA equals `main`.
 
 ## Production gates
 

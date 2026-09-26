@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from ipaddress import ip_address
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -71,8 +72,8 @@ class ServiceClient:
             raise ValueError("Worker returned invalid JSON") from exc
 
     @staticmethod
-    def _get(url: str, timeout: int) -> Any:
-        request = Request(url, headers={"Accept": "application/json"}, method="GET")
+    def _get(url: str, timeout: int, headers: dict[str, str] | None = None) -> Any:
+        request = Request(url, headers={"Accept": "application/json", **(headers or {})}, method="GET")
         try:
             with urlopen(request, timeout=max(2, min(timeout, 120))) as response:
                 raw = response.read(MAX_SERVICE_BYTES + 1)
@@ -148,3 +149,76 @@ class ServiceClient:
             raise PolicyError("ScrapeGraphAI max_pages must be between 1 and 10")
         base = cls._loopback_base(os.environ.get("SCRAPEGRAPH_URL", "http://127.0.0.1:8001"))
         return cls._post(base + "/extract", {"url": target, **options}, {}, timeout)
+
+    @staticmethod
+    def _intelowl_base(value: str) -> str:
+        parsed = urlparse(value.rstrip("/"))
+        if not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise PolicyError("INTELOWL_URL must be a clean service base URL")
+        try:
+            address = ip_address(parsed.hostname)
+        except ValueError:
+            address = None
+        if parsed.scheme == "http" and (
+            parsed.hostname == "localhost" or (address and address.is_loopback)
+        ):
+            return value.rstrip("/")
+        approved = {
+            host.strip().lower() for host in os.environ.get("TRACEATLAS_SERVICE_HOSTS", "").split(",")
+            if host.strip()
+        }
+        if parsed.scheme != "https" or parsed.hostname.lower() not in approved:
+            raise PolicyError(
+                "Remote IntelOwl requires HTTPS and its hostname in TRACEATLAS_SERVICE_HOSTS"
+            )
+        return value.rstrip("/")
+
+    @classmethod
+    def intelowl(cls, target: str, options: dict[str, Any], timeout: int = 60) -> Any:
+        """Submit one bounded observable to a separately deployed IntelOwl service."""
+        allowed = {"observable_classification", "analyzers_requested", "connectors_requested", "tlp"}
+        unknown = set(options) - allowed
+        if unknown:
+            raise PolicyError("Unsupported IntelOwl option(s): " + ", ".join(sorted(unknown)))
+        classification = str(options.get("observable_classification", "")).lower()
+        if classification not in {"domain", "ip", "url", "hash"}:
+            raise PolicyError("IntelOwl observable_classification is invalid")
+        if classification == "url":
+            cls._public_url(target)
+        elif classification in {"domain", "ip"}:
+            validate_target(classification, target)
+            if classification == "ip" and not ip_address(target).is_global:
+                raise PolicyError("IntelOwl accepts public IPs only")
+        elif classification == "hash":
+            if len(target) not in {32, 40, 64} or not re.fullmatch(r"[0-9a-fA-F]+", target):
+                raise PolicyError("IntelOwl hash must be MD5, SHA-1 or SHA-256")
+            target = target.lower()
+        analyzers = options.get("analyzers_requested")
+        connectors = options.get("connectors_requested", [])
+        name_pattern = re.compile(r"[A-Za-z0-9_.:-]{1,96}")
+        if not isinstance(analyzers, list) or not 1 <= len(analyzers) <= 25:
+            raise PolicyError("IntelOwl requires 1-25 explicit analyzers_requested")
+        if not all(isinstance(name, str) and name_pattern.fullmatch(name) for name in analyzers):
+            raise PolicyError("IntelOwl analyzer names are invalid")
+        if not isinstance(connectors, list) or len(connectors) > 10 or not all(
+            isinstance(name, str) and name_pattern.fullmatch(name) for name in connectors
+        ):
+            raise PolicyError("IntelOwl connector names are invalid")
+        tlp = str(options.get("tlp", "AMBER")).upper()
+        if tlp not in {"CLEAR", "GREEN", "AMBER", "RED"}:
+            raise PolicyError("IntelOwl TLP is invalid")
+        key = os.environ.get("INTELOWL_API_KEY")
+        if not key or len(key) > 512 or any(char.isspace() for char in key):
+            raise PolicyError("INTELOWL_API_KEY is not configured correctly")
+        base = cls._intelowl_base(os.environ.get("INTELOWL_URL", "http://127.0.0.1:80"))
+        payload = {
+            "observable_name": target.strip(),
+            "observable_classification": classification,
+            "analyzers_requested": analyzers,
+            "connectors_requested": connectors,
+            "tlp": tlp,
+        }
+        return cls._post(
+            base + "/api/analyze_observable", payload,
+            {"Authorization": f"Token {key}"}, timeout,
+        )

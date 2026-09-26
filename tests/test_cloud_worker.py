@@ -65,7 +65,7 @@ class CloudWorkerTests(unittest.TestCase):
             ]): self.assertTrue(worker.run_once())
             self.assertFalse(worker.run_once())
         tables = [table for table, _ in gateway.inserted]
-        for table in ("evidence_items", "graph_entities", "job_events", "review_tasks"):
+        for table in ("source_runs", "evidence_items", "graph_entities", "job_events", "review_tasks"):
             self.assertIn(table, tables)
         self.assertEqual(gateway.upsert_conflict, "case_id,fingerprint")
         self.assertEqual(gateway.completed["p_status"], "completed")

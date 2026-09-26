@@ -5,10 +5,12 @@ import hashlib
 import importlib.util
 import json
 import mimetypes
+import math
 import re
 import shutil
 import subprocess
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -17,11 +19,19 @@ from ..db import CaseDB
 from ..evidence import EvidenceStore
 from ..policy import PolicyError
 from ..spider.events import Event, child
-from .ai import IntelligenceAnalyzer
+from .ai import IntelligenceAnalyzer, validate_ai_advisory
 from .sanitize import sanitize_record, sanitize_text
 
 
 MAX_MEDIA_BYTES = 100 * 1024 * 1024
+MEDIA_AI_SCHEMA = {
+    "description": str,
+    "visible_or_audible_observations": list,
+    "possible_geography": list,
+    "business_indicators": list,
+    "uncertainty": list,
+    "verification_tasks": list,
+}
 
 
 class MediaAnalyzer:
@@ -51,6 +61,14 @@ class MediaAnalyzer:
         if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
             return "webp"
         return None
+
+    @staticmethod
+    def _entropy(data: bytes) -> float:
+        if not data:
+            return 0.0
+        counts = Counter(data)
+        length = len(data)
+        return round(-sum((count / length) * math.log2(count / length) for count in counts.values()), 3)
 
     @staticmethod
     def _perceptual_hashes(path: Path) -> dict[str, Any]:
@@ -137,7 +155,7 @@ class MediaAnalyzer:
         tools = self.capabilities()
         metadata: dict[str, Any] = {
             "sha256": sha256, "media_type": media_type, "size": path.stat().st_size,
-            "filename": path.name,
+            "filename": path.name, "sample_entropy": self._entropy(media_bytes[:1024 * 1024]),
         }
         location = None
         errors: list[str] = []
@@ -146,6 +164,15 @@ class MediaAnalyzer:
             if detected_format is None:
                 raise PolicyError("Image content does not match a supported image signature")
             metadata["detected_format"] = detected_format
+            extensions = {
+                "jpeg": {".jpg", ".jpeg"}, "png": {".png"}, "gif": {".gif"},
+                "tiff": {".tif", ".tiff"}, "bmp": {".bmp"}, "webp": {".webp"},
+            }
+            metadata["integrity"] = {
+                "extension_signature_match": path.suffix.lower() in extensions[detected_format],
+                "signature_detected": True,
+                "interpretation": "Heuristic integrity signals are triage aids, not proof of manipulation.",
+            }
             if tools.get("pillow", False):
                 try:
                     metadata["perceptual_hashes"] = self._perceptual_hashes(path)
@@ -235,9 +262,21 @@ class MediaAnalyzer:
             else:
                 outer = json.loads(raw.decode("utf-8"))
                 try:
-                    advisory = json.loads(outer.get("response", "{}"))
-                except (json.JSONDecodeError, AttributeError):
-                    advisory = {"unparsed_response": str(outer)[:20_000]}
+                    advisory = validate_ai_advisory(
+                        json.loads(outer.get("response", "{}")), MEDIA_AI_SCHEMA
+                    )
+                except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
+                    errors.append(f"ollama: invalid advisory schema ({type(exc).__name__})")
+                    advisory = None
+                if advisory is None:
+                    events = self.db.spider_events(scan_id)
+                    stats = {
+                        "events": len(events), "media_type": media_type, "sha256": sha256,
+                        "capabilities": tools, "coarse_geography": location is not None,
+                        "perceptual_hashes": "perceptual_hashes" in metadata, "errors": errors,
+                    }
+                    self.db.end_spider_scan(scan_id, "partial", stats)
+                    return {"scan_id": scan_id, "status": "partial", "stats": stats}
                 self.db.add_spider_event(child(
                     seed, "AI_MEDIA_ANALYSIS", sanitize_record(advisory), "intel:ollama",
                     confidence=40, tags=["ai-advisory", "not-a-fact", "analyst-review-required"],

@@ -72,9 +72,12 @@ class ReadinessScorecard:
              "Install and verify ExifTool, FFprobe and Tesseract/Whisper in the private worker image.")
 
         upstream = CapabilityHub(self.db, self.workspace).doctor()
-        gate("upstream_execution_boundaries", upstream.get("ready", 0) >= 5,
-             {"ready": upstream.get("ready", 0), "engines": upstream.get("upstream_engines", 0)},
-             {"ready": 5}, "Configure and smoke-test five high-value bounded upstream services.")
+        gate("upstream_execution_boundaries", upstream.get("execution_verified", 0) >= 5,
+             {"configured_ready": upstream.get("ready", 0),
+              "execution_verified": upstream.get("execution_verified", 0),
+              "engines": upstream.get("upstream_engines", 0)},
+             {"execution_verified": 5},
+             "Configure and execute-contract-test five high-value bounded upstream services.")
 
         try:
             self.db.resolution_candidates("__readiness_probe__")

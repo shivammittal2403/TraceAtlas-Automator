@@ -14,6 +14,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from uuid import uuid4
 from http.cookies import SimpleCookie
 from typing import Any
 
@@ -69,6 +70,9 @@ def send_json(handler: Any, status: int, payload: dict[str, Any], *, cookies: li
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("X-Content-Type-Options", "nosniff")
+    incoming = handler.headers.get("X-Request-ID", "") if getattr(handler, "headers", None) else ""
+    request_id = incoming if re.fullmatch(r"[A-Za-z0-9._:-]{8,160}", incoming) else str(uuid4())
+    handler.send_header("X-Request-ID", request_id)
     handler.send_header("Content-Length", str(len(body)))
     for cookie in cookies or []:
         handler.send_header("Set-Cookie", cookie)
@@ -249,7 +253,7 @@ class SupabaseGateway:
     def select(self, table: str, query: dict[str, str]) -> list[dict[str, Any]]:
         if table not in {"organisations", "cases", "assets", "investigation_jobs", "job_events",
                          "evidence_items", "graph_entities", "graph_edges", "case_notes",
-                         "review_tasks"}:
+                         "review_tasks", "source_runs", "case_retention"}:
             raise ControlPlaneError(500, "blocked_table")
         data = self._request("GET", f"/rest/v1/{table}", query=query)
         return data if isinstance(data, list) else []
@@ -261,7 +265,7 @@ class SupabaseGateway:
         return data if isinstance(data, list) else []
 
     def rpc(self, function: str, payload: dict[str, Any]) -> Any:
-        if function not in {"enqueue_investigation_job", "decide_review_task"}:
+        if function not in {"enqueue_investigation_job", "decide_review_task", "set_case_retention"}:
             raise ControlPlaneError(500, "blocked_function")
         return self._request("POST", f"/rest/v1/rpc/{function}", payload=payload)
 

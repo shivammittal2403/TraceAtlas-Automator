@@ -213,6 +213,52 @@ function renderNotes() {
   }
 }
 
+function renderInvestigation(view) {
+  const summary = $("#investigation-summary");
+  const timeline = $("#investigation-timeline");
+  summary.replaceChildren();
+  timeline.replaceChildren();
+  if (!view) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Select a case.";
+    summary.append(empty);
+    return;
+  }
+  const metrics = document.createElement("div");
+  metrics.className = "investigation-metrics";
+  for (const [label, value] of Object.entries(view.overview || {})) {
+    const metric = document.createElement("div");
+    const number = document.createElement("b");
+    const name = document.createElement("span");
+    number.textContent = String(value);
+    name.textContent = label.replaceAll("_", " ");
+    metric.append(number, name);
+    metrics.append(metric);
+  }
+  const review = document.createElement("p");
+  review.className = "boundary";
+  review.textContent = `Pending review: ${view.review_queue?.pending || 0} · failed sources: ${view.review_queue?.failed_runs || 0}`;
+  summary.append(metrics, review);
+  for (const item of (view.timeline || []).slice(0, 20)) {
+    const row = document.createElement("div");
+    row.className = "record";
+    const label = document.createElement("b");
+    const state = document.createElement("span");
+    const date = document.createElement("span");
+    label.textContent = `${item.kind}: ${item.label}`;
+    state.textContent = String(item.state).toUpperCase();
+    state.className = item.state === "failed" ? "failed" : item.state === "completed" ? "ready" : "";
+    date.textContent = new Date(item.at).toLocaleString();
+    row.append(label, state, date);
+    timeline.append(row);
+  }
+}
+
+async function loadInvestigation(caseIdValue) {
+  renderInvestigation(caseIdValue ? await api(`/api/workspace?case_id=${encodeURIComponent(caseIdValue)}`) : null);
+}
+
 async function loadReviews(caseIdValue) {
   control.reviews = caseIdValue ? (await api(`/api/reviews?case_id=${encodeURIComponent(caseIdValue)}`)).reviews || [] : [];
   renderReviews();
@@ -240,6 +286,7 @@ async function loadWorkspace() {
   fillSelect($("#case-organisation"), control.organisations, "organisation");
   fillSelect($("#asset-organisation"), control.organisations, "organisation");
   fillSelect($("#job-case"), control.cases, "case");
+  fillSelect($("#investigation-case"), control.cases, "case");
   fillSelect($("#graph-case"), control.cases, "case");
   fillSelect($("#review-case"), control.cases, "case");
   fillSelect($("#notes-case"), control.cases, "case");
@@ -384,6 +431,10 @@ $("#job-form").addEventListener("submit", async (event) => {
 
 $("#graph-case").addEventListener("change", (event) => {
   loadGraph(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
+});
+
+$("#investigation-case").addEventListener("change", (event) => {
+  loadInvestigation(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
 });
 
 $("#review-case").addEventListener("change", (event) => {

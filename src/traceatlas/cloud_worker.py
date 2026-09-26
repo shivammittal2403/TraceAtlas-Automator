@@ -20,6 +20,7 @@ from .intelligence import IntelligenceHub
 from .intelligence.sanitize import sanitize_record
 from .policy import validate_target
 from .spider import SpiderEngine
+from .models import utc_now
 
 
 UUID_RE = re.compile(
@@ -93,7 +94,7 @@ class SupabaseAdminGateway:
 
     def insert(self, table: str, payload: dict[str, Any]) -> Any:
         if table not in {"job_events", "evidence_items", "graph_entities", "graph_edges",
-                         "review_tasks"}:
+                         "review_tasks", "source_runs"}:
             raise WorkerError("Blocked worker insert")
         return self.request("POST", f"/rest/v1/{table}", payload=payload, prefer="return=representation")
 
@@ -212,6 +213,7 @@ class CloudWorker:
                                          "risk": event.get("risk"), "tags": event.get("tags")})
             return {"workflow": kind, "status": str(result.get("status", "completed")),
                     "review_required": True, "finding_count": len(findings), "scan_count": len(scans),
+                    "observation_count": len(observations),
                     "summary": _redact(result, target),
                     "observations": _redact(sanitize_record(observations[:200]), target),
                     "local_case": local_case_id}
@@ -226,6 +228,8 @@ class CloudWorker:
         if not isinstance(job, dict):
             raise WorkerError("Invalid claimed job response")
         job_id, case_id, asset_id, organisation_id = self._validate_job(job)
+        asset: dict[str, Any] | None = None
+        source_run_recorded = False
         try:
             asset = self.gateway.select_one("assets", asset_id,
                 "id,organisation_id,target_type,target_value,target_fingerprint,ownership_basis,label")
@@ -265,6 +269,18 @@ class CloudWorker:
                 "context": {"job_id": job_id, "content_hash": content_hash,
                             "review_required": True},
             })
+            self.gateway.insert("source_runs", {
+                "organisation_id": organisation_id, "case_id": case_id,
+                "source": "worker:" + str(job["kind"]).replace("_", "-"), "mode": "worker",
+                "status": "completed" if output["status"] == "completed" else "partial",
+                "target_fingerprint": asset["target_fingerprint"],
+                "idempotency_key": f"worker:{job_id}",
+                "records_received": output["observation_count"],
+                "records_stored": output["observation_count"],
+                "completed_at": utc_now(),
+                "details": {"job_id": job_id, "review_required": True},
+            })
+            source_run_recorded = True
             completed = self.gateway.rpc("complete_investigation_job", {
                 "p_job_id": job_id, "p_worker_id": self.identity, "p_status": "completed",
                 "p_result": {"status": output["status"], "review_required": True,
@@ -276,6 +292,19 @@ class CloudWorker:
             return True
         except Exception as exc:
             try:
+                fingerprint = (
+                    str(asset.get("target_fingerprint")) if isinstance(asset, dict)
+                    and re.fullmatch(r"[a-f0-9]{64}", str(asset.get("target_fingerprint", "")))
+                    else hashlib.sha256(job_id.encode()).hexdigest()
+                )
+                if not source_run_recorded:
+                    self.gateway.insert("source_runs", {
+                        "organisation_id": organisation_id, "case_id": case_id,
+                        "source": "worker:" + str(job["kind"]).replace("_", "-"), "mode": "worker",
+                        "status": "failed", "target_fingerprint": fingerprint,
+                        "idempotency_key": f"worker:{job_id}", "failure_code": "worker_execution_failed",
+                        "completed_at": utc_now(), "details": {"job_id": job_id},
+                    })
                 self.gateway.insert("job_events", {
                     "organisation_id": organisation_id, "case_id": case_id, "job_id": job_id,
                     "level": "error", "event_type": "worker_failed", "message": "Allowlisted workflow failed.",

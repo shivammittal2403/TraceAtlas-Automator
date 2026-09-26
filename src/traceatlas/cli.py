@@ -18,7 +18,9 @@ from .spider import SpiderEngine
 from .spider.export import export_scan
 from .spider.modules import MODULES
 from .integrations import CatalogStore, IntegrationLock, IntegrationRunner, PROFILES, TOOLS
-from .intelligence import IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES
+from .intelligence import (
+    CollectionOrchestrator, IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES,
+)
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
 from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
@@ -32,6 +34,7 @@ from .resolution import ResolutionService
 from .models import utc_now
 from .intelligence.sanitize import sanitize_text
 from .readiness import ReadinessScorecard
+from .investigation import InvestigationWorkspace
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -228,6 +231,14 @@ def parser() -> argparse.ArgumentParser:
     intel_collect.add_argument("--target", required=True)
     add_intel_attestations(intel_collect)
 
+    intel_batch = intel_sub.add_parser(
+        "batch", help="Run a bounded 1-12 source plan with budgets and circuit breaking"
+    )
+    intel_batch.add_argument("--case", required=True)
+    intel_batch.add_argument("--plan", type=Path, required=True)
+    intel_batch.add_argument("--budget-seconds", type=int, default=180)
+    add_intel_attestations(intel_batch)
+
     intel_media = intel_sub.add_parser(
         "media", help="Analyse authorised image, audio or video evidence locally"
     )
@@ -322,10 +333,16 @@ def parser() -> argparse.ArgumentParser:
     cap_brief.add_argument("--case", required=True)
     cap_brief.add_argument("--file", type=Path, required=True)
     cap_brief.add_argument("--authorized", action="store_true")
-    cap_service = cap_sub.add_parser("service-call", help="Call a bounded Crawl4AI or Firecrawl worker")
+    cap_service = cap_sub.add_parser("service-call", help="Call a bounded external acquisition/enrichment service")
     cap_service.add_argument("--case", required=True)
-    cap_service.add_argument("--source", required=True, choices=["crawl4ai", "firecrawl", "searxng", "scrapegraph-ai"])
-    cap_service.add_argument("--action", required=True, choices=["crawl", "search", "scrape", "map", "extract"])
+    cap_service.add_argument(
+        "--source", required=True,
+        choices=["crawl4ai", "firecrawl", "searxng", "scrapegraph-ai", "intelowl"],
+    )
+    cap_service.add_argument(
+        "--action", required=True,
+        choices=["crawl", "search", "scrape", "map", "extract", "analyze"],
+    )
     cap_service.add_argument("--target", required=True)
     cap_service.add_argument("--options-file", type=Path)
     cap_service.add_argument("--authorized", action="store_true")
@@ -422,6 +439,11 @@ def parser() -> argparse.ArgumentParser:
     note_add.add_argument("--body", required=True)
     note_list = casework_sub.add_parser("notes", help="List case notes")
     note_list.add_argument("--case", required=True)
+    workspace_view = casework_sub.add_parser(
+        "workspace", help="Build a unified coverage, timeline, health and review workspace"
+    )
+    workspace_view.add_argument("--case", required=True)
+    workspace_view.add_argument("--output", type=Path)
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -451,6 +473,18 @@ def parser() -> argparse.ArgumentParser:
     )
     darkweb.add_argument("--authorized-feed", action="store_true")
     darkweb.add_argument("--source-permission", action="store_true")
+
+    darkweb_feed = sensitive_sub.add_parser(
+        "darkweb-feed", help="Analyze an approved STIX/MISP/OpenCTI/IntelOwl/AIL export without retaining content"
+    )
+    add_sensitive_common(darkweb_feed)
+    darkweb_feed.add_argument("--domain", required=True)
+    darkweb_feed.add_argument("--file", type=Path, required=True)
+    darkweb_feed.add_argument(
+        "--source-type", required=True, choices=["stix", "misp", "opencti", "intelowl", "ail"]
+    )
+    darkweb_feed.add_argument("--owned-domain", action="store_true")
+    darkweb_feed.add_argument("--source-permission", action="store_true")
 
     breach_catalog = sensitive_sub.add_parser(
         "breach-catalog", help="Collect public breach metadata for an owned domain"
@@ -597,8 +631,14 @@ def main(argv: list[str] | None = None) -> int:
                        "created_at": utc_now()}
                 engine.db.add_case_note(row)
                 result = row
-            else:
+            elif args.casework_command == "notes":
                 result = {"case_id": args.case, "notes": engine.db.case_notes(args.case)}
+            else:
+                analyst_view = InvestigationWorkspace(engine.db)
+                result = (
+                    analyst_view.write(args.case, args.output)
+                    if args.output else analyst_view.build(args.case)
+                )
             print(json.dumps(result, indent=2, ensure_ascii=False))
         elif args.command == "verify":
             ok, entries = EvidenceStore(args.workspace, engine.db, args.case).verify_ledger()
@@ -828,7 +868,7 @@ def main(argv: list[str] | None = None) -> int:
                         state = "WARN" if row["warning"] else "OK"
                         print(f"{row['source']:16} {state:4} failures={row['consecutive_failures']} "
                               f"last_success={row['last_success_at'] or 'never'}")
-            elif args.intel_command in {"ingest", "collect"}:
+            elif args.intel_command in {"ingest", "collect", "batch"}:
                 common = {
                     "authorized": args.authorized,
                     "subject_consent": args.subject_consent,
@@ -838,9 +878,14 @@ def main(argv: list[str] | None = None) -> int:
                 }
                 if args.intel_command == "ingest":
                     result = hub.ingest(args.case, args.source, args.file, **common)
-                else:
+                elif args.intel_command == "collect":
                     result = hub.collect(
                         args.case, args.source, args.target_type, args.target, **common
+                    )
+                else:
+                    result = CollectionOrchestrator(hub).run(
+                        args.case, CollectionOrchestrator.load_plan(args.plan),
+                        budget_seconds=args.budget_seconds, **common,
                     )
                 print(json.dumps(result, indent=2))
             elif args.intel_command == "media":
@@ -880,6 +925,12 @@ def main(argv: list[str] | None = None) -> int:
                     index_file=args.index_file, live_ahmia=args.live_ahmia,
                     authorized_feed=args.authorized_feed,
                     source_permission=args.source_permission, **common,
+                )
+            elif args.sensitive_command == "darkweb-feed":
+                result = runner.darkweb_feed(
+                    args.case, args.domain, args.file, args.source_type,
+                    owned_domain=args.owned_domain, source_permission=args.source_permission,
+                    **common,
                 )
             elif args.sensitive_command == "breach-catalog":
                 result = runner.breach_catalog(

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The version 0.5 intelligence hub normalizes authorised public-source and
+The version 1.6 intelligence hub normalizes authorised public-source and
 operator-supplied evidence into the existing TraceAtlas event graph. It is
 designed for defensive investigations, owned-asset exposure reviews, consented
 professional-profile reviews and documented public-record due diligence.
@@ -31,6 +31,16 @@ download malware, infer protected traits or label a person as a criminal.
 | Employee directory | Owned directory export | Subject consent or owned organisation | `PROFESSIONAL_RECORD` |
 | Sanctions | Authoritative export | Public-record basis or owned organisation | `SANCTIONS_RECORD` |
 | Court records | Authoritative export | Public-record basis or owned organisation | `COURT_RECORD` |
+| RDAP | Public RDAP | Owned asset plus public-record basis | `REGISTRATION_RECORD` |
+| DNS | Fixed Google DoH API | Owned asset | `DNS_RECORD` |
+| Internet Archive | CDX index metadata only | Owned asset | `ARCHIVED_URL` |
+| InternetDB | Keyless public API | Owned public IP | `INTERNET_EXPOSURE` |
+| Bluesky | Public AppView API or export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| Mastodon | Official export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| Reddit | Official/moderator-approved export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| X | Official API/export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| Telegram | Public/owned channel export | Subject consent or owned organisation | `COMMUNITY_METADATA` |
+| RSS/Atom | Approved export | Documented public-source purpose | `PUBLIC_CONTENT` |
 
 ## Live connector credentials
 
@@ -42,6 +52,11 @@ download malware, infer protected traits or label a person as a criminal.
 | Shodan | `SHODAN_API_KEY` |
 | Censys | `CENSYS_API_ID`, `CENSYS_API_SECRET` |
 | VirusTotal | `VIRUSTOTAL_API_KEY` |
+| RDAP | None |
+| DNS over HTTPS | None |
+| Internet Archive CDX | None |
+| Shodan InternetDB | None |
+| Bluesky AppView | None |
 
 Tokens remain in environment variables and are never written to events,
 reports or evidence. The connectors call fixed HTTPS hosts and do not accept a
@@ -53,7 +68,16 @@ Every attempted live collection records only its source, success/failure time an
 failure streak. Error history deliberately excludes request URLs, headers, response
 bodies and exception text that could contain credentials. Inspect it with
 `traceatlas intel health`; three consecutive failures are flagged as a warning.
-This is observability, not an availability guarantee or automatic retry system.
+Three consecutive failures open the batch-collection circuit for that source.
+Single-source calls remain available for an operator to verify recovery.
+
+## Bounded orchestration
+
+`traceatlas intel batch` accepts a JSON plan containing 1-12 live-source entries.
+It enforces a 10-900 second budget, returns per-source completed/failed/skipped
+states and never echoes target values. Provider failures do not abort the rest
+of the plan. A skipped source is recorded as a coverage gap, not as negative
+evidence.
 
 ## Export ingestion
 
@@ -86,6 +110,8 @@ The media command accepts one authorised image, audio or video file up to
 AI output receives a low confidence value, is tagged `not-a-fact` and requires
 analyst review. OCR and transcripts are treated as untrusted data so embedded
 instructions cannot control the analysis prompt.
+Unstructured prose, missing fields and wrong field types fail the AI advisory
+schema and are not inserted as model output.
 
 ## Analysis model
 

@@ -108,7 +108,6 @@ CAPABILITIES: dict[str, CapabilitySpec] = {spec.id: spec for spec in (
     _s("intelowl", "IntelOwl", "github.com/intelowlproject/IntelOwl", "AGPL-3.0", "service",
        ("observable-enrichment", "file-analysis", "analyzers", "connectors", "pivots", "playbooks"),
        credential_env=("INTELOWL_API_KEY",), safety=("authorization", "owned-org", "service-boundary", "no-file-execution"),
-       executable=False,
        restriction="AGPL platform remains a separately deployed service; no backend code is vendored."),
     _s("opencti", "OpenCTI Community Edition", "github.com/OpenCTI-Platform/opencti", "Apache-2.0/community",
        "service", ("stix-2.1", "knowledge-graph", "connectors", "graphql", "taxii", "case-management"),

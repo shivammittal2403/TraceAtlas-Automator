@@ -229,6 +229,67 @@ class SensitiveRunner:
             })
         return self._finish(audit, scan, seed, "darkweb-monitor", results)
 
+    def darkweb_feed(self, case_id: str, domain: str, path: Path, source_type: str, *,
+                     lawful_purpose: str, authorized: bool, allow_sensitive: bool,
+                     owned_domain: bool, source_permission: bool) -> dict[str, Any]:
+        """Reduce an approved threat-platform export to non-content mention metadata."""
+        validate_target("domain", domain)
+        if source_type not in {"stix", "misp", "opencti", "intelowl", "ail"}:
+            raise PolicyError("Unsupported dark-web feed type")
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_ARTIFACT:
+            raise PolicyError("Feed export must be a regular file up to 32 MiB")
+        attest = {
+            "owned_domain": owned_domain, "metadata_only": True,
+            "authorized_source": source_permission, "onion_fetch_disabled": True,
+        }
+        require_sensitive_policy(
+            authorized=authorized, allow_sensitive=allow_sensitive,
+            lawful_purpose=lawful_purpose, attestations=attest,
+            required=("owned_domain", "metadata_only", "authorized_source", "onion_fetch_disabled"),
+        )
+        try:
+            raw_text = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix.lower() == ".jsonl":
+                data: Any = [json.loads(line) for line in raw_text.splitlines() if line.strip()]
+            else:
+                data = json.loads(raw_text)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PolicyError("Dark-web feed must be valid JSON or JSONL") from exc
+        if isinstance(data, dict):
+            for key in ("objects", "events", "results", "data", "items"):
+                if isinstance(data.get(key), list):
+                    data = data[key]
+                    break
+            else:
+                data = [data]
+        if not isinstance(data, list):
+            raise PolicyError("Dark-web feed must contain a record list")
+        audit, scan, seed = self._begin(case_id, "darkweb-feed", domain, lawful_purpose, attest)
+        results = []
+        target = domain.lower()
+        for record in data[:5000]:
+            serialized = json.dumps(record, sort_keys=True, default=str, ensure_ascii=False)[:200_000]
+            lowered = serialized.lower()
+            if target not in lowered:
+                continue
+            results.append({
+                "event_type": "DARKWEB_FEED_MENTION",
+                "data": {
+                    "source_type": source_type,
+                    "record_fingerprint": fingerprint(serialized),
+                    "target_mentioned": True,
+                    "indicator_counts": {
+                        "onion": len(re.findall(r"[a-z2-7]{16,56}\.onion", lowered)),
+                        "cve": len(re.findall(r"\bCVE-\d{4}-\d{4,7}\b", serialized, re.I)),
+                        "sha256": len(re.findall(r"\b[a-f0-9]{64}\b", lowered)),
+                    },
+                },
+                "confidence": 65, "risk": "medium",
+                "tags": [f"approved-{source_type}-export", "content-not-retained", "onion-not-fetched"],
+            })
+        status = "partial" if len(data) > 5000 else "completed"
+        return self._finish(audit, scan, seed, "darkweb-feed", results, status)
+
     def breach_catalog(self, case_id: str, domain: str, *, lawful_purpose: str,
                        authorized: bool, allow_sensitive: bool,
                        owned_domain: bool) -> dict[str, Any]:

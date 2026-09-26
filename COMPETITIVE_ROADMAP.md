@@ -14,20 +14,20 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.5 foundation
+## Current 1.6 foundation
 
 | Capability | Current state |
 |---|---|
 | Typed graph and transforms | Spider event graph, 9 modules, 34 tool adapters, MCP contracts |
-| Collection breadth | 40 reviewed engines, 16 intelligence sources, OpenOSINT bundle |
+| Collection breadth | 40 reviewed engines, 26 intelligence sources (11 live), OpenOSINT bundle |
 | Evidence | SHA-256 ledger, provenance, fact/inference split, citations through document MCPs |
 | CTI | IOC/CVE/ATT&CK extraction, feed dedup, STIX 2.1 |
-| Media | Metadata, OCR/transcription, perceptual hashes, model-advisory path |
+| Media | Metadata, OCR/transcription, perceptual hashes, integrity signals, schema-validated model advisories |
 | Correlation | Deterministic Fusion Board with source caps and contradictions |
 | Documents | Citra and Docling staged-file MCP integration |
 | Public statistics | Data Commons MCP integration |
 | Geospatial | GeoAI MCP, coarse GeoJSON, GeoCLIP/Geo-Sleuth export contracts |
-| Deployment | One-command local setup, Vercel control plane, Supabase RLS and isolated worker |
+| Deployment | One-command local setup, Vercel control plane, Supabase RLS, retention/legal hold and isolated worker |
 | Research intelligence | 4,096-paper audited metadata pack, BM25/MMR search, gap planning and temporal review |
 
 ## Delivery plan
@@ -43,6 +43,28 @@ axis; evidence quality and governed automation are first-class differentiators.
 - persistent human entity-resolution decisions without auto-merge;
 - hosted case notes and review tasks protected by tenant RLS;
 - binary-integrity lockfiles and evidence-backed release-readiness gates.
+- bounded multi-source execution, connector circuit breaking and source-run provenance;
+- a unified case timeline/coverage/health/review workspace;
+- append-only database audit enforcement and retention/legal-hold policy.
+
+## Evidence-based maturity, not marketing
+
+These scores describe repository implementation depth, not licensed-data breadth
+or verified hosted operations. They are deliberately conservative.
+
+| Area | Earlier baseline | Current 1.6 | Remaining ceiling gap |
+|---|---:|---:|---|
+| Actual live-source depth | 2.0/10 | 4.5/10 | Real provider sandboxes, more official APIs, commercial/historical datasets |
+| Social intelligence | 2.0/10 | 3.5/10 | Major networks remain official-export/API only; no private-session scraping |
+| Dark-web intelligence | 1.0/10 | 3.0/10 | No commercial corpus, collection operations or onion crawling |
+| AI/media intelligence | 2.0/10 | 4.5/10 | No benchmarked deepfake, speaker, frame or geolocation model stack |
+| Investigation UX | 3.0/10 | 5.5/10 | No transform canvas, saved layouts, merge/split history or real-time collaboration |
+| Enterprise readiness | 2.5/10 | 5.5/10 | Hosted RLS tests, SSO/SCIM/MFA, KMS, restore drills, SLO/on-call and external assessment |
+| Overall product maturity | 2.1/10 | 4.4/10 | Production evidence and operational scale remain the limiting factors |
+
+The runtime readiness score is intentionally separate and environment-specific.
+It remains low until provider calls, external tools and a real Vercel/Supabase/
+worker deployment are execution-verified.
 
 ### Phase 1 — analyst graph (in progress)
 

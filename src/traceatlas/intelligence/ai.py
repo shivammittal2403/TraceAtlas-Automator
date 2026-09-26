@@ -12,6 +12,14 @@ from .sanitize import sanitize_record
 
 
 Requester = Callable[[str, bytes, dict[str, str], int], tuple[int, bytes]]
+ANALYSIS_KEYS = {
+    "executive_summary": str,
+    "patterns": list,
+    "contradictions": list,
+    "risk_hypotheses": list,
+    "corroboration_tasks": list,
+    "limitations": list,
+}
 
 
 def _request(url: str, body: bytes, headers: dict[str, str], timeout: int) -> tuple[int, bytes]:
@@ -25,6 +33,25 @@ def _local_ollama_url(base_url: str) -> str:
     if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise PolicyError("Ollama endpoint must be an HTTP loopback address")
     return base_url.rstrip("/") + "/api/generate"
+
+
+def validate_ai_advisory(value: Any, schema: dict[str, type], *, max_items: int = 100) -> dict[str, Any]:
+    """Reject unstructured model prose and bound every accepted field."""
+    if not isinstance(value, dict):
+        raise ValueError("AI response must be a JSON object")
+    missing = set(schema) - set(value)
+    if missing:
+        raise ValueError("AI response is missing required fields")
+    output: dict[str, Any] = {}
+    for key, expected in schema.items():
+        item = value[key]
+        if not isinstance(item, expected):
+            raise ValueError(f"AI response field {key} has the wrong type")
+        if expected is str:
+            output[key] = item[:10_000]
+        else:
+            output[key] = sanitize_record(item[:max_items])
+    return output
 
 
 class IntelligenceAnalyzer:
@@ -99,12 +126,12 @@ class IntelligenceAnalyzer:
         outer = json.loads(raw.decode("utf-8"))
         response = outer.get("response", "{}") if isinstance(outer, dict) else "{}"
         try:
-            advisory = json.loads(response)
-        except json.JSONDecodeError:
-            advisory = {"unparsed_response": str(response)[:20_000]}
+            advisory = validate_ai_advisory(json.loads(response), ANALYSIS_KEYS)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise ValueError("Ollama returned an invalid advisory schema") from exc
         summary["ai_analysis"] = {
             "enabled": True, "provider": "local-ollama", "model": model,
-            "advisory": sanitize_record(advisory),
+            "advisory": advisory,
         }
         return summary
 
@@ -113,4 +140,3 @@ class IntelligenceAnalyzer:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
         return output
-

@@ -44,15 +44,24 @@ class CapabilityHub:
 
     def inventory(self) -> list[dict[str, Any]]:
         rows = []
+        health = {row["tool"]: row for row in self.db.integration_health()}
         for spec in CAPABILITIES.values():
             binary = self._binary(spec)
             bundled = spec.integration == "bundled"
+            credentials = {key: bool(os.environ.get(key)) for key in spec.credential_env}
+            environment_ready = not credentials or all(credentials.values())
             rows.append({
                 **spec.to_dict(),
                 "installed": bundled or binary is not None,
                 "binary_path": binary,
-                "ready": spec.executable and (bundled or binary is not None or spec.integration in {"workflow", "service"}),
-                "credentials": {key: bool(os.environ.get(key)) for key in spec.credential_env},
+                "ready": spec.executable and environment_ready and (
+                    bundled or binary is not None or spec.integration in {"workflow", "service"}
+                ),
+                "credentials": credentials,
+                "execution_verified": bool(
+                    health.get(spec.id, {}).get("last_success_at")
+                    and health.get(spec.id, {}).get("consecutive_failures") == 0
+                ),
             })
         return rows
 
@@ -61,6 +70,7 @@ class CapabilityHub:
         return {
             "upstream_engines": len(rows),
             "ready": sum(bool(row["ready"]) for row in rows),
+            "execution_verified": sum(bool(row["execution_verified"]) for row in rows),
             "installed_adapters": [row["id"] for row in rows if row["installed"]],
             "restricted": {row["id"]: row["restriction"] for row in rows if row["restriction"]},
             "integration_modes": {
@@ -195,7 +205,11 @@ class CapabilityHub:
         self._validate_arguments(arguments)
         if "staged-files-only" in spec.safety:
             self._validate_staged_paths(case_id, arguments)
-        raw = self._mcp_client(source, timeout).call_tool(tool, arguments)
+        try:
+            raw = self._mcp_client(source, timeout).call_tool(tool, arguments)
+        except Exception as exc:
+            self.db.record_integration_result(source, "failed", type(exc).__name__)
+            raise
         normalized = self._sanitize(raw)
         output_dir = self.workspace / "capability-imports" / case_id
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -206,6 +220,7 @@ class CapabilityHub:
             "facts": normalized, "inferences": [],
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"mcp:{source}:{tool}")
+        self.db.record_integration_result(source, "completed")
         return {"status": "completed", "source": source, "tool": tool,
                 "output": str(output), "sha256": record["sha256"], "review_required": True}
 
@@ -240,22 +255,30 @@ class CapabilityHub:
         if not self.db.get_case(case_id):
             raise PolicyError(f"Unknown case: {case_id}")
         self._validate_arguments(options)
-        if source == "crawl4ai":
-            if action != "crawl":
-                raise PolicyError("Crawl4AI supports only the bounded crawl action")
-            raw = ServiceClient.crawl4ai(target, options, timeout)
-        elif source == "firecrawl":
-            raw = ServiceClient.firecrawl(action, target, options, timeout)
-        elif source == "searxng":
-            if action != "search":
-                raise PolicyError("SearXNG supports only the bounded search action")
-            raw = ServiceClient.searxng(target, options, timeout)
-        elif source == "scrapegraph-ai":
-            if action != "extract":
-                raise PolicyError("ScrapeGraphAI supports only the bounded extract action")
-            raw = ServiceClient.scrapegraph(target, options, timeout)
-        else:
-            raise PolicyError("Unsupported acquisition service")
+        try:
+            if source == "crawl4ai":
+                if action != "crawl":
+                    raise PolicyError("Crawl4AI supports only the bounded crawl action")
+                raw = ServiceClient.crawl4ai(target, options, timeout)
+            elif source == "firecrawl":
+                raw = ServiceClient.firecrawl(action, target, options, timeout)
+            elif source == "searxng":
+                if action != "search":
+                    raise PolicyError("SearXNG supports only the bounded search action")
+                raw = ServiceClient.searxng(target, options, timeout)
+            elif source == "scrapegraph-ai":
+                if action != "extract":
+                    raise PolicyError("ScrapeGraphAI supports only the bounded extract action")
+                raw = ServiceClient.scrapegraph(target, options, timeout)
+            elif source == "intelowl":
+                if action != "analyze":
+                    raise PolicyError("IntelOwl supports only bounded observable analysis")
+                raw = ServiceClient.intelowl(target, options, timeout)
+            else:
+                raise PolicyError("Unsupported acquisition service")
+        except Exception as exc:
+            self.db.record_integration_result(source, "failed", type(exc).__name__)
+            raise
         normalized = self._sanitize(raw)
         output_dir = self.workspace / "capability-imports" / case_id
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -266,6 +289,7 @@ class CapabilityHub:
             "facts": normalized, "inferences": [], "review_required": True,
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"service:{source}:{action}")
+        self.db.record_integration_result(source, "completed")
         return {"status": "completed", "source": source, "action": action,
                 "output": str(output), "sha256": record["sha256"], "review_required": True}
 

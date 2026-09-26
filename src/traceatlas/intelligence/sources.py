@@ -29,6 +29,26 @@ def _source(name: str, title: str, category: str, acquisition: str,
 
 
 SOURCES: dict[str, SourceSpec] = {
+    "rdap": _source(
+        "rdap", "RDAP", "internet-registration", "public-rdap",
+        "REGISTRATION_RECORD", "Authoritative registration metadata for a public domain or IP.",
+        live_connector=True, public_record=True,
+    ),
+    "dns": _source(
+        "dns", "DNS over HTTPS", "internet-registration", "public-doh",
+        "DNS_RECORD", "Public DNS answers through a fixed DNS-over-HTTPS resolver.",
+        live_connector=True,
+    ),
+    "wayback": _source(
+        "wayback", "Internet Archive CDX", "web-archive", "public-index-api",
+        "ARCHIVED_URL", "Public web-archive index metadata; archived pages are not fetched.",
+        live_connector=True,
+    ),
+    "internetdb": _source(
+        "internetdb", "Shodan InternetDB", "internet-intelligence", "public-api",
+        "INTERNET_EXPOSURE", "Keyless passive service metadata for an organisation-owned public IP.",
+        live_connector=True,
+    ),
     "linkedin": _source(
         "linkedin", "LinkedIn", "social-professional", "official-export",
         "PROFESSIONAL_PROFILE", "Consented profile or owned-organisation API/export records.",
@@ -53,6 +73,35 @@ SOURCES: dict[str, SourceSpec] = {
         "snapchat", "Snapchat", "social-media", "official-export",
         "SOCIAL_PROFILE", "Consented public-profile or official API/export observations.",
         personal_data=True,
+    ),
+    "bluesky": _source(
+        "bluesky", "Bluesky", "social-media", "public-appview-api-or-export",
+        "SOCIAL_PROFILE", "Public profile metadata through the Bluesky AppView API or an export.",
+        live_connector=True, personal_data=True,
+    ),
+    "mastodon": _source(
+        "mastodon", "Mastodon", "social-media", "official-export",
+        "SOCIAL_PROFILE", "Consented public profile or official account export.",
+        personal_data=True,
+    ),
+    "reddit": _source(
+        "reddit", "Reddit", "community-platform", "official-export",
+        "SOCIAL_PROFILE", "Consented public-account or moderator-approved community export.",
+        personal_data=True,
+    ),
+    "x": _source(
+        "x", "X", "social-media", "official-export",
+        "SOCIAL_PROFILE", "Consented public-profile or official API/export observations.",
+        personal_data=True,
+    ),
+    "telegram": _source(
+        "telegram", "Telegram", "community-platform", "official-export",
+        "COMMUNITY_METADATA", "Public-channel or owned-community export; no private messages.",
+        personal_data=True,
+    ),
+    "rss": _source(
+        "rss", "RSS / Atom", "public-web", "approved-export",
+        "PUBLIC_CONTENT", "Approved RSS/Atom export normalized as public content records.",
     ),
     "youtube": _source(
         "youtube", "YouTube", "video-platform", "api-or-export",
@@ -110,4 +159,3 @@ SOURCES: dict[str, SourceSpec] = {
         limitation="A filing or name match is not proof of identity, guilt or conviction.",
     ),
 }
-

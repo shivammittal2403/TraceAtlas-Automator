@@ -4,5 +4,9 @@ from .ai import IntelligenceAnalyzer
 from .hub import IntelligenceHub
 from .media import MediaAnalyzer
 from .sources import SOURCES, SourceSpec
+from .orchestrator import CollectionOrchestrator
 
-__all__ = ["IntelligenceAnalyzer", "IntelligenceHub", "MediaAnalyzer", "SOURCES", "SourceSpec"]
+__all__ = [
+    "CollectionOrchestrator", "IntelligenceAnalyzer", "IntelligenceHub", "MediaAnalyzer",
+    "SOURCES", "SourceSpec",
+]
