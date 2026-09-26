@@ -14,10 +14,11 @@ Sleeper = Callable[[float], None]
 class ProviderError(RuntimeError):
     """Secret-safe connector failure with stable operational classification."""
 
-    def __init__(self, code: str, *, retryable: bool = False):
+    def __init__(self, code: str, *, retryable: bool = False, attempts: int = 0):
         super().__init__(code)
         self.code = code
         self.retryable = retryable
+        self.attempts = attempts
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,19 @@ def _validate_shape(source: str, data: Any) -> None:
         valid = isinstance(data, dict) and isinstance(data.get("ip"), str)
     elif source == "bluesky":
         valid = isinstance(data, dict) and isinstance(data.get("handle"), str)
+    elif source == "gitlab":
+        valid = (
+            isinstance(data, list) and len(data) <= 1
+            and all(isinstance(row, dict) and isinstance(row.get("username"), str) for row in data)
+        )
+    elif source == "hackernews":
+        valid = isinstance(data, dict) and isinstance(data.get("id"), str)
+    elif source == "nvd":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("totalResults"), int)
+            and isinstance(data.get("vulnerabilities"), list)
+            and len(data.get("vulnerabilities", [])) <= 2
+        )
     if not valid:
         raise ProviderError("provider_schema_mismatch")
 
@@ -105,6 +119,7 @@ class ResilientJSONClient:
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
                 last_error = ProviderError("provider_transport_failure", retryable=True)
                 last_error.__cause__ = exc
+            last_error.attempts = attempt
             if not last_error.retryable or attempt >= self.max_attempts:
                 raise last_error
             self.sleeper(0.25 * attempt)

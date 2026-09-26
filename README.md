@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.6.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.7.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -30,10 +30,11 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 26 social, code, video, community,
+- Governed intelligence hub covering 29 social, code, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
-- Eleven live official/public API connectors: GitHub, YouTube, Discord invite
+- Fourteen live official/public API connectors: GitHub, GitLab, Hacker News,
+  NIST NVD, YouTube, Discord invite
   metadata, Shodan, Censys, VirusTotal, RDAP, Google DNS-over-HTTPS, Internet
   Archive CDX metadata, Shodan InternetDB and Bluesky AppView.
 - Bounded 1-12-source collection plans enforce a wall-clock budget, isolate
@@ -57,7 +58,7 @@ human review where judgment, attribution, privacy or legal authority matters.
 - A Supabase schema with tenant RLS, narrow Data API grants, audit events and
   atomic job claiming, plus a separately deployed non-root worker for four
   fixed passive cloud workflows. Vercel never runs scanners or provider keys.
-- A unified capability registry covers all 40 unique reviewed upstream engines with
+- A unified capability registry covers all 41 unique reviewed upstream engines with
   licence-aware adapter, MCP, service, workflow, training and export boundaries.
 - Approved JSON/JSONL results from those engines can be sanitized, preserved in
   the evidence ledger and kept separate from analyst inferences.
@@ -68,6 +69,11 @@ human review where judgment, attribution, privacy or legal authority matters.
 - IntelOwl observable analysis is available through a separately deployed,
   host-allowlisted service boundary. Every call requires an explicit analyzer
   list; file execution and runtime analyzer configuration are excluded.
+- The complete supplied 187-item IntelOwl inventory is represented as 173
+  analyzers, 13 outbound connectors and one extension framework. Observable
+  analyzers become selectable only after TraceAtlas discovers the exact enabled
+  name and supported target types from the operator's IntelOwl API; 47 file-only
+  analyzers, outbound delivery connectors and arbitrary plugin code remain blocked.
 - A native CTI engine extracts IOCs, CVEs and explicit ATT&CK references,
   builds non-causal entity graphs, deduplicates JSON/RSS feeds and exports
   STIX 2.1 without requiring a model or paid service.
@@ -139,6 +145,13 @@ export INTELOWL_API_KEY=YOUR_LOCAL_SERVICE_TOKEN
 ./start.sh capabilities service-call --case demo-001 \
   --source intelowl --action analyze --target example.com \
   --options-file ./intelowl-options.json --owned-org --authorized
+
+# Inspect all 187 governed modules, reconcile them with the live service, then
+# execute only exact remote-verified observable analyzers.
+./start.sh intel modules --json
+./start.sh intel module-doctor --authorized --json
+./start.sh intel module-run --case demo-001 --module abuseipdb \
+  --target-type ip --target 8.8.8.8 --tlp AMBER --owned-org --authorized
 
 # Create an auditable research dependency DAG
 ./start.sh capabilities research-plan \
@@ -321,6 +334,7 @@ failures create local alerts.
 ./start.sh integrations lock
 ./start.sh integrations verify-lock
 ./start.sh readiness --production --json
+./start.sh maturity --production --json
 ```
 
 An accepted resolution remains a documented analyst judgement, not automatic

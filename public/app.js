@@ -215,8 +215,10 @@ function renderNotes() {
 
 function renderInvestigation(view) {
   const summary = $("#investigation-summary");
+  const coverage = $("#investigation-coverage");
   const timeline = $("#investigation-timeline");
   summary.replaceChildren();
+  coverage.replaceChildren();
   timeline.replaceChildren();
   if (!view) {
     const empty = document.createElement("p");
@@ -240,6 +242,16 @@ function renderInvestigation(view) {
   review.className = "boundary";
   review.textContent = `Pending review: ${view.review_queue?.pending || 0} · failed sources: ${view.review_queue?.failed_runs || 0}`;
   summary.append(metrics, review);
+  for (const [source, states] of Object.entries(view.coverage || {})) {
+    const row = document.createElement("div");
+    row.className = "coverage-record";
+    const name = document.createElement("b");
+    const values = document.createElement("span");
+    name.textContent = source;
+    values.textContent = Object.entries(states || {}).map(([state, count]) => `${state}: ${count}`).join(" · ");
+    row.append(name, values);
+    coverage.append(row);
+  }
   for (const item of (view.timeline || []).slice(0, 20)) {
     const row = document.createElement("div");
     row.className = "record";

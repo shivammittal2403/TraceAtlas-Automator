@@ -141,6 +141,8 @@ class EnterpriseUpliftTests(unittest.TestCase):
             )
         self.assertEqual(result["status"], "completed")
         self.assertEqual(len(self.db.evidence("case-1")), 1)
+        self.assertEqual(self.db.source_runs(case_id="case-1")[0]["status"], "completed")
+        self.assertEqual(self.db.source_runs(case_id="case-1")[0]["source"], "intelowl")
         health = {row["tool"]: row for row in self.db.integration_health()}
         self.assertEqual(health["intelowl"]["consecutive_failures"], 0)
         self.assertIsNotNone(health["intelowl"]["last_success_at"])

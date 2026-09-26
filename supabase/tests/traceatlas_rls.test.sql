@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(36);
 
 select ok((select relrowsecurity from pg_class where oid = 'public.organisations'::regclass), 'organisations RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.organisation_members'::regclass), 'members RLS enabled');
@@ -13,12 +13,16 @@ select ok((select relrowsecurity from pg_class where oid = 'public.graph_edges':
 select ok((select relrowsecurity from pg_class where oid = 'public.audit_events'::regclass), 'audit RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.case_notes'::regclass), 'case notes RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.review_tasks'::regclass), 'review tasks RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.source_runs'::regclass), 'source runs RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.case_retention'::regclass), 'case retention RLS enabled');
 select ok(not has_table_privilege('anon', 'public.organisations', 'select'), 'anon cannot read organisations');
 select ok(not has_table_privilege('anon', 'public.cases', 'select'), 'anon cannot read cases');
 select ok(not has_table_privilege('anon', 'public.assets', 'select'), 'anon cannot read assets');
 select ok(not has_table_privilege('anon', 'public.investigation_jobs', 'select'), 'anon cannot read jobs');
 select ok(not has_table_privilege('anon', 'public.case_notes', 'select'), 'anon cannot read case notes');
 select ok(not has_table_privilege('anon', 'public.review_tasks', 'select'), 'anon cannot read review tasks');
+select ok(not has_table_privilege('anon', 'public.source_runs', 'select'), 'anon cannot read source runs');
+select ok(not has_table_privilege('anon', 'public.case_retention', 'select'), 'anon cannot read retention policy');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'insert'), 'users cannot directly insert jobs');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'update'), 'users cannot forge job status');
 select ok(not has_table_privilege('authenticated', 'public.evidence_items', 'insert'), 'users cannot forge evidence');
@@ -30,6 +34,9 @@ select ok(has_function_privilege('authenticated', 'public.enqueue_investigation_
 select ok(has_function_privilege('authenticated', 'public.decide_review_task(uuid,text,text)', 'execute'), 'analysts may call governed review decision');
 select ok(has_function_privilege('service_role', 'public.claim_next_investigation_job(text)', 'execute'), 'worker may claim jobs');
 select ok(not has_function_privilege('authenticated', 'public.recover_stale_investigation_jobs()', 'execute'), 'users cannot recover leases');
+select ok(has_function_privilege('authenticated', 'public.set_organisation_member_role(uuid,uuid,text)', 'execute'), 'authenticated owners may call MFA-gated role change');
+select ok(has_function_privilege('authenticated', 'public.remove_organisation_member(uuid,uuid)', 'execute'), 'authenticated owners may call MFA-gated member removal');
+select ok(not has_function_privilege('anon', 'public.set_organisation_member_role(uuid,uuid,text)', 'execute'), 'anon cannot change member roles');
 
 select * from finish();
 rollback;

@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 1.6 includes a governed compatibility layer for all 40 unique supplied and
+TraceAtlas 1.7 includes a governed compatibility layer for all 41 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -30,6 +30,7 @@ training, export or bundled boundary.
 | OSINTIQ | Export | IOC enrichment, ATT&CK/kill-chain reasoning | Missing licence file: no code copied |
 | ThreatWatch | Export | Feeds, CVE dedup, trends, alerts | Non-commercial code not copied |
 | IntelOwl | Service | Observable/file analysis, plugins and playbooks | External AGPL service only |
+| MISP | Service | Exact observable search and threat-feed correlation | Operator-controlled API; content reduced and bounded |
 | OpenCTI CE | Service/export | STIX graph, connectors, GraphQL/TAXII | Community interoperability only |
 | ZettelForge | Adapter | CTI memory, aliases, graph, OCSF audit | Optional local adapter |
 | Pharos | Design only | Workspace, graph, search and reports | Proprietary: no code/assets copied |
@@ -68,7 +69,7 @@ The optional control plane stores explicitly enrolled organisation-owned
 domains, public IPs, public URLs and hashes and requests four fixed passive job
 types. Engines run locally or in an isolated worker, never inside Vercel.
 
-## Version 1.6 execution status
+## Version 1.7 execution status
 
 - `OpenOSINT` remains fully bundled in its isolated runtime.
 - `Apify MCP`, `Exa MCP`, `Firecrawl MCP`, `MCP Maigret` and `OSINT MCP Server`
@@ -80,7 +81,12 @@ types. Engines run locally or in an isolated worker, never inside Vercel.
   approved HTTPS API endpoint; its AGPL backend is not copied into this project.
 - `IntelOwl` supports explicit-analyzer observable submission through a
   loopback or HTTPS host-allowlisted service. Files, arbitrary runtime options
-  and execute-all-analyzers behaviour remain blocked.
+  and execute-all-analyzers behaviour remain blocked. Its supplied 187-module
+  inventory is machine-readable; an analyzer can run only after the configured
+  service reports one exact enabled plugin with support for that target type.
+- `MISP` supports one exact domain, public IP, URL or hash query against an
+  operator-controlled instance. Query duration, page size and tags are bounded;
+  attachments and raw dark-web content are never retained.
 - Claude/IOP/Agentic/GPT-Researcher/Last30Days concepts are implemented as a
   deterministic authority-bound research DAG, evidence-gap analysis,
   deduplication and strict fact/inference separation. This is a native TraceAtlas

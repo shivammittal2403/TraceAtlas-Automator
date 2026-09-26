@@ -26,6 +26,8 @@ class DeploymentDoctor:
             "vercel.json", "public/index.html", "api/health.py", "worker/Dockerfile",
             "supabase/migrations/20260925000100_traceatlas_control_plane.sql",
             "supabase/migrations/20260925000300_analyst_workflow.sql",
+            "supabase/migrations/20260926000100_enterprise_controls.sql",
+            "supabase/migrations/20260926000200_identity_governance.sql",
             "supabase/tests/traceatlas_rls.test.sql",
         )
         for relative in required_files:

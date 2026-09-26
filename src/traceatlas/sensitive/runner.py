@@ -8,6 +8,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
@@ -17,6 +18,7 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from ..db import CaseDB
+from ..capabilities.service import ServiceClient
 from ..evidence import EvidenceStore, sha256_file
 from ..policy import PolicyError, validate_target
 from ..spider.events import Event, child
@@ -289,6 +291,87 @@ class SensitiveRunner:
             })
         status = "partial" if len(data) > 5000 else "completed"
         return self._finish(audit, scan, seed, "darkweb-feed", results, status)
+
+    def darkweb_misp(self, case_id: str, domain: str, *, lawful_purpose: str,
+                     authorized: bool, allow_sensitive: bool, owned_domain: bool,
+                     source_permission: bool, publish_timestamp: str = "30d",
+                     limit: int = 100) -> dict[str, Any]:
+        """Query approved MISP metadata without retaining returned indicator content."""
+        validate_target("domain", domain)
+        attest = {
+            "owned_domain": owned_domain, "metadata_only": True,
+            "authorized_source": source_permission, "onion_fetch_disabled": True,
+            "attachments_disabled": True,
+        }
+        require_sensitive_policy(
+            authorized=authorized, allow_sensitive=allow_sensitive,
+            lawful_purpose=lawful_purpose, attestations=attest,
+            required=("owned_domain", "metadata_only", "authorized_source",
+                      "onion_fetch_disabled", "attachments_disabled"),
+        )
+        audit, scan, seed = self._begin(case_id, "darkweb-misp", domain, lawful_purpose, attest)
+        source_run_id = str(uuid4())
+        started = time.monotonic()
+        self.db.start_source_run(
+            source_run_id, case_id, "misp", "service", fingerprint(domain)
+        )
+        try:
+            data = ServiceClient.misp(domain, {
+                "observable_classification": "domain", "publish_timestamp": publish_timestamp,
+                "limit": limit, "page": 1, "to_ids": True,
+            })
+        except Exception as exc:
+            self.db.record_integration_result("misp", "failed", type(exc).__name__)
+            self.db.finish_source_run(
+                source_run_id, "failed", failure_code=type(exc).__name__.lower(),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            result = self._finish(audit, scan, seed, "darkweb-misp", [], "partial")
+            result["failure_code"] = type(exc).__name__
+            result["source_run_id"] = source_run_id
+            return result
+        if isinstance(data, dict):
+            for key in ("Attribute", "attributes", "response", "results", "data", "items"):
+                value = data.get(key)
+                if isinstance(value, dict) and isinstance(value.get("Attribute"), list):
+                    data = value["Attribute"]
+                    break
+                if isinstance(value, list):
+                    data = value
+                    break
+            else:
+                data = [data]
+        records = data if isinstance(data, list) else []
+        target = domain.lower()
+        results: list[dict[str, Any]] = []
+        for record in records[:500]:
+            serialized = json.dumps(record, sort_keys=True, default=str, ensure_ascii=False)[:200_000]
+            lowered = serialized.lower()
+            if target not in lowered:
+                continue
+            results.append({
+                "event_type": "DARKWEB_FEED_MENTION",
+                "data": {
+                    "source_type": "misp-service", "record_fingerprint": fingerprint(serialized),
+                    "target_mentioned": True,
+                    "indicator_counts": {
+                        "onion": len(re.findall(r"[a-z2-7]{16,56}\.onion", lowered)),
+                        "cve": len(re.findall(r"\bCVE-\d{4}-\d{4,7}\b", serialized, re.I)),
+                        "sha256": len(re.findall(r"\b[a-f0-9]{64}\b", lowered)),
+                    },
+                },
+                "confidence": 70, "risk": "medium",
+                "tags": ["approved-misp-service", "content-not-retained", "onion-not-fetched"],
+            })
+        self.db.record_integration_result("misp", "completed")
+        status = "partial" if len(records) > 500 else "completed"
+        self.db.finish_source_run(
+            source_run_id, status, records_received=len(records),
+            records_stored=len(results), duration_ms=int((time.monotonic() - started) * 1000),
+        )
+        result = self._finish(audit, scan, seed, "darkweb-misp", results, status)
+        result["source_run_id"] = source_run_id
+        return result
 
     def breach_catalog(self, case_id: str, domain: str, *, lawful_purpose: str,
                        authorized: bool, allow_sensitive: bool,

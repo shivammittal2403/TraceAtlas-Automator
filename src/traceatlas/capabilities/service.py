@@ -173,6 +173,27 @@ class ServiceClient:
             )
         return value.rstrip("/")
 
+    @staticmethod
+    def _misp_base(value: str) -> str:
+        parsed = urlparse(value.rstrip("/"))
+        if not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise PolicyError("MISP_URL must be a clean service base URL")
+        try:
+            address = ip_address(parsed.hostname)
+        except ValueError:
+            address = None
+        if parsed.scheme == "http" and (
+            parsed.hostname == "localhost" or (address and address.is_loopback)
+        ):
+            return value.rstrip("/")
+        approved = {
+            host.strip().lower() for host in os.environ.get("TRACEATLAS_SERVICE_HOSTS", "").split(",")
+            if host.strip()
+        }
+        if parsed.scheme != "https" or parsed.hostname.lower() not in approved:
+            raise PolicyError("Remote MISP requires HTTPS and its hostname in TRACEATLAS_SERVICE_HOSTS")
+        return value.rstrip("/")
+
     @classmethod
     def intelowl(cls, target: str, options: dict[str, Any], timeout: int = 60) -> Any:
         """Submit one bounded observable to a separately deployed IntelOwl service."""
@@ -221,4 +242,70 @@ class ServiceClient:
         return cls._post(
             base + "/api/analyze_observable", payload,
             {"Authorization": f"Token {key}"}, timeout,
+        )
+
+    @classmethod
+    def intelowl_analyzer_configs(cls, timeout: int = 30) -> Any:
+        """Discover exact analyzer names and observable contracts from IntelOwl."""
+        key = os.environ.get("INTELOWL_API_KEY")
+        if not key or len(key) > 512 or any(char.isspace() for char in key):
+            raise PolicyError("INTELOWL_API_KEY is not configured correctly")
+        base = cls._intelowl_base(os.environ.get("INTELOWL_URL", "http://127.0.0.1:80"))
+        return cls._get(
+            base + "/api/get_analyzer_configs", timeout,
+            {"Authorization": f"Token {key}"},
+        )
+
+    @classmethod
+    def misp(cls, target: str, options: dict[str, Any], timeout: int = 60) -> Any:
+        """Search one exact owned observable in an operator-controlled MISP instance."""
+        allowed = {"observable_classification", "publish_timestamp", "tags", "limit", "page", "to_ids"}
+        unknown = set(options) - allowed
+        if unknown:
+            raise PolicyError("Unsupported MISP option(s): " + ", ".join(sorted(unknown)))
+        classification = str(options.get("observable_classification", "")).lower()
+        if classification == "url":
+            cls._public_url(target)
+            attribute_type = "url"
+        elif classification in {"domain", "ip"}:
+            validate_target(classification, target)
+            if classification == "ip" and not ip_address(target).is_global:
+                raise PolicyError("MISP accepts public IPs only")
+            attribute_type = "domain" if classification == "domain" else "ip-dst"
+        elif classification == "hash":
+            if len(target) not in {32, 40, 64} or not re.fullmatch(r"[0-9a-fA-F]+", target):
+                raise PolicyError("MISP hash must be MD5, SHA-1 or SHA-256")
+            target = target.lower()
+            attribute_type = {32: "md5", 40: "sha1", 64: "sha256"}[len(target)]
+        else:
+            raise PolicyError("MISP observable_classification is invalid")
+        limit = options.get("limit", 100)
+        page = options.get("page", 1)
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise PolicyError("MISP limit must be between 1 and 500")
+        if isinstance(page, bool) or not isinstance(page, int) or not 1 <= page <= 20:
+            raise PolicyError("MISP page must be between 1 and 20")
+        published = str(options.get("publish_timestamp", "30d"))
+        if not re.fullmatch(r"\d{1,4}[dhm]", published):
+            raise PolicyError("MISP publish_timestamp must be a bounded duration such as 30d")
+        tags = options.get("tags", [])
+        if not isinstance(tags, list) or len(tags) > 10 or not all(
+            isinstance(tag, str) and re.fullmatch(r"[A-Za-z0-9_.:+! -]{1,96}", tag) for tag in tags
+        ):
+            raise PolicyError("MISP tags must be a list of up to ten safe tag names")
+        key = os.environ.get("MISP_API_KEY", "")
+        if not key or len(key) > 512 or any(char.isspace() for char in key):
+            raise PolicyError("MISP_API_KEY is not configured correctly")
+        base = cls._misp_base(os.environ.get("MISP_URL", "http://127.0.0.1:8081"))
+        payload = {
+            "returnFormat": "json", "value": target.strip(), "type": attribute_type,
+            "publish_timestamp": published, "limit": limit, "page": page,
+            "to_ids": bool(options.get("to_ids", True)), "enforceWarninglist": True,
+            "includeEventTags": True, "withAttachments": False,
+        }
+        if tags:
+            payload["tags"] = tags
+        return cls._post(
+            base + "/attributes/restSearch", payload,
+            {"Authorization": key, "Accept": "application/json"}, timeout,
         )

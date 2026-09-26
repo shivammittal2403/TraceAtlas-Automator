@@ -12,12 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class VercelAppTests(unittest.TestCase):
     def test_catalog_matches_integrated_platform(self):
-        self.assertEqual(CATALOG["version"], "1.6.0")
+        self.assertEqual(CATALOG["version"], "1.7.0")
+        self.assertEqual(CATALOG["metrics"]["governed_modules"], 187)
         self.assertEqual(CATALOG["metrics"]["research_papers"], 4096)
         self.assertEqual(CATALOG["metrics"]["playbooks"], 40)
         self.assertEqual(CATALOG["metrics"]["openosint_tools"], 20)
-        self.assertEqual(CATALOG["metrics"]["upstream_capability_engines"], 40)
-        self.assertEqual(CATALOG["metrics"]["intelligence_sources"], 26)
+        self.assertEqual(CATALOG["metrics"]["upstream_capability_engines"], 41)
+        self.assertEqual(CATALOG["metrics"]["intelligence_sources"], 29)
         self.assertFalse(CATALOG["deployment_boundary"]["executes_scans"])
         self.assertFalse(CATALOG["deployment_boundary"]["local_planner_stores_targets"])
         self.assertTrue(CATALOG["deployment_boundary"]["local_planner_processes_target_in_browser"])

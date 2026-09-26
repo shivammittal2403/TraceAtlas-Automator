@@ -27,7 +27,7 @@ class CapabilityTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_all_analyzed_repositories_are_registered(self):
-        self.assertEqual(len(CAPABILITIES), 40)
+        self.assertEqual(len(CAPABILITIES), 41)
         for name in ("agent-reach", "crawl4ai", "firecrawl-mcp", "mcp-maigret",
                      "osint-mcp-server", "openosint", "browser-use"):
             self.assertIn(name, CAPABILITIES)
@@ -41,7 +41,7 @@ class CapabilityTests(unittest.TestCase):
     def test_doctor_is_secret_safe(self):
         encoded = json.dumps(self.hub.doctor())
         self.assertNotIn("API_KEY=", encoded)
-        self.assertEqual(self.hub.doctor()["upstream_engines"], 40)
+        self.assertEqual(self.hub.doctor()["upstream_engines"], 41)
 
     def test_ingest_requires_authorization_and_consent(self):
         export = self.root / "agent.json"

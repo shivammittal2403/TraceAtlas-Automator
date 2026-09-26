@@ -69,6 +69,19 @@ CREATE TABLE IF NOT EXISTS connector_health (
   source TEXT PRIMARY KEY, last_success_at TEXT, last_failure_at TEXT,
   consecutive_failures INTEGER NOT NULL DEFAULT 0, last_error_message TEXT
 );
+CREATE TABLE IF NOT EXISTS source_runs (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, source TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK(mode IN ('live','approved-export','service')),
+  status TEXT NOT NULL CHECK(status IN ('running','completed','partial','failed')),
+  target_fingerprint TEXT NOT NULL,
+  records_received INTEGER NOT NULL DEFAULT 0,
+  records_stored INTEGER NOT NULL DEFAULT 0,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  bytes_received INTEGER NOT NULL DEFAULT 0,
+  failure_code TEXT, duration_ms INTEGER,
+  started_at TEXT NOT NULL, completed_at TEXT,
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS integration_health (
   tool TEXT PRIMARY KEY, last_success_at TEXT, last_failure_at TEXT,
   consecutive_failures INTEGER NOT NULL DEFAULT 0, last_status TEXT NOT NULL,
@@ -121,6 +134,10 @@ CREATE INDEX IF NOT EXISTS alerts_case_status_idx ON alerts(case_id,status,creat
 CREATE INDEX IF NOT EXISTS case_notes_case_idx ON case_notes(case_id,created_at);
 CREATE INDEX IF NOT EXISTS resolution_queue_idx
   ON entity_resolution_candidates(case_id,status,created_at);
+CREATE INDEX IF NOT EXISTS source_runs_case_idx
+  ON source_runs(case_id,started_at);
+CREATE INDEX IF NOT EXISTS source_runs_source_idx
+  ON source_runs(source,status,started_at);
 """
 
 
@@ -239,6 +256,43 @@ class CaseDB:
         return [dict(row) for row in self.conn.execute(
             "SELECT * FROM connector_health ORDER BY source"
         ).fetchall()]
+
+    def start_source_run(self, run_id: str, case_id: str, source: str,
+                         mode: str, target_fingerprint: str) -> None:
+        self.conn.execute(
+            """INSERT INTO source_runs
+            (id,case_id,source,mode,status,target_fingerprint,started_at)
+            VALUES(?,?,?,?,'running',?,?)""",
+            (run_id, case_id, source, mode, target_fingerprint, utc_now()),
+        )
+        self.conn.commit()
+
+    def finish_source_run(self, run_id: str, status: str, *, records_received: int = 0,
+                          records_stored: int = 0, attempts: int = 0,
+                          bytes_received: int = 0, failure_code: str | None = None,
+                          duration_ms: int = 0) -> None:
+        self.conn.execute(
+            """UPDATE source_runs SET status=?,records_received=?,records_stored=?,attempts=?,
+            bytes_received=?,failure_code=?,duration_ms=?,completed_at=?
+            WHERE id=? AND status='running'""",
+            (status, max(0, records_received), max(0, records_stored), max(0, attempts),
+             max(0, bytes_received), failure_code[:120] if failure_code else None,
+             max(0, duration_ms), utc_now(), run_id),
+        )
+        self.conn.commit()
+
+    def source_runs(self, case_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 5000))
+        if case_id:
+            rows = self.conn.execute(
+                "SELECT * FROM source_runs WHERE case_id=? ORDER BY started_at DESC,id DESC LIMIT ?",
+                (case_id, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM source_runs ORDER BY started_at DESC,id DESC LIMIT ?", (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def record_integration_result(self, tool: str, status: str,
                                   error_type: str | None = None) -> None:

@@ -68,6 +68,14 @@ class ControlPlaneTests(unittest.TestCase):
         self.assertIn("private.is_org_member(v_organisation_id", sql)
         self.assertIn("revoke all on function public.decide_review_task", sql)
 
+    def test_membership_api_is_same_origin_and_rpc_only(self):
+        source = (ROOT / "api/members.py").read_text()
+        self.assertIn("require_same_origin(self)", source)
+        self.assertIn('gateway.rpc("set_organisation_member_role"', source)
+        self.assertIn('gateway.rpc("remove_organisation_member"', source)
+        self.assertNotIn("gateway.insert", source)
+        self.assertNotIn("gateway.update", source)
+
 
 if __name__ == "__main__":
     unittest.main()

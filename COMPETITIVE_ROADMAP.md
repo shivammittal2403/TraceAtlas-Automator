@@ -14,12 +14,12 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.6 foundation
+## Current 1.7 foundation
 
 | Capability | Current state |
 |---|---|
 | Typed graph and transforms | Spider event graph, 9 modules, 34 tool adapters, MCP contracts |
-| Collection breadth | 40 reviewed engines, 26 intelligence sources (11 live), OpenOSINT bundle |
+| Collection breadth | 41 reviewed engines, 29 intelligence sources (14 live), 187 governed IntelOwl modules, OpenOSINT bundle |
 | Evidence | SHA-256 ledger, provenance, fact/inference split, citations through document MCPs |
 | CTI | IOC/CVE/ATT&CK extraction, feed dedup, STIX 2.1 |
 | Media | Metadata, OCR/transcription, perceptual hashes, integrity signals, schema-validated model advisories |
@@ -29,6 +29,7 @@ axis; evidence quality and governed automation are first-class differentiators.
 | Geospatial | GeoAI MCP, coarse GeoJSON, GeoCLIP/Geo-Sleuth export contracts |
 | Deployment | One-command local setup, Vercel control plane, Supabase RLS, retention/legal hold and isolated worker |
 | Research intelligence | 4,096-paper audited metadata pack, BM25/MMR search, gap planning and temporal review |
+| Operations evidence | Durable source runs, connector SLO view, explicit 60-gate maturity scorecard |
 
 ## Delivery plan
 
@@ -49,18 +50,26 @@ axis; evidence quality and governed automation are first-class differentiators.
 
 ## Evidence-based maturity, not marketing
 
-These scores describe repository implementation depth, not licensed-data breadth
-or verified hosted operations. They are deliberately conservative.
+These scores come from `traceatlas maturity`, which evaluates ten explicit gates
+for each area. They describe repository/local-runtime evidence, not licensed-data
+breadth or verified hosted operations. The values below were reproduced on
+2026-09-26 in the development runtime; optional binaries and live execution
+history can change the score.
 
-| Area | Earlier baseline | Current 1.6 | Remaining ceiling gap |
+| Area | Earlier baseline | Verified 1.7 | Blocking acceptance evidence |
 |---|---:|---:|---|
-| Actual live-source depth | 2.0/10 | 4.5/10 | Real provider sandboxes, more official APIs, commercial/historical datasets |
-| Social intelligence | 2.0/10 | 3.5/10 | Major networks remain official-export/API only; no private-session scraping |
-| Dark-web intelligence | 1.0/10 | 3.0/10 | No commercial corpus, collection operations or onion crawling |
-| AI/media intelligence | 2.0/10 | 4.5/10 | No benchmarked deepfake, speaker, frame or geolocation model stack |
-| Investigation UX | 3.0/10 | 5.5/10 | No transform canvas, saved layouts, merge/split history or real-time collaboration |
-| Enterprise readiness | 2.5/10 | 5.5/10 | Hosted RLS tests, SSO/SCIM/MFA, KMS, restore drills, SLO/on-call and external assessment |
-| Overall product maturity | 2.1/10 | 4.4/10 | Production evidence and operational scale remain the limiting factors |
+| Actual live-source depth | 2.0/10 | 6/10 | 20 contracts, 3/10 successful providers and production control plane |
+| Social intelligence | 2.0/10 | 5/10 | 8 live contracts, 2/5 verified sources, run history and production operation |
+| Dark-web intelligence | 1.0/10 | 6/10 | Verified/repeated MISP use, licensed corpus authority/SLA and production operation |
+| AI/media intelligence | 2.0/10 | 6/10 | Verified local model, versioned quality benchmark, validated deepfake/speaker stack and monitoring |
+| Investigation UX | 3.0/10 | 7/10 | Saved graph views, conflict-safe collaboration and hosted UX verification |
+| Enterprise readiness | 2.5/10 | 6/10 | Source-run history, hosted tenant tests, dated restore drill and verified SSO/SCIM lifecycle |
+| Overall product maturity | 2.1/10 | 6.0/10 | 24 of 60 explicit gates remain blocked in this clean runtime |
+
+This is not 10/10. The repository now makes that impossible to claim without
+the missing evidence. A 10/10 result requires every gate to pass in the target
+production environment; adding adapter names or documentation alone cannot
+increase operational gates.
 
 The runtime readiness score is intentionally separate and environment-specific.
 It remains low until provider calls, external tools and a real Vercel/Supabase/

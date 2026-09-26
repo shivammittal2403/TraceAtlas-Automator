@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The version 1.6 intelligence hub normalizes authorised public-source and
+The version 1.7 intelligence hub normalizes authorised public-source and
 operator-supplied evidence into the existing TraceAtlas event graph. It is
 designed for defensive investigations, owned-asset exposure reviews, consented
 professional-profile reviews and documented public-record due diligence.
@@ -22,10 +22,13 @@ download malware, infer protected traits or label a person as a criminal.
 | Snapchat | Official/approved export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
 | YouTube | Data API or export | Subject consent or owned organisation | `PUBLIC_MEDIA_PROFILE` |
 | GitHub | Public API or export | Subject consent or owned organisation | `CODE_PROFILE` |
+| GitLab | Official Users API or export | Subject consent or owned organisation | `CODE_PROFILE` |
+| Hacker News | Official public user API or export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
 | Discord | Public invite API or export | Subject consent or owned organisation | `COMMUNITY_METADATA` |
 | Shodan | API or export | Owned public asset | `INTERNET_EXPOSURE` |
 | Censys | API or export | Owned public asset | `INTERNET_EXPOSURE` |
 | VirusTotal | API or export | Owned indicator/asset | `THREAT_INTELLIGENCE` |
+| NIST NVD | Public government CVE API | Documented public-record basis | `VULNERABILITY_RECORD` |
 | MalwareBazaar | Approved export | Owned asset | `THREAT_INTELLIGENCE` |
 | Business registry | Authoritative export | Public-record basis or owned organisation | `BUSINESS_RECORD` |
 | Employee directory | Owned directory export | Subject consent or owned organisation | `PROFESSIONAL_RECORD` |
@@ -47,6 +50,8 @@ download malware, infer protected traits or label a person as a criminal.
 | Connector | Environment variables |
 |---|---|
 | GitHub | `GITHUB_TOKEN` is optional for a higher official API rate limit |
+| GitLab | None |
+| Hacker News | None |
 | YouTube | `YOUTUBE_API_KEY` |
 | Discord invite | None |
 | Shodan | `SHODAN_API_KEY` |
@@ -57,6 +62,7 @@ download malware, infer protected traits or label a person as a criminal.
 | Internet Archive CDX | None |
 | Shodan InternetDB | None |
 | Bluesky AppView | None |
+| NIST NVD | `NVD_API_KEY` is optional for higher published rate limits |
 
 Tokens remain in environment variables and are never written to events,
 reports or evidence. The connectors call fixed HTTPS hosts and do not accept a
@@ -70,6 +76,23 @@ bodies and exception text that could contain credentials. Inspect it with
 `traceatlas intel health`; three consecutive failures are flagged as a warning.
 Three consecutive failures open the batch-collection circuit for that source.
 Single-source calls remain available for an operator to verify recovery.
+Every live and import run also writes a durable source-run row containing a
+target fingerprint, record counts, attempts, byte count, duration and stable
+failure code. Raw targets, provider URLs, headers and response bodies are absent.
+
+## Governed IntelOwl modules
+
+`traceatlas intel modules` exposes all 187 supplied IntelOwl inventory entries:
+173 analyzers, 13 outbound connectors and one extension framework. This is a
+catalogue, not a claim that every module is installed or configured.
+
+`traceatlas intel module-doctor --authorized` reads the configured service's
+`/api/get_analyzer_configs` contract and reports exact matches. `module-run`
+accepts 1–25 catalogue IDs, resolves them to exact enabled remote analyzer names,
+checks the advertised observable type, and then uses the same evidence-preserving
+service boundary as `capabilities service-call`. File upload, notification
+delivery, arbitrary runtime configuration and custom plugin installation are not
+exposed by this bridge.
 
 ## Bounded orchestration
 

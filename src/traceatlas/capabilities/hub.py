@@ -6,10 +6,12 @@ import mimetypes
 import os
 import re
 import shutil
+import time
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from ..db import CaseDB
 from ..evidence import EvidenceStore
@@ -255,6 +257,14 @@ class CapabilityHub:
         if not self.db.get_case(case_id):
             raise PolicyError(f"Unknown case: {case_id}")
         self._validate_arguments(options)
+        source_run_id = str(uuid4())
+        started = time.monotonic()
+        target_fingerprint = hashlib.sha256(
+            f"{source}:{action}:{target}".encode()
+        ).hexdigest()
+        self.db.start_source_run(
+            source_run_id, case_id, source, "service", target_fingerprint
+        )
         try:
             if source == "crawl4ai":
                 if action != "crawl":
@@ -274,10 +284,18 @@ class CapabilityHub:
                 if action != "analyze":
                     raise PolicyError("IntelOwl supports only bounded observable analysis")
                 raw = ServiceClient.intelowl(target, options, timeout)
+            elif source == "misp":
+                if action != "search":
+                    raise PolicyError("MISP supports only bounded observable search")
+                raw = ServiceClient.misp(target, options, timeout)
             else:
                 raise PolicyError("Unsupported acquisition service")
         except Exception as exc:
             self.db.record_integration_result(source, "failed", type(exc).__name__)
+            self.db.finish_source_run(
+                source_run_id, "failed", failure_code=type(exc).__name__.lower(),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
             raise
         normalized = self._sanitize(raw)
         output_dir = self.workspace / "capability-imports" / case_id
@@ -290,8 +308,15 @@ class CapabilityHub:
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         record = EvidenceStore(self.workspace, self.db, case_id).preserve_file(output, f"service:{source}:{action}")
         self.db.record_integration_result(source, "completed")
+        record_count = len(raw) if isinstance(raw, list) else int(raw is not None)
+        self.db.finish_source_run(
+            source_run_id, "completed", records_received=record_count,
+            records_stored=record_count,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
         return {"status": "completed", "source": source, "action": action,
-                "output": str(output), "sha256": record["sha256"], "review_required": True}
+                "output": str(output), "sha256": record["sha256"],
+                "source_run_id": source_run_id, "review_required": True}
 
     @classmethod
     def _sanitize(cls, value: Any, *, depth: int = 0) -> Any:

@@ -113,6 +113,16 @@ SOURCES: dict[str, SourceSpec] = {
         "CODE_PROFILE", "Public user or organisation metadata through GitHub API or an export.",
         live_connector=True, credential_env=("GITHUB_TOKEN",), personal_data=True,
     ),
+    "gitlab": _source(
+        "gitlab", "GitLab", "code-platform", "public-api-or-export",
+        "CODE_PROFILE", "Exact public username metadata through GitLab's official Users API or an export.",
+        live_connector=True, personal_data=True,
+    ),
+    "hackernews": _source(
+        "hackernews", "Hacker News", "community-platform", "public-api-or-export",
+        "SOCIAL_PROFILE", "Exact public user metadata through the official Hacker News API or an export.",
+        live_connector=True, personal_data=True,
+    ),
     "discord": _source(
         "discord", "Discord", "community-platform", "public-invite-api-or-export",
         "COMMUNITY_METADATA", "Public invite/community metadata; no private messages or member scraping.",
@@ -132,6 +142,12 @@ SOURCES: dict[str, SourceSpec] = {
         "virustotal", "VirusTotal", "threat-intelligence", "api-or-export",
         "THREAT_INTELLIGENCE", "Reputation metadata for an owned indicator; samples are never downloaded.",
         live_connector=True, credential_env=("VIRUSTOTAL_API_KEY",),
+    ),
+    "nvd": _source(
+        "nvd", "NIST National Vulnerability Database", "vulnerability-intelligence",
+        "public-government-api", "VULNERABILITY_RECORD",
+        "One exact public CVE record through the NVD CVE API; no exploit code is retrieved.",
+        live_connector=True, public_record=True,
     ),
     "malwarebazaar": _source(
         "malwarebazaar", "MalwareBazaar", "threat-intelligence", "approved-export",

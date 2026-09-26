@@ -8,6 +8,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError
@@ -20,6 +21,7 @@ from ..evidence import EvidenceStore
 from ..policy import PolicyError, validate_target
 from ..spider.events import Event, child
 from .sanitize import fingerprint, sanitize_record
+from .social import normalize_social_profile
 from .sources import SOURCES, SourceSpec
 from .provider import ProviderError, ResilientJSONClient
 
@@ -119,6 +121,9 @@ class IntelligenceHub:
                 "evidence_class": "observed-fact",
                 "limitation": spec.limitation,
             }
+            profile = normalize_social_profile(spec.name, clean)
+            if profile:
+                item["normalized_profile"] = profile
             normalized.append(item)
             event = child(
                 seed, spec.event_type, item, f"intel:{spec.name}", confidence=70,
@@ -150,11 +155,31 @@ class IntelligenceHub:
                    public_record_basis=public_record_basis)
         records = self._records(path)
         source_hash = hashlib.sha256(path.read_bytes()).hexdigest()
-        return self._store(case_id, spec, records, mode="intel:import", target_fingerprint=source_hash)
+        source_run_id = str(uuid4())
+        started = time.monotonic()
+        self.db.start_source_run(source_run_id, case_id, source, "approved-export", source_hash)
+        try:
+            result = self._store(
+                case_id, spec, records, mode="intel:import", target_fingerprint=source_hash
+            )
+        except Exception as exc:
+            self.db.finish_source_run(
+                source_run_id, "failed", records_received=len(records),
+                failure_code=getattr(exc, "code", type(exc).__name__.lower()),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            raise
+        self.db.finish_source_run(
+            source_run_id, "completed", records_received=len(records),
+            records_stored=result["stats"]["records_stored"],
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+        result["source_run_id"] = source_run_id
+        return result
 
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
-        headers = {"User-Agent": "TraceAtlas-Automator/0.5"}
+        headers = {"User-Agent": "TraceAtlas-Automator/1.7"}
         if spec.name == "rdap":
             if target_type not in {"domain", "ip"}:
                 raise PolicyError("RDAP target must be a domain or public IP")
@@ -198,6 +223,15 @@ class IntelligenceHub:
                 headers["Authorization"] = f"Bearer {token}"
             headers["Accept"] = "application/vnd.github+json"
             return f"https://api.github.com/users/{quote(target)}", headers
+        if spec.name == "gitlab":
+            validate_target("username", target)
+            query = urlencode({"username": target.strip(), "per_page": "1"})
+            return f"https://gitlab.com/api/v4/users?{query}", headers
+        if spec.name == "hackernews":
+            handle = target.strip()
+            if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", handle):
+                raise PolicyError("Hacker News target must be one exact public user ID")
+            return f"https://hacker-news.firebaseio.com/v0/user/{quote(handle)}.json", headers
         if spec.name == "youtube":
             key = os.environ.get("YOUTUBE_API_KEY")
             if not key:
@@ -242,6 +276,16 @@ class IntelligenceHub:
             if target_type == "hash" and len(target) in {32, 40, 64} and all(c in "0123456789abcdefABCDEF" for c in target):
                 return f"https://www.virustotal.com/api/v3/files/{target.lower()}", headers
             raise PolicyError("VirusTotal target must be a URL, domain, IP or MD5/SHA-1/SHA-256 hash")
+        if spec.name == "nvd":
+            cve_id = target.strip().upper()
+            if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", cve_id):
+                raise PolicyError("NVD target must be one exact CVE identifier")
+            key = os.environ.get("NVD_API_KEY")
+            if key:
+                if len(key) > 128 or any(char.isspace() for char in key):
+                    raise PolicyError("NVD_API_KEY is not configured correctly")
+                headers["apiKey"] = key
+            return "https://services.nvd.nist.gov/rest/json/cves/2.0?" + urlencode({"cveId": cve_id}), headers
         raise PolicyError(f"{spec.title} is export/API-ingestion only")
 
     def collect(self, case_id: str, source: str, target_type: str, target: str, *,
@@ -256,24 +300,47 @@ class IntelligenceHub:
         self._gate(case_id, spec, authorized=authorized, subject_consent=subject_consent,
                    owned_org=owned_org, owned_asset=owned_asset,
                    public_record_basis=public_record_basis)
+        source_run_id: str | None = None
+        started = time.monotonic()
         try:
             url, headers = self._live_request(spec, target_type, target)
+            target_hash = fingerprint([source, target_type, target])
+            source_run_id = str(uuid4())
+            self.db.start_source_run(source_run_id, case_id, source, "live", target_hash)
             provider_result = self.provider.get(source, url, headers, 30)
             data = provider_result.data
             records = data if isinstance(data, list) else [data]
             result = self._store(
                 case_id, spec, records, mode="intel:live",
-                target_fingerprint=fingerprint([source, target_type, target]),
+                target_fingerprint=target_hash,
             )
             result["provider"] = {
                 "attempts": provider_result.attempts,
                 "bytes_received": provider_result.bytes_received,
                 "schema_validated": True,
             }
-        except PolicyError:
+            self.db.finish_source_run(
+                source_run_id, "completed", records_received=len(records),
+                records_stored=result["stats"]["records_stored"], attempts=provider_result.attempts,
+                bytes_received=provider_result.bytes_received,
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            result["source_run_id"] = source_run_id
+        except PolicyError as exc:
+            if source_run_id:
+                self.db.finish_source_run(
+                    source_run_id, "failed", failure_code="policy_error",
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                )
             raise
         except Exception as exc:
             # Never persist provider URLs, headers or response bodies: they may contain keys.
+            if source_run_id:
+                self.db.finish_source_run(
+                    source_run_id, "failed", attempts=getattr(exc, "attempts", 0),
+                    failure_code=(exc.code if isinstance(exc, ProviderError) else "connector_request_failed"),
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                )
             self.db.record_connector_result(
                 source, False,
                 exc.code if isinstance(exc, ProviderError) else

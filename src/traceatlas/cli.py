@@ -21,9 +21,10 @@ from .integrations import CatalogStore, IntegrationLock, IntegrationRunner, PROF
 from .intelligence import (
     CollectionOrchestrator, IntelligenceAnalyzer, IntelligenceHub, MediaAnalyzer, SOURCES,
 )
+from .intelligence.modules import catalog_rows, reconcile_catalog, resolve_remote_modules
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
-from .capabilities import CAPABILITIES, CapabilityHub, TrainingStore
+from .capabilities import CAPABILITIES, CapabilityHub, ServiceClient, TrainingStore
 from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
 from .research_cli import add_research_parser, run_research
@@ -34,6 +35,7 @@ from .resolution import ResolutionService
 from .models import utc_now
 from .intelligence.sanitize import sanitize_text
 from .readiness import ReadinessScorecard
+from .maturity import ProductMaturityScorecard
 from .investigation import InvestigationWorkspace
 
 
@@ -123,6 +125,9 @@ def parser() -> argparse.ArgumentParser:
     readiness = sub.add_parser("readiness", help="Score verified core, production and competitive readiness")
     readiness.add_argument("--production", action="store_true")
     readiness.add_argument("--json", action="store_true")
+    maturity = sub.add_parser("maturity", help="Evaluate explicit 10-point product maturity gates")
+    maturity.add_argument("--production", action="store_true")
+    maturity.add_argument("--json", action="store_true")
 
     spider = sub.add_parser("spider", help="Event-driven SpiderFoot-style correlation engine")
     spider_sub = spider.add_subparsers(dest="spider_command", required=True)
@@ -200,6 +205,31 @@ def parser() -> argparse.ArgumentParser:
     intel_sub = intel.add_subparsers(dest="intel_command", required=True)
     intel_sources = intel_sub.add_parser("sources", help="List supported intelligence sources")
     intel_sources.add_argument("--json", action="store_true")
+    intel_modules = intel_sub.add_parser(
+        "modules", help="List the governed IntelOwl analyzer/connector catalogue"
+    )
+    intel_modules.add_argument("--query", default="")
+    intel_modules.add_argument("--kind", choices=["analyzer", "connector", "framework"], default="")
+    intel_modules.add_argument("--json", action="store_true")
+    intel_module_doctor = intel_sub.add_parser(
+        "module-doctor", help="Reconcile catalogue names with a configured IntelOwl instance"
+    )
+    intel_module_doctor.add_argument("--authorized", action="store_true")
+    intel_module_doctor.add_argument("--timeout", type=int, default=30)
+    intel_module_doctor.add_argument("--json", action="store_true")
+    intel_module_run = intel_sub.add_parser(
+        "module-run", help="Run 1-25 remote-verified IntelOwl observable analyzers"
+    )
+    intel_module_run.add_argument("--case", required=True)
+    intel_module_run.add_argument("--module", action="append", required=True)
+    intel_module_run.add_argument(
+        "--target-type", required=True, choices=["domain", "ip", "url", "hash"]
+    )
+    intel_module_run.add_argument("--target", required=True)
+    intel_module_run.add_argument("--tlp", choices=["CLEAR", "GREEN", "AMBER", "RED"], default="AMBER")
+    intel_module_run.add_argument("--authorized", action="store_true")
+    intel_module_run.add_argument("--owned-org", action="store_true")
+    intel_module_run.add_argument("--timeout", type=int, default=60)
 
     def add_intel_attestations(command: argparse.ArgumentParser) -> None:
         command.add_argument("--authorized", action="store_true")
@@ -226,7 +256,7 @@ def parser() -> argparse.ArgumentParser:
     )
     intel_collect.add_argument(
         "--target-type", required=True,
-        choices=["username", "channel", "invite", "ip", "domain", "url", "hash"],
+        choices=["username", "channel", "invite", "ip", "domain", "url", "hash", "cve"],
     )
     intel_collect.add_argument("--target", required=True)
     add_intel_attestations(intel_collect)
@@ -337,7 +367,7 @@ def parser() -> argparse.ArgumentParser:
     cap_service.add_argument("--case", required=True)
     cap_service.add_argument(
         "--source", required=True,
-        choices=["crawl4ai", "firecrawl", "searxng", "scrapegraph-ai", "intelowl"],
+        choices=["crawl4ai", "firecrawl", "searxng", "scrapegraph-ai", "intelowl", "misp"],
     )
     cap_service.add_argument(
         "--action", required=True,
@@ -485,6 +515,16 @@ def parser() -> argparse.ArgumentParser:
     )
     darkweb_feed.add_argument("--owned-domain", action="store_true")
     darkweb_feed.add_argument("--source-permission", action="store_true")
+
+    darkweb_misp = sensitive_sub.add_parser(
+        "darkweb-misp", help="Query an approved MISP instance and retain only fingerprints/counts"
+    )
+    add_sensitive_common(darkweb_misp)
+    darkweb_misp.add_argument("--domain", required=True)
+    darkweb_misp.add_argument("--owned-domain", action="store_true")
+    darkweb_misp.add_argument("--source-permission", action="store_true")
+    darkweb_misp.add_argument("--published-within", default="30d")
+    darkweb_misp.add_argument("--limit", type=int, default=100)
 
     breach_catalog = sensitive_sub.add_parser(
         "breach-catalog", help="Collect public breach metadata for an owned domain"
@@ -672,6 +712,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Verified score: {result['score']}/100")
                 for row in result["gates"]:
                     print(f"{row['state'].upper():4} {row['name']}: {row['observed']}")
+        elif args.command == "maturity":
+            result = ProductMaturityScorecard(engine.db, args.workspace).run(
+                production=args.production
+            )
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Evidence-gated maturity: {result['overall']}/10")
+                for row in result["dimensions"]:
+                    print(f"{row['area']:26} {row['score']}/10")
+                    for blocker in row["blocking_gates"]:
+                        print(f"  BLOCK {blocker}")
         elif args.command == "automation":
             manager = AutomationManager(engine)
             if args.automation_command == "add":
@@ -835,6 +887,42 @@ def main(argv: list[str] | None = None) -> int:
                     for row in rows:
                         live = "LIVE" if row["live_connector"] else "IMPORT"
                         print(f"{row['name']:20} {live:6} {row['category']:24} {row['description']}")
+            elif args.intel_command == "modules":
+                rows = catalog_rows(query=args.query, kind=args.kind)
+                if args.json:
+                    print(json.dumps({"count": len(rows), "modules": rows}, indent=2))
+                else:
+                    for row in rows:
+                        print(f"{row['id']:34} {row['kind']:10} {row['execution']:20} {row['title']}")
+            elif args.intel_command == "module-doctor":
+                if not args.authorized:
+                    raise PolicyError("IntelOwl configuration discovery requires --authorized")
+                result = reconcile_catalog(ServiceClient.intelowl_analyzer_configs(args.timeout))
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(f"Catalogued modules: {result['catalogued']}")
+                    print(f"Remote analyzers: {result['remote_analyzers']}")
+                    print(f"Resolved matches: {len(result['resolved'])}")
+                    print(f"Ambiguous matches: {len(result['ambiguous'])}")
+                    print(f"Unresolved candidates: {len(result['unresolved'])}")
+            elif args.intel_command == "module-run":
+                if not args.authorized or not args.owned_org:
+                    raise PolicyError("Module execution requires --authorized and --owned-org")
+                configs = ServiceClient.intelowl_analyzer_configs(min(args.timeout, 30))
+                analyzers = resolve_remote_modules(args.module, configs, args.target_type)
+                result = CapabilityHub(engine.db, args.workspace).service_call(
+                    args.case, "intelowl", "analyze", args.target,
+                    {
+                        "observable_classification": args.target_type,
+                        "analyzers_requested": analyzers,
+                        "tlp": args.tlp,
+                    },
+                    authorized=True, owned_org=True, timeout=args.timeout,
+                )
+                result["modules_requested"] = list(args.module)
+                result["analyzers_resolved"] = analyzers
+                print(json.dumps(result, indent=2))
             elif args.intel_command == "doctor":
                 rows = hub.sources()
                 credentials = {
@@ -931,6 +1019,12 @@ def main(argv: list[str] | None = None) -> int:
                     args.case, args.domain, args.file, args.source_type,
                     owned_domain=args.owned_domain, source_permission=args.source_permission,
                     **common,
+                )
+            elif args.sensitive_command == "darkweb-misp":
+                result = runner.darkweb_misp(
+                    args.case, args.domain, owned_domain=args.owned_domain,
+                    source_permission=args.source_permission,
+                    publish_timestamp=args.published_within, limit=args.limit, **common,
                 )
             elif args.sensitive_command == "breach-catalog":
                 result = runner.breach_catalog(

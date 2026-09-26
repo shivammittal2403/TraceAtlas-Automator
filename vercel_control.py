@@ -253,7 +253,7 @@ class SupabaseGateway:
     def select(self, table: str, query: dict[str, str]) -> list[dict[str, Any]]:
         if table not in {"organisations", "cases", "assets", "investigation_jobs", "job_events",
                          "evidence_items", "graph_entities", "graph_edges", "case_notes",
-                         "review_tasks", "source_runs", "case_retention"}:
+                         "review_tasks", "source_runs", "case_retention", "organisation_members"}:
             raise ControlPlaneError(500, "blocked_table")
         data = self._request("GET", f"/rest/v1/{table}", query=query)
         return data if isinstance(data, list) else []
@@ -265,7 +265,10 @@ class SupabaseGateway:
         return data if isinstance(data, list) else []
 
     def rpc(self, function: str, payload: dict[str, Any]) -> Any:
-        if function not in {"enqueue_investigation_job", "decide_review_task", "set_case_retention"}:
+        if function not in {
+            "enqueue_investigation_job", "decide_review_task", "set_case_retention",
+            "set_organisation_member_role", "remove_organisation_member",
+        }:
             raise ControlPlaneError(500, "blocked_function")
         return self._request("POST", f"/rest/v1/rpc/{function}", payload=payload)
 

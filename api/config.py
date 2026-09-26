@@ -12,6 +12,7 @@ class handler(BaseHTTPRequestHandler):
             "cloud_target_types": ["domain", "ip", "url", "hash"],
             "identity_targets_cloud_enabled": False,
             "authentication": "supabase_http_only_session" if configured() else "disabled",
+            "privileged_membership_changes": "aal2_required" if configured() else "disabled",
         })
 
     def do_POST(self) -> None:

@@ -2,7 +2,7 @@
 
 This register prevents roadmap text, adapter counts and licensed-provider ambitions
 from being reported as working capability. Status is based on executable code and
-verification evidence in TraceAtlas 1.6.
+verification evidence in TraceAtlas 1.7.
 
 ## Closed in the repository
 
@@ -17,12 +17,17 @@ verification evidence in TraceAtlas 1.6.
 | Secret exposure in connector failures | Stable error codes; no URL, header or body persistence | Secret non-disclosure test and repository secret scan |
 | Source depth was mostly credentialed | Five keyless fixed-host live connectors plus 1-12 source budget/circuit orchestration | Provider contract and circuit-breaker regression tests |
 | IntelOwl was registry-only | Host-allowlisted service adapter with explicit analyzer/TLP constraints and evidence preservation | Mock service contract and evidence-ledger test |
+| Supplied analyzer list was marketing-only | 187-entry typed module registry plus live IntelOwl config discovery and exact target-contract resolution | Inventory, remote-shape, disabled/unsupported and endpoint tests |
+| Provider runs lacked per-attempt provenance | Durable source runs store fingerprints, counts, attempts, bytes, durations and stable failure codes | Success/failure history tests |
+| Social results lacked a common review contract | GitHub, GitLab, Bluesky and Hacker News normalize handles, labels, links and bounded metrics without identity merging | Profile and source-run tests |
+| Privileged membership lifecycle was incomplete | AAL2 owner-only role/remove RPCs, last-owner protection and serialized owner-set changes | SQL control assertions and pgTAP contract |
+| AI claims lacked hard citations | Claim objects require bounded confidence and existing event IDs; OCR/transcripts carry injection labels | Citation/injection regression tests |
 | Dark-web feeds lacked a structured boundary | Approved STIX/MISP/OpenCTI/IntelOwl/AIL exports reduce to fingerprints and counts; onion fetch remains disabled | Content non-retention regression test |
 | Model output could fall back to opaque prose | Strict JSON field/type/size contracts; invalid advisories are rejected | Schema rejection regression test |
 | Case view was fragmented | Deterministic coverage, health, timeline, review queue and next-action workspace | Local workspace regression test and RLS-backed API |
 | Hosted audit/retention gaps | Append-only audit trigger, source-run provenance, retention/legal-hold RPC and request IDs | Migration marker and gateway tests |
 | Invalid case-note RLS policy | Removed reference to nonexistent `assigned_to` column | Migration regression assertion |
-| Bundled runtime regression blind spot | Dedicated locked OpenOSINT runtime CI job | 113 TraceAtlas tests pass locally; upstream runtime has a separate CI job |
+| Bundled runtime regression blind spot | Dedicated locked OpenOSINT runtime CI job | TraceAtlas and upstream runtime have separate CI jobs |
 
 ## Partially closed
 

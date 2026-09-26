@@ -115,6 +115,10 @@ h2 { margin: 13px 0 0; font-size: clamp(2.7rem, 6vw, 5.7rem); line-height: .94; 
 .investigation-metrics b, .investigation-metrics span { display: block; }
 .investigation-metrics b { color: var(--accent); font: 1.35rem var(--display); }
 .investigation-metrics span { margin-top: 4px; color: var(--muted); font: .58rem var(--mono); text-transform: uppercase; }
+.investigation-coverage { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 14px 0; }
+.coverage-record { padding: 10px; border-left: 2px solid var(--accent); background: rgba(201, 36, 47, .04); font: .62rem var(--mono); }
+.coverage-record b, .coverage-record span { display: block; overflow-wrap: anywhere; }
+.coverage-record span { color: var(--muted); margin-top: 4px; }
 .record { display: grid; grid-template-columns: 1fr auto; gap: 7px 15px; padding: 13px 0; border-bottom: 1px solid var(--line); font: .67rem var(--mono); }
 .record > span:last-child { grid-column: 1 / -1; color: var(--muted); }
 .review-record { width: 100%; text-align: left; color: inherit; background: transparent; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; }
