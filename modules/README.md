@@ -1,37 +1,65 @@
 # TraceAtlas Modules
 
-This directory holds the **Feature Registry** and future modular extensions that map the 687 unique upstream OSINT capabilities into governed TraceAtlas components.
+This directory holds governed extensions derived from the 687 unique upstream features.
 
-## Current contents
+## Contents
 
-- `FEATURE_REGISTRY_687.md` — Complete mapping of every unique feature extracted from the upstream corpus (Abster, Firecrawl, Crawl4AI, IntelOwl, Agent-Reach, Claude-OSINT, Geo*, MCP servers, etc.) to TraceAtlas status (`implemented` / `bridged` / `planned` / `design` / `out-of-scope`).
+| File | Purpose | Features covered |
+|------|---------|------------------|
+| `FEATURE_REGISTRY_687.md` | Complete mapping of all 687 unique features → status | All |
+| `__init__.py` | Package marker | — |
+| `entity_resolution.py` | Entity types, confidence, resolution queue (no auto-merge) | 197-211, 273-278 |
+| `timeline.py` | Multi-source timeline + date parsers | 221-231 |
+| `osint_tools.py` | WHOIS / DNS / Shodan IDB / Wayback / HIBP + ToolResult | 232-238 |
+| `agent_loop.py` | Bounded Planner→Decide→Call→Observe→Done loop | 337-345, 351-353 |
 
 ## Development Rules
 
-1. **No feature is claimed as implemented** until it passes the readiness scorecard and authorization gates.
+1. No feature is claimed as “implemented” until it passes the readiness scorecard and authorization gates.
 2. All external engines stay behind explicit adapters / MCP / service boundaries.
 3. Sensitive workflows require dual confirmation + recorded lawful purpose.
 4. Credentials, cookies, private data and automatic identity claims are never accepted.
-5. New modules must update both this registry and `CAPABILITY_MATRIX.md`.
+5. New modules must update both this README and `FEATURE_REGISTRY_687.md`.
 
-## Priority Order for next modules
+## Usage examples
 
-1. Entity-resolution queue UI + Leaflet map visualization
-2. Expanded IntelOwl explicit analyzer readiness states
-3. Local-first browser export/import (Abster-style)
-4. Additional deterministic Claude-OSINT skills
-5. Optional TUI for agentic observation loops
+```python
+from modules.entity_resolution import Entity, EntityType, EntityResolutionQueue
+from modules.timeline import build_timeline, parse_date
+from modules.osint_tools import whois_lookup, dns_lookup, shodan_internetdb
+from modules.agent_loop import AgentLoop
 
-## Commands
+# Entity resolution (requires --authorized + authority)
+q = EntityResolutionQueue()
+cand = q.propose(
+    case_id="demo-001",
+    left=Entity(id="e1", type=EntityType.DOMAIN, name="example.com"),
+    right=Entity(id="e2", type=EntityType.ORGANIZATION, name="Example Org"),
+    authority="Written approval from asset owner",
+    authorized=True,
+)
 
-```bash
-./start.sh capabilities doctor --json
-./start.sh capabilities list
-./start.sh capabilities show <engine>
+# Timeline
+events = build_timeline(
+    entities=[{"name": "example.com", "type": "DOMAIN", "start_date": "2024-03-15"}],
+    chat_messages=["Meeting happened yesterday"],
+)
+
+# OSINT tools
+print(whois_lookup("example.com").summary)
+print(dns_lookup("example.com").summary)
+print(shodan_internetdb("8.8.8.8").summary)
 ```
+
+## Priority for next modules
+
+1. Leaflet / GeoJSON map helper
+2. Expanded IntelOwl analyzer readiness states
+3. Local-first case export/import (Abster-style)
+4. Additional deterministic Claude-OSINT skills
+5. Optional TUI for agent observation loops
 
 See also:
 - [CAPABILITY_MATRIX.md](../CAPABILITY_MATRIX.md)
 - [INTELLIGENCE_HUB.md](../INTELLIGENCE_HUB.md)
 - [FUSION.md](../FUSION.md)
-- [RESEARCH_ENGINE.md](../RESEARCH_ENGINE.md)
