@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "valid-empty-advisory",
+      "expected_valid": true,
+      "evidence_ids": [],
+      "payload": {
+        "executive_summary": "No supported inference.",
+        "patterns": [],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": ["No evidence supplied."]
+      }
+    },
+    {
+      "id": "valid-cited-claim",
+      "expected_valid": true,
+      "evidence_ids": ["evidence-1"],
+      "payload": {
+        "executive_summary": "One bounded observation.",
+        "patterns": [{"statement": "Two fields agree.", "confidence": 70, "evidence_ids": ["evidence-1"]}],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": ["Seek an independent source."],
+        "limitations": ["Identity is not established."]
+      }
+    },
+    {
+      "id": "reject-unknown-citation",
+      "expected_valid": false,
+      "evidence_ids": ["evidence-1"],
+      "payload": {
+        "executive_summary": "Unsupported citation.",
+        "patterns": [{"statement": "Unsupported.", "confidence": 90, "evidence_ids": ["invented"]}],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": []
+      }
+    },
+    {
+      "id": "reject-missing-field",
+      "expected_valid": false,
+      "evidence_ids": [],
+      "payload": {
+        "executive_summary": "Missing limitations.",
+        "patterns": [],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": []
+      }
+    },
+    {
+      "id": "reject-unsupported-field",
+      "expected_valid": false,
+      "evidence_ids": [],
+      "payload": {
+        "executive_summary": "Extra authority.",
+        "patterns": [],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": [],
+        "execute_tool": true
+      }
+    },
+    {
+      "id": "reject-confidence-overflow",
+      "expected_valid": false,
+      "evidence_ids": ["evidence-1"],
+      "payload": {
+        "executive_summary": "Invalid confidence.",
+        "patterns": [{"statement": "Overconfident.", "confidence": 101, "evidence_ids": ["evidence-1"]}],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": []
+      }
+    },
+    {
+      "id": "reject-prose-list-claim",
+      "expected_valid": false,
+      "evidence_ids": [],
+      "payload": {
+        "executive_summary": "Unstructured claim.",
+        "patterns": ["A bare assertion"],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": []
+      }
+    },
+    {
+      "id": "reject-empty-statement",
+      "expected_valid": false,
+      "evidence_ids": ["evidence-1"],
+      "payload": {
+        "executive_summary": "Empty claim.",
+        "patterns": [{"statement": "", "confidence": 50, "evidence_ids": ["evidence-1"]}],
+        "contradictions": [],
+        "risk_hypotheses": [],
+        "corroboration_tasks": [],
+        "limitations": []
+      }
+    }
+  ]
+}

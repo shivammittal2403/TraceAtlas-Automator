@@ -5,6 +5,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from importlib.resources import files
 from pathlib import Path
 from unittest.mock import patch
 
@@ -120,6 +121,8 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
         self.assertNotIn("gateway.update", api)
 
     def test_versioned_guardrail_benchmark_passes_and_states_limit(self):
+        packaged = files("traceatlas.benchmark_data").joinpath("ai_advisory_v1.json").read_bytes()
+        self.assertEqual(packaged, (ROOT / "benchmarks/ai_advisory_v1.json").read_bytes())
         result = GuardrailBenchmark().run()
         self.assertEqual(result["status"], "pass")
         self.assertEqual(result["passed"], result["cases"])

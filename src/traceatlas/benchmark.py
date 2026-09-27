@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +17,14 @@ class GuardrailBenchmark:
     """Measure schema/citation enforcement; this does not measure model truthfulness."""
 
     def __init__(self, corpus: Path | None = None):
-        root = Path(__file__).resolve().parents[2]
-        self.corpus = corpus or (root / "benchmarks" / "ai_advisory_v1.json")
+        self.corpus = corpus
 
     def run(self) -> dict[str, Any]:
-        raw = self.corpus.read_bytes()
+        raw = (
+            self.corpus.read_bytes()
+            if self.corpus is not None
+            else files("traceatlas.benchmark_data").joinpath("ai_advisory_v1.json").read_bytes()
+        )
         if len(raw) > 2 * 1024 * 1024:
             raise PolicyError("Benchmark corpus exceeds 2 MiB")
         try:
