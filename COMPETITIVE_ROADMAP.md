@@ -14,12 +14,12 @@ Links markets full-cycle extraction, visualization, analysis and reporting
 across 500+ sources. TraceAtlas therefore treats connector count as only one
 axis; evidence quality and governed automation are first-class differentiators.
 
-## Current 1.7 foundation
+## Current 1.8 foundation
 
 | Capability | Current state |
 |---|---|
 | Typed graph and transforms | Spider event graph, 9 modules, 34 tool adapters, MCP contracts |
-| Collection breadth | 41 reviewed engines, 29 intelligence sources (14 live), 187 governed IntelOwl modules, OpenOSINT bundle |
+| Collection breadth | 41 reviewed engines, 34 intelligence sources (20 live), 187 governed IntelOwl modules, OpenOSINT bundle |
 | Evidence | SHA-256 ledger, provenance, fact/inference split, citations through document MCPs |
 | CTI | IOC/CVE/ATT&CK extraction, feed dedup, STIX 2.1 |
 | Media | Metadata, OCR/transcription, perceptual hashes, integrity signals, schema-validated model advisories |
@@ -47,6 +47,9 @@ axis; evidence quality and governed automation are first-class differentiators.
 - bounded multi-source execution, connector circuit breaking and source-run provenance;
 - a unified case timeline/coverage/health/review workspace;
 - append-only database audit enforcement and retention/legal-hold policy.
+- persistent saved graph views with optimistic revision checks and RLS-scoped
+  collaboration events over Supabase Realtime;
+- a versioned AI evidence-contract benchmark and CI-exercised local restore drill.
 
 ## Evidence-based maturity, not marketing
 
@@ -56,15 +59,15 @@ breadth or verified hosted operations. The values below were reproduced on
 2026-09-26 in the development runtime; optional binaries and live execution
 history can change the score.
 
-| Area | Earlier baseline | Verified 1.7 | Blocking acceptance evidence |
+| Area | Earlier baseline | Verified 1.8 | Blocking acceptance evidence |
 |---|---:|---:|---|
-| Actual live-source depth | 2.0/10 | 6/10 | 20 contracts, 3/10 successful providers and production control plane |
-| Social intelligence | 2.0/10 | 5/10 | 8 live contracts, 2/5 verified sources, run history and production operation |
+| Actual live-source depth | 2.0/10 | 7/10 | 3/10 successful providers and production control plane |
+| Social intelligence | 2.0/10 | 6/10 | 2/5 verified sources, run history and production operation |
 | Dark-web intelligence | 1.0/10 | 6/10 | Verified/repeated MISP use, licensed corpus authority/SLA and production operation |
-| AI/media intelligence | 2.0/10 | 6/10 | Verified local model, versioned quality benchmark, validated deepfake/speaker stack and monitoring |
-| Investigation UX | 3.0/10 | 7/10 | Saved graph views, conflict-safe collaboration and hosted UX verification |
-| Enterprise readiness | 2.5/10 | 6/10 | Source-run history, hosted tenant tests, dated restore drill and verified SSO/SCIM lifecycle |
-| Overall product maturity | 2.1/10 | 6.0/10 | 24 of 60 explicit gates remain blocked in this clean runtime |
+| AI/media intelligence | 2.0/10 | 7/10 | Verified local model, representative quality/deepfake benchmark and production monitoring |
+| Investigation UX | 3.0/10 | 9/10 | Hosted UX verification |
+| Enterprise readiness | 2.5/10 | 7/10 | Source-run history, hosted tenant tests and verified SSO/SCIM lifecycle |
+| Overall product maturity | 2.1/10 | 7.0/10 | 18 of 60 explicit gates remain blocked in this clean runtime |
 
 This is not 10/10. The repository now makes that impossible to claim without
 the missing evidence. A 10/10 result requires every gate to pass in the target
@@ -81,14 +84,14 @@ worker deployment are execution-verified.
   while reversible merge/split history is still pending;
 - transform marketplace manifest with signed packages and permissions;
 - graph filtering, path finding, timelines and confidence overlays;
-- case notes and evidence citations are delivered; saved graph views remain pending;
+- case notes, evidence citations and revision-safe saved graph views are delivered;
 - CSV/STIX/MISP/GraphML interchange.
 
 ### Phase 2 — team operations
 
 - authenticated multi-tenant backend with strict row isolation;
 - analyst roles, approval queues and immutable audit events;
-- collaborative graph changes with conflict resolution;
+- collaboration event streaming and graph-view conflict resolution are delivered;
 - scheduled monitoring, diffs, alert lifecycle and connector health;
 - encrypted secret manager references—never browser-stored keys.
 

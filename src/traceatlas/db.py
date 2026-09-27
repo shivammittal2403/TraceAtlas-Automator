@@ -116,6 +116,23 @@ CREATE TABLE IF NOT EXISTS case_notes (
   body TEXT NOT NULL, created_at TEXT NOT NULL,
   FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS graph_views (
+  id TEXT PRIMARY KEY, case_id TEXT NOT NULL, name TEXT NOT NULL,
+  owner TEXT NOT NULL, layout_json TEXT NOT NULL, filters_json TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1 CHECK(revision >= 1),
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  UNIQUE(case_id,name),
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS collaboration_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT NOT NULL,
+  actor TEXT NOT NULL, object_type TEXT NOT NULL, object_id TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK(operation IN ('created','updated')),
+  base_revision INTEGER NOT NULL CHECK(base_revision >= 0),
+  resulting_revision INTEGER NOT NULL CHECK(resulting_revision >= 1),
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(case_id) REFERENCES cases(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS entity_resolution_candidates (
   id TEXT PRIMARY KEY, case_id TEXT NOT NULL, source TEXT NOT NULL,
   left_json TEXT NOT NULL, right_json TEXT NOT NULL,
@@ -132,6 +149,9 @@ CREATE INDEX IF NOT EXISTS automation_due_idx
 CREATE INDEX IF NOT EXISTS automation_runs_job_idx ON automation_runs(job_id,started_at);
 CREATE INDEX IF NOT EXISTS alerts_case_status_idx ON alerts(case_id,status,created_at);
 CREATE INDEX IF NOT EXISTS case_notes_case_idx ON case_notes(case_id,created_at);
+CREATE INDEX IF NOT EXISTS graph_views_case_idx ON graph_views(case_id,updated_at);
+CREATE INDEX IF NOT EXISTS collaboration_events_case_idx
+  ON collaboration_events(case_id,id);
 CREATE INDEX IF NOT EXISTS resolution_queue_idx
   ON entity_resolution_candidates(case_id,status,created_at);
 CREATE INDEX IF NOT EXISTS source_runs_case_idx
@@ -488,6 +508,80 @@ class CaseDB:
         return [dict(row) for row in self.conn.execute(
             "SELECT * FROM case_notes WHERE case_id=? ORDER BY created_at,id", (case_id,),
         ).fetchall()]
+
+    @staticmethod
+    def _graph_view_row(row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        item["layout"] = json.loads(item.pop("layout_json"))
+        item["filters"] = json.loads(item.pop("filters_json"))
+        return item
+
+    def save_graph_view(self, row: dict[str, Any], expected_revision: int) -> dict[str, Any]:
+        """Create/update one view using optimistic concurrency and an event-only audit feed."""
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            current = self.conn.execute(
+                "SELECT * FROM graph_views WHERE id=? AND case_id=?",
+                (row["id"], row["case_id"]),
+            ).fetchone()
+            now = utc_now()
+            if current is None:
+                if expected_revision != 0:
+                    raise ValueError("revision_conflict")
+                revision, operation = 1, "created"
+                self.conn.execute(
+                    """INSERT INTO graph_views
+                    (id,case_id,name,owner,layout_json,filters_json,revision,created_at,updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (row["id"], row["case_id"], row["name"], row["owner"],
+                     json.dumps(row["layout"], sort_keys=True, separators=(",", ":")),
+                     json.dumps(row["filters"], sort_keys=True, separators=(",", ":")),
+                     revision, now, now),
+                )
+            else:
+                if int(current["revision"]) != expected_revision:
+                    raise ValueError("revision_conflict")
+                revision, operation = expected_revision + 1, "updated"
+                self.conn.execute(
+                    """UPDATE graph_views SET name=?,owner=?,layout_json=?,filters_json=?,
+                    revision=?,updated_at=? WHERE id=? AND case_id=? AND revision=?""",
+                    (row["name"], row["owner"],
+                     json.dumps(row["layout"], sort_keys=True, separators=(",", ":")),
+                     json.dumps(row["filters"], sort_keys=True, separators=(",", ":")),
+                     revision, now, row["id"], row["case_id"], expected_revision),
+                )
+            self.conn.execute(
+                """INSERT INTO collaboration_events
+                (case_id,actor,object_type,object_id,operation,base_revision,resulting_revision,created_at)
+                VALUES(?,?,?,?,?,?,?,?)""",
+                (row["case_id"], row["owner"], "graph_view", row["id"], operation,
+                 expected_revision, revision, now),
+            )
+            saved = self.conn.execute(
+                "SELECT * FROM graph_views WHERE id=?", (row["id"],)
+            ).fetchone()
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        if saved is None:
+            raise RuntimeError("graph_view_not_saved")
+        return self._graph_view_row(saved)
+
+    def graph_views(self, case_id: str) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM graph_views WHERE case_id=? ORDER BY updated_at DESC,id", (case_id,),
+        ).fetchall()
+        return [self._graph_view_row(row) for row in rows]
+
+    def collaboration_events(self, case_id: str, *, after_id: int = 0,
+                             limit: int = 200) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 500))
+        rows = self.conn.execute(
+            """SELECT * FROM collaboration_events WHERE case_id=? AND id>?
+            ORDER BY id LIMIT ?""", (case_id, max(0, int(after_id)), limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def add_resolution_candidate(self, row: dict[str, Any]) -> bool:
         cur = self.conn.execute(

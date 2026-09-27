@@ -179,7 +179,7 @@ class IntelligenceHub:
 
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
-        headers = {"User-Agent": "TraceAtlas-Automator/1.7"}
+        headers = {"User-Agent": "TraceAtlas-Automator/1.8"}
         if spec.name == "rdap":
             if target_type not in {"domain", "ip"}:
                 raise PolicyError("RDAP target must be a domain or public IP")
@@ -232,6 +232,27 @@ class IntelligenceHub:
             if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", handle):
                 raise PolicyError("Hacker News target must be one exact public user ID")
             return f"https://hacker-news.firebaseio.com/v0/user/{quote(handle)}.json", headers
+        if spec.name == "mastodon":
+            validate_target("username", target)
+            token = os.environ.get("MASTODON_ACCESS_TOKEN", "").strip()
+            if not token or len(token) > 4096 or any(char.isspace() for char in token):
+                raise PolicyError("MASTODON_ACCESS_TOKEN is required")
+            headers["Authorization"] = f"Bearer {token}"
+            query = urlencode({"acct": target.strip()})
+            return f"https://mastodon.social/api/v1/accounts/lookup?{query}", headers
+        if spec.name == "stackexchange":
+            user_id = target.strip()
+            if target_type != "user_id" or not re.fullmatch(r"[1-9][0-9]{0,18}", user_id):
+                raise PolicyError("Stack Exchange target must be one numeric public user ID")
+            query = urlencode({"site": "stackoverflow", "pagesize": "1"})
+            return f"https://api.stackexchange.com/2.3/users/{user_id}?{query}", headers
+        if spec.name == "dockerhub":
+            validate_target("username", target)
+            query = urlencode({"page_size": "25", "page": "1"})
+            return (
+                f"https://hub.docker.com/v2/namespaces/{quote(target.strip())}/repositories?{query}",
+                headers,
+            )
         if spec.name == "youtube":
             key = os.environ.get("YOUTUBE_API_KEY")
             if not key:
@@ -286,6 +307,37 @@ class IntelligenceHub:
                     raise PolicyError("NVD_API_KEY is not configured correctly")
                 headers["apiKey"] = key
             return "https://services.nvd.nist.gov/rest/json/cves/2.0?" + urlencode({"cveId": cve_id}), headers
+        if spec.name == "npm":
+            package = target.strip()
+            if target_type != "package" or not re.fullmatch(
+                r"(?:@[a-z0-9][a-z0-9._-]{0,63}/)?[a-z0-9][a-z0-9._-]{0,127}", package, re.I
+            ):
+                raise PolicyError("npm target must be one exact public package name")
+            return f"https://registry.npmjs.org/{quote(package, safe='')}/latest", headers
+        if spec.name == "crossref":
+            doi = target.strip()
+            if target_type != "doi" or not re.fullmatch(
+                r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", doi, re.I
+            ) or len(doi) > 255:
+                raise PolicyError("Crossref target must be one exact DOI")
+            return f"https://api.crossref.org/works/{quote(doi, safe='')}", headers
+        if spec.name == "orcid":
+            orcid = target.strip()
+            if target_type != "orcid" or not re.fullmatch(r"\d{4}-\d{4}-\d{4}-\d{3}[\dX]", orcid):
+                raise PolicyError("ORCID target must be one canonical ORCID iD")
+            digits = orcid.replace("-", "")
+            total = 0
+            for char in digits[:-1]:
+                total = (total + int(char)) * 2
+            check = (12 - total % 11) % 11
+            expected = "X" if check == 10 else str(check)
+            if digits[-1] != expected:
+                raise PolicyError("ORCID iD checksum is invalid")
+            token = os.environ.get("ORCID_ACCESS_TOKEN", "").strip()
+            if not token or len(token) > 4096 or any(char.isspace() for char in token):
+                raise PolicyError("ORCID_ACCESS_TOKEN is required")
+            headers.update({"Authorization": f"Bearer {token}", "Accept": "application/json"})
+            return f"https://pub.orcid.org/v3.0/{orcid}/person", headers
         raise PolicyError(f"{spec.title} is export/API-ingestion only")
 
     def collect(self, case_id: str, source: str, target_type: str, target: str, *,
@@ -309,7 +361,12 @@ class IntelligenceHub:
             self.db.start_source_run(source_run_id, case_id, source, "live", target_hash)
             provider_result = self.provider.get(source, url, headers, 30)
             data = provider_result.data
-            records = data if isinstance(data, list) else [data]
+            if source == "stackexchange" and isinstance(data, dict):
+                records = data.get("items", [])
+            elif source == "crossref" and isinstance(data, dict):
+                records = [data.get("message", {})]
+            else:
+                records = data if isinstance(data, list) else [data]
             result = self._store(
                 case_id, spec, records, mode="intel:live",
                 target_fingerprint=target_hash,

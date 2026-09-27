@@ -1,6 +1,6 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.7.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.8.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -30,11 +30,12 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 29 social, code, video, community,
+- Governed intelligence hub covering 34 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
-- Fourteen live official/public API connectors: GitHub, GitLab, Hacker News,
-  NIST NVD, YouTube, Discord invite
+- Twenty live official/public API connectors: GitHub, GitLab, Hacker News,
+  Mastodon, Stack Exchange, Docker Hub, npm, Crossref, ORCID, NIST NVD,
+  YouTube, Discord invite
   metadata, Shodan, Censys, VirusTotal, RDAP, Google DNS-over-HTTPS, Internet
   Archive CDX metadata, Shodan InternetDB and Bluesky AppView.
 - Bounded 1-12-source collection plans enforce a wall-clock budget, isolate
@@ -102,6 +103,11 @@ human review where judgment, attribution, privacy or legal authority matters.
   the analyst-in-the-loop requirement operational rather than documentary.
 - A unified case workspace exposes coverage, source health, timeline, review
   queue and evidence gaps in both local CLI and authenticated API form.
+- Persistent graph layouts and filters use optimistic revisions, tenant RLS and
+  a privacy-reduced Supabase Realtime event envelope to prevent silent overwrite.
+- CI runs a versioned AI evidence-contract benchmark and performs a real local
+  SQLite online-backup/restore integrity drill; neither substitutes for hosted
+  model-quality or Supabase recovery validation.
 - The hosted schema now includes source-run provenance, per-case retention and
   legal-hold policy, append-only audit enforcement and request correlation IDs.
 - A readiness scorecard refuses to label the system competitive or production
@@ -621,6 +627,11 @@ traceatlas intel ingest --case ID --source SOURCE --file FILE [ATTESTATION]
 traceatlas intel collect --case ID --source SOURCE --target-type TYPE --target VALUE [ATTESTATION]
 traceatlas intel media --case ID --file FILE --authorized --owned-asset [--ocr|--transcribe|--ollama]
 traceatlas intel analyze --case ID --scan SCAN_ID --authorized [--ollama --output FILE]
+traceatlas benchmark [--corpus FILE] [--output FILE] [--json]
+traceatlas operations restore-drill --output DIRECTORY [--json]
+traceatlas casework view-save --case ID --name NAME --actor ACTOR --layout FILE --filters FILE --expected-revision N --authorized
+traceatlas casework views --case ID
+traceatlas casework events --case ID [--after N --limit N]
 traceatlas fusion auto-rank --case ID --scope SCOPE --authorized [ATTESTATION]
 traceatlas openosint doctor [--json]
 traceatlas openosint run --case ID --authorized --owned-asset -- COMMAND TARGET

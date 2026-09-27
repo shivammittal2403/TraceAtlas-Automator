@@ -63,11 +63,46 @@ def _validate_shape(source: str, data: Any) -> None:
         )
     elif source == "hackernews":
         valid = isinstance(data, dict) and isinstance(data.get("id"), str)
+    elif source == "mastodon":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("id"), str)
+            and isinstance(data.get("acct"), str) and isinstance(data.get("url"), str)
+        )
+    elif source == "stackexchange":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("items"), list)
+            and len(data.get("items", [])) <= 1 and isinstance(data.get("has_more"), bool)
+            and all(isinstance(row, dict) and isinstance(row.get("user_id"), int)
+                    for row in data.get("items", []))
+        )
+    elif source == "dockerhub":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("count"), int)
+            and isinstance(data.get("results"), list) and len(data.get("results", [])) <= 25
+            and all(isinstance(row, dict) and isinstance(row.get("name"), str)
+                    for row in data.get("results", []))
+        )
     elif source == "nvd":
         valid = (
             isinstance(data, dict) and isinstance(data.get("totalResults"), int)
             and isinstance(data.get("vulnerabilities"), list)
             and len(data.get("vulnerabilities", [])) <= 2
+        )
+    elif source == "npm":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("name"), str)
+            and isinstance(data.get("version"), str)
+        )
+    elif source == "crossref":
+        valid = (
+            isinstance(data, dict) and data.get("status") == "ok"
+            and isinstance(data.get("message"), dict)
+            and isinstance(data.get("message", {}).get("DOI"), str)
+        )
+    elif source == "orcid":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("path"), str)
+            and isinstance(data.get("name"), (dict, type(None)))
         )
     if not valid:
         raise ProviderError("provider_schema_mismatch")

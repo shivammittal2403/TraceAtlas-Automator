@@ -28,6 +28,7 @@ class DeploymentDoctor:
             "supabase/migrations/20260925000300_analyst_workflow.sql",
             "supabase/migrations/20260926000100_enterprise_controls.sql",
             "supabase/migrations/20260926000200_identity_governance.sql",
+            "supabase/migrations/20260926000300_collaboration_views.sql",
             "supabase/tests/traceatlas_rls.test.sql",
         )
         for relative in required_files:

@@ -78,6 +78,43 @@ def normalize_social_profile(source: str, record: Any) -> dict[str, Any] | None:
                 public_submissions=len(submitted) if isinstance(submitted, list) else None,
             ),
         }
+    elif source == "mastodon":
+        profile = {
+            "handle": _first(record, "acct", "username"),
+            "display_name": _first(record, "display_name"),
+            "profile_url": _first(record, "url"), "biography": _first(record, "note"),
+            "created_at": _first(record, "created_at"),
+            "metrics": _bounded_metrics(
+                followers=record.get("followers_count"), following=record.get("following_count"),
+                posts=record.get("statuses_count"),
+            ),
+        }
+    elif source == "stackexchange":
+        profile = {
+            "handle": str(record["user_id"]) if record.get("user_id") is not None else None,
+            "display_name": _first(record, "display_name"),
+            "profile_url": _first(record, "link"), "location_label": _first(record, "location"),
+            "website": _first(record, "website_url"), "created_at": _first(record, "creation_date"),
+            "metrics": _bounded_metrics(
+                reputation=record.get("reputation"),
+                answers=record.get("answer_count"), questions=record.get("question_count"),
+            ),
+        }
+    elif source == "orcid":
+        name = record.get("name") if isinstance(record.get("name"), dict) else {}
+        given = name.get("given-names") if isinstance(name.get("given-names"), dict) else {}
+        family = name.get("family-name") if isinstance(name.get("family-name"), dict) else {}
+        display_name = " ".join(
+            str(value).strip() for value in (given.get("value"), family.get("value")) if value
+        ) or None
+        path = _first(record, "path")
+        profile = {
+            "handle": path, "display_name": display_name,
+            "profile_url": f"https://orcid.org/{path}" if path else None,
+            "biography": ((record.get("biography") or {}).get("content")
+                          if isinstance(record.get("biography"), dict) else None),
+            "metrics": {},
+        }
     else:
         return None
     return {

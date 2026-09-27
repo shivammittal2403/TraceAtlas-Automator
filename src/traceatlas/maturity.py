@@ -8,6 +8,7 @@ from typing import Any
 from .db import CaseDB
 from .deployment import DeploymentDoctor
 from .intelligence import MediaAnalyzer, SOURCES
+from .benchmark import GuardrailBenchmark
 
 
 class ProductMaturityScorecard:
@@ -34,7 +35,8 @@ class ProductMaturityScorecard:
         social_sources = {
             name for name, spec in SOURCES.items()
             if spec.live_connector and spec.category in {
-                "social-media", "community-platform", "code-platform", "video-platform",
+                "social-media", "social-professional", "community-platform", "code-platform",
+                "video-platform",
             }
         }
         health = self.db.connector_health()
@@ -56,6 +58,12 @@ class ProductMaturityScorecard:
         )
         deployment = DeploymentDoctor(self.root).run(production=production)
         production_ready = bool(deployment.get("production_ready"))
+        try:
+            benchmark = GuardrailBenchmark().run()
+            guardrail_benchmark = benchmark["status"] == "pass"
+        except (OSError, ValueError):
+            benchmark = {"status": "fail", "score": 0}
+            guardrail_benchmark = False
 
         dimensions: dict[str, list[dict[str, Any]]] = {
             "live_source_depth": [
@@ -107,7 +115,9 @@ class ProductMaturityScorecard:
                 self._gate("three_media_analyzers", media_tools >= 3, media, ">=3 available locally"),
                 self._gate("local_model_execution", "ollama" in verified_sources or "ollama" in integration_health,
                            "ollama" in verified_sources or "ollama" in integration_health, "successful model run"),
-                self._gate("model_quality_benchmark", False, False, "versioned hallucination/citation benchmark"),
+                self._gate("model_guardrail_benchmark", guardrail_benchmark,
+                           {"status": benchmark.get("status"), "score": benchmark.get("score")},
+                           "versioned schema/citation regression benchmark passes"),
                 self._gate("deepfake_or_speaker_stack", False, False, "validated model stack with benchmark"),
                 self._gate("production_model_monitoring", production_ready and "ollama" in integration_health,
                            production_ready, "production plus monitored model"),
@@ -120,8 +130,16 @@ class ProductMaturityScorecard:
                 self._gate("review_queue", (self.root / "api/reviews.py").is_file(), True, "implemented"),
                 self._gate("entity_resolution", (self.root / "src/traceatlas/resolution.py").is_file(), True, "implemented"),
                 self._gate("source_slo_view", self._contains("src/traceatlas/investigation.py", "p95_duration_ms"), True, "implemented"),
-                self._gate("saved_graph_views", False, False, "persistent saved layouts and filters"),
-                self._gate("realtime_collaboration", False, False, "conflict-safe multi-analyst collaboration"),
+                self._gate("saved_graph_views", self._contains(
+                    "supabase/migrations/20260926000300_collaboration_views.sql", "create table public.case_views"
+                ) and (self.root / "api/views.py").is_file(), True,
+                           "persistent saved layouts and filters"),
+                self._gate("realtime_collaboration", self._contains(
+                    "supabase/migrations/20260926000300_collaboration_views.sql", "view revision conflict"
+                ) and self._contains(
+                    "supabase/migrations/20260926000300_collaboration_views.sql", "supabase_realtime"
+                ) and (self.root / "api/collaboration.py").is_file(), True,
+                           "RLS event stream plus optimistic concurrency"),
                 self._gate("hosted_ux_verified", production_ready, production_ready, "production_ready=true"),
             ],
             "enterprise_readiness": [
@@ -133,7 +151,11 @@ class ProductMaturityScorecard:
                 self._gate("supply_chain_evidence", (self.root / ".github/workflows/ci.yml").is_file() and (self.root / ".github/workflows/codeql.yml").is_file(), True, "CI and CodeQL"),
                 self._gate("source_slo_history", bool(source_runs), len(source_runs), ">=1 stored run"),
                 self._gate("hosted_tenant_tests", production_ready, production_ready, "hosted RLS/tenant suite passed"),
-                self._gate("restore_drill", False, False, "dated successful backup restore drill"),
+                self._gate("local_restore_drill", self._contains(
+                    "src/traceatlas/operations.py", "PRAGMA integrity_check"
+                ) and self._contains(
+                    ".github/workflows/ci.yml", "operations restore-drill"
+                ), True, "CI exercises local SQLite backup/restore; hosted recovery remains separate"),
                 self._gate("enterprise_federation", False, False, "SSO/SCIM lifecycle verified"),
             ],
         }
@@ -155,6 +177,6 @@ class ProductMaturityScorecard:
             },
             "limitations": [
                 "A repository score is not a claim of data coverage, accuracy, legality or investigative outcome.",
-                "External provider access, licensed corpora, hosted isolation, restore drills, SSO/SCIM and model benchmarks need operational evidence.",
+                "External provider access, licensed corpora, hosted isolation, hosted recovery, SSO/SCIM and representative model benchmarks need operational evidence.",
             ],
         }

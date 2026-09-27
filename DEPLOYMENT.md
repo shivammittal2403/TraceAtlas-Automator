@@ -28,8 +28,8 @@ tenant-isolation, queue, backup or restore tests.
 
 1. Create a dedicated Supabase project in the intended organisation.
 2. Apply all migrations in lexical order: control plane, FK indexes, analyst
-   workflow, enterprise controls, then identity governance
-   (`20260926000200_identity_governance.sql`).
+   workflow, enterprise controls, identity governance, then collaboration views
+   (`20260926000300_collaboration_views.sql`).
 3. Run `supabase/tests/traceatlas_rls.test.sql` on a disposable database.
 4. Create a new Vercel project linked to the canonical GitHub repository.
 5. Set only publishable Supabase variables on Vercel.
@@ -39,6 +39,8 @@ tenant-isolation, queue, backup or restore tests.
 8. Verify health, auth, tenant isolation, enqueue/claim/complete, source-run
    provenance, legal hold, append-only audit, workspace rendering and that
    production SHA equals `main`.
+9. Confirm graph-view revision conflicts return HTTP 409, cross-tenant Realtime
+   events are invisible, and run a hosted Supabase recovery drill.
 
 ## Production gates
 

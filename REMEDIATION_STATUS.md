@@ -2,7 +2,7 @@
 
 This register prevents roadmap text, adapter counts and licensed-provider ambitions
 from being reported as working capability. Status is based on executable code and
-verification evidence in TraceAtlas 1.7.
+verification evidence in TraceAtlas 1.8.
 
 ## Closed in the repository
 
@@ -20,6 +20,11 @@ verification evidence in TraceAtlas 1.7.
 | Supplied analyzer list was marketing-only | 187-entry typed module registry plus live IntelOwl config discovery and exact target-contract resolution | Inventory, remote-shape, disabled/unsupported and endpoint tests |
 | Provider runs lacked per-attempt provenance | Durable source runs store fingerprints, counts, attempts, bytes, durations and stable failure codes | Success/failure history tests |
 | Social results lacked a common review contract | GitHub, GitLab, Bluesky and Hacker News normalize handles, labels, links and bounded metrics without identity merging | Profile and source-run tests |
+| Live-source breadth stopped at 14 contracts | Mastodon, Stack Exchange, Docker Hub, npm, Crossref and ORCID fixed-host connectors raise the total to 20 | Host, target, credential and schema-drift tests |
+| Graph layouts could not be saved safely | Local and Supabase graph views persist bounded layout/filter JSON with optimistic revision conflicts | Local concurrency and RPC-only API tests |
+| Multi-analyst updates lacked a safe feed | RLS-scoped privacy-reduced collaboration events support Supabase Realtime with bounded polling fallback | Migration publication and envelope tests |
+| AI guardrails lacked repeatable measurement | Versioned eight-case citation/schema benchmark runs locally and in CI | Deterministic benchmark regression test |
+| Backup code had no exercised restore path | CI creates an online SQLite backup, restores it, runs integrity/FK checks and uploads a receipt | Restore drill regression and CI artifact |
 | Privileged membership lifecycle was incomplete | AAL2 owner-only role/remove RPCs, last-owner protection and serialized owner-set changes | SQL control assertions and pgTAP contract |
 | AI claims lacked hard citations | Claim objects require bounded confidence and existing event IDs; OCR/transcripts carry injection labels | Citation/injection regression tests |
 | Dark-web feeds lacked a structured boundary | Approved STIX/MISP/OpenCTI/IntelOwl/AIL exports reduce to fingerprints and counts; onion fetch remains disabled | Content non-retention regression test |

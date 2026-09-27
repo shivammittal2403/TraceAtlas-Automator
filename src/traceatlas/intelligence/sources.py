@@ -80,9 +80,9 @@ SOURCES: dict[str, SourceSpec] = {
         live_connector=True, personal_data=True,
     ),
     "mastodon": _source(
-        "mastodon", "Mastodon", "social-media", "official-export",
-        "SOCIAL_PROFILE", "Consented public profile or official account export.",
-        personal_data=True,
+        "mastodon", "Mastodon", "social-media", "public-instance-api-or-export",
+        "SOCIAL_PROFILE", "Exact public account metadata through a fixed Mastodon instance API or an export.",
+        live_connector=True, credential_env=("MASTODON_ACCESS_TOKEN",), personal_data=True,
     ),
     "reddit": _source(
         "reddit", "Reddit", "community-platform", "official-export",
@@ -123,6 +123,16 @@ SOURCES: dict[str, SourceSpec] = {
         "SOCIAL_PROFILE", "Exact public user metadata through the official Hacker News API or an export.",
         live_connector=True, personal_data=True,
     ),
+    "stackexchange": _source(
+        "stackexchange", "Stack Exchange", "community-platform", "public-api-or-export",
+        "SOCIAL_PROFILE", "One exact public Stack Overflow user record through Stack Exchange API v2.3.",
+        live_connector=True, personal_data=True,
+    ),
+    "dockerhub": _source(
+        "dockerhub", "Docker Hub", "code-platform", "public-api-or-export",
+        "CODE_PROFILE", "A bounded public repository listing for one exact Docker Hub namespace.",
+        live_connector=True, personal_data=True,
+    ),
     "discord": _source(
         "discord", "Discord", "community-platform", "public-invite-api-or-export",
         "COMMUNITY_METADATA", "Public invite/community metadata; no private messages or member scraping.",
@@ -148,6 +158,21 @@ SOURCES: dict[str, SourceSpec] = {
         "public-government-api", "VULNERABILITY_RECORD",
         "One exact public CVE record through the NVD CVE API; no exploit code is retrieved.",
         live_connector=True, public_record=True,
+    ),
+    "npm": _source(
+        "npm", "npm Registry", "package-intelligence", "public-registry-api",
+        "PACKAGE_RECORD", "The current public metadata record for one exact npm package.",
+        live_connector=True, public_record=True,
+    ),
+    "crossref": _source(
+        "crossref", "Crossref", "scholarly-intelligence", "public-metadata-api",
+        "SCHOLARLY_RECORD", "One exact public DOI metadata record through the Crossref REST API.",
+        live_connector=True, public_record=True,
+    ),
+    "orcid": _source(
+        "orcid", "ORCID", "social-professional", "public-api-or-export",
+        "PROFESSIONAL_PROFILE", "Public person metadata for one exact ORCID iD using a read-public token.",
+        live_connector=True, credential_env=("ORCID_ACCESS_TOKEN",), personal_data=True,
     ),
     "malwarebazaar": _source(
         "malwarebazaar", "MalwareBazaar", "threat-intelligence", "approved-export",

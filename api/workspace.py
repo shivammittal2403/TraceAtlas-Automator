@@ -38,6 +38,15 @@ class handler(BaseHTTPRequestHandler):
             notes = gateway.select("case_notes", {
                 **common, "select": "id,classification,created_at", "limit": "200",
             })
+            views = gateway.select("case_views", {
+                **common, "select": "id,name,revision,updated_by,updated_at",
+                "limit": "100", "order": "updated_at.desc",
+            })
+            collaboration = gateway.select("collaboration_events", {
+                **common,
+                "select": "sequence,actor_id,object_type,object_id,operation,resulting_revision,created_at",
+                "limit": "200", "order": "sequence.desc",
+            })
             source_states = Counter((row["source"], row["status"]) for row in runs)
             coverage = {}
             for (source, state), count in sorted(source_states.items()):
@@ -49,18 +58,22 @@ class handler(BaseHTTPRequestHandler):
                    "label": row["source"], "state": row["classification"]} for row in evidence),
                 *({"at": row["created_at"], "kind": "review", "id": row["id"],
                    "label": row["kind"], "state": row["status"]} for row in reviews),
+                *({"at": row["created_at"], "kind": "collaboration", "id": str(row["sequence"]),
+                   "label": row["object_type"], "state": row["operation"]} for row in collaboration),
             ], key=lambda row: (row["at"], row["kind"], row["id"]), reverse=True)[:500]
             send_json(self, 200, {
                 "case": cases[0],
                 "overview": {"jobs": len(jobs), "source_runs": len(runs),
                              "evidence_items": len(evidence), "review_tasks": len(reviews),
-                             "notes": len(notes)},
+                             "notes": len(notes), "saved_graph_views": len(views),
+                             "collaboration_events": len(collaboration)},
                 "coverage": coverage,
                 "review_queue": {
                     "pending": sum(row["status"] == "pending" for row in reviews),
                     "failed_runs": sum(row["status"] == "failed" for row in runs),
                 },
                 "timeline": timeline,
+                "saved_views": views,
                 "limitations": [
                     "Missing source coverage is not negative evidence.",
                     "Model output and inferred entities require analyst review.",

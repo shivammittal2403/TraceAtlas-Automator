@@ -13,6 +13,8 @@ class handler(BaseHTTPRequestHandler):
             "identity_targets_cloud_enabled": False,
             "authentication": "supabase_http_only_session" if configured() else "disabled",
             "privileged_membership_changes": "aal2_required" if configured() else "disabled",
+            "saved_graph_views": "conflict_safe" if configured() else "local_only",
+            "collaboration_transport": "supabase_realtime_with_bounded_poll_fallback" if configured() else "local_event_feed",
         })
 
     def do_POST(self) -> None:

@@ -37,6 +37,9 @@ from .intelligence.sanitize import sanitize_text
 from .readiness import ReadinessScorecard
 from .maturity import ProductMaturityScorecard
 from .investigation import InvestigationWorkspace
+from .collaboration import CollaborationService
+from .benchmark import GuardrailBenchmark
+from .operations import SQLiteRestoreDrill
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -128,6 +131,19 @@ def parser() -> argparse.ArgumentParser:
     maturity = sub.add_parser("maturity", help="Evaluate explicit 10-point product maturity gates")
     maturity.add_argument("--production", action="store_true")
     maturity.add_argument("--json", action="store_true")
+    benchmark = sub.add_parser(
+        "benchmark", help="Run the versioned AI evidence-contract regression benchmark"
+    )
+    benchmark.add_argument("--corpus", type=Path)
+    benchmark.add_argument("--output", type=Path)
+    benchmark.add_argument("--json", action="store_true")
+    operations = sub.add_parser("operations", help="Run non-destructive operational evidence drills")
+    operation_sub = operations.add_subparsers(dest="operation_command", required=True)
+    restore_drill = operation_sub.add_parser(
+        "restore-drill", help="Exercise local SQLite online backup and restore integrity"
+    )
+    restore_drill.add_argument("--output", type=Path, required=True)
+    restore_drill.add_argument("--json", action="store_true")
 
     spider = sub.add_parser("spider", help="Event-driven SpiderFoot-style correlation engine")
     spider_sub = spider.add_subparsers(dest="spider_command", required=True)
@@ -256,7 +272,10 @@ def parser() -> argparse.ArgumentParser:
     )
     intel_collect.add_argument(
         "--target-type", required=True,
-        choices=["username", "channel", "invite", "ip", "domain", "url", "hash", "cve"],
+        choices=[
+            "username", "user_id", "channel", "invite", "ip", "domain", "url", "hash",
+            "cve", "package", "doi", "orcid",
+        ],
     )
     intel_collect.add_argument("--target", required=True)
     add_intel_attestations(intel_collect)
@@ -474,6 +493,25 @@ def parser() -> argparse.ArgumentParser:
     )
     workspace_view.add_argument("--case", required=True)
     workspace_view.add_argument("--output", type=Path)
+    view_save = casework_sub.add_parser(
+        "view-save", help="Create or update a saved graph view with revision conflict protection"
+    )
+    view_save.add_argument("--case", required=True)
+    view_save.add_argument("--view-id")
+    view_save.add_argument("--name", required=True)
+    view_save.add_argument("--actor", required=True)
+    view_save.add_argument("--layout", type=Path, required=True)
+    view_save.add_argument("--filters", type=Path, required=True)
+    view_save.add_argument("--expected-revision", type=int, default=0)
+    view_save.add_argument("--authorized", action="store_true")
+    view_list = casework_sub.add_parser("views", help="List persistent graph views")
+    view_list.add_argument("--case", required=True)
+    collaboration_events = casework_sub.add_parser(
+        "events", help="Read the ordered privacy-reduced collaboration feed"
+    )
+    collaboration_events.add_argument("--case", required=True)
+    collaboration_events.add_argument("--after", type=int, default=0)
+    collaboration_events.add_argument("--limit", type=int, default=200)
 
     sensitive = sub.add_parser(
         "sensitive", help="Run explicitly authorized, redacted sensitive-data workflows"
@@ -673,6 +711,22 @@ def main(argv: list[str] | None = None) -> int:
                 result = row
             elif args.casework_command == "notes":
                 result = {"case_id": args.case, "notes": engine.db.case_notes(args.case)}
+            elif args.casework_command == "view-save":
+                result = CollaborationService(engine.db).save_view(
+                    args.case, view_id=args.view_id, name=args.name, actor=args.actor,
+                    layout=_json_object(args.layout), filters=_json_object(args.filters),
+                    expected_revision=args.expected_revision, authorized=args.authorized,
+                )
+            elif args.casework_command == "views":
+                result = {"case_id": args.case,
+                          "views": CollaborationService(engine.db).views(args.case)}
+            elif args.casework_command == "events":
+                if args.after < 0 or not 1 <= args.limit <= 500:
+                    raise PolicyError("Collaboration cursor/limit is outside the accepted range")
+                result = {"case_id": args.case, "after": args.after,
+                          "events": CollaborationService(engine.db).events(
+                              args.case, after_id=args.after, limit=args.limit
+                          )}
             else:
                 analyst_view = InvestigationWorkspace(engine.db)
                 result = (
@@ -724,6 +778,22 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{row['area']:26} {row['score']}/10")
                     for blocker in row["blocking_gates"]:
                         print(f"  BLOCK {blocker}")
+        elif args.command == "benchmark":
+            runner = GuardrailBenchmark(args.corpus)
+            result = runner.write(args.output) if args.output else runner.run()
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"AI evidence-contract benchmark: {result['passed']}/{result['cases']} "
+                      f"({result['status'].upper()})")
+                for limitation in result["limitations"]:
+                    print(f"LIMITATION {limitation}")
+        elif args.command == "operations":
+            result = SQLiteRestoreDrill(engine.db).run(args.output)
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Local restore drill: {result['status'].upper()} · {result['receipt']}")
         elif args.command == "automation":
             manager = AutomationManager(engine)
             if args.automation_command == "add":

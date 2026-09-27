@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The version 1.7 intelligence hub normalizes authorised public-source and
+The version 1.8 intelligence hub normalizes authorised public-source and
 operator-supplied evidence into the existing TraceAtlas event graph. It is
 designed for defensive investigations, owned-asset exposure reviews, consented
 professional-profile reviews and documented public-record due diligence.
@@ -39,11 +39,16 @@ download malware, infer protected traits or label a person as a criminal.
 | Internet Archive | CDX index metadata only | Owned asset | `ARCHIVED_URL` |
 | InternetDB | Keyless public API | Owned public IP | `INTERNET_EXPOSURE` |
 | Bluesky | Public AppView API or export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
-| Mastodon | Official export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| Mastodon | Fixed official instance API or export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
 | Reddit | Official/moderator-approved export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
 | X | Official API/export | Subject consent or owned organisation | `SOCIAL_PROFILE` |
 | Telegram | Public/owned channel export | Subject consent or owned organisation | `COMMUNITY_METADATA` |
 | RSS/Atom | Approved export | Documented public-source purpose | `PUBLIC_CONTENT` |
+| Stack Exchange | Public API v2.3 | Subject consent or owned organisation | `SOCIAL_PROFILE` |
+| Docker Hub | Public namespace API | Subject consent or owned organisation | `CODE_PROFILE` |
+| npm | Public package registry API | Public-record basis | `PACKAGE_RECORD` |
+| Crossref | Public DOI metadata API | Public-record basis | `SCHOLARLY_RECORD` |
+| ORCID | Read-public API or export | Subject consent or owned organisation | `PROFESSIONAL_PROFILE` |
 
 ## Live connector credentials
 
@@ -63,6 +68,12 @@ download malware, infer protected traits or label a person as a criminal.
 | Shodan InternetDB | None |
 | Bluesky AppView | None |
 | NIST NVD | `NVD_API_KEY` is optional for higher published rate limits |
+| Mastodon | `MASTODON_ACCESS_TOKEN` for the fixed `mastodon.social` account lookup |
+| Stack Exchange | None |
+| Docker Hub | None for bounded public namespace metadata |
+| npm Registry | None |
+| Crossref | None |
+| ORCID | `ORCID_ACCESS_TOKEN` with read-public scope |
 
 Tokens remain in environment variables and are never written to events,
 reports or evidence. The connectors call fixed HTTPS hosts and do not accept a

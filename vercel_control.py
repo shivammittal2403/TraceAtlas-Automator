@@ -227,6 +227,15 @@ class SupabaseGateway:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 raw = response.read(2 * 1024 * 1024)
         except urllib.error.HTTPError as exc:
+            backend_code = ""
+            try:
+                backend_error = json.loads(exc.read(64 * 1024))
+                if isinstance(backend_error, dict):
+                    backend_code = str(backend_error.get("code", ""))
+            except (json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+                backend_code = ""
+            if backend_code == "40001":
+                raise ControlPlaneError(409, "revision_conflict") from exc
             status = 401 if exc.code in {400, 401, 403} and path.startswith("/auth/") else exc.code
             if status < 400 or status > 599:
                 status = 502
@@ -253,7 +262,8 @@ class SupabaseGateway:
     def select(self, table: str, query: dict[str, str]) -> list[dict[str, Any]]:
         if table not in {"organisations", "cases", "assets", "investigation_jobs", "job_events",
                          "evidence_items", "graph_entities", "graph_edges", "case_notes",
-                         "review_tasks", "source_runs", "case_retention", "organisation_members"}:
+                         "review_tasks", "source_runs", "case_retention", "organisation_members",
+                         "case_views", "collaboration_events"}:
             raise ControlPlaneError(500, "blocked_table")
         data = self._request("GET", f"/rest/v1/{table}", query=query)
         return data if isinstance(data, list) else []
@@ -268,6 +278,7 @@ class SupabaseGateway:
         if function not in {
             "enqueue_investigation_job", "decide_review_task", "set_case_retention",
             "set_organisation_member_role", "remove_organisation_member",
+            "save_case_view",
         }:
             raise ControlPlaneError(500, "blocked_function")
         return self._request("POST", f"/rest/v1/rpc/{function}", payload=payload)

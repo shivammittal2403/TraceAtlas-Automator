@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(45);
 
 select ok((select relrowsecurity from pg_class where oid = 'public.organisations'::regclass), 'organisations RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.organisation_members'::regclass), 'members RLS enabled');
@@ -15,6 +15,8 @@ select ok((select relrowsecurity from pg_class where oid = 'public.case_notes'::
 select ok((select relrowsecurity from pg_class where oid = 'public.review_tasks'::regclass), 'review tasks RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.source_runs'::regclass), 'source runs RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.case_retention'::regclass), 'case retention RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.case_views'::regclass), 'case views RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.collaboration_events'::regclass), 'collaboration events RLS enabled');
 select ok(not has_table_privilege('anon', 'public.organisations', 'select'), 'anon cannot read organisations');
 select ok(not has_table_privilege('anon', 'public.cases', 'select'), 'anon cannot read cases');
 select ok(not has_table_privilege('anon', 'public.assets', 'select'), 'anon cannot read assets');
@@ -23,11 +25,16 @@ select ok(not has_table_privilege('anon', 'public.case_notes', 'select'), 'anon 
 select ok(not has_table_privilege('anon', 'public.review_tasks', 'select'), 'anon cannot read review tasks');
 select ok(not has_table_privilege('anon', 'public.source_runs', 'select'), 'anon cannot read source runs');
 select ok(not has_table_privilege('anon', 'public.case_retention', 'select'), 'anon cannot read retention policy');
+select ok(not has_table_privilege('anon', 'public.case_views', 'select'), 'anon cannot read graph views');
+select ok(not has_table_privilege('anon', 'public.collaboration_events', 'select'), 'anon cannot read collaboration events');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'insert'), 'users cannot directly insert jobs');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'update'), 'users cannot forge job status');
 select ok(not has_table_privilege('authenticated', 'public.evidence_items', 'insert'), 'users cannot forge evidence');
 select ok(not has_table_privilege('authenticated', 'public.organisation_members', 'insert'), 'users cannot self-assign roles');
 select ok(not has_table_privilege('authenticated', 'public.review_tasks', 'update'), 'users cannot bypass review decision RPC');
+select ok(not has_table_privilege('authenticated', 'public.case_views', 'insert'), 'users cannot directly insert graph views');
+select ok(not has_table_privilege('authenticated', 'public.case_views', 'update'), 'users cannot bypass graph view revision checks');
+select ok(not has_table_privilege('authenticated', 'public.collaboration_events', 'insert'), 'users cannot forge collaboration events');
 select ok(not has_function_privilege('authenticated', 'public.claim_next_investigation_job(text)', 'execute'), 'users cannot claim jobs');
 select ok(not has_function_privilege('authenticated', 'public.complete_investigation_job(uuid,text,text,jsonb)', 'execute'), 'users cannot complete jobs');
 select ok(has_function_privilege('authenticated', 'public.enqueue_investigation_job(uuid,uuid,text,text)', 'execute'), 'users may call governed enqueue');
@@ -37,6 +44,8 @@ select ok(not has_function_privilege('authenticated', 'public.recover_stale_inve
 select ok(has_function_privilege('authenticated', 'public.set_organisation_member_role(uuid,uuid,text)', 'execute'), 'authenticated owners may call MFA-gated role change');
 select ok(has_function_privilege('authenticated', 'public.remove_organisation_member(uuid,uuid)', 'execute'), 'authenticated owners may call MFA-gated member removal');
 select ok(not has_function_privilege('anon', 'public.set_organisation_member_role(uuid,uuid,text)', 'execute'), 'anon cannot change member roles');
+select ok(has_function_privilege('authenticated', 'public.save_case_view(uuid,uuid,text,jsonb,jsonb,integer)', 'execute'), 'analysts may call conflict-safe graph view save');
+select ok(not has_function_privilege('anon', 'public.save_case_view(uuid,uuid,text,jsonb,jsonb,integer)', 'execute'), 'anon cannot save graph views');
 
 select * from finish();
 rollback;

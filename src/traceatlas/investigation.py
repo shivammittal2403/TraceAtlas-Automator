@@ -31,6 +31,8 @@ class InvestigationWorkspace:
         resolutions = self.db.resolution_candidates(case_id)
         alerts = self.db.alerts(case_id, limit=500)
         source_runs = self.db.source_runs(case_id, limit=2000)
+        graph_views = self.db.graph_views(case_id)
+        collaboration_events = self.db.collaboration_events(case_id, limit=500)
 
         source_counts = Counter(event["source_module"] for event in events)
         type_counts = Counter(event["event_type"] for event in events)
@@ -61,6 +63,11 @@ class InvestigationWorkspace:
             timeline.append({
                 "at": item["started_at"], "kind": "source-run", "id": item["id"],
                 "label": item["source"], "state": item["status"],
+            })
+        for item in collaboration_events:
+            timeline.append({
+                "at": item["created_at"], "kind": "collaboration", "id": str(item["id"]),
+                "label": item["object_type"], "state": item["operation"],
             })
         timeline.sort(key=lambda row: (row["at"], row["kind"], row["id"]))
 
@@ -117,6 +124,8 @@ class InvestigationWorkspace:
                 "evidence_items": len(evidence), "notes": len(notes),
                 "sensitive_workflows": len(audits), "distinct_sources": len(source_counts),
                 "source_runs": len(source_runs),
+                "saved_graph_views": len(graph_views),
+                "collaboration_events": len(collaboration_events),
             },
             "coverage": {
                 "sources": dict(sorted(source_counts.items())),
@@ -128,6 +137,7 @@ class InvestigationWorkspace:
             "review_queue": review_queue,
             "source_health": {"unhealthy": failed_sources},
             "timeline": timeline[-500:],
+            "saved_views": graph_views,
             "next_actions": next_actions,
             "limitations": [
                 "A source observation is not proof of identity, ownership, employment or wrongdoing.",
