@@ -21,6 +21,9 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Explicit authorization gates for medium/high-risk workflows.
 - SpiderFoot-style typed-event engine with bounded recursive pivots.
 - Entity graph persistence, explainable correlations and JSON/GEXF export.
+- A [graph-analysis JavaScript module](docs/GRAPH_MODEL.md) for validating case,
+  Spider and cloud exports, filtering, bounded paths, layouts and evidence-bound
+  saved-view validation. This library is not yet wired into the dashboard UI.
 - 34 governed external-tool adapters, including Recon-ng, Amass and the
   ProjectDiscovery reconnaissance pipeline.
 - Truthful adapter readiness states distinguish registered, installed,
