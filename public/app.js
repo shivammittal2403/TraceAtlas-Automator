@@ -312,39 +312,103 @@ function graphElement(name, attributes = {}) {
   return element;
 }
 
-async function loadGraph(caseIdValue) {
+let activeGraph = null;
+let activePath = null;
+let graphRequest = 0;
+
+function resetGraph() {
+  graphRequest++;
+  activeGraph = null;
+  activePath = null;
+  $("#case-graph").replaceChildren();
+  $("#graph-details").replaceChildren();
+  $("#graph-status").textContent = "";
+  $("#graph-empty").hidden = false;
+  $("#graph-empty").textContent = "Select a case or import an export.";
+  for (const selector of ["#graph-from", "#graph-to"]) $(selector).replaceChildren(option("", "Select entity"));
+}
+
+function graphFilters() {
+  return { query: $("#graph-query").value, classification: $("#graph-class").value,
+    minConfidence: Number($("#graph-confidence").value) };
+}
+
+function graphDetails(node) {
+  const panel = $("#graph-details");
+  panel.replaceChildren();
+  const title = document.createElement("b");
+  title.textContent = `${node.type}: ${node.label}`;
+  const metadata = document.createElement("p");
+  metadata.textContent = `${node.classification} · confidence ${node.confidence ?? "unknown"} · source ${node.source} · ${node.at || "time unknown"}`;
+  panel.append(title, metadata);
+  const description = document.createElement("p");
+  description.textContent = node.details;
+  panel.append(description);
+  for (const ref of node.evidence_ids) {
+    const evidence = activeGraph.evidence.find((item) => item.id === ref);
+    const row = document.createElement("p");
+    row.textContent = evidence ? `Evidence ${ref} · ${evidence.source} · SHA-256 ${evidence.content_hash || "unavailable"}` : `Evidence ${ref} · unavailable in this snapshot`;
+    panel.append(row);
+  }
+}
+
+function renderGraph() {
   const canvas = $("#case-graph");
   const empty = $("#graph-empty");
   canvas.replaceChildren();
-  if (!caseIdValue) { empty.hidden = false; return; }
-  const graph = await api(`/api/graph?case_id=${encodeURIComponent(caseIdValue)}`);
-  const nodes = (graph.entities || []).slice(0, 100);
-  const edges = (graph.edges || []).slice(0, 250);
+  if (!activeGraph) return;
+  const model = TraceAtlasGraph;
+  const visible = model.filterGraph(activeGraph, graphFilters());
+  const nodes = visible.nodes.slice(0, model.LIMITS.drawNodes);
+  const ids = new Set(nodes.map((node) => node.id));
+  const edges = visible.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)).slice(0, model.LIMITS.drawEdges);
+  const drawn = { nodes, edges };
+  const positions = model.layout(drawn, $("#graph-layout").value);
+  const width = Math.max(800, ...[...positions.values()].map((p) => p.x + 180));
+  const height = Math.max(420, ...[...positions.values()].map((p) => p.y + 100));
+  canvas.setAttribute("viewBox", `0 0 ${Math.ceil(width)} ${Math.ceil(height)}`);
   empty.hidden = nodes.length > 0;
-  empty.textContent = nodes.length ? "" : "No evidence-backed entities have been produced for this case.";
-  if (!nodes.length) return;
-  const positions = new Map();
-  nodes.forEach((node, index) => {
-    const angle = (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
-    const radius = Math.min(155, 55 + nodes.length * 4);
-    positions.set(node.id, { x: 400 + Math.cos(angle) * radius, y: 210 + Math.sin(angle) * radius });
-  });
+  empty.textContent = "No entities match these filters.";
+  const warnings = activeGraph.warnings.slice(0, 3).join(" ");
+  const clipping = visible.nodes.length > nodes.length || visible.edges.length > edges.length;
+  $("#graph-status").textContent = `${activeGraph.format} · ${visible.nodes.length} entities · ${visible.edges.length} links · completeness ${activeGraph.completeness.state}${clipping ? " · drawing capped; narrow filters to inspect more" : ""}. ${warnings}`;
+  const pathNodes = new Set(activePath?.nodes || []), pathEdges = new Set(activePath?.edges || []);
   for (const edge of edges) {
-    const source = positions.get(edge.source_entity_id);
-    const target = positions.get(edge.target_entity_id);
-    if (source && target) canvas.append(graphElement("line", { x1: source.x, y1: source.y, x2: target.x, y2: target.y, class: "edge" }));
+    const source = positions.get(edge.source), target = positions.get(edge.target);
+    canvas.append(graphElement("line", { x1: source.x, y1: source.y, x2: target.x, y2: target.y,
+      class: pathEdges.has(edge.id) ? "edge path" : "edge" }));
   }
   for (const node of nodes) {
     const point = positions.get(node.id);
-    const group = graphElement("g");
-    const circle = graphElement("circle", { cx: point.x, cy: point.y, r: 18, class: node.classification === "observed" ? "node" : "node model" });
-    const text = graphElement("text", { x: point.x, y: point.y + 36 });
-    text.textContent = String(node.label).slice(0, 28);
+    const group = graphElement("g", { class: "graph-node", tabindex: "0", role: "button", "aria-label": `${node.type}: ${node.label}` });
+    const circle = graphElement("circle", { cx: point.x, cy: point.y, r: 18,
+      class: `node ${node.classification === "observed" ? "observed" : "model"}${pathNodes.has(node.id) ? " path" : ""}` });
+    const label = graphElement("text", { x: point.x, y: point.y + 36 });
+    label.textContent = node.label.slice(0, 28);
     const title = graphElement("title");
-    title.textContent = `${node.entity_type}: ${node.label} · confidence ${node.confidence}`;
-    group.append(circle, text, title);
+    title.textContent = `${node.type}: ${node.label} · confidence ${node.confidence ?? "unknown"}`;
+    group.append(circle, label, title);
+    group.addEventListener("click", () => graphDetails(node));
+    group.addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); graphDetails(node); } });
     canvas.append(group);
   }
+  for (const selector of ["#graph-from", "#graph-to"]) {
+    const select = $(selector), current = select.value;
+    select.replaceChildren(option("", "Select entity"));
+    for (const node of visible.nodes) select.append(option(node.id, `${node.type}: ${node.label}`));
+    if (visible.nodes.some((node) => node.id === current)) select.value = current;
+  }
+}
+
+async function loadGraph(caseIdValue) {
+  resetGraph();
+  if (!caseIdValue) return;
+  const request = graphRequest;
+  const response = await api(`/api/graph?case_id=${encodeURIComponent(caseIdValue)}`);
+  if (request !== graphRequest || $("#workspace").hidden) return;
+  if (response.case_id !== caseIdValue) throw new Error("Graph response belongs to another case.");
+  activeGraph = TraceAtlasGraph.normalize(response);
+  renderGraph();
 }
 
 async function bootControlPlane() {
@@ -383,6 +447,8 @@ $("#login-form").addEventListener("submit", async (event) => {
 
 $("#logout").addEventListener("click", async () => {
   try { await api("/api/session", { method: "DELETE" }); } catch { /* best effort */ }
+  resetGraph();
+  $("#graph-import").value = "";
   $("#workspace").hidden = true;
   $("#login-form").hidden = false;
 });
@@ -442,7 +508,43 @@ $("#job-form").addEventListener("submit", async (event) => {
 });
 
 $("#graph-case").addEventListener("change", (event) => {
-  loadGraph(event.target.value).catch((error) => { $("#workspace-error").textContent = error.message; });
+  $("#graph-import").value = "";
+  loadGraph(event.target.value).catch((error) => { $("#graph-status").textContent = error.message; });
+});
+
+$("#graph-import").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > TraceAtlasGraph.LIMITS.bytes) throw new Error("Choose a JSON export of at most 10 MiB.");
+    const request = ++graphRequest;
+    const parsed = TraceAtlasGraph.parseJSON(await file.text());
+    if (request !== graphRequest || $("#workspace").hidden) return;
+    activeGraph = parsed;
+    activePath = null;
+    $("#graph-case").value = "";
+    $("#graph-details").replaceChildren();
+    renderGraph();
+  } catch (error) { $("#graph-status").textContent = error.message; }
+  finally { event.target.value = ""; }
+});
+
+for (const selector of ["#graph-query", "#graph-class", "#graph-confidence", "#graph-layout"]) {
+  $(selector).addEventListener("input", () => {
+    if (!activeGraph) return;
+    try { activePath = null; renderGraph(); }
+    catch (error) { $("#graph-status").textContent = error.message; }
+  });
+}
+
+$("#graph-path").addEventListener("click", () => {
+  if (!activeGraph) return;
+  try {
+    const visible = TraceAtlasGraph.filterGraph(activeGraph, graphFilters());
+    activePath = TraceAtlasGraph.shortestPath(visible, $("#graph-from").value, $("#graph-to").value);
+    renderGraph();
+    $("#graph-status").textContent += ` Path: ${activePath.state}${activePath.state === "found" ? ` (${activePath.edges.length} hops)` : ""}. Links show association, not attribution or causality.`;
+  } catch (error) { $("#graph-status").textContent = error.message; }
 });
 
 $("#investigation-case").addEventListener("change", (event) => {

@@ -2,8 +2,12 @@
 
 `public/graph-model.js` is a dependency-free graph-analysis library for Node.js
 and browsers. It is available as CommonJS `module.exports` or the browser global
-`TraceAtlasGraph`. This addition does not wire a new interactive workbench into
-the dashboard and does not change the existing renderer or deploy the app.
+`TraceAtlasGraph`. The authenticated dashboard uses it for cloud case graphs
+and browser-only local JSON imports. Analysts can filter by label,
+classification and confidence, switch layouts, inspect evidence references
+and highlight a bounded directed path. Imported files are never uploaded.
+The UI draws at most 250 nodes and 1,000 links; narrow filters to inspect
+larger exports. Browser graph state is cleared at sign-out.
 
 ## Supported input
 
@@ -60,9 +64,9 @@ never interpret imported strings as HTML. View binding checks normalized content
 not the authenticity of the original evidence file. `LIMITS.drawNodes` and
 `LIMITS.drawEdges` are suggested renderer budgets; this library has no renderer.
 
-The existing cloud endpoint does not currently return per-record evidence IDs
-or explicit truncation flags. The adapter retains unknown source attribution and
-completeness for those responses; it cannot reconstruct missing provenance.
+The cloud endpoint supplies per-record evidence IDs and explicit truncation
+flags. Its reads remain bounded and non-atomic; missing evidence records and
+links to entities outside a capped result remain visible as warnings.
 
 ## Verification
 

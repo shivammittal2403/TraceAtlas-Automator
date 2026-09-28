@@ -128,10 +128,21 @@ h2 { margin: 13px 0 0; font-size: clamp(2.7rem, 6vw, 5.7rem); line-height: .94; 
 .failed { color: #ff8b98; }
 .empty-state { color: var(--muted); font: .7rem/1.6 var(--mono); }
 #case-graph { width: 100%; min-height: 330px; background: #0d0b0c; }
+#case-graph { max-height: 650px; overflow: auto; }
 #case-graph .edge { stroke: #54484c; stroke-width: 1.5; }
+#case-graph .edge.path { stroke: #66e398; stroke-width: 3; }
 #case-graph .node { fill: var(--red); stroke: #ff98a5; }
 #case-graph .node.model { fill: #8268d9; }
+#case-graph .node.path { stroke: #66e398; stroke-width: 4; }
+#case-graph .graph-node { cursor: pointer; }
+#case-graph .graph-node:focus { outline: none; }
+#case-graph .graph-node:focus .node { stroke: white; stroke-width: 4; }
 #case-graph text { fill: var(--paper); font: 10px var(--mono); text-anchor: middle; }
+.graph-card { grid-column: 1 / -1; }
+.graph-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; align-items: end; }
+.graph-controls .button { margin-bottom: 15px; }
+.graph-details { overflow-wrap: anywhere; padding-top: 12px; font: .72rem/1.6 var(--mono); }
+.graph-details p { color: var(--muted); }
 
 @media (max-width: 760px) {
   .shell { width: min(100% - 28px, 1180px); }
@@ -144,7 +155,7 @@ h2 { margin: 13px 0 0; font-size: clamp(2.7rem, 6vw, 5.7rem); line-height: .94; 
   .section-heading, .planner-grid { grid-template-columns: 1fr; gap: 40px; }
   .engine-grid { grid-template-columns: 1fr; }
   .join { height: 64px; }
-  .field-row, .guard-grid, .control-grid, .workspace-panels, .investigation-metrics { grid-template-columns: 1fr; }
+  .field-row, .guard-grid, .control-grid, .workspace-panels, .investigation-metrics, .graph-controls { grid-template-columns: 1fr; }
   .planner { padding: 24px; box-shadow: 8px 8px 0 var(--red); }
   .result-head, .footer { align-items: flex-start; flex-direction: column; padding: 24px 0; }
   .commands li { grid-template-columns: 1fr auto; }
