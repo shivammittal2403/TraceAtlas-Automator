@@ -115,11 +115,45 @@ human review where judgment, attribution, privacy or legal authority matters.
   legal-hold policy, append-only audit enforcement and request correlation IDs.
 - A readiness scorecard refuses to label the system competitive or production
   ready until runtime, provider, external-tool and hosted-control evidence exists.
+- An evidence-led AI Employee adds 28 versioned OSINT/PT analyst procedures,
+  bounded approval-gated collection plans, immutable decisions, deterministic
+  fact/scenario briefs and a hosted stored-evidence review workflow. The supplied
+  196-entry source list is preserved as 187 canonical planning candidates; that
+  catalogue never makes an unverified service executable.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
 licence boundary and execution gate. [RESEARCH_ENGINE.md](RESEARCH_ENGINE.md)
 documents the corpus audit, algorithms, commands and limitations.
+
+## Evidence-led AI Employee
+
+The Employee is a constrained analyst assistant, not an autonomous attribution
+or exploitation agent. It separates source observations from hypotheses, cites
+evidence IDs, retains contradictions and requires a human decision. See
+[AI_EMPLOYEE.md](docs/AI_EMPLOYEE.md) for the trust boundary and complete command
+workflow.
+
+```bash
+# Search the 28 governed analyst procedures and the full supplied tool catalogue
+./start.sh employee skills "entity resolution"
+./start.sh employee tools "reverse image" --limit 20
+
+# Analyse evidence already stored in a local case; this performs no collection
+./start.sh employee brief --case CASE_ID \
+  --objective "Assess the current evidence and identify the next defensible check" \
+  --mode osint --output employee-brief.json
+
+# Collection is a separate, hash-bound approval flow
+./start.sh employee assign --case CASE_ID --mode osint \
+  --objective "Verify organisation-owned domain exposure" \
+  --target-type domain --target example.com \
+  --owned-asset --public-record-basis
+```
+
+The authenticated dashboard can build the same deterministic brief from a
+case's stored evidence and queue a digest-bound review. The Vercel endpoint
+cannot scan targets, call models or execute a review decision.
 
 ## Unified capability runtime
 

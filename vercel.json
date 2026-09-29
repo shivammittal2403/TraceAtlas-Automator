@@ -21,6 +21,11 @@
     }
   ],
   "functions": {
+    "api/employee.py": {
+      "maxDuration": 30,
+      "includeFiles": "src/traceatlas/**",
+      "excludeFiles": "{tests/**,packages/**,src/traceatlas/research/data/**,build/**,dist/**,cases/**,reports/**,public/**,site/**,recon_index*.html}"
+    },
     "api/*.py": {
       "maxDuration": 10,
       "excludeFiles": "{tests/**,packages/**,src/**,build/**,dist/**,cases/**,reports/**,public/**,site/**,recon_index*.html}"

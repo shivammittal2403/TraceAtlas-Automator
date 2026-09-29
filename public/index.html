@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="/graph-model.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/employee.js" defer></script>
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -114,6 +115,32 @@
           <form id="job-form" class="control-card"><h3>4. Passive job</h3><label><span>Case</span><select id="job-case" required></select></label><label><span>Owned asset</span><select id="job-asset" required></select></label><label class="check"><input id="job-authorized" type="checkbox" required><span>I authorize this bounded passive workflow.</span></label><button class="button primary" type="submit">QUEUE JOB</button></form>
         </div>
         <div class="workspace-panels">
+          <article class="control-card investigation-card" id="employee-panel">
+            <span class="kicker">AI EMPLOYEE / HUMAN DECISIONS</span>
+            <h3>Evidence-led research desk</h3>
+            <p>Turn stored case evidence into observations, competing scenarios and next checks. Methodology references guide analysis; they are not evidence about your subject.</p>
+            <form id="employee-form">
+              <label><span>Case</span><select id="employee-case" required></select></label>
+              <label><span>Workstream</span><select id="employee-mode"><option value="osint">OSINT research</option><option value="pt">PT evidence review</option></select></label>
+              <label><span>What decision are you preparing?</span><textarea id="employee-objective" minlength="10" maxlength="1000" placeholder="Assess reported public service exposure and identify what needs corroboration." required></textarea></label>
+              <button class="button primary" type="submit" id="employee-build">BUILD DECISION BRIEF</button>
+            </form>
+            <p id="employee-status" role="status" aria-live="polite">Select a case with collected evidence. This desk analyses stored records; collection uses the existing approved job workflow.</p>
+            <p id="employee-error" class="form-error" role="alert"></p>
+            <div id="employee-result" hidden>
+              <div id="employee-summary" class="boundary"></div>
+              <div class="employee-columns">
+                <section><h4>Source observations</h4><div id="employee-facts"></div></section>
+                <section><h4>Scenarios and insights</h4><div id="employee-scenarios"></div></section>
+              </div>
+              <details><summary>Skills, references and coverage gaps</summary><div id="employee-knowledge"></div></details>
+              <div class="review-actions">
+                <button class="button primary" type="button" id="employee-queue">SEND TO MY REVIEW QUEUE</button>
+                <button class="button ghost" type="button" id="employee-download">EXPORT BRIEF JSON</button>
+              </div>
+              <p>Accepting an analysis records your decision. It does not authorize or execute a scan.</p>
+            </div>
+          </article>
           <article class="control-card investigation-card"><h3>Investigation workspace</h3><select id="investigation-case"></select><div id="investigation-summary"><p class="empty-state">Select a case.</p></div><div id="investigation-coverage" class="investigation-coverage" aria-label="Source coverage"></div><div id="investigation-timeline"></div></article>
           <article class="control-card"><h3>Jobs</h3><div id="job-list"></div></article>
           <article class="control-card graph-card"><h3>Evidence graph</h3>

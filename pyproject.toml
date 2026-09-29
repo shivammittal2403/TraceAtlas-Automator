@@ -23,6 +23,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "traceatlas.research.data" = ["*.json", "*.jsonl.gz"]
 "traceatlas.benchmark_data" = ["*.json"]
+"traceatlas.employee.data" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -40,6 +40,7 @@ from .investigation import InvestigationWorkspace
 from .collaboration import CollaborationService
 from .benchmark import GuardrailBenchmark
 from .operations import SQLiteRestoreDrill
+from .employee.cli import add_employee_parser, run_employee
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -50,6 +51,7 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--workspace", type=Path, default=Path("cases"))
     root.add_argument("--version", action="version", version=__version__)
     sub = root.add_subparsers(dest="command", required=True)
+    add_employee_parser(sub)
 
     methods = sub.add_parser("methods", help="List or inspect the 40 playbooks")
     methods.add_argument("method", nargs="?")
@@ -657,7 +659,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     engine = Engine(args.workspace)
     try:
-        if args.command == "init":
+        if args.command == "employee":
+            print(json.dumps(run_employee(args, engine), indent=2, ensure_ascii=False))
+        elif args.command == "init":
             if not CASE_ID.fullmatch(args.case_id):
                 raise PolicyError("Case ID must be 2-64 letters, digits, underscores or hyphens")
             engine.db.create_case(args.case_id, args.title, args.purpose)

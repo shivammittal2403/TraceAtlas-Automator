@@ -36,7 +36,7 @@ jobs:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -v
       - name: Validate launchers and JavaScript
-        run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js
+        run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js && node --check public/employee.js
       - name: Verify graph model and Python export interoperability
         run: node --test tests/test_graph_model.cjs
       - name: Verify research pack integrity

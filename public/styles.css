@@ -162,3 +162,11 @@ h2 { margin: 13px 0 0; font-size: clamp(2.7rem, 6vw, 5.7rem); line-height: .94; 
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+/* Employee desk: preserve long evidence without widening the case workspace. */
+.employee-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.25rem; margin:1.25rem 0; }
+.employee-evidence { white-space:pre-wrap; overflow-wrap:anywhere; max-height:24rem; overflow:auto; font-size:.78rem; padding:.8rem; background:#111; color:#eee; }
+.employee-scenario { border:1px solid #555; padding:1rem; margin-bottom:1rem; }
+#employee-panel details { padding:.7rem 0; border-bottom:1px solid #555; overflow-wrap:anywhere; }
+#employee-panel summary { cursor:pointer; }
+#employee-panel button:disabled { opacity:.55; cursor:wait; }
+@media (max-width:760px) { .employee-columns { grid-template-columns:1fr; } }

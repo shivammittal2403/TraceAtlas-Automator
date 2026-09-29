@@ -195,6 +195,16 @@ function renderReviews() {
       $("#review-rationale").focus();
     });
     list.append(row);
+    if (task.context?.type === "employee-brief") {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      const snapshot = document.createElement("pre");
+      summary.textContent = "Read the evidence and scenario snapshot before deciding";
+      snapshot.className = "employee-evidence";
+      snapshot.textContent = JSON.stringify(task.context, null, 2);
+      details.append(summary, snapshot);
+      list.append(details);
+    }
   }
 }
 
@@ -302,6 +312,8 @@ async function loadWorkspace() {
   fillSelect($("#graph-case"), control.cases, "case");
   fillSelect($("#review-case"), control.cases, "case");
   fillSelect($("#notes-case"), control.cases, "case");
+  fillSelect($("#employee-case"), control.cases, "case");
+  document.dispatchEvent(new Event("traceatlas-workspace-changed"));
   syncAssetChoices();
   renderJobs();
 }
