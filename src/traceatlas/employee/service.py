@@ -17,7 +17,8 @@ from .brief import build_brief, clean, digest, markdown_report, validate_model_a
 from .knowledge import KnowledgeLibrary
 
 COLLECTION = {
-    "domain": ("dns", "rdap", "wayback"), "ip": ("internetdb", "rdap"),
+    "domain": ("dns", "rdap", "wayback"),
+    "ip": ("internetdb", "rdap", "ipwhois", "greynoise"),
     "hash": ("virustotal",), "cve": ("nvd",),
     "username": ("github", "gitlab", "hackernews"),
     "doi": ("crossref",), "package": ("npm",),

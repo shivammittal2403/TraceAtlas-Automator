@@ -24,6 +24,7 @@ from .sanitize import fingerprint, sanitize_record
 from .social import normalize_social_profile
 from .sources import SOURCES, SourceSpec
 from .provider import ProviderError, ResilientJSONClient
+from .contracts import source_contract
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
@@ -52,7 +53,8 @@ class IntelligenceHub:
 
     @staticmethod
     def sources() -> list[dict[str, Any]]:
-        return [SOURCES[name].to_dict() for name in sorted(SOURCES)]
+        return [{**SOURCES[name].to_dict(), "contract": source_contract(name).to_dict()}
+                for name in sorted(SOURCES)]
 
     def _gate(self, case_id: str, spec: SourceSpec, *, authorized: bool,
               subject_consent: bool, owned_org: bool, owned_asset: bool,
@@ -209,6 +211,29 @@ class IntelligenceHub:
             if not ipaddress.ip_address(target).is_global:
                 raise PolicyError("InternetDB accepts public IPs only")
             return f"https://internetdb.shodan.io/{quote(target)}", headers
+        if spec.name in {"ipwhois", "ipdata", "greynoise"}:
+            if target_type != "ip":
+                raise PolicyError(f"{spec.title} collection requires a public IP target")
+            validate_target("ip", target)
+            address = ipaddress.ip_address(target)
+            if not address.is_global:
+                raise PolicyError(f"{spec.title} accepts public IPs only")
+            if spec.name == "ipwhois":
+                return f"https://ipwho.is/{quote(target)}", headers
+            if spec.name == "ipdata":
+                key = os.environ.get("IPDATA_API_KEY", "").strip()
+                if not key or len(key) > 512 or any(char.isspace() for char in key):
+                    raise PolicyError("IPDATA_API_KEY is required")
+                query = urlencode({"api-key": key, "fields": "ip,city,region,country_name,country_code,continent_name,latitude,longitude,asn,company,threat"})
+                return f"https://api.ipdata.co/{quote(target)}?{query}", headers
+            key = os.environ.get("GREYNOISE_API_KEY", "").strip()
+            if key:
+                if len(key) > 512 or any(char.isspace() for char in key):
+                    raise PolicyError("GREYNOISE_API_KEY is not configured correctly")
+                headers["key"] = key
+            if address.version != 4:
+                raise PolicyError("GreyNoise Community accepts public IPv4 addresses only")
+            return f"https://api.greynoise.io/v3/community/{quote(target)}", headers
         if spec.name == "bluesky":
             if target_type != "username" or not re.fullmatch(
                 r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?", target.strip()

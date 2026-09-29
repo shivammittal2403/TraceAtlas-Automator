@@ -33,7 +33,52 @@ class IntelligenceTests(unittest.TestCase):
         self.assertTrue({"rdap", "dns", "wayback", "internetdb", "bluesky"}.issubset(SOURCES))
         self.assertTrue({"gitlab", "hackernews", "nvd"}.issubset(SOURCES))
         self.assertTrue({"mastodon", "stackexchange", "dockerhub", "npm", "crossref", "orcid"}.issubset(SOURCES))
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 20)
+        self.assertTrue({"ipwhois", "ipdata", "greynoise"}.issubset(SOURCES))
+        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 23)
+
+    def test_new_ip_context_connectors_enforce_scope_and_validate_contracts(self):
+        fixtures = {
+            "ipwhois": {"ip": "8.8.8.8", "success": True, "country_code": "US"},
+            "ipdata": {"ip": "8.8.8.8", "asn": {"asn": "AS15169"}},
+            "greynoise": {"ip": "8.8.8.8", "noise": False, "riot": True,
+                          "classification": "benign", "message": "Success"},
+        }
+        for source, fixture in fixtures.items():
+            with self.subTest(source=source), patch.dict("os.environ", {"IPDATA_API_KEY": "test-key"}):
+                requested = {}
+                def requester(url, headers, timeout):
+                    requested.update({"url": url, "headers": headers, "timeout": timeout})
+                    return 200, json.dumps(fixture).encode()
+                result = IntelligenceHub(self.db, self.root, requester=requester).collect(
+                    "case-1", source, "ip", "8.8.8.8", authorized=True, owned_asset=True,
+                )
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(requested["timeout"], 30)
+                self.assertTrue(requested["url"].startswith("https://"))
+        for source in fixtures:
+            with self.subTest(private_source=source), self.assertRaises(PolicyError):
+                IntelligenceHub(self.db, self.root, requester=lambda *_: (200, b"{}")).collect(
+                    "case-1", source, "ip", "127.0.0.1", authorized=True, owned_asset=True,
+                )
+
+    def test_new_ip_connectors_fail_closed_without_key_or_on_schema_drift(self):
+        with patch.dict("os.environ", {}, clear=True), self.assertRaisesRegex(
+            PolicyError, "IPDATA_API_KEY is required"
+        ):
+            IntelligenceHub(self.db, self.root).collect(
+                "case-1", "ipdata", "ip", "8.8.8.8", authorized=True, owned_asset=True,
+            )
+        with self.assertRaisesRegex(Exception, "provider_schema_mismatch"):
+            IntelligenceHub(self.db, self.root, requester=lambda *_: (200, b'{"ip":"8.8.8.8"}'),
+                            sleeper=lambda _: None).collect(
+                "case-1", "greynoise", "ip", "8.8.8.8", authorized=True, owned_asset=True,
+            )
+        with self.assertRaisesRegex(Exception, "provider_record_not_found"):
+            IntelligenceHub(self.db, self.root, requester=lambda *_: (
+                200, b'{"success":false,"message":"Reserved range"}'
+            ), sleeper=lambda _: None).collect(
+                "case-1", "ipwhois", "ip", "8.8.8.8", authorized=True, owned_asset=True,
+            )
 
     def test_personal_source_requires_consent_or_owned_org(self):
         source = self.root / "linkedin.json"

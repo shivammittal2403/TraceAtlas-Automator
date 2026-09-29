@@ -33,14 +33,18 @@ human review where judgment, attribution, privacy or legal authority matters.
 - Installation doctor, multi-tool profiles and recon-directory catalog import.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 34 social, code, package, scholarly, video, community,
+- Governed intelligence hub covering 37 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
-- Twenty live official/public API connectors: GitHub, GitLab, Hacker News,
+- Twenty-three live official/public API connectors: GitHub, GitLab, Hacker News,
   Mastodon, Stack Exchange, Docker Hub, npm, Crossref, ORCID, NIST NVD,
   YouTube, Discord invite
   metadata, Shodan, Censys, VirusTotal, RDAP, Google DNS-over-HTTPS, Internet
   Archive CDX metadata, Shodan InternetDB and Bluesky AppView.
+- Versioned connector contracts now expose implemented inputs, actions,
+  authentication mode, response/page limits and truthful capability state.
+  IPWHOIS, ipdata and GreyNoise Community add bounded owned-public-IP context;
+  IP geography remains approximate and provider classifications remain claims.
 - Bounded 1-12-source collection plans enforce a wall-clock budget, isolate
   provider failures and open a circuit after three consecutive failures.
 - Live connectors use bounded retries for rate limits/provider outages, strict
@@ -124,7 +128,9 @@ human review where judgment, attribution, privacy or legal authority matters.
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
 licence boundary and execution gate. [RESEARCH_ENGINE.md](RESEARCH_ENGINE.md)
-documents the corpus audit, algorithms, commands and limitations.
+documents the corpus audit, algorithms, commands and limitations. The
+[source-integration status](docs/SOURCE_INTEGRATION_STATUS.md) distinguishes the
+complete supplied catalogue from implemented and deployment-validated sources.
 
 ## Evidence-led AI Employee
 

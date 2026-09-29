@@ -19,7 +19,7 @@ axis; evidence quality and governed automation are first-class differentiators.
 | Capability | Current state |
 |---|---|
 | Typed graph and transforms | Spider event graph, 9 modules, 34 tool adapters, MCP contracts |
-| Collection breadth | 41 reviewed engines, 34 intelligence sources (20 live), 187 governed IntelOwl modules, OpenOSINT bundle |
+| Collection breadth | 41 reviewed engines, 37 intelligence sources (23 live), 187 governed IntelOwl modules, OpenOSINT bundle |
 | Evidence | SHA-256 ledger, provenance, fact/inference split, citations through document MCPs |
 | CTI | IOC/CVE/ATT&CK extraction, feed dedup, STIX 2.1 |
 | Media | Metadata, OCR/transcription, perceptual hashes, integrity signals, schema-validated model advisories |

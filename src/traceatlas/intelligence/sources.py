@@ -49,6 +49,24 @@ SOURCES: dict[str, SourceSpec] = {
         "INTERNET_EXPOSURE", "Keyless passive service metadata for an organisation-owned public IP.",
         live_connector=True,
     ),
+    "ipwhois": _source(
+        "ipwhois", "IPWHOIS.io", "internet-intelligence", "public-api",
+        "IP_CONTEXT", "Approximate network and geography context for an organisation-owned public IP.",
+        live_connector=True,
+        limitation="IP geolocation is approximate network context, never proof of a person's location.",
+    ),
+    "ipdata": _source(
+        "ipdata", "ipdata", "internet-intelligence", "api",
+        "IP_CONTEXT", "Network, ASN and approximate geography context for an organisation-owned public IP.",
+        live_connector=True, credential_env=("IPDATA_API_KEY",),
+        limitation="Provider fields vary by subscription; IP geography is approximate network context.",
+    ),
+    "greynoise": _source(
+        "greynoise", "GreyNoise Community", "threat-intelligence", "public-api",
+        "THREAT_INTELLIGENCE", "Rate-limited community context for an organisation-owned public IPv4 address.",
+        live_connector=True, credential_env=("GREYNOISE_API_KEY",),
+        limitation="A GreyNoise classification is a provider observation, not proof of current malicious activity.",
+    ),
     "linkedin": _source(
         "linkedin", "LinkedIn", "social-professional", "official-export",
         "PROFESSIONAL_PROFILE", "Consented profile or owned-organisation API/export records.",

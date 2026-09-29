@@ -54,6 +54,21 @@ def _validate_shape(source: str, data: Any) -> None:
         )
     elif source == "internetdb":
         valid = isinstance(data, dict) and isinstance(data.get("ip"), str)
+    elif source == "ipwhois":
+        if isinstance(data, dict) and data.get("success") is False:
+            raise ProviderError("provider_record_not_found")
+        valid = (
+            isinstance(data, dict) and data.get("success") is True
+            and isinstance(data.get("ip"), str)
+        )
+    elif source == "ipdata":
+        valid = isinstance(data, dict) and isinstance(data.get("ip"), str)
+    elif source == "greynoise":
+        valid = (
+            isinstance(data, dict) and isinstance(data.get("ip"), str)
+            and isinstance(data.get("noise"), bool) and isinstance(data.get("riot"), bool)
+            and data.get("classification") in {"benign", "malicious", "unknown"}
+        )
     elif source == "bluesky":
         valid = isinstance(data, dict) and isinstance(data.get("handle"), str)
     elif source == "gitlab":

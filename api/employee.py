@@ -65,7 +65,7 @@ def _brief(gateway, case_id, objective, mode):
     try:
         return build_brief(case_id, objective, observations, mode=mode,
                            source_runs=source_runs, truncated=len(rows) > 200 or total > 200)
-    except (ValueError, TypeError, RecursionError) as exc:
+    except (ValueError, TypeError, KeyError, OverflowError, RecursionError) as exc:
         raise ControlPlaneError(422, "employee_evidence_contract_invalid") from exc
 
 

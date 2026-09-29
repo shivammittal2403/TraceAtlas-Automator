@@ -48,7 +48,7 @@ The Employee also enforces these boundaries:
 | Target | Governed route |
 |---|---|
 | Domain | DNS, RDAP and Internet Archive metadata |
-| IP address | InternetDB and RDAP |
+| IP address | InternetDB, RDAP, IPWHOIS and GreyNoise Community; ipdata is available as an explicit keyed source |
 | File hash | VirusTotal when separately configured |
 | CVE | NIST NVD |
 | Username | GitHub, GitLab and Hacker News public endpoints |

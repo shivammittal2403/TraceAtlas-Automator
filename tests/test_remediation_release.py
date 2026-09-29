@@ -11,6 +11,7 @@ from unittest.mock import patch
 from traceatlas.db import CaseDB
 from traceatlas.intelligence.hub import IntelligenceHub, _request
 from traceatlas.intelligence.provider import ProviderError, ResilientJSONClient
+from traceatlas.intelligence.contracts import connector_contracts, source_contract
 from traceatlas.integrations import IntegrationLock, IntegrationRunner
 from traceatlas.integrations.registry import TOOLS
 from traceatlas.policy import PolicyError
@@ -45,6 +46,16 @@ class RemediationReleaseTests(unittest.TestCase):
             ResilientJSONClient(lambda *_: (200, b'{"message":"changed"}')).get(
                 "github", "https://example.invalid", {},
             )
+
+    def test_connector_contracts_are_versioned_bounded_and_catalog_cannot_activate(self):
+        rows = connector_contracts()
+        self.assertEqual(len(rows), len(set(row["source_id"] for row in rows)))
+        self.assertTrue(all(row["contract_version"] == 1 for row in rows))
+        self.assertTrue(all(row["max_targets"] == 1 and row["max_pages"] == 1 for row in rows))
+        self.assertTrue(all(row["live_validation"] != "verified" for row in rows))
+        self.assertEqual(source_contract("ipdata").authentication, "secret-reference")
+        self.assertEqual(source_contract("greynoise").authentication, "optional-secret-reference")
+        self.assertEqual(source_contract("linkedin").capability_state, "import-only")
 
     def test_default_transport_surfaces_http_status_without_secret_details(self):
         error = urllib.error.HTTPError(
