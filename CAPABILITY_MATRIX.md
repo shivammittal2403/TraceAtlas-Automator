@@ -1,6 +1,6 @@
 # Upstream capability matrix
 
-TraceAtlas 1.8 includes a governed compatibility layer for all 41 unique supplied and
+TraceAtlas 1.8 includes a governed compatibility layer for all 49 unique supplied and
 reviewed upstream projects. The projects are not merged into one unreviewable
 dependency tree. Each stays behind an explicit adapter, MCP, service, workflow,
 training, export or bundled boundary.
@@ -12,6 +12,7 @@ training, export or bundled boundary.
 | Claude OSINT | Workflow | Attribution, IdP/SPF, FAIR, monitoring | Organisation-owned/public scope |
 | FreeOSINT | Training | Modules, authoring, progress | Non-executing catalogue |
 | IOP MVP | Design only | Objectives, DAG, gaps, custody, RBAC | No licence: no code copied or executed |
+| IOP Python | Design only | Investigation workflows, evidence and reports | No licence: no code copied or executed |
 | OpenOSINT | Bundled | 20 tools, graph, MCP, reports | Isolated runtime and allowlisted bridge |
 | Agentic OSINT Agent | Workflow | Bounded ReAct, authority, evaluation | Deterministic authority and evidence gates |
 | Apify MCP | MCP | Actors, datasets, tasks, schedules | Actor allowlist; token only from environment |
@@ -32,6 +33,7 @@ training, export or bundled boundary.
 | IntelOwl | Service | Observable/file analysis, plugins and playbooks | External AGPL service only |
 | MISP | Service | Exact observable search and threat-feed correlation | Operator-controlled API; content reduced and bounded |
 | OpenCTI CE | Service/export | STIX graph, connectors, GraphQL/TAXII | Community interoperability only |
+| OpenCTI Connectors | Export | STIX feeds, enrichment and stream connectors | Separately deployed containers; approved exports only |
 | ZettelForge | Adapter | CTI memory, aliases, graph, OCSF audit | Optional local adapter |
 | Pharos | Design only | Workspace, graph, search and reports | Proprietary: no code/assets copied |
 | CTINexus | Adapter | Entity alignment and link prediction | AI output requires human validation |
@@ -39,7 +41,7 @@ training, export or bundled boundary.
 | SearXNG | Service | Private metasearch, categories and filters | Loopback operator instance only |
 | MCP SearXNG | MCP | Search, suggestions, info and bounded URL read | Read-only prefix allowlist |
 | ScrapeGraphAI | Service | Structured LLM extraction and multi-page graphs | Loopback; generated code blocked |
-| Data Commons | MCP | Public indicators, place statistics and time series | Public data, read-only tools |
+| Data Commons | MCP | Public indicators, place statistics and time series | Root/package licence conflict: execution disabled pending review |
 | Citra | MCP | PDF page/bbox proof, tables, compare, OCR and trust | Staged local files; read-only tools |
 | Docling MCP | MCP | Document conversion, OCR, tables, search and RAG | Staged local files; generation blocked |
 | SIDA | Design only | Deepfake detection, localization and explanations | No licence: no code/model copied |
@@ -48,6 +50,12 @@ training, export or bundled boundary.
 | LocateAnything | Export | Local VLM locations and GeoJSON | Custom non-commercial licence |
 | GeoAI | MCP | Remote sensing segmentation, classification and change | Owned scope; imagery download blocked |
 | GeoCLIP | Adapter | Worldwide visual geolocation and GPS embeddings | External model outputs; coarse retention |
+| API Mega List | Catalogue | API directory and documentation links | Missing root licence: content is not copied |
+| OSINT Vision Agent | Export | Image analysis and visual/geolocation signals | Consented/owned images; approved model exports only |
+| Skopia | Service/export | Feed monitoring, watchlists and alerts | External AGPL service; active scanners disabled |
+| Stagehand | Adapter contract | Browser automation and structured extraction | Disabled pending isolated-profile review; no cookie import |
+| STORM | Export | Citation research, outlines and report synthesis | Unverified reports only; upstream agents not bundled |
+| Xalgorix | Design only | Authorised security-testing concepts | Active exploitation cannot be archive-enabled |
 
 ## Commands
 
@@ -55,6 +63,7 @@ training, export or bundled boundary.
 ./start.sh capabilities list
 ./start.sh capabilities doctor --json
 ./start.sh capabilities show crawl4ai
+./start.sh capabilities archive-audit --archive ./supplied-project.zip --output ./archive-audit.json
 ./start.sh capabilities ingest --case demo-001 --source crawl4ai \
   --file ./approved-export.json --authorized --owned-org
 ```
@@ -63,6 +72,11 @@ Imports accept JSON or JSONL up to 10 MiB. Credentials, tokens, cookies,
 passwords, home addresses and government identifiers are never retained.
 Imported observations remain explicitly unverified; the normalized record keeps
 facts separate from an empty inference section for analyst review.
+
+Archive audit reads only ZIP metadata plus small root licence/manifest files. It
+never extracts or executes archive content, refuses unsafe members and records
+SHA-256 provenance. An archive can map to a governed boundary, but cannot make
+that boundary executable.
 
 The planner path remains stateless and processes targets only in the browser.
 The optional control plane stores explicitly enrolled organisation-owned

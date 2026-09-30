@@ -75,8 +75,11 @@ human review where judgment, attribution, privacy or legal authority matters.
 - A Supabase schema with tenant RLS, narrow Data API grants, audit events and
   atomic job claiming, plus a separately deployed non-root worker for four
   fixed passive cloud workflows. Vercel never runs scanners or provider keys.
-- A unified capability registry covers all 41 unique reviewed upstream engines with
+- A unified capability registry covers all 49 unique reviewed upstream engines with
   licence-aware adapter, MCP, service, workflow, training and export boundaries.
+- Supplied ZIPs can be hash-audited without extraction or execution; embedded
+  documentation is explicitly non-authoritative and duplicates/unsafe members
+  are reported before any integration decision.
 - Approved JSON/JSONL results from those engines can be sanitized, preserved in
   the evidence ledger and kept separate from analyst inferences.
 - A dependency-free MCP stdio client performs real handshakes, policy-filtered

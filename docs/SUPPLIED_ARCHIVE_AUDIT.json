@@ -1,0 +1,1251 @@
+{
+  "schema": "traceatlas.supplied-archive-audit/v1",
+  "policy": {
+    "archives_executed": false,
+    "archives_extracted": false,
+    "embedded_instructions_authoritative": false,
+    "limits": {
+      "archive_bytes": 134217728,
+      "members": 20000,
+      "uncompressed_bytes": 536870912,
+      "metadata_bytes": 1048576
+    }
+  },
+  "summary": {
+    "archives": 44,
+    "accepted": 40,
+    "registered": 43,
+    "duplicates": 3,
+    "unsafe": 4,
+    "unregistered": 0
+  },
+  "archives": [
+    {
+      "filename": "Abster-Intelligence-main.zip",
+      "capability_id": "abster-intelligence",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1383825,
+      "sha256": "5db24e0dfa30ca0a8df584d7678af6e92dca1ba87f727a9b61ca9ad186a65a24",
+      "members": 146,
+      "uncompressed_size": 2765716,
+      "unsafe_members": [],
+      "metadata_files": [
+        "Abster-Intelligence-main/LICENSE",
+        "Abster-Intelligence-main/package.json"
+      ],
+      "detected_licenses": [
+        "Apache-2.0"
+      ],
+      "contract": {
+        "license": "Apache-2.0",
+        "license_alignment": "matched",
+        "integration": "export",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "agentic-osint-agent-main.zip",
+      "capability_id": "agentic-osint-agent",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 653337,
+      "sha256": "d4d5201592f1aee990aa994a614bf035c0ae70c0a83dba40f23fa2189d2830df",
+      "members": 117,
+      "uncompressed_size": 1358707,
+      "unsafe_members": [],
+      "metadata_files": [
+        "agentic-osint-agent-main/LICENSE",
+        "agentic-osint-agent-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "workflow",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "Agent-Reach-main (1).zip",
+      "capability_id": "agent-reach",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 674161,
+      "sha256": "2111af682cbb2b9ddb4a8faa727618f2502882f57a1d7f5b5dbc1e03b4b98e25",
+      "members": 142,
+      "uncompressed_size": 1270538,
+      "unsafe_members": [],
+      "metadata_files": [
+        "Agent-Reach-main/LICENSE",
+        "Agent-Reach-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "agent-toolkit-main.zip",
+      "capability_id": "datacommons-mcp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 323666,
+      "sha256": "17b553a43d061ff13c8106799e8026f2bc7747c8721050ccf20ed1209f81ab76",
+      "members": 111,
+      "uncompressed_size": 1039993,
+      "unsafe_members": [],
+      "metadata_files": [
+        "agent-toolkit-main/LICENSE",
+        "agent-toolkit-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "contract": {
+        "license": "CONFLICTING",
+        "license_alignment": "review-required",
+        "integration": "mcp",
+        "executable": false,
+        "restriction": "Root Apache-2.0 and package MIT metadata conflict; execution awaits licence review."
+      }
+    },
+    {
+      "filename": "alethia-main-master.zip",
+      "capability_id": "alethia",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 3249101,
+      "sha256": "f937ed28c3a167fc35338ea3019b36efdea6ebd66f23e36afa3448e7d3e62722",
+      "members": 77,
+      "uncompressed_size": 3990673,
+      "unsafe_members": [],
+      "metadata_files": [],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE-FILE",
+        "license_alignment": "missing-as-expected",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "No licence file was supplied; independent concepts only, no code or data copied."
+      }
+    },
+    {
+      "filename": "apify-mcp-server-master.zip",
+      "capability_id": "apify-mcp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": false,
+      "issues": [
+        "unsafe-members-present"
+      ],
+      "size": 1428879,
+      "sha256": "af6e5f5715e26013d615286136748d3cab0b08524e464a2906b0b5cfc4cbba48",
+      "members": 458,
+      "uncompressed_size": 3715961,
+      "unsafe_members": [
+        {
+          "member": "apify-mcp-server-master/CLAUDE.md",
+          "reason": "symbolic-link"
+        }
+      ],
+      "metadata_files": [
+        "apify-mcp-server-master/LICENSE.md",
+        "apify-mcp-server-master/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "API-mega-list-main.zip",
+      "capability_id": "api-mega-list",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 9008795,
+      "sha256": "f2de8847a1fdd5f4511acc2c85518af14b07d9e0007411e337e897a28438821f",
+      "members": 66,
+      "uncompressed_size": 28970361,
+      "unsafe_members": [],
+      "metadata_files": [],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE-FILE",
+        "license_alignment": "missing-as-expected",
+        "integration": "catalog",
+        "executable": false,
+        "restriction": "No root licence was supplied; catalogue content is not copied or redistributed."
+      }
+    },
+    {
+      "filename": "browser-use-main.zip",
+      "capability_id": "browser-use",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 5001068,
+      "sha256": "dea2bebf885e995775545a83b81d901f23e1674fd8600b7599d4d3929784505e",
+      "members": 622,
+      "uncompressed_size": 8729455,
+      "unsafe_members": [],
+      "metadata_files": [
+        "browser-use-main/LICENSE",
+        "browser-use-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "citra-main.zip",
+      "capability_id": "citra",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 4538076,
+      "sha256": "9cb1b357e12b533b56cf0320b7ff584132991b5521e48f40d220bdff17cffdb1",
+      "members": 1626,
+      "uncompressed_size": 15562627,
+      "unsafe_members": [],
+      "metadata_files": [
+        "citra-main/Cargo.toml",
+        "citra-main/LICENSE",
+        "citra-main/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "Claude-OSINT-main.zip",
+      "capability_id": "claude-osint",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1172077,
+      "sha256": "c062ed74083e0dd5b26ca45c269ade1cc47508589b793a0069ed2be4aa141222",
+      "members": 131,
+      "uncompressed_size": 1729786,
+      "unsafe_members": [],
+      "metadata_files": [
+        "Claude-OSINT-main/LICENSE",
+        "Claude-OSINT-main/LICENSE-CONTENT"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "workflow",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "connectors-master.zip",
+      "capability_id": "opencti-connectors",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 65181764,
+      "sha256": "dfefff461b0e5718c0455bd890cde0b54d077c361cec8d4c97a0f08658c43452",
+      "members": 10465,
+      "uncompressed_size": 111918029,
+      "unsafe_members": [],
+      "metadata_files": [
+        "connectors-master/LICENSE"
+      ],
+      "detected_licenses": [
+        "Apache-2.0"
+      ],
+      "contract": {
+        "license": "Apache-2.0",
+        "license_alignment": "matched",
+        "integration": "export",
+        "executable": false,
+        "restriction": "Connector containers remain separately deployed; approved STIX/JSON exports only."
+      }
+    },
+    {
+      "filename": "crawl4ai-main.zip",
+      "capability_id": "crawl4ai",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 9805456,
+      "sha256": "ee10fa92ac3a3a5db94f4f0bfac68397621a69deb063197076fdcb82bfc8a8d4",
+      "members": 1082,
+      "uncompressed_size": 29122781,
+      "unsafe_members": [],
+      "metadata_files": [
+        "crawl4ai-main/LICENSE",
+        "crawl4ai-main/pyproject.toml",
+        "crawl4ai-main/setup.cfg",
+        "crawl4ai-main/setup.py"
+      ],
+      "detected_licenses": [
+        "Apache-2.0"
+      ],
+      "contract": {
+        "license": "Apache-2.0",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "ctinexus-main.zip",
+      "capability_id": "ctinexus",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1458889,
+      "sha256": "0bcf551c38a3fccc0cc929e6ad817f68c90e237d6e9c1f5b228f46be51d33038",
+      "members": 373,
+      "uncompressed_size": 3372736,
+      "unsafe_members": [],
+      "metadata_files": [
+        "ctinexus-main/LICENSE.txt",
+        "ctinexus-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "cti-to-mitre-with-nlp-main.zip",
+      "capability_id": "cti-to-mitre-nlp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 111864,
+      "sha256": "7eb5bea9fee4384ccf4d7c25d22f11f7d86cb285727ba26fc55b6913ba3efcac",
+      "members": 57,
+      "uncompressed_size": 395203,
+      "unsafe_members": [],
+      "metadata_files": [
+        "cti-to-mitre-with-nlp-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "CC-BY-SA"
+      ],
+      "contract": {
+        "license": "CC-BY-SA-4.0",
+        "license_alignment": "matched",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "Research concepts only; ShareAlike datasets and model code are not bundled."
+      }
+    },
+    {
+      "filename": "deer-flow-main.zip",
+      "capability_id": "deerflow",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 29430371,
+      "sha256": "5e76b82f53baf5927c74f224ec8769f1c0b07b9d19c29e8a5919da75f4b857f4",
+      "members": 3807,
+      "uncompressed_size": 58931496,
+      "unsafe_members": [],
+      "metadata_files": [
+        "deer-flow-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "workflow",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "exa-mcp-server-main.zip",
+      "capability_id": "exa-mcp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 186301,
+      "sha256": "5a64a6533796456d1b42d22d144d229a04c6ea27a57d45a0a9161a439bbc2a66",
+      "members": 107,
+      "uncompressed_size": 583626,
+      "unsafe_members": [],
+      "metadata_files": [
+        "exa-mcp-server-main/LICENSE",
+        "exa-mcp-server-main/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "firecrawl-main.zip",
+      "capability_id": "firecrawl",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 31181506,
+      "sha256": "d96b012e2b294c3efc94a4928444d05a99fb4b288eace4e5fb31be66f0100bca",
+      "members": 2293,
+      "uncompressed_size": 53074334,
+      "unsafe_members": [],
+      "metadata_files": [
+        "firecrawl-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "AGPL-3.0"
+      ],
+      "contract": {
+        "license": "AGPL-3.0",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": true,
+        "restriction": "Service/API adapter only; AGPL backend is not vendored."
+      }
+    },
+    {
+      "filename": "firecrawl-mcp-server-main.zip",
+      "capability_id": "firecrawl-mcp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 3075991,
+      "sha256": "aecd0b3eb108a6cdee21ecf1f05bc540b504c4356db746fc4c2d3a42cfb30055",
+      "members": 75,
+      "uncompressed_size": 3633907,
+      "unsafe_members": [],
+      "metadata_files": [
+        "firecrawl-mcp-server-main/LICENSE",
+        "firecrawl-mcp-server-main/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "FreeOSINT.github.io-main.zip",
+      "capability_id": "freeosint",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 5553031,
+      "sha256": "c59371b1ab7a0b82edb83ec9d7fbc1bef681107b56611788ae76147c3f1bc0c7",
+      "members": 76,
+      "uncompressed_size": 7468055,
+      "unsafe_members": [],
+      "metadata_files": [
+        "FreeOSINT.github.io-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "training",
+        "executable": false,
+        "restriction": "Training content is catalogued; it never executes collection."
+      }
+    },
+    {
+      "filename": "geoai-main.zip",
+      "capability_id": "geoai",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1891646,
+      "sha256": "068cb660f2a7a9e0a9c6542c62dd37d1cdddeca6054d6341fe03e3908069db1f",
+      "members": 515,
+      "uncompressed_size": 6858126,
+      "unsafe_members": [],
+      "metadata_files": [
+        "geoai-main/LICENSE",
+        "geoai-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "geo-clip-main.zip",
+      "capability_id": "geoclip",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 43156667,
+      "sha256": "c833a291b5b1e008a80885b1d732f3497a3cf16a655f331befb6a8ef92bc774e",
+      "members": 44,
+      "uncompressed_size": 47292405,
+      "unsafe_members": [],
+      "metadata_files": [
+        "geo-clip-main/LICENSE",
+        "geo-clip-main/pyproject.toml",
+        "geo-clip-main/setup.py"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Model package is optional and external; outputs enter the governed fusion board."
+      }
+    },
+    {
+      "filename": "geo-sleuth-main.zip",
+      "capability_id": "geo-sleuth",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 3921717,
+      "sha256": "7b882d474f41d1a60bff8797e228d9e325b9f8c41adff82ad5746c48864555bb",
+      "members": 78,
+      "uncompressed_size": 4750798,
+      "unsafe_members": [],
+      "metadata_files": [
+        "geo-sleuth-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT/code + CC-BY-SA-4.0/data",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Export/interoperability only; live street-view and reverse-search automation are not executed."
+      }
+    },
+    {
+      "filename": "gpt-researcher-main.zip",
+      "capability_id": "gpt-researcher",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 14883765,
+      "sha256": "82f580069e49136295fa8f69848e46baef811b46c8d21ad6fe3f86e951969f63",
+      "members": 1000,
+      "uncompressed_size": 27672673,
+      "unsafe_members": [],
+      "metadata_files": [
+        "gpt-researcher-main/LICENSE",
+        "gpt-researcher-main/pyproject.toml",
+        "gpt-researcher-main/setup.py"
+      ],
+      "detected_licenses": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "contract": {
+        "license": "CONFLICTING",
+        "license_alignment": "review-required",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Upstream licence metadata conflicts; export ingestion works, execution stays disabled."
+      }
+    },
+    {
+      "filename": "IntelOwl-master.zip",
+      "capability_id": "intelowl",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 51669249,
+      "sha256": "dd03fa55435374455526d35cebcc5240653af11c918622a6c3b98caccbbad201",
+      "members": 2086,
+      "uncompressed_size": 62948012,
+      "unsafe_members": [],
+      "metadata_files": [
+        "IntelOwl-master/LICENSE",
+        "IntelOwl-master/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "AGPL-3.0"
+      ],
+      "contract": {
+        "license": "AGPL-3.0",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": true,
+        "restriction": "AGPL platform remains a separately deployed service; no backend code is vendored."
+      }
+    },
+    {
+      "filename": "iop-python-main.zip",
+      "capability_id": "iop-python",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 935334,
+      "sha256": "c84bc87b2ceb71e1cb605e407587f04c5cb170038b78bb9ecb89b58598b6f576",
+      "members": 1105,
+      "uncompressed_size": 8899581,
+      "unsafe_members": [],
+      "metadata_files": [
+        "iop-python-main/pyproject.toml"
+      ],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE-FILE",
+        "license_alignment": "missing-as-expected",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "No licence file was supplied; concepts only, no source code copied."
+      }
+    },
+    {
+      "filename": "IOP-Python-MVP-main (1).zip",
+      "capability_id": "iop-mvp",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 667252,
+      "sha256": "f36290ef93bc6c13e15df3ea95a2489e4c129dc91e50a4b514065c7f9cbe6a66",
+      "members": 333,
+      "uncompressed_size": 3904242,
+      "unsafe_members": [],
+      "metadata_files": [
+        "IOP-Python-MVP-main/package.json"
+      ],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE",
+        "license_alignment": "missing-as-expected",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "No licence was supplied; concepts only, no source code copied."
+      }
+    },
+    {
+      "filename": "storm-main.zip",
+      "capability_id": "storm",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 5332903,
+      "sha256": "0facaacfffe11976607382f7380e783456c6e367380ee3e62be7e83ab394da6c",
+      "members": 93,
+      "uncompressed_size": 6661360,
+      "unsafe_members": [],
+      "metadata_files": [
+        "storm-main/LICENSE",
+        "storm-main/setup.py"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "export",
+        "executable": false,
+        "restriction": "Research reports are accepted as unverified exports; upstream agents are not bundled."
+      }
+    },
+    {
+      "filename": "threatwatch-main.zip",
+      "capability_id": "threatwatch",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1983431,
+      "sha256": "243666c77fb08384c84da5e6ff9e6e2b5fe0cce1791ce59abcb39094fa197cb3",
+      "members": 170,
+      "uncompressed_size": 3271691,
+      "unsafe_members": [],
+      "metadata_files": [
+        "threatwatch-main/LICENSE",
+        "threatwatch-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "NON-COMMERCIAL"
+      ],
+      "contract": {
+        "license": "NON-COMMERCIAL-1.0",
+        "license_alignment": "matched",
+        "integration": "export",
+        "executable": false,
+        "restriction": "Non-commercial code and feed catalogue are not copied; approved exports only."
+      }
+    },
+    {
+      "filename": "TraceAtlas_9of10_Blueprint.zip",
+      "capability_id": null,
+      "integration_state": "blueprint",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 80080,
+      "sha256": "e56b7b143bad200bf2629435866cbf62323f843e6242a51c96e9cab4e78b518f",
+      "members": 30,
+      "uncompressed_size": 278411,
+      "unsafe_members": [],
+      "metadata_files": [],
+      "detected_licenses": []
+    },
+    {
+      "filename": "Watcher-master.zip",
+      "capability_id": "watcher",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": false,
+      "issues": [
+        "unsafe-members-present"
+      ],
+      "size": 51106251,
+      "sha256": "31a9f686187982b8f6b0ab85391f60b02690556f10f9792b0caa5207b72aece4",
+      "members": 698,
+      "uncompressed_size": 68111130,
+      "unsafe_members": [
+        {
+          "member": "Watcher-master/Watcher/docs/README.md",
+          "reason": "symbolic-link"
+        }
+      ],
+      "metadata_files": [
+        "Watcher-master/LICENSE"
+      ],
+      "detected_licenses": [
+        "AGPL-3.0"
+      ],
+      "contract": {
+        "license": "AGPL-3.0",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": false,
+        "restriction": "AGPL platform remains external; TraceAtlas imports approved observations only."
+      }
+    },
+    {
+      "filename": "xalgorix-main.zip",
+      "capability_id": "xalgorix",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 10276391,
+      "sha256": "e953655ca19890f2d8fe2a86590362d3e3cdf8b86e3950a846acedbe22ff79d4",
+      "members": 2376,
+      "uncompressed_size": 20057264,
+      "unsafe_members": [],
+      "metadata_files": [
+        "xalgorix-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "Apache-2.0"
+      ],
+      "contract": {
+        "license": "Apache-2.0",
+        "license_alignment": "matched",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "Active exploitation is outside the default product boundary and cannot be enabled by an archive."
+      }
+    },
+    {
+      "filename": "zettelforge-master.zip",
+      "capability_id": "zettelforge",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 10494849,
+      "sha256": "086c234f75138b51c08cab0b7662f1d6aba92d158d9ee7319477283d26aae365",
+      "members": 503,
+      "uncompressed_size": 49998953,
+      "unsafe_members": [],
+      "metadata_files": [
+        "zettelforge-master/LICENSE",
+        "zettelforge-master/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "geo-clip-main - Copy.zip",
+      "capability_id": "geoclip",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 43156667,
+      "sha256": "c833a291b5b1e008a80885b1d732f3497a3cf16a655f331befb6a8ef92bc774e",
+      "members": 44,
+      "uncompressed_size": 47292405,
+      "unsafe_members": [],
+      "metadata_files": [
+        "geo-clip-main/LICENSE",
+        "geo-clip-main/pyproject.toml",
+        "geo-clip-main/setup.py"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Model package is optional and external; outputs enter the governed fusion board."
+      },
+      "duplicate_of": "geo-clip-main.zip"
+    },
+    {
+      "filename": "geo-sleuth-main - Copy.zip",
+      "capability_id": "geo-sleuth",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 3921717,
+      "sha256": "7b882d474f41d1a60bff8797e228d9e325b9f8c41adff82ad5746c48864555bb",
+      "members": 78,
+      "uncompressed_size": 4750798,
+      "unsafe_members": [],
+      "metadata_files": [
+        "geo-sleuth-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT/code + CC-BY-SA-4.0/data",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Export/interoperability only; live street-view and reverse-search automation are not executed."
+      },
+      "duplicate_of": "geo-sleuth-main.zip"
+    },
+    {
+      "filename": "gpt-researcher-main - Copy.zip",
+      "capability_id": "gpt-researcher",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 14883765,
+      "sha256": "82f580069e49136295fa8f69848e46baef811b46c8d21ad6fe3f86e951969f63",
+      "members": 1000,
+      "uncompressed_size": 27672673,
+      "unsafe_members": [],
+      "metadata_files": [
+        "gpt-researcher-main/LICENSE",
+        "gpt-researcher-main/pyproject.toml",
+        "gpt-researcher-main/setup.py"
+      ],
+      "detected_licenses": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "contract": {
+        "license": "CONFLICTING",
+        "license_alignment": "review-required",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Upstream licence metadata conflicts; export ingestion works, execution stays disabled."
+      },
+      "duplicate_of": "gpt-researcher-main.zip"
+    },
+    {
+      "filename": "osint-agent-main - Copy.zip",
+      "capability_id": "osint-agent",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1468845,
+      "sha256": "7bc9e8ce542b2edb03ac0445c0044bd3ea0d01937593cff378fb1e491cb90763",
+      "members": 20,
+      "uncompressed_size": 1513838,
+      "unsafe_members": [],
+      "metadata_files": [
+        "osint-agent-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "Apache-2.0"
+      ],
+      "contract": {
+        "license": "Apache-2.0",
+        "license_alignment": "matched",
+        "integration": "workflow",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "osintiq-master - Copy.zip",
+      "capability_id": "osintiq",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 10909031,
+      "sha256": "7b51c3682b453d4b4d90e946009936e6c6745b513a98a0fa83a74908404c9a5d",
+      "members": 936,
+      "uncompressed_size": 41931121,
+      "unsafe_members": [],
+      "metadata_files": [],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE-FILE",
+        "license_alignment": "missing-as-expected",
+        "integration": "export",
+        "executable": false,
+        "restriction": "README claims MIT but no licence file was supplied; concepts/exports only."
+      }
+    },
+    {
+      "filename": "osint-mcp-server-main - Copy.zip",
+      "capability_id": "osint-mcp-server",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 929299,
+      "sha256": "5d07cea891e0922b1b6692d8cb7ce8ff62dd4e1c57897238f8180fba438d5489",
+      "members": 89,
+      "uncompressed_size": 1479923,
+      "unsafe_members": [],
+      "metadata_files": [
+        "osint-mcp-server-main/LICENSE",
+        "osint-mcp-server-main/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "mcp",
+        "executable": true,
+        "restriction": ""
+      }
+    },
+    {
+      "filename": "osint-vision-agent-main - Copy.zip",
+      "capability_id": "osint-vision-agent",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 386089,
+      "sha256": "b0be6f1be7221294159a2fb7c566c0c272e3f6a13506f878595bcb425c733d33",
+      "members": 18,
+      "uncompressed_size": 629055,
+      "unsafe_members": [],
+      "metadata_files": [
+        "osint-vision-agent-main/LICENSE"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "export",
+        "executable": false,
+        "restriction": "Model output enters through approved exports; upstream code and weights are not bundled."
+      }
+    },
+    {
+      "filename": "Scrapegraph-ai-main.zip",
+      "capability_id": "scrapegraph-ai",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 3459055,
+      "sha256": "8c67906311f4eccff34a104694096a3e6ae99e62f2ee326c04e814f28ac9d53b",
+      "members": 468,
+      "uncompressed_size": 5558332,
+      "unsafe_members": [],
+      "metadata_files": [
+        "Scrapegraph-ai-main/LICENSE",
+        "Scrapegraph-ai-main/pyproject.toml"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": true,
+        "restriction": "Only a loopback worker may run extraction graphs; generated script execution is disabled."
+      }
+    },
+    {
+      "filename": "searxng-master.zip",
+      "capability_id": "searxng",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": false,
+      "issues": [
+        "unsafe-members-present"
+      ],
+      "size": 6796878,
+      "sha256": "44c3c07a7e201549b21d651516512ef422e6739a3b86d537b40fd75b113a6dad",
+      "members": 1228,
+      "uncompressed_size": 20617272,
+      "unsafe_members": [
+        {
+          "member": "searxng-master/utils/templates/etc/apache2",
+          "reason": "symbolic-link"
+        }
+      ],
+      "metadata_files": [
+        "searxng-master/LICENSE",
+        "searxng-master/package.json",
+        "searxng-master/setup.py"
+      ],
+      "detected_licenses": [
+        "AGPL-3.0"
+      ],
+      "contract": {
+        "license": "AGPL-3.0",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": true,
+        "restriction": "AGPL engine is not vendored; use an operator-controlled loopback service."
+      }
+    },
+    {
+      "filename": "SIDA-main.zip",
+      "capability_id": "sida",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 1831609,
+      "sha256": "aa07576548db32f35fd322c0d0da01ce5b1b155c2ab9b7e03843f492397de53d",
+      "members": 146,
+      "uncompressed_size": 2483706,
+      "unsafe_members": [],
+      "metadata_files": [],
+      "detected_licenses": [],
+      "contract": {
+        "license": "NO-LICENSE-FILE",
+        "license_alignment": "missing-as-expected",
+        "integration": "design-only",
+        "executable": false,
+        "restriction": "No licence file was supplied; model/code/dataset are not bundled."
+      }
+    },
+    {
+      "filename": "skopia-main.zip",
+      "capability_id": "skopia",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": true,
+      "issues": [],
+      "size": 21418075,
+      "sha256": "aef90caac9f5d9e84affe3742175c78504dc4654ae9ce097f0f280e9472de499",
+      "members": 295,
+      "uncompressed_size": 24775021,
+      "unsafe_members": [],
+      "metadata_files": [
+        "skopia-main/LICENSE",
+        "skopia-main/LICENSE-MIT",
+        "skopia-main/package.json"
+      ],
+      "detected_licenses": [
+        "AGPL-3.0",
+        "MIT"
+      ],
+      "contract": {
+        "license": "AGPL-3.0-or-later",
+        "license_alignment": "matched",
+        "integration": "service",
+        "executable": false,
+        "restriction": "AGPL platform stays external; active scanners are disabled and approved exports only are ingested."
+      }
+    },
+    {
+      "filename": "stagehand-main.zip",
+      "capability_id": "stagehand",
+      "integration_state": "registered-boundary",
+      "instruction_authority": "none",
+      "execution_enabled_by_archive": false,
+      "accepted": false,
+      "issues": [
+        "unsafe-members-present"
+      ],
+      "size": 44867362,
+      "sha256": "b9023f4b3acd4a229ac78a82a4340272a1f8d6a034bd35d36d4fb34142b2806d",
+      "members": 1777,
+      "uncompressed_size": 59207595,
+      "unsafe_members": [
+        {
+          "member": "stagehand-main/packages/sdk-ts/README.md",
+          "reason": "symbolic-link"
+        }
+      ],
+      "metadata_files": [
+        "stagehand-main/LICENSE",
+        "stagehand-main/package.json"
+      ],
+      "detected_licenses": [
+        "MIT"
+      ],
+      "contract": {
+        "license": "MIT",
+        "license_alignment": "matched",
+        "integration": "adapter",
+        "executable": false,
+        "restriction": "Persistent browser sessions are not imported; an isolated adapter requires separate review."
+      }
+    }
+  ]
+}
