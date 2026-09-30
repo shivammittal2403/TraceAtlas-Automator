@@ -7,6 +7,7 @@ STATE_DIR="$ROOT_DIR/.traceatlas"
 VENV_DIR="$STATE_DIR/venv"
 OPENOSINT_ROOT="$ROOT_DIR/packages/openosint"
 OPENOSINT_VENV="$STATE_DIR/openosint-venv"
+OPENCTI_SOURCE="$ROOT_DIR/third_party/opencti-connectors"
 LOCK_DIR="$STATE_DIR/setup.lock"
 LOG_FILE="$STATE_DIR/setup.log"
 MARKER_FILE="$STATE_DIR/ready"
@@ -25,6 +26,17 @@ trap on_error ERR
 
 mkdir -p "$STATE_DIR"
 touch "$LOG_FILE"
+
+if [[ "${TRACEATLAS_SKIP_OPENCTI_SOURCE:-0}" != "1" && -f "$ROOT_DIR/.gitmodules" && ! -f "$OPENCTI_SOURCE/manifest.json" ]]; then
+  if command -v git >/dev/null 2>&1; then
+    info "Fetching the pinned OpenCTI connector source..."
+    if ! git -C "$ROOT_DIR" submodule update --init --depth 1 -- third_party/opencti-connectors >>"$LOG_FILE" 2>&1; then
+      warn "OpenCTI connector source could not be fetched; the TraceAtlas core will remain available."
+    fi
+  else
+    warn "Git is unavailable, so the optional OpenCTI connector source was not fetched."
+  fi
+fi
 setup_process_active() {
   local pid="$1" command_line=""
   [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
@@ -142,6 +154,7 @@ root = pathlib.Path(sys.argv[1])
 digest = hashlib.sha256()
 paths = [root / ".gitignore", root / "pyproject.toml", root / "setup.sh", root / "set.sh", root / "start.sh"]
 paths.extend(sorted((root / "src").rglob("*.py")))
+paths.extend(sorted((root / "src").rglob("*.json")))
 paths.extend(sorted((root / "tests").rglob("*.py")))
 paths.extend(sorted((root / "api").rglob("*.py")))
 paths.extend(sorted((root / "public").glob("*.js")))
@@ -149,6 +162,10 @@ paths.extend(sorted((root / "public").glob("*.html")))
 paths.extend(sorted((root / "public").glob("*.css")))
 paths.extend(sorted((root / "supabase" / "migrations").glob("*.sql")))
 paths.extend(sorted((root / "supabase" / "tests").glob("*.sql")))
+paths.extend([
+    root / "third_party" / "OPENCTI_SHA256SUMS",
+    root / "third_party" / "OPENCTI_SNAPSHOT.md",
+])
 upstream = root / "packages" / "openosint"
 for name in ("pyproject.toml", "uv.lock", "LICENSE"):
     paths.append(upstream / name)

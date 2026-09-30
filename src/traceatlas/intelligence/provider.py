@@ -155,9 +155,14 @@ class ResilientJSONClient:
 
     def get(self, source: str, url: str, headers: dict[str, str], timeout: int = 30) -> ProviderResult:
         last_error = ProviderError("provider_request_failed")
-        deadline = self.clock() + max(0, min(float(timeout), 30))
+        budget = max(0, min(float(timeout), 30))
+        deadline = self.clock() + budget
         for attempt in range(1, self.max_attempts + 1):
-            remaining = deadline - self.clock()
+            # Give the first request the exact declared budget. Besides keeping
+            # adapter contracts deterministic, this avoids shaving a few
+            # microseconds off every configured timeout before any I/O starts.
+            # Retries still receive only the shared deadline remainder.
+            remaining = budget if attempt == 1 else deadline - self.clock()
             if remaining <= 0:
                 raise ProviderError("provider_deadline_exceeded", attempts=attempt - 1)
             try:

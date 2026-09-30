@@ -19,6 +19,12 @@ machine-readable output format and normalized event type. The runner:
 Third-party tools are not bundled, auto-installed or silently updated. API keys
 remain in their native tool configuration or environment.
 
+The supplied OpenCTI connector suite is the documented exception to the source
+bundling rule: its 308 packages are pinned under `third_party` for reproducible
+review and external-service deployment. They are disabled by default, never
+imported into the TraceAtlas process and governed by the catalog/doctor/plan
+commands documented in [docs/OPENCTI_CONNECTOR_SUITE.md](docs/OPENCTI_CONNECTOR_SUITE.md).
+
 ## Readiness truth model
 
 `integrations list` and `integrations doctor` deliberately separate four facts:
