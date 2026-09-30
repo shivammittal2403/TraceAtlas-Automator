@@ -120,7 +120,9 @@ class OpenCTIConnectorCatalog:
             raise PolicyError("Pinned connector source is missing or outside the approved root")
         compose = connector / "docker-compose.yml"
         required = [str(name) for name in row.get("required_env", [])]
-        configured = sorted(name for name in required if os.environ.get(name))
+        # Test presence without reading credential values into this process. The
+        # resulting plan contains environment-variable names only.
+        configured = sorted(name for name in required if name in os.environ)
         missing = sorted(set(required) - set(configured))
         docker = shutil.which("docker")
         gate = os.environ.get("TRACEATLAS_OPENCTI_CONNECTORS_ENABLED") == "1"
