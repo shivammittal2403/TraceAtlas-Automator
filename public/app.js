@@ -23,13 +23,13 @@ function validateTarget(type, raw) {
   if (!value || value.length > 2048 || /[\r\n\0]/.test(value)) throw new Error("Enter one valid target.");
   if (type === "domain" && !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(value)) throw new Error("Enter a valid public domain.");
   if (type === "ip") {
-    const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) && value.split(".").every((part) => Number(part) <= 255);
-    const ipv6 = /^[0-9a-f:]+$/i.test(value) && value.includes(":");
-    if ((!ipv4 && !ipv6) || isPrivateIPv4(value) || value === "::1") throw new Error("Enter a public IP address.");
+    if (!TraceAtlasTargetValidation.isPublicIpAddress(value)) throw new Error("Enter a public IP address.");
   }
   if (type === "url") {
     let parsed;
     try { parsed = new URL(value); } catch { throw new Error("Enter a valid HTTP or HTTPS URL."); }
+    const host = parsed.hostname.replace(/^\[|\]$/g, "");
+    if ((host.includes(":") || /^[0-9.]+$/.test(host)) && !TraceAtlasTargetValidation.isPublicIpAddress(host)) throw new Error("Enter a public HTTP or HTTPS URL.");
     if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password || parsed.hostname === "localhost" || isPrivateIPv4(parsed.hostname)) throw new Error("Enter a public HTTP or HTTPS URL without credentials.");
   }
   if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error("Enter a valid email address with consent.");
@@ -458,6 +458,7 @@ $("#login-form").addEventListener("submit", async (event) => {
 });
 
 $("#logout").addEventListener("click", async () => {
+  pendingJobKeys.clear();
   try { await api("/api/session", { method: "DELETE" }); } catch { /* best effort */ }
   resetGraph();
   $("#graph-import").value = "";
@@ -502,21 +503,32 @@ $("#asset-form").addEventListener("submit", async (event) => {
 });
 
 $("#job-case").addEventListener("change", syncAssetChoices);
+// Reuse the operation key after an uncertain response; clear only on acknowledgement.
+const pendingJobKeys = new Map();
+let submittingJob = false;
 $("#job-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (submittingJob) return;
+  submittingJob = true;
   try {
     if (!$("#job-authorized").checked) throw new Error("authorization_confirmation_required");
     const asset = control.assets.find((item) => item.id === $("#job-asset").value);
     if (!asset) throw new Error("select_owned_asset");
-    const nonce = crypto.getRandomValues(new Uint32Array(4));
-    const idempotency = Array.from(nonce).map((value) => value.toString(16).padStart(8, "0")).join("");
+    const requestKey = JSON.stringify([$("#analyst-label").textContent, $("#job-case").value, asset.id, workflowForType[asset.target_type]]);
+    if (!pendingJobKeys.has(requestKey)) {
+      const nonce = crypto.getRandomValues(new Uint32Array(4));
+      pendingJobKeys.set(requestKey, Array.from(nonce).map((value) => value.toString(16).padStart(8, "0")).join(""));
+    }
+    const idempotency = pendingJobKeys.get(requestKey);
     await api("/api/jobs", { method: "POST", body: JSON.stringify({
       case_id: $("#job-case").value, asset_id: asset.id, kind: workflowForType[asset.target_type],
       idempotency_key: idempotency, authorization_confirmed: true,
     }) });
+    pendingJobKeys.delete(requestKey);
     $("#job-authorized").checked = false;
     await loadWorkspace();
   } catch (error) { $("#workspace-error").textContent = error.message; }
+  finally { submittingJob = false; }
 });
 
 $("#graph-case").addEventListener("change", (event) => {

@@ -11,13 +11,12 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
-from urllib.error import HTTPError
-from urllib.parse import quote, urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urlencode, urlsplit
 from uuid import uuid4
 
 from ..db import CaseDB
 from ..evidence import EvidenceStore
+from ..models import utc_now
 from ..policy import PolicyError, validate_target
 from ..spider.events import Event, child
 from .sanitize import fingerprint, sanitize_record
@@ -25,21 +24,15 @@ from .social import normalize_social_profile
 from .sources import SOURCES, SourceSpec
 from .provider import ProviderError, ResilientJSONClient
 from .contracts import source_contract
+from .transport import request as _request
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
 Requester = Callable[[str, dict[str, str], int], tuple[int, bytes]]
 
 
-def _request(url: str, headers: dict[str, str], timeout: int) -> tuple[int, bytes]:
-    request = Request(url, headers=headers, method="GET")
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            return int(response.status), response.read(10 * 1024 * 1024)
-    except HTTPError as exc:
-        # Convert HTTP status into the transport contract. The caller classifies
-        # it and never persists the URL, headers or response body.
-        return int(exc.code), exc.read(64 * 1024)
+class ConnectorNotConfigured(PolicyError):
+    code = 'not_configured'
 
 
 class IntelligenceHub:
@@ -135,7 +128,7 @@ class IntelligenceHub:
         with tempfile.TemporaryDirectory(prefix="traceatlas-intel-") as temp:
             safe_path = Path(temp) / f"{spec.name}-normalized.json"
             safe_path.write_text(json.dumps(normalized, indent=2, ensure_ascii=False), encoding="utf-8")
-            EvidenceStore(self.workspace, self.db, case_id).preserve_file(
+            evidence = EvidenceStore(self.workspace, self.db, case_id).preserve_file(
                 safe_path, f"intelligence:{spec.name}:normalized"
             )
         result = {
@@ -144,7 +137,8 @@ class IntelligenceHub:
             "privacy": total_stats,
         }
         self.db.end_spider_scan(scan_id, "completed", {**result, "events": len(normalized) + 1})
-        return {"scan_id": scan_id, "status": "completed", "stats": result}
+        return {"scan_id": scan_id, "status": "completed", "stats": result,
+                "evidence_refs": [evidence["sha256"]]}
 
     def ingest(self, case_id: str, source: str, path: Path, *, authorized: bool = False,
                subject_consent: bool = False, owned_org: bool = False,
@@ -210,6 +204,8 @@ class IntelligenceHub:
             validate_target("ip", target)
             if not ipaddress.ip_address(target).is_global:
                 raise PolicyError("InternetDB accepts public IPs only")
+            if ipaddress.ip_address(target).version != 4:
+                raise PolicyError("InternetDB connector currently supports IPv4 only")
             return f"https://internetdb.shodan.io/{quote(target)}", headers
         if spec.name in {"ipwhois", "ipdata", "greynoise"}:
             if target_type != "ip":
@@ -223,13 +219,13 @@ class IntelligenceHub:
             if spec.name == "ipdata":
                 key = os.environ.get("IPDATA_API_KEY", "").strip()
                 if not key or len(key) > 512 or any(char.isspace() for char in key):
-                    raise PolicyError("IPDATA_API_KEY is required")
+                    raise ConnectorNotConfigured("IPDATA_API_KEY is required")
                 query = urlencode({"api-key": key, "fields": "ip,city,region,country_name,country_code,continent_name,latitude,longitude,asn,company,threat"})
                 return f"https://api.ipdata.co/{quote(target)}?{query}", headers
             key = os.environ.get("GREYNOISE_API_KEY", "").strip()
             if key:
                 if len(key) > 512 or any(char.isspace() for char in key):
-                    raise PolicyError("GREYNOISE_API_KEY is not configured correctly")
+                    raise ConnectorNotConfigured("GREYNOISE_API_KEY is not configured correctly")
                 headers["key"] = key
             if address.version != 4:
                 raise PolicyError("GreyNoise Community accepts public IPv4 addresses only")
@@ -261,7 +257,7 @@ class IntelligenceHub:
             validate_target("username", target)
             token = os.environ.get("MASTODON_ACCESS_TOKEN", "").strip()
             if not token or len(token) > 4096 or any(char.isspace() for char in token):
-                raise PolicyError("MASTODON_ACCESS_TOKEN is required")
+                raise ConnectorNotConfigured("MASTODON_ACCESS_TOKEN is required")
             headers["Authorization"] = f"Bearer {token}"
             query = urlencode({"acct": target.strip()})
             return f"https://mastodon.social/api/v1/accounts/lookup?{query}", headers
@@ -281,7 +277,7 @@ class IntelligenceHub:
         if spec.name == "youtube":
             key = os.environ.get("YOUTUBE_API_KEY")
             if not key:
-                raise PolicyError("YOUTUBE_API_KEY is required")
+                raise ConnectorNotConfigured("YOUTUBE_API_KEY is required")
             if not target.strip() or len(target) > 128:
                 raise PolicyError("Invalid YouTube channel ID")
             query = urlencode({"part": "snippet,statistics", "id": target.strip(), "key": key})
@@ -298,18 +294,18 @@ class IntelligenceHub:
             if spec.name == "shodan":
                 key = os.environ.get("SHODAN_API_KEY")
                 if not key:
-                    raise PolicyError("SHODAN_API_KEY is required")
+                    raise ConnectorNotConfigured("SHODAN_API_KEY is required")
                 return f"https://api.shodan.io/shodan/host/{quote(target)}?key={quote(key)}", headers
             api_id, secret = os.environ.get("CENSYS_API_ID"), os.environ.get("CENSYS_API_SECRET")
             if not api_id or not secret:
-                raise PolicyError("CENSYS_API_ID and CENSYS_API_SECRET are required")
+                raise ConnectorNotConfigured("CENSYS_API_ID and CENSYS_API_SECRET are required")
             credentials = base64.b64encode(f"{api_id}:{secret}".encode()).decode()
             headers["Authorization"] = f"Basic {credentials}"
             return f"https://search.censys.io/api/v2/hosts/{quote(target)}", headers
         if spec.name == "virustotal":
             key = os.environ.get("VIRUSTOTAL_API_KEY")
             if not key:
-                raise PolicyError("VIRUSTOTAL_API_KEY is required")
+                raise ConnectorNotConfigured("VIRUSTOTAL_API_KEY is required")
             headers["x-apikey"] = key
             if target_type == "url":
                 validate_target("url", target)
@@ -329,7 +325,7 @@ class IntelligenceHub:
             key = os.environ.get("NVD_API_KEY")
             if key:
                 if len(key) > 128 or any(char.isspace() for char in key):
-                    raise PolicyError("NVD_API_KEY is not configured correctly")
+                    raise ConnectorNotConfigured("NVD_API_KEY is not configured correctly")
                 headers["apiKey"] = key
             return "https://services.nvd.nist.gov/rest/json/cves/2.0?" + urlencode({"cveId": cve_id}), headers
         if spec.name == "npm":
@@ -360,7 +356,7 @@ class IntelligenceHub:
                 raise PolicyError("ORCID iD checksum is invalid")
             token = os.environ.get("ORCID_ACCESS_TOKEN", "").strip()
             if not token or len(token) > 4096 or any(char.isspace() for char in token):
-                raise PolicyError("ORCID_ACCESS_TOKEN is required")
+                raise ConnectorNotConfigured("ORCID_ACCESS_TOKEN is required")
             headers.update({"Authorization": f"Bearer {token}", "Accept": "application/json"})
             return f"https://pub.orcid.org/v3.0/{orcid}/person", headers
         raise PolicyError(f"{spec.title} is export/API-ingestion only")
@@ -368,7 +364,7 @@ class IntelligenceHub:
     def collect(self, case_id: str, source: str, target_type: str, target: str, *,
                 authorized: bool = False, subject_consent: bool = False,
                 owned_org: bool = False, owned_asset: bool = False,
-                public_record_basis: bool = False) -> dict[str, Any]:
+                public_record_basis: bool = False, timeout_seconds: float = 30) -> dict[str, Any]:
         if source not in SOURCES:
             raise ValueError(f"Unknown intelligence source: {source}")
         spec = SOURCES[source]
@@ -380,12 +376,23 @@ class IntelligenceHub:
         source_run_id: str | None = None
         started = time.monotonic()
         try:
-            url, headers = self._live_request(spec, target_type, target)
             target_hash = fingerprint([source, target_type, target])
             source_run_id = str(uuid4())
             self.db.start_source_run(source_run_id, case_id, source, "live", target_hash)
-            provider_result = self.provider.get(source, url, headers, 30)
+            url, headers = self._live_request(spec, target_type, target)
+            contract = source_contract(source)
+            if urlsplit(url).hostname not in contract.allowed_hosts:
+                raise ProviderError('provider_destination_rejected')
+            provider_result = self.provider.get(source, url, headers, timeout_seconds)
             data = provider_result.data
+            # Do not attach another target's response to this investigation.
+            if source in {"internetdb", "ipwhois", "ipdata", "greynoise"}:
+                try:
+                    matches = ipaddress.ip_address(data['ip']) == ipaddress.ip_address(target)
+                except (KeyError, ValueError, TypeError):
+                    matches = False
+                if not matches:
+                    raise ProviderError('provider_target_mismatch', attempts=provider_result.attempts)
             if source == "stackexchange" and isinstance(data, dict):
                 records = data.get("items", [])
             elif source == "crossref" and isinstance(data, dict):
@@ -401,6 +408,25 @@ class IntelligenceHub:
                 "bytes_received": provider_result.bytes_received,
                 "schema_validated": True,
             }
+            if source == 'internetdb':
+                envelope = {
+                    'schema': 'traceatlas-evidence-envelope/v1', 'case_id': case_id,
+                    'source_run_id': source_run_id, 'scan_id': result['scan_id'],
+                    'source': source, 'connector_version': source_contract(source).contract_version,
+                    'retrieved_at': utc_now(), 'target_fingerprint': target_hash,
+                    'response_sha256': provider_result.response_sha256,
+                    'response_bytes': provider_result.bytes_received, 'http_status': 200,
+                    'normalized_evidence_refs': result['evidence_refs'],
+                    'raw_retention': 'not-retained', 'redaction': result['stats']['privacy'],
+                    'classification': 'provider-observation-not-independent-verification',
+                    'license_status': 'deployment-entitlement-review-required',
+                    'limitations': [spec.limitation, 'Local case scope; no hosted tenant/actor attestation.'],
+                }
+                with tempfile.TemporaryDirectory(prefix='traceatlas-envelope-') as temp:
+                    path = Path(temp) / 'internetdb-envelope.json'
+                    path.write_text(json.dumps(envelope, sort_keys=True), encoding='utf-8')
+                    preserved = EvidenceStore(self.workspace, self.db, case_id).preserve_file(path, 'intelligence:internetdb:envelope')
+                result['evidence_envelope_ref'] = preserved['sha256']
             self.db.finish_source_run(
                 source_run_id, "completed", records_received=len(records),
                 records_stored=result["stats"]["records_stored"], attempts=provider_result.attempts,
@@ -411,7 +437,7 @@ class IntelligenceHub:
         except PolicyError as exc:
             if source_run_id:
                 self.db.finish_source_run(
-                    source_run_id, "failed", failure_code="policy_error",
+                    source_run_id, "failed", failure_code=getattr(exc, 'code', 'policy_error'),
                     duration_ms=int((time.monotonic() - started) * 1000),
                 )
             raise

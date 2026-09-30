@@ -38,7 +38,15 @@ jobs:
       - name: Validate launchers and JavaScript
         run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js && node --check public/employee.js
       - name: Verify graph model and Python export interoperability
-        run: node --test tests/test_graph_model.cjs
+        run: node --test tests/test_graph_model.cjs tests/test_target_validation.cjs
+      - name: Install pinned local verification tools
+        run: npm exec --yes --package=pnpm@11.19.0 -- pnpm install --frozen-lockfile --ignore-scripts
+      - name: Execute database migrations and tenant replay regressions
+        run: node --test tests/test_database.mjs
+      - name: Install browser and verify fixture-backed analyst flow
+        run: |
+          node node_modules/playwright/cli.js install --with-deps chromium
+          node tests/test_employee_ui.cjs
       - name: Verify research pack integrity
         run: traceatlas-research status --verify > /dev/null
       - name: Run AI evidence-contract benchmark

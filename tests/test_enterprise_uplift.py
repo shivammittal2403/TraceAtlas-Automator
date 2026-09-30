@@ -68,6 +68,7 @@ class EnterpriseUpliftTests(unittest.TestCase):
             authorized=True, owned_asset=True,
         )
         self.assertEqual(result["outcomes"][0]["reason"], "circuit_open")
+        self.assertEqual(result["state"], "partial")
         self.assertNotIn("example.com", json.dumps(result))
 
     def test_intelowl_bridge_requires_explicit_analyzers_and_trusted_endpoint(self):

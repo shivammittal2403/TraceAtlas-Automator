@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import urllib.error
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from traceatlas.db import CaseDB
 from traceatlas.intelligence.hub import IntelligenceHub, _request
@@ -58,13 +58,15 @@ class RemediationReleaseTests(unittest.TestCase):
         self.assertEqual(source_contract("linkedin").capability_state, "import-only")
 
     def test_default_transport_surfaces_http_status_without_secret_details(self):
-        error = urllib.error.HTTPError(
-            "https://provider.invalid/?key=secret", 429, "limited", {}, io.BytesIO(b'{"error":"x"}'),
-        )
-        with patch("traceatlas.intelligence.hub.urlopen", side_effect=error):
-            status, body = _request("https://provider.invalid", {"Authorization": "secret"}, 3)
+        response = Mock(status=429)
+        with (patch('traceatlas.intelligence.transport._resolve', return_value='8.8.8.8'),
+              patch('socket.create_connection'), patch('ssl.create_default_context'),
+              patch('http.client.HTTPSConnection') as connection):
+            connection.return_value.getresponse.return_value = response
+            status, body = _request("https://api.github.com/users/example", {"Authorization": "secret"}, 3)
         self.assertEqual(status, 429)
-        self.assertEqual(body, b'{"error":"x"}')
+        self.assertEqual(body, b'')
+        response.read.assert_not_called()
 
     def test_connector_failure_is_classified_without_url_or_key(self):
         secret = "provider-secret-value"

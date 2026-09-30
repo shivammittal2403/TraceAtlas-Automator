@@ -11,6 +11,7 @@ from uuid import uuid4
 from ..evidence import EvidenceStore
 from ..intelligence.hub import IntelligenceHub
 from ..intelligence.sources import SOURCES
+from ..intelligence.contracts import IPV4_ONLY
 from ..integrations import IntegrationRunner
 from ..policy import PolicyError, validate_target
 from .brief import build_brief, clean, digest, markdown_report, validate_model_advisory
@@ -24,6 +25,15 @@ COLLECTION = {
     "doi": ("crossref",), "package": ("npm",),
 }
 ATTESTATIONS = {"owned_asset", "owned_org", "subject_consent", "public_record_basis"}
+MAX_STEPS = 4
+
+
+def omitted_sources(target_type, target, steps):
+    selected = {step["source"] for step in steps}
+    ipv6 = target_type == "ip" and ipaddress.ip_address(target).version == 6
+    return [{"source": source, "reason": "unsupported-ip-family"
+             if ipv6 and source in IPV4_ONLY else "action-budget"}
+            for source in COLLECTION.get(target_type, ()) if source not in selected]
 
 
 def plan_collection(target_type: str | None, target: str | None, *, mode: str,
@@ -60,10 +70,12 @@ def plan_collection(target_type: str | None, target: str | None, *, mode: str,
         raise PolicyError("Public-record research requires a public-record basis")
     plan = [{"kind": "intelligence", "source": source, "target_type": target_type,
              "target": target, "network": "provider-query", "credential_env": list(SOURCES[source].credential_env)}
-            for source in COLLECTION[target_type]]
+            for source in COLLECTION[target_type]
+            if not (target_type == "ip" and ipaddress.ip_address(target).version == 6 and source in IPV4_ONLY)]
     if probe_http:
         if mode != "pt" or target_type not in {"domain", "ip"} or not attestations.get("owned_asset"):
             raise PolicyError("HTTP probing requires PT mode and an explicitly authorized domain/IP")
+        plan = plan[:MAX_STEPS - 1]
         plan.append({"kind": "integration", "source": "httpx", "target_type": target_type,
                      "target": target, "network": "active-http-probe", "timeout_seconds": 60})
     return plan
@@ -105,7 +117,8 @@ class EmployeeService:
         attestations = attestations or {}
         steps = plan_collection(target_type, target, mode=mode, attestations=attestations, probe_http=probe_http)
         plan = {"schema": 1, "case_id": case_id, "objective": clean(objective, 1000), "mode": mode,
-                "steps": steps, "attestations": attestations, "max_steps": 4,
+                "steps": steps, "attestations": attestations, "max_steps": MAX_STEPS,
+                "omitted_sources": omitted_sources(target_type, target, steps),
                 "approval_expires_hours": 24, "automatic_pivots": False}
         task_id, now = str(uuid4()), datetime.now(timezone.utc).isoformat()
         self.db.conn.execute("INSERT INTO employee_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?)",
@@ -151,8 +164,14 @@ class EmployeeService:
         if not isinstance(reviewer, str) or not 2 <= len(reviewer.strip()) <= 120 or not isinstance(rationale, str) or not 10 <= len(rationale.strip()) <= 2000:
             raise PolicyError("Decision requires reviewer and 10-2000 character rationale")
         task = self.get(case_id, task_id)
-        if task["status"] != "planned" or expected_plan_hash != task["plan_hash"] or digest(task["plan"]) != expected_plan_hash:
+        if expected_plan_hash != task["plan_hash"] or digest(task["plan"]) != expected_plan_hash:
             raise PolicyError("Assignment is not pending or the reviewed plan changed")
+        if task['status'] != 'planned':
+            if any(row['decision'] == decision and row['reviewer'] == clean(reviewer, 120)
+                   and row['rationale'] == clean(rationale, 2000) and row['plan_hash'] == expected_plan_hash
+                   for row in task['decisions']):
+                return task  # A retry never renews approval or changes execution status.
+            raise PolicyError('Approval request conflicts with the recorded decision')
         now = datetime.now(timezone.utc).isoformat()
         with self.db.conn:
             cur = self.db.conn.execute("UPDATE employee_tasks SET status=?,approved_at=? WHERE id=? AND case_id=? AND status='planned' AND plan_hash=?",
@@ -223,7 +242,7 @@ class EmployeeService:
         approved = datetime.fromisoformat(task["approved_at"])
         if datetime.now(timezone.utc) - approved > timedelta(hours=24):
             raise PolicyError("Approval expired; create and review a new assignment")
-        if not 0 <= len(plan["steps"]) <= 4:
+        if not 0 <= len(plan["steps"]) <= MAX_STEPS:
             raise PolicyError("Assignment exceeds action budget")
         # Reconstruct the executable contract; stored JSON cannot invent tools.
         if plan["steps"]:

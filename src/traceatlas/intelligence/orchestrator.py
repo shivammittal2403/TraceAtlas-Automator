@@ -65,6 +65,7 @@ class CollectionOrchestrator:
                     case_id, source, item["target_type"], item["target"],
                     authorized=True, subject_consent=subject_consent, owned_org=owned_org,
                     owned_asset=owned_asset, public_record_basis=public_record_basis,
+                    timeout_seconds=min(30, max(0, budget_seconds - (time.monotonic() - started))),
                 )
                 outcomes.append({
                     "index": index, "source": source, "state": "completed",
@@ -80,7 +81,7 @@ class CollectionOrchestrator:
             for state in ("completed", "failed", "skipped")
         }
         return {
-            "case_id": case_id, "state": "completed" if not counts["failed"] else "partial",
+            "case_id": case_id, "state": "completed" if outcomes and not (counts["failed"] or counts["skipped"]) else "partial",
             "budget_seconds": budget_seconds, "counts": counts, "outcomes": outcomes,
             "limitations": "A skipped or unavailable source is a coverage gap, not negative evidence.",
         }

@@ -33,6 +33,7 @@ const fixture = {
     const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
     const errors = [];
     const decisions = [];
+    const jobRequests = [];
     let queued = false;
     let decision = "pending";
     let slowReply = null;
@@ -46,9 +47,16 @@ const fixture = {
       if (url.pathname === "/api/session") return respond({authenticated: req.method() !== "DELETE", user: {email: "analyst@example.org"}});
       if (url.pathname === "/api/catalog") return respond({version: "test", metrics: {}});
       if (url.pathname === "/api/organisations") return respond({organisations: [{id: "org", name: "Synthetic organization"}]});
-      if (url.pathname === "/api/cases") return respond({cases: [{id: caseId, title: "Fixture case"}, {id: secondCase, title: "Other case"}]});
-      if (url.pathname === "/api/assets") return respond({assets: []});
-      if (url.pathname === "/api/jobs") return respond({jobs: []});
+      if (url.pathname === "/api/cases") return respond({cases: [{id: caseId, organisation_id: 'org', title: "Fixture case"}, {id: secondCase, organisation_id: 'org', title: "Other case"}]});
+      if (url.pathname === "/api/assets") return respond({assets: [{id: 'asset-fixture', organisation_id: 'org', label: 'Synthetic domain', target_type: 'domain', target_value: 'example.org'}]});
+      if (url.pathname === "/api/jobs") {
+        if (req.method() === 'POST') {
+          jobRequests.push(req.postDataJSON());
+          if (jobRequests.length === 1) return route.abort('connectionreset');
+          return respond({job: {id: 'fixture-job'}});
+        }
+        return respond({jobs: []});
+      }
       if (url.pathname === "/api/employee") {
         const body = req.postDataJSON();
         if (body.action === "queue-review") {
@@ -67,6 +75,17 @@ const fixture = {
       throw new Error("Unexpected test request: " + url.pathname);
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    await page.selectOption('#job-case', caseId);
+    await page.selectOption('#job-asset', 'asset-fixture');
+    await page.check('#job-authorized');
+    await page.locator('#job-form button[type=submit]').click();
+    await page.waitForFunction(() => document.querySelector('#workspace-error').textContent.length > 0);
+    await page.locator('#job-form button[type=submit]').click();
+    await page.waitForFunction(() => !document.querySelector('#job-authorized').checked);
+    assert.equal(jobRequests.length, 2);
+    assert.equal(jobRequests[0].idempotency_key, jobRequests[1].idempotency_key);
+    assert.equal(await page.evaluate(() => TraceAtlasTargetValidation.isPublicIpAddress('::::')), false);
+    assert.equal(await page.evaluate(() => TraceAtlasTargetValidation.isPublicIpAddress('2606:4700:4700::1111')), true);
     await page.selectOption("#employee-case", caseId);
     await page.selectOption("#employee-mode", "pt");
     await page.fill("#employee-objective", fixture.objective);
@@ -96,7 +115,8 @@ const fixture = {
     await page.click("#logout");
     assert.equal(await page.locator("#employee-result").isVisible(), false);
     assert.deepEqual(errors, []);
-    console.log("PASS: brief, untrusted text rendering, review decision, stale-response isolation, logout clearing");
+    if (process.env.TRACEATLAS_UI_SCREENSHOT) await page.screenshot({path: process.env.TRACEATLAS_UI_SCREENSHOT, fullPage: true});
+    console.log("PASS: job retry reuses key, IPv6 validation, brief, untrusted text rendering, review decision, stale-response isolation, logout clearing");
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

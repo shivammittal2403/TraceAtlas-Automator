@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 import urllib.error
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ class ProviderResult:
     data: dict[str, Any] | list[Any]
     attempts: int
     bytes_received: int
+    response_sha256: str
 
 
 def _validate_shape(source: str, data: Any) -> None:
@@ -131,9 +133,11 @@ class ResilientJSONClient:
     """
 
     def __init__(self, requester: Requester, *, sleeper: Sleeper = time.sleep,
-                 max_attempts: int = 3, max_body_bytes: int = 5 * 1024 * 1024):
+                 max_attempts: int = 3, max_body_bytes: int = 5 * 1024 * 1024,
+                 clock: Callable[[], float] = time.monotonic):
         self.requester = requester
         self.sleeper = sleeper
+        self.clock = clock
         self.max_attempts = max(1, min(int(max_attempts), 3))
         self.max_body_bytes = max(1024, min(int(max_body_bytes), 10 * 1024 * 1024))
 
@@ -151,9 +155,15 @@ class ResilientJSONClient:
 
     def get(self, source: str, url: str, headers: dict[str, str], timeout: int = 30) -> ProviderResult:
         last_error = ProviderError("provider_request_failed")
+        deadline = self.clock() + max(0, min(float(timeout), 30))
         for attempt in range(1, self.max_attempts + 1):
+            remaining = deadline - self.clock()
+            if remaining <= 0:
+                raise ProviderError("provider_deadline_exceeded", attempts=attempt - 1)
             try:
-                status, raw = self.requester(url, headers, timeout)
+                status, raw = self.requester(url, headers, remaining)
+                if self.clock() >= deadline:
+                    raise ProviderError("provider_deadline_exceeded")
                 if status != 200:
                     raise self._status_error(int(status))
                 if len(raw) > self.max_body_bytes:
@@ -163,7 +173,8 @@ class ResilientJSONClient:
                 except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                     raise ProviderError("provider_invalid_json") from exc
                 _validate_shape(source, data)
-                return ProviderResult(data=data, attempts=attempt, bytes_received=len(raw))
+                return ProviderResult(data=data, attempts=attempt, bytes_received=len(raw),
+                                      response_sha256=hashlib.sha256(raw).hexdigest())
             except ProviderError as exc:
                 last_error = exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
@@ -172,5 +183,8 @@ class ResilientJSONClient:
             last_error.attempts = attempt
             if not last_error.retryable or attempt >= self.max_attempts:
                 raise last_error
-            self.sleeper(0.25 * attempt)
+            delay = 0.25 * attempt
+            if self.clock() + delay >= deadline:
+                raise ProviderError("provider_deadline_exceeded", attempts=attempt)
+            self.sleeper(delay)
         raise last_error
