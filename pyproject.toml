@@ -25,6 +25,7 @@ where = ["src"]
 "traceatlas.benchmark_data" = ["*.json"]
 "traceatlas.employee.data" = ["*.json"]
 "traceatlas.data" = ["*.json"]
+"traceatlas.workforce.data" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

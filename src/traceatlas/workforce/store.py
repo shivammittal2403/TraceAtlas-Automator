@@ -1,0 +1,275 @@
+"""Append-only local persistence and Evidence Fabric v2 compatibility adapter."""
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from ..evidence import sha256_file
+from ..employee.brief import digest
+from .contracts import (
+    AuthorizationContext, EvidenceObject, Observation, ResultEnvelope, SourceLineage,
+    TaskEnvelope, VerificationDecision,
+)
+
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS workforce_authorizations (
+  context_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  context_json TEXT NOT NULL, policy_digest TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workforce_tasks (
+  task_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  employee_id TEXT NOT NULL, envelope_json TEXT NOT NULL, envelope_digest TEXT NOT NULL,
+  definition_digest TEXT NOT NULL, status TEXT NOT NULL,
+  created_at TEXT NOT NULL, approved_at TEXT, completed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS workforce_approvals (
+  approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES workforce_tasks(task_id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL, decision TEXT NOT NULL, rationale TEXT NOT NULL,
+  envelope_digest TEXT NOT NULL, created_at TEXT NOT NULL,
+  UNIQUE(task_id)
+);
+CREATE TABLE IF NOT EXISTS workforce_results (
+  task_id TEXT PRIMARY KEY REFERENCES workforce_tasks(task_id) ON DELETE CASCADE,
+  result_json TEXT NOT NULL, result_digest TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS acquisitions_v2 (
+  acquisition_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  source_id TEXT NOT NULL, method TEXT NOT NULL, retrieved_at TEXT NOT NULL,
+  trace_id TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evidence_objects_v2 (
+  case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  evidence_id TEXT NOT NULL, version INTEGER NOT NULL, content_hash TEXT NOT NULL,
+  object_json TEXT NOT NULL, object_digest TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY(case_id,evidence_id,version), UNIQUE(case_id,object_digest)
+);
+CREATE TABLE IF NOT EXISTS observations_v2 (
+  case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  observation_id TEXT NOT NULL, evidence_id TEXT NOT NULL, observation_json TEXT NOT NULL,
+  created_at TEXT NOT NULL, PRIMARY KEY(case_id,observation_id)
+);
+CREATE TABLE IF NOT EXISTS source_lineage_v2 (
+  case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  lineage_id TEXT NOT NULL, lineage_json TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY(case_id,lineage_id)
+);
+CREATE TABLE IF NOT EXISTS verification_decisions_v2 (
+  case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+  claim_id TEXT NOT NULL, decision_json TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY(case_id,claim_id)
+);
+CREATE INDEX IF NOT EXISTS workforce_tasks_case_idx ON workforce_tasks(case_id,created_at);
+CREATE INDEX IF NOT EXISTS evidence_objects_v2_hash_idx ON evidence_objects_v2(case_id,content_hash);
+CREATE INDEX IF NOT EXISTS observations_v2_evidence_idx ON observations_v2(case_id,evidence_id);
+"""
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+class WorkforceStore:
+    def __init__(self, db):
+        self.db = db
+        self.db.conn.executescript(SCHEMA)
+        self.db.conn.commit()
+
+    def register_authorization(self, context: AuthorizationContext) -> None:
+        if not self.db.get_case(context.case_id):
+            raise ValueError("authorization references an unknown case")
+        encoded = _json(context.to_dict())
+        existing = self.db.conn.execute(
+            "SELECT context_json FROM workforce_authorizations WHERE context_id=?", (context.context_id,)
+        ).fetchone()
+        if existing and existing["context_json"] != encoded:
+            raise ValueError("authorization context is immutable")
+        self.db.conn.execute(
+            "INSERT OR IGNORE INTO workforce_authorizations VALUES(?,?,?,?,?)",
+            (context.context_id, context.case_id, encoded, context.policy_digest, _now()),
+        )
+        self.db.conn.commit()
+
+    def authorization(self, context_id: str) -> AuthorizationContext:
+        row = self.db.conn.execute(
+            "SELECT context_json FROM workforce_authorizations WHERE context_id=?", (context_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("authorization context is not registered server-side")
+        return AuthorizationContext.from_dict(json.loads(row["context_json"]))
+
+    def create_task(self, task: TaskEnvelope, employee_id: str, definition_digest: str) -> str:
+        encoded = _json(task.to_dict())
+        envelope_digest = hashlib.sha256(encoded.encode()).hexdigest()
+        try:
+            self.db.conn.execute(
+                "INSERT INTO workforce_tasks VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (task.task_id, task.case_id, employee_id, encoded, envelope_digest, definition_digest,
+                 "planned", task.created_at, None, None),
+            )
+            self.db.conn.commit()
+        except Exception:
+            self.db.conn.rollback()
+            row = self.db.conn.execute("SELECT envelope_digest FROM workforce_tasks WHERE task_id=?", (task.task_id,)).fetchone()
+            if not row or row["envelope_digest"] != envelope_digest:
+                raise ValueError("task ID replay conflicts with existing task")
+        return envelope_digest
+
+    def task(self, task_id: str) -> dict[str, Any]:
+        row = self.db.conn.execute("SELECT * FROM workforce_tasks WHERE task_id=?", (task_id,)).fetchone()
+        if not row:
+            raise ValueError("unknown workforce task")
+        result = dict(row)
+        result["envelope"] = TaskEnvelope.from_dict(json.loads(result.pop("envelope_json")))
+        stored = self.db.conn.execute("SELECT result_json FROM workforce_results WHERE task_id=?", (task_id,)).fetchone()
+        result["result"] = ResultEnvelope.from_dict(json.loads(stored["result_json"])) if stored else None
+        return result
+
+    def approve(self, task_id: str, actor_id: str, rationale: str, envelope_digest: str, approval_id: str) -> None:
+        task = self.task(task_id)
+        if task["envelope_digest"] != envelope_digest:
+            raise ValueError("approval digest does not match the immutable task")
+        if not 10 <= len(rationale.strip()) <= 2000:
+            raise ValueError("approval rationale must be 10-2000 characters")
+        existing = self.db.conn.execute("SELECT * FROM workforce_approvals WHERE task_id=?", (task_id,)).fetchone()
+        if existing:
+            if existing["actor_id"] == actor_id and existing["rationale"] == rationale.strip() and existing["envelope_digest"] == envelope_digest:
+                return
+            raise ValueError("approval conflicts with an existing decision")
+        with self.db.conn:
+            changed = self.db.conn.execute(
+                "UPDATE workforce_tasks SET status='approved',approved_at=? WHERE task_id=? AND status='planned'",
+                (_now(), task_id),
+            )
+            if changed.rowcount != 1:
+                raise ValueError("task is not pending approval")
+            self.db.conn.execute(
+                "INSERT INTO workforce_approvals VALUES(?,?,?,?,?,?,?)",
+                (approval_id, task_id, actor_id, "approved", rationale.strip(), envelope_digest, _now()),
+            )
+
+    def claim(self, task_id: str) -> None:
+        with self.db.conn:
+            changed = self.db.conn.execute(
+                "UPDATE workforce_tasks SET status='running' WHERE task_id=? AND status='approved'", (task_id,)
+            )
+            if changed.rowcount != 1:
+                raise ValueError("task is not approved or was already claimed")
+
+    def finish(self, task_id: str, result: ResultEnvelope) -> None:
+        encoded = _json(result.to_dict())
+        with self.db.conn:
+            self.db.conn.execute(
+                "INSERT INTO workforce_results VALUES(?,?,?,?)",
+                (task_id, encoded, hashlib.sha256(encoded.encode()).hexdigest(), _now()),
+            )
+            self.db.conn.execute(
+                "UPDATE workforce_tasks SET status='completed',completed_at=? WHERE task_id=? AND status='running'",
+                (_now(), task_id),
+            )
+
+    def fail(self, task_id: str) -> None:
+        with self.db.conn:
+            self.db.conn.execute(
+                "UPDATE workforce_tasks SET status='failed',completed_at=? WHERE task_id=? AND status='running'",
+                (_now(), task_id),
+            )
+
+    def import_v1_evidence(self, case_id: str, sha256: str, *, source_uri: str | None = None,
+                           parser: str = "legacy", parser_version: str = "1",
+                           extractor: str = "legacy", extractor_version: str = "1") -> EvidenceObject:
+        row = next((item for item in self.db.evidence(case_id) if item["sha256"] == sha256), None)
+        if not row:
+            raise ValueError("v1 evidence does not exist in this case")
+        path = Path(row["path"])
+        if not path.is_file() or sha256_file(path) != sha256:
+            raise ValueError("v1 evidence bytes fail integrity validation")
+        created = _now()
+        source_id = "source-" + hashlib.sha256(row["source"].encode()).hexdigest()[:16]
+        acquisition_id = "acquisition-" + hashlib.sha256((case_id + sha256 + row["captured_at"]).encode()).hexdigest()[:20]
+        evidence_id = "evidence-" + sha256[:24]
+        self.db.conn.execute(
+            "INSERT OR IGNORE INTO acquisitions_v2 VALUES(?,?,?,?,?,?,?)",
+            (acquisition_id, case_id, source_id, "v1-compatibility-import", row["captured_at"], "trace-legacy", created),
+        )
+        item = EvidenceObject(
+            schema_version="1.0", evidence_id=evidence_id, version=1, prior_version_id=None,
+            case_id=case_id, source_id=source_id, source_uri=source_uri or "urn:traceatlas:legacy:" + source_id,
+            acquisition_id=acquisition_id, acquisition_method="v1-compatibility-import",
+            retrieved_at=row["captured_at"], content_hash=sha256, mime_type=row.get("media_type") or "application/octet-stream",
+            raw_artifact_pointer=str(path), parser=parser, parser_version=parser_version,
+            extractor=extractor, extractor_version=extractor_version, observation_ids=(),
+            chain_of_custody=("legacy-preserve", "v2-import"), access_policy="case-members",
+            retention_policy="inherit-case-policy", classification="unclassified", created_at=created,
+        )
+        encoded = _json(item.to_dict())
+        self.db.conn.execute(
+            "INSERT OR IGNORE INTO evidence_objects_v2 VALUES(?,?,?,?,?,?,?)",
+            (case_id, evidence_id, 1, sha256, encoded, hashlib.sha256(encoded.encode()).hexdigest(), created),
+        )
+        self.db.conn.commit()
+        return item
+
+    def append_evidence_version(self, previous: EvidenceObject, *, parser: str, parser_version: str,
+                                extractor: str, extractor_version: str, observation_ids: tuple[str, ...]) -> EvidenceObject:
+        if not self.verify_evidence(previous):
+            raise ValueError("previous evidence version failed integrity validation")
+        created = _now()
+        item = EvidenceObject(
+            **{**previous.to_dict(), "version": previous.version + 1,
+               "prior_version_id": f"{previous.evidence_id}-v{previous.version}",
+               "parser": parser, "parser_version": parser_version, "extractor": extractor,
+               "extractor_version": extractor_version, "observation_ids": list(observation_ids),
+               "chain_of_custody": [*previous.chain_of_custody, "metadata-version"], "created_at": created}
+        )
+        encoded = _json(item.to_dict())
+        self.db.conn.execute(
+            "INSERT INTO evidence_objects_v2 VALUES(?,?,?,?,?,?,?)",
+            (item.case_id, item.evidence_id, item.version, item.content_hash, encoded,
+             hashlib.sha256(encoded.encode()).hexdigest(), created),
+        )
+        self.db.conn.commit()
+        return item
+
+    def verify_evidence(self, item: EvidenceObject) -> bool:
+        try:
+            path = Path(item.raw_artifact_pointer)
+            return path.is_file() and sha256_file(path) == item.content_hash and any(
+                row["sha256"] == item.content_hash and Path(row["path"]).resolve() == path.resolve()
+                for row in self.db.evidence(item.case_id)
+            )
+        except OSError:
+            return False
+
+    def record_observation(self, case_id: str, observation: Observation) -> None:
+        if not self.db.conn.execute(
+            "SELECT 1 FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=?",
+            (case_id, observation.evidence_id),
+        ).fetchone():
+            raise ValueError("observation references unknown evidence")
+        self.db.conn.execute(
+            "INSERT INTO observations_v2 VALUES(?,?,?,?,?)",
+            (case_id, observation.observation_id, observation.evidence_id, _json(observation.to_dict()), _now()),
+        )
+        self.db.conn.commit()
+
+    def record_lineage(self, case_id: str, item: SourceLineage) -> None:
+        self.db.conn.execute(
+            "INSERT OR REPLACE INTO source_lineage_v2 VALUES(?,?,?,?)",
+            (case_id, item.lineage_id, _json(item.to_dict()), _now()),
+        )
+        self.db.conn.commit()
+
+    def record_verification(self, case_id: str, item: VerificationDecision) -> None:
+        self.db.conn.execute(
+            "INSERT OR REPLACE INTO verification_decisions_v2 VALUES(?,?,?,?)",
+            (case_id, item.claim_id, _json(item.to_dict()), _now()),
+        )
+        self.db.conn.commit()

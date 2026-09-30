@@ -15,6 +15,9 @@ class handler(BaseHTTPRequestHandler):
             "privileged_membership_changes": "aal2_required" if configured() else "disabled",
             "saved_graph_views": "conflict_safe" if configured() else "local_only",
             "collaboration_transport": "supabase_realtime_with_bounded_poll_fallback" if configured() else "local_event_feed",
+            "ai_workforce": "feature_flagged_private_worker",
+            "ai_workforce_remote_providers": "disabled_pending_review",
+            "ai_workforce_human_release_gate": True,
         })
 
     def do_POST(self) -> None:

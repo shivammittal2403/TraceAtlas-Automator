@@ -263,7 +263,8 @@ class SupabaseGateway:
         if table not in {"organisations", "cases", "assets", "investigation_jobs", "job_events",
                          "evidence_items", "graph_entities", "graph_edges", "case_notes",
                          "review_tasks", "source_runs", "case_retention", "organisation_members",
-                         "case_views", "collaboration_events"}:
+                         "case_views", "collaboration_events", "workforce_tasks", "workforce_results",
+                         "workforce_approvals", "verification_decisions_v2"}:
             raise ControlPlaneError(500, "blocked_table")
         data = self._request("GET", f"/rest/v1/{table}", query=query)
         return data if isinstance(data, list) else []
@@ -278,7 +279,7 @@ class SupabaseGateway:
         if function not in {
             "enqueue_investigation_job", "decide_review_task", "set_case_retention",
             "set_organisation_member_role", "remove_organisation_member",
-            "save_case_view",
+            "save_case_view", "approve_workforce_task",
         }:
             raise ControlPlaneError(500, "blocked_function")
         return self._request("POST", f"/rest/v1/rpc/{function}", payload=payload)

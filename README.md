@@ -136,6 +136,12 @@ human review where judgment, attribution, privacy or legal authority matters.
   fact/scenario briefs and a hosted stored-evidence review workflow. The supplied
   196-entry source list is preserved as 187 canonical planning candidates; that
   catalogue never makes an unverified service executable.
+- A feature-flagged hybrid AI workforce adds strict task/result/evidence
+  contracts, five least-privilege employee definitions, deterministic routing,
+  Evidence Fabric v2 compatibility, source-independence grouping, three-layer
+  claim verification, temporal graph gates and a provider-neutral local-model
+  router with a deterministic no-model fallback. Hosted records use tenant RLS
+  and digest-bound human approval; remote model providers remain disabled.
 
 See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION.md) and
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
@@ -172,6 +178,35 @@ workflow.
 The authenticated dashboard can build the same deterministic brief from a
 case's stored evidence and queue a digest-bound review. The Vercel endpoint
 cannot scan targets, call models or execute a review decision.
+
+## Bounded AI workforce
+
+The workforce is disabled unless the private/local runtime explicitly sets
+`TRACEATLAS_WORKFORCE_ENABLED=1`. `TRACEATLAS_WORKFORCE_KILL_SWITCH=1` stops new
+work even when enabled. Start with the five-role registry, then use the
+authorization → plan → approve → run flow:
+
+```bash
+./start.sh workforce registry
+
+export TRACEATLAS_WORKFORCE_ENABLED=1
+./start.sh workforce authorize-domain --case CASE_ID --domain example.com \
+  --actor analyst-1 --purpose "Validate our owned public domain" \
+  --jurisdiction IN --authorized
+
+./start.sh workforce plan-domain --context AUTH_ID --domain example.com \
+  --objective "Collect and verify passive domain evidence"
+
+./start.sh workforce approve --task TASK_ID --actor analyst-1 \
+  --envelope-digest DIGEST --rationale "Reviewed exact passive scope and budget" --authorized
+
+# Deterministic outage-safe completion; performs no network or model call.
+./start.sh workforce run-fallback --task TASK_ID --authorized
+```
+
+See [PRD.md](PRD.md), [RULES.md](RULES.md), [DESIGN.md](DESIGN.md) and
+[PHASES.md](PHASES.md). Repository implementation and tests do not claim a
+hosted deployment or production provider verification.
 
 ## Unified capability runtime
 

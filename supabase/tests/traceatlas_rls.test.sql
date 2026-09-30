@@ -1,5 +1,5 @@
 begin;
-select plan(45);
+select plan(71);
 
 select ok((select relrowsecurity from pg_class where oid = 'public.organisations'::regclass), 'organisations RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.organisation_members'::regclass), 'members RLS enabled');
@@ -17,6 +17,17 @@ select ok((select relrowsecurity from pg_class where oid = 'public.source_runs':
 select ok((select relrowsecurity from pg_class where oid = 'public.case_retention'::regclass), 'case retention RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.case_views'::regclass), 'case views RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.collaboration_events'::regclass), 'collaboration events RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.workforce_authorization_contexts'::regclass), 'workforce authorization RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.workforce_tasks'::regclass), 'workforce tasks RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.workforce_approvals'::regclass), 'workforce approvals RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.acquisitions_v2'::regclass), 'acquisitions v2 RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.evidence_objects_v2'::regclass), 'evidence v2 RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.observations_v2'::regclass), 'observations v2 RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.source_lineage_v2'::regclass), 'source lineage RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.claims_v2'::regclass), 'claims v2 RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.verification_decisions_v2'::regclass), 'verification decisions RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.workforce_results'::regclass), 'workforce results RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.workforce_trace_spans'::regclass), 'workforce traces RLS enabled');
 select ok(not has_table_privilege('anon', 'public.organisations', 'select'), 'anon cannot read organisations');
 select ok(not has_table_privilege('anon', 'public.cases', 'select'), 'anon cannot read cases');
 select ok(not has_table_privilege('anon', 'public.assets', 'select'), 'anon cannot read assets');
@@ -27,6 +38,21 @@ select ok(not has_table_privilege('anon', 'public.source_runs', 'select'), 'anon
 select ok(not has_table_privilege('anon', 'public.case_retention', 'select'), 'anon cannot read retention policy');
 select ok(not has_table_privilege('anon', 'public.case_views', 'select'), 'anon cannot read graph views');
 select ok(not has_table_privilege('anon', 'public.collaboration_events', 'select'), 'anon cannot read collaboration events');
+select ok(not has_table_privilege('anon', 'public.workforce_authorization_contexts', 'select'), 'anon cannot read workforce authorization');
+select ok(not has_table_privilege('anon', 'public.workforce_tasks', 'select'), 'anon cannot read workforce tasks');
+select ok(not has_table_privilege('anon', 'public.workforce_approvals', 'select'), 'anon cannot read workforce approvals');
+select ok(not has_table_privilege('anon', 'public.acquisitions_v2', 'select'), 'anon cannot read acquisitions v2');
+select ok(not has_table_privilege('anon', 'public.evidence_objects_v2', 'select'), 'anon cannot read evidence v2');
+select ok(not has_table_privilege('anon', 'public.observations_v2', 'select'), 'anon cannot read observations v2');
+select ok(not has_table_privilege('anon', 'public.source_lineage_v2', 'select'), 'anon cannot read source lineage');
+select ok(not has_table_privilege('anon', 'public.claims_v2', 'select'), 'anon cannot read claims v2');
+select ok(not has_table_privilege('anon', 'public.verification_decisions_v2', 'select'), 'anon cannot read verification decisions');
+select ok(not has_table_privilege('anon', 'public.workforce_results', 'select'), 'anon cannot read workforce results');
+select ok(not has_table_privilege('anon', 'public.workforce_trace_spans', 'select'), 'anon cannot read workforce traces');
+select ok(not has_table_privilege('authenticated', 'public.workforce_tasks', 'insert'), 'users cannot forge workforce tasks');
+select ok(has_function_privilege('authenticated', 'public.approve_workforce_task(uuid,text,text)', 'execute'), 'analysts may approve exact workforce task digest');
+select ok(not has_function_privilege('anon', 'public.approve_workforce_task(uuid,text,text)', 'execute'), 'anon cannot approve workforce tasks');
+select ok(has_table_privilege('service_role', 'public.workforce_tasks', 'insert'), 'worker may create governed workforce tasks');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'insert'), 'users cannot directly insert jobs');
 select ok(not has_table_privilege('authenticated', 'public.investigation_jobs', 'update'), 'users cannot forge job status');
 select ok(not has_table_privilege('authenticated', 'public.evidence_items', 'insert'), 'users cannot forge evidence');

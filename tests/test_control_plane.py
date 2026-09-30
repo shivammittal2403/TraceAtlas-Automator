@@ -76,6 +76,17 @@ class ControlPlaneTests(unittest.TestCase):
         self.assertNotIn("gateway.insert", source)
         self.assertNotIn("gateway.update", source)
 
+    def test_workforce_migration_is_rls_read_only_and_digest_approved(self):
+        sql = (ROOT / "supabase/migrations/20260930115004_ai_workforce_v1.sql").read_text()
+        self.assertEqual(sql.count(" enable row level security;"), 11)
+        self.assertIn("grant select on public.workforce_authorization_contexts", sql)
+        self.assertNotIn("grant insert on public.workforce_tasks to authenticated", sql)
+        self.assertNotIn("grant update on public.workforce_tasks to authenticated", sql)
+        self.assertIn("v_task.envelope_digest <> p_envelope_digest", sql)
+        self.assertIn("private.is_org_member(v_task.organisation_id", sql)
+        self.assertIn("revoke all on function public.approve_workforce_task", sql)
+        self.assertIn("evidence_objects_v2_acquisition_org_fk_idx", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

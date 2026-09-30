@@ -39,10 +39,25 @@ test('migrations, tenant RLS and bounded idempotent job admission', async () => 
       await db.query("insert into assets(id,organisation_id,created_by,label,target_type,target_value,ownership_basis) values ($1,$2,$3,'Fixture','domain',$4,'owned_asset')", [id(a),id(org),id(user),`fixture-${a}.example`]);
     }
     await db.query("insert into review_tasks(id,organisation_id,case_id,created_by,kind,title) values ($1,$2,$3,$4,'evidence','Fixture review')", [id(30),id(10),id(11),id(1)]);
+    await db.query(`insert into workforce_authorization_contexts
+      (id,organisation_id,case_id,actor_id,lawful_purpose,scope,allowed_actions,allowed_tools,
+       jurisdiction,retention_policy,policy_digest,issued_at,expires_at)
+      values ($1,$2,$3,$4,'Authorized synthetic owned-domain validation',
+       '["domain:fixture-15.example"]','["request_collection"]','["dns.lookup"]',
+       'IN','case-standard',$5,now(),now()+interval '1 day')`,
+      [id(41),id(10),id(11),id(1),'a'.repeat(64)]);
+    await db.query(`insert into workforce_tasks
+      (id,organisation_id,case_id,authorization_context_id,created_by,employee_id,
+       employee_definition_digest,envelope,envelope_digest,trace_id)
+      values ($1,$2,$3,$4,$5,'webint-infra-specialist',$6,'{}',$7,'trace-fixture')`,
+      [id(40),id(10),id(11),id(41),id(1),'b'.repeat(64),'c'.repeat(64)]);
     const decide = (decision = 'accepted', rationale = 'Reviewed synthetic evidence') => db.query(
       'select * from decide_review_task($1,$2,$3)', [id(30),decision,rationale]);
+    const approveWorkforce = (digest = 'c'.repeat(64), rationale = 'Reviewed exact workforce scope') => db.query(
+      'select * from approve_workforce_task($1,$2,$3)', [id(40),digest,rationale]);
     await login(2);
     await assert.rejects(decide(), e => e.code === '42501');
+    await assert.rejects(approveWorkforce(), e => e.code === '42501');
     await login(3);
     await assert.rejects(decide(), e => e.code === '42501');
     await login(1);
@@ -51,6 +66,12 @@ test('migrations, tenant RLS and bounded idempotent job admission', async () => 
     await assert.rejects(decide('rejected'), e => e.code === '23505');
     await assert.rejects(decide('accepted', 'Different synthetic rationale'), e => e.code === '23505');
     assert.equal((await db.query("select * from audit_events where action='review.decided'")).rows.length, 1);
+    const workforceApproval = (await approveWorkforce()).rows[0];
+    assert.equal(workforceApproval.status, 'approved');
+    assert.equal((await approveWorkforce()).rows[0].id, workforceApproval.id, 'identical workforce approval replays');
+    await assert.rejects(approveWorkforce('d'.repeat(64)), e => e.code === '23505');
+    await assert.rejects(approveWorkforce('c'.repeat(64), 'Different reviewed workforce scope'), e => e.code === '23505');
+    assert.equal((await db.query("select * from audit_events where action='workforce.approved'")).rows.length, 1);
     assert.equal((await db.query('select * from cases')).rows.length, 2);
     await assert.rejects(enqueue(21,25), e => e.code === '42501');
     await assert.rejects(enqueue(11,25), e => e.code === '42501');
