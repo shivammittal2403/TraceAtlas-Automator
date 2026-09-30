@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", ".traceatlas", "build", "dist", "cases", "__pycache__"}
+SKIP_DIRS = {".git", ".venv", ".traceatlas", "build", "dist", "cases", "__pycache__", "node_modules"}
 PATTERNS = {
     "GitHub token": re.compile(rb"(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})"),
     "OpenAI-style key": re.compile(rb"\bsk-[A-Za-z0-9_-]{20,}\b"),

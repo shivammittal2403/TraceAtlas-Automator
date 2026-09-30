@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import tempfile
+import subprocess
+import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from traceatlas.capabilities import (
     CAPABILITIES, CapabilityHub, MCPClient, ResearchWorkflow, ServiceClient, TrainingStore,
@@ -92,8 +95,15 @@ class CapabilityTests(unittest.TestCase):
         )
         server.chmod(0o755)
         client = MCPClient(CAPABILITIES["osint-mcp-server"], str(server), timeout=5)
-        self.assertEqual([tool["name"] for tool in client.list_tools()], ["dns_lookup"])
-        result = client.call_tool("dns_lookup", {"domain": "example.com"})
+        # Launch the real fixture with this interpreter; Windows has no shebang
+        # execution. Keep real subprocess pipes and the complete MCP handshake.
+        popen = subprocess.Popen
+        def launch(argv, **kwargs):
+            self.assertEqual(argv[0], str(server))
+            return popen([sys.executable, *argv], **kwargs)
+        with patch('traceatlas.capabilities.mcp.subprocess.Popen', side_effect=launch):
+            self.assertEqual([tool["name"] for tool in client.list_tools()], ["dns_lookup"])
+            result = client.call_tool("dns_lookup", {"domain": "example.com"})
         self.assertEqual(result["content"][0]["text"], "fixture observation")
 
     def test_research_dag_requires_authority_and_person_consent(self):

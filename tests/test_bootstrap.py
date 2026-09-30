@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BootstrapTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('bash'), 'Bash unavailable; launcher syntax validation requires Bash')
     def test_bootstrap_scripts_are_valid_bash(self):
         for name in ("setup.sh", "set.sh", "start.sh"):
             path = ROOT / name

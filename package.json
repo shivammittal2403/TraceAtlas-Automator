@@ -1,0 +1,13 @@
+{
+  "name": "traceatlas-verification",
+  "private": true,
+  "scripts": {
+    "test:database": "node --test tests/test_database.mjs",
+    "test:ui": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs",
+    "test:browser": "node tests/test_employee_ui.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "playwright": "1.62.1"
+  }
+}

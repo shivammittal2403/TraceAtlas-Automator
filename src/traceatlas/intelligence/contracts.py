@@ -5,6 +5,20 @@ from dataclasses import asdict, dataclass
 
 from .sources import SOURCES
 
+SOURCE_HOSTS = {
+    'rdap': 'rdap.org', 'dns': 'dns.google', 'wayback': 'web.archive.org',
+    'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
+    'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
+    'gitlab': 'gitlab.com', 'hackernews': 'hacker-news.firebaseio.com', 'mastodon': 'mastodon.social',
+    'stackexchange': 'api.stackexchange.com', 'dockerhub': 'hub.docker.com', 'youtube': 'www.googleapis.com',
+    'discord': 'discord.com', 'shodan': 'api.shodan.io', 'censys': 'search.censys.io',
+    'virustotal': 'www.virustotal.com', 'nvd': 'services.nvd.nist.gov', 'npm': 'registry.npmjs.org',
+    'crossref': 'api.crossref.org', 'orcid': 'pub.orcid.org',
+}
+# This is the supported local integration contract, not a claim about every
+# address family a provider may support outside this connector.
+IPV4_ONLY = frozenset({'internetdb', 'greynoise'})
+
 
 @dataclass(frozen=True, slots=True)
 class ConnectorContract:
@@ -17,6 +31,8 @@ class ConnectorContract:
     credential_env: tuple[str, ...]
     capability_state: str
     live_validation: str
+    allowed_hosts: tuple[str, ...] = ()
+    supported_ip_versions: tuple[int, ...] = ()
     max_targets: int = 1
     max_pages: int = 1
     max_response_bytes: int = 5 * 1024 * 1024
@@ -25,7 +41,7 @@ class ConnectorContract:
 
     def to_dict(self) -> dict:
         result = asdict(self)
-        for key in ("inputs", "allowed_actions", "credential_env"):
+        for key in ("inputs", "allowed_actions", "credential_env", "allowed_hosts", "supported_ip_versions"):
             result[key] = list(result[key])
         return result
 
@@ -64,6 +80,8 @@ def source_contract(source_id: str) -> ConnectorContract:
         credential_env=credentials,
         capability_state="implemented" if live else "import-only",
         live_validation="deployment-required" if live else "not-applicable",
+        allowed_hosts=(SOURCE_HOSTS[source_id],) if live else (),
+        supported_ip_versions=(4,) if source_id in IPV4_ONLY else (4, 6) if 'ip' in SOURCE_INPUTS.get(source_id, ()) else (),
     )
 
 

@@ -83,6 +83,12 @@ def parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("verify", help="Verify a case evidence ledger")
     verify.add_argument("--case", required=True)
 
+    evidence_export = sub.add_parser("evidence-export", help="Export a hash-verified portable evidence bundle")
+    evidence_export.add_argument("--case", required=True)
+    evidence_export.add_argument("--output", type=Path, required=True)
+    bundle_verify = sub.add_parser("evidence-verify", help="Verify a portable evidence bundle without extracting it")
+    bundle_verify.add_argument("path", type=Path)
+
     monitor = sub.add_parser("monitor", help="Run a method and record whether results changed")
     monitor.add_argument("--case", required=True)
     monitor.add_argument("--method", required=True)
@@ -741,6 +747,12 @@ def main(argv: list[str] | None = None) -> int:
                     if args.output else analyst_view.build(args.case)
                 )
             print(json.dumps(result, indent=2, ensure_ascii=False))
+        elif args.command == "evidence-export":
+            print(json.dumps(EvidenceStore(args.workspace, engine.db, args.case).export_bundle(args.output)))
+        elif args.command == "evidence-verify":
+            valid = EvidenceStore.verify_bundle(args.path)
+            print(json.dumps({"valid": valid}))
+            return 0 if valid else 2
         elif args.command == "verify":
             ok, entries = EvidenceStore(args.workspace, engine.db, args.case).verify_ledger()
             print(json.dumps({"valid": ok, "entries": entries}))

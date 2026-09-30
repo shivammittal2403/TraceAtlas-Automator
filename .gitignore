@@ -13,3 +13,5 @@ cases/
 !.env.example
 artifacts/
 worker-cases/
+node_modules/
+supabase/.temp/

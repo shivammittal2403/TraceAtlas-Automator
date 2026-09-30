@@ -30,9 +30,9 @@ CREATE TABLE IF NOT EXISTS findings (
   FOREIGN KEY(case_id) REFERENCES cases(id)
 );
 CREATE TABLE IF NOT EXISTS evidence (
-  sha256 TEXT PRIMARY KEY, case_id TEXT NOT NULL, path TEXT NOT NULL,
+  sha256 TEXT NOT NULL, case_id TEXT NOT NULL, path TEXT NOT NULL,
   source TEXT NOT NULL, captured_at TEXT NOT NULL, size INTEGER NOT NULL,
-  media_type TEXT
+  media_type TEXT, PRIMARY KEY (case_id, sha256)
 );
 CREATE TABLE IF NOT EXISTS snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT, case_id TEXT NOT NULL,
@@ -168,6 +168,22 @@ class CaseDB:
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        # Older local databases deduplicated evidence across cases. Preserve the
+        # old index table as a rollback snapshot; payload files are not modified.
+        self.conn.execute('BEGIN IMMEDIATE')
+        try:
+            primary = [row['name'] for row in self.conn.execute('PRAGMA table_info(evidence)') if row['pk']]
+            if primary == ['sha256']:
+                self.conn.execute('ALTER TABLE evidence RENAME TO evidence_legacy_v1')
+                self.conn.execute('''CREATE TABLE evidence (
+                  sha256 TEXT NOT NULL, case_id TEXT NOT NULL, path TEXT NOT NULL,
+                  source TEXT NOT NULL, captured_at TEXT NOT NULL, size INTEGER NOT NULL,
+                  media_type TEXT, PRIMARY KEY (case_id, sha256))''')
+                self.conn.execute('INSERT INTO evidence SELECT * FROM evidence_legacy_v1')
+            self.conn.commit()
+        except BaseException:
+            self.conn.rollback()
+            raise
 
     def close(self) -> None:
         self.conn.close()

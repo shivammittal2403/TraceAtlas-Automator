@@ -151,14 +151,43 @@ class EmployeeServiceTests(unittest.TestCase):
                 self.service.run(case, task["id"], authorized=True, hub=hub)
         hub.collect.assert_not_called()
 
-    def test_approval_hash_mismatch_and_repeat_decision_fail(self):
+    def test_ip_plans_fit_budget_and_disclose_omissions_before_approval(self):
+        for target, probe, sources in (
+            ("8.8.8.8", False, ["internetdb", "rdap", "ipwhois", "greynoise"]),
+            ("8.8.8.8", True, ["internetdb", "rdap", "ipwhois", "httpx"]),
+            ("2606:4700:4700::1111", False, ["rdap", "ipwhois"]),
+            ("2606:4700:4700::1111", True, ["rdap", "ipwhois", "httpx"]),
+        ):
+            with self.subTest(target=target, probe=probe):
+                task = self.service.assign("case-a", "Review authorized IP evidence", mode="pt",
+                    target_type="ip", target=target, probe_http=probe,
+                    attestations={"owned_asset": True, "public_record_basis": True})
+                self.assertEqual([s["source"] for s in task["plan"]["steps"]], sources)
+                self.assertLessEqual(len(sources), task["plan"]["max_steps"])
+                omitted = task["plan"]["omitted_sources"]
+                self.assertEqual({s["source"] for s in omitted},
+                                 set(["internetdb", "rdap", "ipwhois", "greynoise"]) - set(sources))
+                self.assertTrue(all(s["reason"] in {"unsupported-ip-family", "action-budget"} for s in omitted))
+                hub, runner = Mock(), Mock()
+                hub.collect.return_value = runner.run.return_value = {"status": "completed"}
+                self.approve(task)
+                result = self.service.run("case-a", task["id"], authorized=True, hub=hub, runner=runner)
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual([s["source"] for s in result["outcome"]], sources)
+                self.assertEqual(runner.run.call_count, int(probe))
+
+    def test_approval_replay_is_stable_and_conflicting_decisions_fail(self):
         task = self.assignment()
         with self.assertRaises(PolicyError):
             self.service.decide("case-a", task["id"], "approved", reviewer="Analyst", rationale="Reviewed exact scope",
                                 expected_plan_hash="wrong", authorized=True)
-        self.approve(task)
+        approved = self.approve(task)
+        replay = self.approve(task)
+        self.assertEqual(replay['approved_at'], approved['approved_at'])
+        self.assertEqual(replay['decisions'], approved['decisions'])
         with self.assertRaises(PolicyError):
-            self.approve(task)
+            self.service.decide('case-a', task['id'], 'rejected', reviewer='Analyst',
+                rationale='Changed decision after initial approval', expected_plan_hash=task['plan_hash'], authorized=True)
 
     def test_approved_collection_to_brief_export_and_decision(self):
         task = self.approve(self.assignment())
