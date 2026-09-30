@@ -202,7 +202,10 @@ def parser() -> argparse.ArgumentParser:
     int_profile.add_argument("--authorized", action="store_true")
     int_profile.add_argument("--allow-active", action="store_true")
     int_profile.add_argument("--tool-option", action="append", default=[], metavar="KEY=VALUE")
-    int_catalog_import = int_sub.add_parser("catalog-import", help="Import JSON, JSON.GZ or embedded HTML tool data")
+    int_catalog_import = int_sub.add_parser(
+        "catalog-import",
+        help="Import JSON, JSON.GZ, embedded HTML, or API Mega List ZIP metadata",
+    )
     int_catalog_import.add_argument("--file", type=Path, required=True)
     int_catalog_search = int_sub.add_parser("catalog-search", help="Search imported web/tool directory entries")
     int_catalog_search.add_argument("query", nargs="?", default="")

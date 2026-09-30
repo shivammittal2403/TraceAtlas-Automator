@@ -5,6 +5,7 @@ import gzip
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -112,6 +113,42 @@ class IntegrationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "zero usable tools"):
             CatalogStore(self.root).import_file(source)
+
+    def test_api_mega_list_zip_import_is_deduplicated_and_never_executable(self):
+        source = self.root / "API-mega-list-main.zip"
+        category_one = """# Social Media
+| API Name | Description |
+|---|---|
+| [Public Profile API](https://apify.com/example/profile?fpr=affiliate) | Public data. |
+| [Bad](javascript:alert(1)) | Rejected. |
+"""
+        category_two = """# Business
+| API Name | Description |
+|---|---|
+| [Same API](https://apify.com/example/profile) | Duplicate listing. |
+| [Registry API](https://example.test/registry) | Company records. |
+"""
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr(
+                "API-mega-list-main/README.md",
+                "## Other\n| API Name | Description |\n|---|---|\n"
+                "| [Root Only](https://example.test/root) | Root listing. |\n",
+            )
+            archive.writestr("API-mega-list-main/social-media-apis-2/README.md", category_one)
+            archive.writestr("API-mega-list-main/business-apis-2/README.md", category_two)
+            archive.writestr("API-mega-list-main/settings/script.js", "throw new Error('never run')")
+        catalog = CatalogStore(self.root)
+        result = catalog.import_file(source)
+        self.assertEqual(result["imported"], 3)
+        self.assertEqual(result["duplicates"], 1)
+        self.assertEqual(result["execution_enabled"], 0)
+        profile = catalog.search("profile")[0]
+        self.assertEqual(profile["execution"], "catalog-only")
+        self.assertEqual(profile["execution_enabled_by_catalog"], "false")
+        self.assertEqual(profile["license_status"], "unverified")
+        self.assertIn("Business", profile["category"])
+        self.assertIn("Social Media", profile["category"])
+        self.assertEqual(catalog.stats()["execution_enabled"], 0)
 
     def test_pipeline_requires_authorization_and_can_skip_missing_tools(self):
         with self.assertRaises(PolicyError):
