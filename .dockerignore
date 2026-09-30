@@ -1,0 +1,10 @@
+.git
+.traceatlas
+.venv
+artifacts
+cases
+dist
+node_modules
+packages/openosint
+third_party/opencti-connectors
+third_party/OPENCTI_SHA256SUMS

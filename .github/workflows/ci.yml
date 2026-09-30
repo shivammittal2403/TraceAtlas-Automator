@@ -23,6 +23,8 @@ jobs:
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -51,6 +53,16 @@ jobs:
         run: traceatlas-research status --verify > /dev/null
       - name: Run AI evidence-contract benchmark
         run: traceatlas benchmark --json
+      - name: Verify governed OpenCTI connector snapshot
+        run: |
+          traceatlas opencti-connectors doctor --json
+          traceatlas opencti-connectors verify
+          python scripts/build_opencti_connector_registry.py \
+            --root third_party/opencti-connectors \
+            --output /tmp/opencti_connectors.json \
+            --archive-sha256 dfefff461b0e5718c0455bd890cde0b54d077c361cec8d4c97a0f08658c43452 \
+            --upstream-commit 55ca0dfa4129050cb607fdaf6b1a7457e0ae3476
+          cmp src/traceatlas/data/opencti_connectors.json /tmp/opencti_connectors.json
       - name: Exercise local backup and restore path
         run: |
           traceatlas --workspace ci-cases init ci-case --title "CI restore drill" --purpose "Non-production integrity verification"

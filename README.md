@@ -1,6 +1,11 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.8.0**
+> The repository pins and governs 308 OpenCTI connector packages through a reproducible Git submodule.
+> They remain external-service integrations and are disabled until an operator
+> supplies an OpenCTI deployment, provider credentials and explicit authority.
+> See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
+
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.9.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -32,6 +37,9 @@ human review where judgment, attribution, privacy or legal authority matters.
   changed or untracked tool drift.
 - Installation doctor, multi-tool profiles, recon-directory import and a
   governed API Mega List ZIP catalog adapter.
+- A governed snapshot and service-boundary catalog for all 308 supplied OpenCTI
+  connector packages, with configuration-schema discovery, license separation,
+  per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
 - Governed intelligence hub covering 37 social, code, package, scholarly, video, community,
