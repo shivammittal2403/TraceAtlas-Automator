@@ -24,7 +24,7 @@ from .intelligence import (
 from .intelligence.modules import catalog_rows, reconcile_catalog, resolve_remote_modules
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
-from .capabilities import CAPABILITIES, CapabilityHub, ServiceClient, TrainingStore
+from .capabilities import CAPABILITIES, CapabilityHub, ServiceClient, TrainingStore, audit_archives
 from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
 from .research_cli import add_research_parser, run_research
@@ -349,6 +349,12 @@ def parser() -> argparse.ArgumentParser:
     cap_show.add_argument("source", choices=sorted(CAPABILITIES))
     cap_doctor = cap_sub.add_parser("doctor", help="Check adapters, licences and safety gates")
     cap_doctor.add_argument("--json", action="store_true")
+    cap_archive = cap_sub.add_parser(
+        "archive-audit", help="Audit supplied ZIP provenance without extracting or executing it"
+    )
+    cap_archive.add_argument("--archive", type=Path, action="append", required=True)
+    cap_archive.add_argument("--output", type=Path)
+    cap_archive.add_argument("--json", action="store_true")
     cap_ingest = cap_sub.add_parser(
         "ingest", help="Normalize and preserve an approved JSON/JSONL engine export"
     )
@@ -1182,6 +1188,27 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"Upstream engines: {result['upstream_engines']}")
                     print(f"Ready: {result['ready']}")
                     print("Restricted: " + (", ".join(result["restricted"]) or "none"))
+            elif args.capability_command == "archive-audit":
+                result = audit_archives(args.archive)
+                if args.output:
+                    args.output.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        with args.output.open("x", encoding="utf-8") as handle:
+                            json.dump(result, handle, ensure_ascii=False, indent=2)
+                            handle.write("\n")
+                    except FileExistsError as exc:
+                        raise PolicyError("Archive audit output already exists; refusing to overwrite it") from exc
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    summary = result["summary"]
+                    print(
+                        f"Archives: {summary['archives']} | registered: {summary['registered']} | "
+                        f"duplicates: {summary['duplicates']} | unsafe: {summary['unsafe']} | "
+                        f"unregistered: {summary['unregistered']}"
+                    )
+                    if args.output:
+                        print(f"Audit: {args.output.resolve()}")
             elif args.capability_command == "ingest":
                 result = hub.ingest(
                     args.case, args.source, args.file, authorized=args.authorized,
