@@ -1,0 +1,4 @@
+name: TraceAtlas CodeQL configuration
+
+paths-ignore:
+  - third_party/opencti-connectors/**

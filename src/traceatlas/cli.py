@@ -25,6 +25,8 @@ from .intelligence.modules import catalog_rows, reconcile_catalog, resolve_remot
 from .sensitive import SensitiveRunner
 from .openosint_bridge import OpenOSINTBridge
 from .capabilities import CAPABILITIES, CapabilityHub, ServiceClient, TrainingStore, audit_archives
+from .opencti_connectors import OpenCTIConnectorCatalog
+from .capabilities import CAPABILITIES, CapabilityHub, ServiceClient, TrainingStore
 from .cti import CTIEngine
 from .fusion_board import FusionBoard, SCOPES
 from .research_cli import add_research_parser, run_research
@@ -208,7 +210,10 @@ def parser() -> argparse.ArgumentParser:
     int_profile.add_argument("--authorized", action="store_true")
     int_profile.add_argument("--allow-active", action="store_true")
     int_profile.add_argument("--tool-option", action="append", default=[], metavar="KEY=VALUE")
-    int_catalog_import = int_sub.add_parser("catalog-import", help="Import JSON, JSON.GZ or embedded HTML tool data")
+    int_catalog_import = int_sub.add_parser(
+        "catalog-import",
+        help="Import JSON, JSON.GZ, embedded HTML, or API Mega List ZIP metadata",
+    )
     int_catalog_import.add_argument("--file", type=Path, required=True)
     int_catalog_search = int_sub.add_parser("catalog-search", help="Search imported web/tool directory entries")
     int_catalog_search.add_argument("query", nargs="?", default="")
@@ -338,6 +343,42 @@ def parser() -> argparse.ArgumentParser:
     upstream_run.add_argument("--owned-asset", action="store_true")
     upstream_run.add_argument("--timeout", type=int, default=300)
     upstream_run.add_argument("arguments", nargs=argparse.REMAINDER)
+
+    opencti_connectors = sub.add_parser(
+        "opencti-connectors",
+        help="Inspect the governed, vendored OpenCTI connector suite",
+    )
+    opencti_connectors.add_argument(
+        "--vendor-root", type=Path, default=Path("third_party/opencti-connectors")
+    )
+    opencti_sub = opencti_connectors.add_subparsers(
+        dest="opencti_connector_command", required=True
+    )
+    opencti_list = opencti_sub.add_parser("list", help="Search connector packages")
+    opencti_list.add_argument("--query", default="")
+    opencti_list.add_argument(
+        "--category", choices=[
+            "external-import", "internal-enrichment", "internal-export-file",
+            "internal-import-file", "stream",
+        ], default="",
+    )
+    opencti_list.add_argument("--verified-only", action="store_true")
+    opencti_list.add_argument("--limit", type=int, default=100)
+    opencti_list.add_argument("--json", action="store_true")
+    opencti_show = opencti_sub.add_parser("show", help="Inspect one connector contract")
+    opencti_show.add_argument("connector")
+    opencti_doctor = opencti_sub.add_parser("doctor", help="Check catalog and runtime prerequisites")
+    opencti_doctor.add_argument("--json", action="store_true")
+    opencti_verify = opencti_sub.add_parser("verify", help="Verify every vendored source file")
+    opencti_verify.add_argument(
+        "--sums", type=Path, default=Path("third_party/OPENCTI_SHA256SUMS")
+    )
+    opencti_plan = opencti_sub.add_parser(
+        "plan", help="Create a non-executing connector deployment plan"
+    )
+    opencti_plan.add_argument("connector")
+    opencti_plan.add_argument("--authorized", action="store_true")
+    opencti_plan.add_argument("--owned-org", action="store_true")
 
     capabilities = sub.add_parser(
         "capabilities", help="Inspect and ingest results from optional upstream engines"
@@ -1167,6 +1208,41 @@ def main(argv: list[str] | None = None) -> int:
                     timeout=args.timeout,
                 )
                 print(json.dumps(result, indent=2))
+        elif args.command == "opencti-connectors":
+            catalog = OpenCTIConnectorCatalog()
+            if args.opencti_connector_command == "list":
+                rows = catalog.list(
+                    args.query, args.category, verified_only=args.verified_only,
+                    limit=args.limit,
+                )
+                if args.json:
+                    print(json.dumps({"count": len(rows), "connectors": rows}, indent=2))
+                else:
+                    for row in rows:
+                        verified = "VERIFIED" if row["verified_upstream"] else "UNVERIFIED"
+                        print(f"{row['id']:58} {verified:10} {row['title']}")
+            elif args.opencti_connector_command == "show":
+                print(json.dumps(catalog.get(args.connector), indent=2))
+            elif args.opencti_connector_command == "doctor":
+                result = catalog.doctor(args.vendor_root)
+                if args.json:
+                    print(json.dumps(result, indent=2))
+                else:
+                    print(f"Catalogued connectors: {result['catalogued_connectors']}")
+                    print(f"Vendor packages present: {result['vendor_packages_present']}")
+                    print(f"Compose files present: {result['compose_files_present']}")
+                    print(f"Docker available: {result['docker_available']}")
+                    print(f"TraceAtlas live-verified: {result['live_verified_by_traceatlas']}")
+            elif args.opencti_connector_command == "verify":
+                result = catalog.verify(args.vendor_root, args.sums)
+                print(json.dumps(result, indent=2))
+                if not result["valid"]:
+                    return 2
+            elif args.opencti_connector_command == "plan":
+                print(json.dumps(catalog.plan(
+                    args.connector, args.vendor_root,
+                    authorized=args.authorized, owned_org=args.owned_org,
+                ), indent=2))
         elif args.command == "capabilities":
             hub = CapabilityHub(engine.db, args.workspace)
             if args.capability_command == "list":
