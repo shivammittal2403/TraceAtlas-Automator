@@ -9,7 +9,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", ".traceatlas", "build", "dist", "cases", "__pycache__", "node_modules"}
+SKIP_DIRS = {
+    ".git", ".venv", ".openosint-test-venv", ".traceatlas", "build", "dist",
+    "cases", "__pycache__", "node_modules",
+}
+SKIP_PREFIXES = {("third_party", "opencti-connectors")}
 PATTERNS = {
     "GitHub token": re.compile(rb"(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})"),
     "OpenAI-style key": re.compile(rb"\bsk-[A-Za-z0-9_-]{20,}\b"),
@@ -20,8 +24,17 @@ PATTERNS = {
 
 
 def files() -> list[Path]:
-    return [path for path in ROOT.rglob("*") if path.is_file()
-            and not any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts)]
+    result = []
+    for path in ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        parts = path.relative_to(ROOT).parts
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        if any(parts[:len(prefix)] == prefix for prefix in SKIP_PREFIXES):
+            continue
+        result.append(path)
+    return result
 
 
 def main() -> int:

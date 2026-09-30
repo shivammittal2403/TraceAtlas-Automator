@@ -1,6 +1,11 @@
 # TraceAtlas Automator
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.8.0**
+> The repository pins and governs 308 OpenCTI connector packages through a reproducible Git submodule.
+> They remain external-service integrations and are disabled until an operator
+> supplies an OpenCTI deployment, provider credentials and explicit authority.
+> See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
+
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.9.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -30,7 +35,11 @@ human review where judgment, attribution, privacy or legal authority matters.
   execution-verified, degraded, unavailable and policy-blocked tools.
 - Installed external binaries can be hash-locked and later verified for missing,
   changed or untracked tool drift.
-- Installation doctor, multi-tool profiles and recon-directory catalog import.
+- Installation doctor, multi-tool profiles, recon-directory import and a
+  governed API Mega List ZIP catalog adapter.
+- A governed snapshot and service-boundary catalog for all 308 supplied OpenCTI
+  connector packages, with configuration-schema discovery, license separation,
+  per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
 - Governed intelligence hub covering 37 social, code, package, scholarly, video, community,
@@ -570,6 +579,10 @@ it expects a separate `recon-data.json.gz`. Import that dataset when available:
 traceatlas integrations catalog-import --file recon-data.json.gz
 traceatlas integrations catalog-search amass
 traceatlas integrations catalog-stats
+
+# Import API Mega List Markdown metadata (catalog only; never executable)
+traceatlas integrations catalog-import --file API-mega-list-main.zip
+traceatlas integrations catalog-search "threat intelligence" --limit 25
 ```
 
 JSON, gzip-compressed JSON and HTML with a non-empty embedded `tool-data` array

@@ -2,10 +2,12 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.openosint-test-venv/
 dist/
 build/
 *.egg-info/
 cases/
+reports/
 .traceatlas/
 .vercel/
 .env

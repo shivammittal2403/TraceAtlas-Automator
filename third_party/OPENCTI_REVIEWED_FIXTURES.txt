@@ -1,0 +1,21 @@
+# Credential-shaped public upstream test/documentation fixtures reviewed during import.
+# The pinned submodule is immutable and excluded from the first-party secret scanner.
+internal-enrichment/intel471-hunt/tests/fixtures/response.json
+internal-enrichment/polyswarm-enrichment/tests/cassettes/query_keydoor_hash.yaml
+internal-enrichment/polyswarm-enrichment/tests/cassettes/query_rhadamanthys_hash.yaml
+internal-enrichment/polyswarm-enrichment/tests/cassettes/query_known_hash.yaml
+internal-enrichment/polyswarm-enrichment/tests/cassettes/query_dtrack_hash.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/scan_eicar_poll.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/hash_search_rhadamanthys.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/scan_eicar_submit.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/hash_search_sample.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/sandbox_eicar_submit.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/hash_search_wannacry.yaml
+internal-enrichment/polyswarm-sandbox/tests/cassettes/hash_search_eicar.yaml
+external-import/google-secops-siem-incidents/README.md
+external-import/google-secops-siem-incidents/tests/test_helpers.py
+external-import/google-secops-siem-incidents/tests/tests_connector/test_settings.py
+external-import/google-secops-siem-incidents/tests/tests_chronicle_client/factories.py
+stream/google-secops-siem/README.md
+stream/chronicle/tests/tests_common/chronicle_auth_test.py
+stream/google-secops-siem/tests/tests_connector/test_settings.py

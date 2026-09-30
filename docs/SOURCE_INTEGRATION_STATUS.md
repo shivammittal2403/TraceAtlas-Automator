@@ -76,3 +76,13 @@ deadline/cancellation propagation and usage reservations, followed by approved
 archive, CTI, company and social-export workflows. That work requires schema and
 worker changes plus deployed Supabase/worker validation; adding more names to a
 registry would not complete it.
+
+## API Mega List catalog adapter
+
+TraceAtlas now accepts the supplied API Mega List ZIP through the normal catalog
+import command. The adapter parses Markdown metadata in place, deduplicates URLs,
+records a source hash, and forces every result to `catalog-only` with execution
+disabled. Upstream code and the multi-megabyte catalog are not vendored because
+the source repository does not declare a license. See
+[`API_MEGA_LIST_INTEGRATION.md`](API_MEGA_LIST_INTEGRATION.md) for operation and
+connector-graduation requirements.
