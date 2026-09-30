@@ -60,6 +60,15 @@ class OpenCTIConnectorTests(unittest.TestCase):
         self.assertIn("OPENCTI_TOKEN", plan["missing_env_names"])
         self.assertEqual(plan["launch_command"][:2], ["docker", "compose"])
 
+    def test_plan_reports_credential_names_without_reading_values(self):
+        marker = "must-never-appear-in-plan"
+        with patch.dict("os.environ", {"OPENCTI_TOKEN": marker}, clear=True):
+            plan = self.catalog.plan(
+                "external-import/misp", VENDOR, authorized=True, owned_org=True
+            )
+        self.assertIn("OPENCTI_TOKEN", plan["configured_env_names"])
+        self.assertNotIn(marker, json.dumps(plan))
+
     def test_doctor_keeps_upstream_and_traceatlas_verification_separate(self):
         result = self.catalog.doctor(VENDOR)
         self.assertEqual(result["catalogued_connectors"], 308)
