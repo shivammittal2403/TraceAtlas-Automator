@@ -44,21 +44,21 @@ class LiveSourceTests(unittest.TestCase):
         self.temp.cleanup()
         self.env.stop()
 
-    def task(self, kind="domain", target="example.org", sources=None, tools=None):
+    def task(self, kind="domain", target="example.org", sources=None, tools=None, prices=None):
         stamp = datetime.now(timezone.utc)
         context = AuthorizationContext("1.0", "auth-live", "live-case", "analyst", "Synthetic fixture qualification",
             (kind + ":" + target,), ("request_collection", "propose_observation", "propose_claim"),
             tools or ("dns.lookup", "rdap.lookup", "archive.lookup", "ip.lookup", "search.execute", "evidence.retrieve"),
             "IN", "test-only", stamp.isoformat(), (stamp + timedelta(hours=1)).isoformat(), "b" * 64)
         self.service.register_authorization(context)
-        plan = self.service.create_investigation_task(context.context_id, kind, target, "Qualify synthetic live sources", sources=sources)
+        plan = self.service.create_investigation_task(context.context_id, kind, target, "Qualify synthetic live sources", sources=sources, source_prices=prices)
         self.service.approve(plan["task"]["task_id"], actor_id="analyst", rationale="Reviewed the exact synthetic source plan",
                              envelope_digest=plan["envelope_digest"], authorized=True)
         return plan["task"]["task_id"]
 
     def test_full_live_capture_graph_report_and_offline_replay(self):
         os.environ["BRAVE_SEARCH_API_KEY"] = "fixture-key-not-a-real-credential"
-        task = self.task(sources=("dns", "rdap", "urlscan", "wayback", "brave"))
+        task = self.task(sources=("dns", "rdap", "urlscan", "wayback", "brave"), prices={"brave": 0})
         calls = []
         payloads = {
             "dns.google": {"Status": 0, "Question": [{"name": "example.org."}],

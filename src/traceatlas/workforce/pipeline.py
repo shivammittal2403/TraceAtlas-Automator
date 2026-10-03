@@ -28,15 +28,17 @@ from .lineage import SourceIndependenceEngine, SourceRecord
 from .service import WorkforceService
 from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
+from .normalization import live_facts as _live_facts
 
-WORKFLOW_VERSION = "evidence-investigation/1.1.0"
-PARSER_VERSION = "structured-fact/2"
+WORKFLOW_VERSION = "evidence-investigation/1.2.0"
+PARSER_VERSION = "structured-fact/3"
 POLICY_VERSION = "bounded-readonly/1"
 SINGLE_VALUES = frozenset({"registry_handle", "registered_name", "registered_country"})
 
 
-class CollectionStopped(ValueError):
-    """Authority/kill changes stop execution, rather than becoming source errors."""
+from .source_sdk import CollectionStopped
+from .source_state import SourceState
+from .source_gateway import SourceGateway
 
 
 def now():
@@ -81,7 +83,7 @@ def plan_sources(task, *, live=False):
     legacy = ["dns", "rdap", "wayback"] if kind == "domain" else ["rdap", "internetdb"] if kind == "ip" else []
     if kind == "ip" and ipaddress.ip_address(value).version == 6:
         legacy.remove("internetdb")
-    sources = list(select_sources(kind, value, bound)) if bound else legacy
+    sources = list(select_sources(kind, value, bound)) if bound else [] if any(c.startswith("source-plan:") for c in task.constraints) else legacy
     search = next((source for source in sources if source in SEARCH_SOURCES), None)
     return {"workflow_version": WORKFLOW_VERSION, "seed": task.target_entities[0],
             "mode": "live" if live else "approved-records", "sources": sources if live else [],
@@ -94,123 +96,6 @@ def plan_sources(task, *, live=False):
             "automatic_pivots": False}
 
 
-def _live_facts(source, seed, data, stamp):
-    _validate_shape(source, data)
-    facts = []
-    def add(predicate, value, at=stamp):
-        if isinstance(value, (str, int)) and str(value).strip():
-            facts.append(StructuredFact(seed, predicate, str(value), at, at))
-    kind, target = seed.split(":", 1)
-    if source == "dns":
-        questions = data.get("Question", [])
-        if not any(isinstance(q, dict) and str(q.get("name", "")).rstrip(".").casefold() == target for q in questions):
-            raise ProviderError("provider_target_mismatch")
-        if data["Status"] == 0:
-            for row in data.get("Answer", [])[:100]:
-                if isinstance(row, dict) and row.get("type") in {1, 28} and str(row.get("name", "")).rstrip(".").casefold() == target:
-                    add("resolves_to", row.get("data"))
-    elif source == "rdap":
-        validate_rdap_response(kind, target, data)
-        add("registry_handle", data.get("handle"))
-        add("registered_name", data.get("ldhName") if kind == "domain" else data.get("name"))
-        if kind == "ip":
-            add("registered_country", data.get("country"))
-        for status in data.get("status", [])[:20]:
-            add("registration_status", status)
-    elif source == "internetdb":
-        if ipaddress.ip_address(data["ip"]) != ipaddress.ip_address(target):
-            raise ProviderError("provider_target_mismatch")
-        for port in data.get("ports", [])[:100]:
-            add("observed_port", port)
-    elif source in {"ipwhois", "ipdata", "greynoise"}:
-        if ipaddress.ip_address(data["ip"]) != ipaddress.ip_address(target):
-            raise ProviderError("provider_target_mismatch")
-        if source == "greynoise":
-            add("provider_classification", data.get("classification"))
-            add("provider_last_seen", data.get("last_seen"))
-        else:
-            add("approximate_country", data.get("country_code"))
-            network = data.get("connection", {}) if source == "ipwhois" else data.get("asn", {})
-            if isinstance(network, dict):
-                add("network_asn", network.get("asn"))
-                add("network_isp", network.get("isp") if source == "ipwhois" else network.get("name"))
-    elif source in SEARCH_SOURCES:
-        query = data["query"]["original"] if source == "brave" else data["query"]
-        if query != '"' + target + '"':
-            raise ProviderError("provider_target_mismatch")
-        rows = data.get("web", {}).get("results", []) if source == "brave" else data["results"]
-        for row in rows[:10]:
-            if not isinstance(row, dict):
-                raise ProviderError("provider_schema_mismatch")
-            url = _public_result_url(row.get("url"))
-            if url:
-                add("search_result_url", url)
-    elif source == "urlscan":
-        for row in data["results"]:
-            if not isinstance(row, dict):
-                raise ProviderError("provider_schema_mismatch")
-            page, task = row.get("page", {}), row.get("task", {})
-            if not isinstance(page, dict) or not isinstance(task, dict):
-                raise ProviderError("provider_schema_mismatch")
-            # Missing optional fields yield no assertions; different targets fail closed.
-            if kind == "domain" and page.get("domain") is not None:
-                if str(page["domain"]).rstrip(".").lower() != target:
-                    raise ProviderError("provider_target_mismatch")
-            elif kind == "ip" and page.get("ip") is not None:
-                if ipaddress.ip_address(page["ip"]) != ipaddress.ip_address(target):
-                    raise ProviderError("provider_target_mismatch")
-            else:
-                continue
-            at = task.get("time")
-            if not isinstance(at, str):
-                continue
-            parsed_time = datetime.fromisoformat(at.replace("Z", "+00:00"))
-            if parsed_time.tzinfo is None:
-                raise ProviderError("provider_schema_mismatch")
-            at = parsed_time.astimezone(timezone.utc).isoformat()
-            url = _public_result_url(page.get("url"))
-            if url and (kind == "ip" or (urlsplit(url).hostname or "").lower() == target):
-                add("indexed_url", url, at)
-            if page.get("ip"):
-                add("scan_observed_ip", str(ipaddress.ip_address(page["ip"])), at)
-    elif source == "wayback":
-        if not data:
-            return ()
-        header = data[0]
-        if "original" not in header or "timestamp" not in header:
-            raise ProviderError("provider_schema_mismatch")
-        for row in data[1:101]:
-            if not isinstance(row, list) or len(row) != len(header):
-                raise ProviderError("provider_schema_mismatch")
-            record = dict(zip(header, row))
-            host = (urlsplit(record["original"]).hostname or "").lower()
-            if host != target and not host.endswith("." + target):
-                raise ProviderError("provider_target_mismatch")
-            try:
-                at = datetime.strptime(record["timestamp"], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).isoformat()
-                add("archived_url", record["original"], at)
-            except (ValueError, TypeError):
-                raise ProviderError("provider_schema_mismatch") from None
-    return tuple(facts)
-
-
-def _public_result_url(value):
-    if not isinstance(value, str) or not 1 <= len(value) <= 500 or any(ord(c) < 33 for c in value):
-        return None
-    try:
-        parsed = urlsplit(value)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
-            return None
-        if parsed.hostname.lower() in {"localhost", "localhost.localdomain"}:
-            return None
-        try:
-            if not ipaddress.ip_address(parsed.hostname).is_global:
-                return None
-        except ValueError:
-            pass
-    except ValueError:
-        return None
-    return value
 
 
 class InvestigationPipeline:
@@ -244,8 +129,12 @@ class InvestigationPipeline:
             started = time.monotonic()
             context = self.store.authorization(task.authorization_context_id)
             plan = plan_sources(task, live=live)
-            if live and not plan["sources"]:
-                raise ValueError("person/company slices accept approved records; live discovery is not implemented")
+            source_state = SourceState(self.store)
+            capability_plan = source_state.plan(task)
+            if capability_plan is not None:
+                plan['capability_plan'] = capability_plan
+                plan['selection_basis'] = 'approved capability routing with explicit alternatives and rejection reasons'
+            gateway_result = None
             collected, outcomes, spans, tools = [], [], [], []
             network_attempts = 0
             def check(tool):
@@ -273,81 +162,36 @@ class InvestigationPipeline:
                 collected.extend(supplied)
                 outcomes.extend({"source_id": d.source_id, "status": "captured", "mode": "approved-records", "attempts": 0} for d in supplied)
             else:
-                unhealthy = {r["source"] for r in self.store.db.connector_health() if r["consecutive_failures"] >= 3}
-                kind, value = task.target_entities[0].split(":", 1)
-                for source in plan["sources"]:
-                    if source not in employee.allowed_sources:
-                        raise ValueError("collection source is outside employee authority")
-                    tool = SOURCE_TOOLS[source]
-                    remaining = check(tool)
-                    span_stamp, call_started = now(), time.monotonic()
-                    if source in unhealthy or remaining <= 0 or network_attempts >= task.budget.tool_calls:
-                        outcomes.append({"source_id": source, "status": "skipped", "reason": "circuit_open" if source in unhealthy else "budget_exhausted", "attempts": 0})
-                        for intent in plan["query_intents"]:
-                            if intent.get("provider") == source:
-                                intent.update(state="skipped", reason=outcomes[-1]["reason"])
-                        continue
-                    if tool not in tools:
-                        tools.append(tool)
-                    captured = {}
-                    bootstrap_attempts = 0
-                    def governed_request(url, headers, timeout):
-                        nonlocal network_attempts
-                        remaining = check(tool)
-                        if network_attempts >= task.budget.tool_calls or remaining <= 0:
-                            raise ProviderError("provider_deadline_exceeded")
-                        network_attempts += 1
-                        dispatch = self.search_requester if source == "searxng" else self.requester
-                        status, raw = dispatch(url, headers, min(timeout, remaining))
-                        if status == 200:
-                            captured[url] = raw
-                        return status, raw
-                    # Without Retry-After metadata, surface 429 instead of guessing a reset.
-                    client = ResilientJSONClient(governed_request, max_body_bytes=400 * 1024, retry_rate_limits=False)
-                    attempts_before = network_attempts
-                    try:
-                        if source == "rdap":
-                            def preserve_bootstrap(bootstrap_uri, response):
-                                nonlocal bootstrap_attempts
-                                bootstrap_attempts = response.attempts
-                                collected.append(SourceDocument(DOCUMENT_SCHEMA, "rdap_bootstrap", bootstrap_uri,
-                                    now(), captured[bootstrap_uri].decode("utf-8"), (), None, "iana"))
-                                outcomes.append({"source_id": "rdap_bootstrap", "status": "captured", "mode": "live", "attempts": response.attempts})
-                            url, response = rdap_lookup(client, kind, value, remaining, on_bootstrap=preserve_bootstrap)
-                        else:
-                            url, headers = request_spec(source, kind, value)
-                            response = client.get(source, url, headers, remaining)
-                        stamp = now()
-                        facts = _live_facts(source, task.target_entities[0], response.data, stamp)
-                        # Queries and headers are omitted; captured body bytes remain in content.
-                        uri = "urn:traceatlas:provider:searxng:search" if source == "searxng" else url.split("?", 1)[0]
-                        doc = SourceDocument(DOCUMENT_SCHEMA, source, uri, stamp,
-                                             captured[url].decode("utf-8"), facts, None, source)
-                        collected.append(doc)
-                        outcomes.append({"source_id": source, "status": "captured", "mode": "live", "attempts": network_attempts-attempts_before-bootstrap_attempts})
-                        for intent in plan["query_intents"]:
-                            if intent.get("provider") == source:
-                                intent["state"] = "executed"
-                                intent["result_count"] = len(facts)
-                        self.store.db.record_connector_result(source, True)
-                    except CollectionStopped:
-                        raise
-                    except (ProviderError, OSError, ValueError, KeyError, TypeError) as exc:
-                        # Stable codes only. Never serialize URL/header/body or exception messages.
-                        reason = exc.code if isinstance(exc, (ProviderError, ConnectorNotConfigured)) else "connector_contract_failure"
-                        status = "skipped" if isinstance(exc, ConnectorNotConfigured) else "failed"
-                        outcomes.append({"source_id": source, "status": status, "reason": reason, "attempts": network_attempts-attempts_before-bootstrap_attempts})
-                        for intent in plan["query_intents"]:
-                            if intent.get("provider") == source:
-                                intent["state"] = status
-                                intent["reason"] = reason
-                        if status == "failed":
-                            self.store.db.record_connector_result(source, False, reason)
-                    spans.append(TraceSpan(identifier("span", [task.task_id, source]), task.trace_id, None,
-                                           tool, outcomes[-1]["status"], span_stamp, now(),
-                                           int((time.monotonic()-call_started)*1000), ()))
-            evidence = tuple(self.store.capture_document(task, doc, self.workspace) for doc in collected)
+                gateway_plan = capability_plan or {'sources': plan['sources']}
+                gateway_result = SourceGateway(source_state, self.requester, self.search_requester, PARSER_VERSION).collect(
+                    task, employee, gateway_plan, check, capture=lambda doc: self.store.capture_document(task, doc, self.workspace))
+                collected.extend(gateway_result['documents'])
+                outcomes.extend(gateway_result['outcomes'])
+                network_attempts = gateway_result['network_attempts']
+                tools.extend(gateway_result['tools'])
+                for outcome in outcomes:
+                    for intent in plan['query_intents']:
+                        if intent.get('provider') == outcome['source_id']:
+                            intent.update(state='executed' if outcome['status'] == 'captured' else outcome['status'],
+                                          result_count=outcome.get('observations', 0))
+                            if outcome.get('reason'): intent['reason'] = outcome['reason']
+                    if outcome.get('started_at'):
+                        spans.append(TraceSpan(identifier('span', [task.task_id, outcome['source_id']]), task.trace_id, None,
+                            SOURCE_TOOLS[outcome['source_id']], outcome['status'], outcome['started_at'], now(), outcome['latency_ms'], ()))
+            evidence = gateway_result['evidence'] if gateway_result else tuple(self.store.capture_document(task, doc, self.workspace) for doc in collected)
+            if gateway_result:
+                for result_row in gateway_result['results']:
+                    item = next((e for e in evidence if e.source_id == result_row['source_id']), None)
+                    result_row['raw_evidence_id'] = item.evidence_id if item else None
+                    if item and result_row['source_metadata']['state'] == 'captured':
+                        source_state.cache(task, result_row['source_id'], PARSER_VERSION, evidence)
             analysis = self.analyze(task, tuple(collected), evidence, outcomes)
+            if gateway_result:
+                for result_row in gateway_result['results']:
+                    evidence_id = result_row['raw_evidence_id']
+                    result_row['observations'] = [o for o in analysis['observations'] if o['evidence_id'] == evidence_id]
+                    result_row['candidate_entities'] = [n for n in analysis['graph']['nodes'] if evidence_id in n['evidence_ids']]
+                    result_row['candidate_relationships'] = [e for e in analysis['graph']['edges'] if evidence_id in e['evidence_ids']]
             for observation in analysis["observations"]:
                 self.store.record_observation(task.case_id, Observation.from_dict(observation))
             for lineage in analysis["source_lineage"]:
@@ -357,7 +201,7 @@ class InvestigationPipeline:
             for decision in analysis["verification"]:
                 from .contracts import VerificationDecision
                 self.store.record_verification(task.case_id, VerificationDecision.from_dict({**decision, "decided_at": now()}))
-            failed = any(r["status"] != "captured" for r in outcomes)
+            failed = any(r["status"] not in {"captured", "not_needed"} for r in outcomes)
             stop = "source_exhausted" if not collected else "human_review_required"
             result = ResultEnvelope(
                 schema_version="1.0", task_id=task.task_id, employee_id=employee.employee_id,
@@ -369,7 +213,7 @@ class InvestigationPipeline:
                 uncertainties=("structured_assertions_not_identity_or_causation",), confidence_basis=("deterministic-evidence-verification",),
                 source_independence=tuple(sorted({r["independence_group"] for r in analysis["source_lineage"]})),
                 information_gaps=tuple(analysis["information_gaps"]), recommended_next_actions=tuple(r["action_id"] for r in analysis["next_actions"]),
-                cost=CostRecord("traceatlas", "deterministic-no-model", 0, 0, 0, None if live else 0, "NONE"),
+                cost=CostRecord("traceatlas", "deterministic-no-model", 0, 0, gateway_result["estimated_cost"] if gateway_result else 0, None if live else 0, "USD" if live else "NONE"),
                 latency_ms=int((time.monotonic()-started)*1000), model_used="deterministic-no-model",
                 tool_calls=tuple(tools), execution_trace=tuple(spans), stop_reason=stop, completed_at=now())
             product = {"schema": "traceatlas-investigation-product/v1", "task_id": task.task_id, "case_id": task.case_id,
@@ -390,6 +234,11 @@ class InvestigationPipeline:
                        "report_status": "DRAFT_REQUIRES_HUMAN_RELEASE", "network_attempts": network_attempts,
                        "source_costs": {"status": "not-measured" if live else "no-network-calls", "actual_cost": None if live else 0,
                                         "limitation": "Request count is bounded; provider billing and entitlements require operator qualification."}}
+            if gateway_result:
+                product['source_results'] = gateway_result['results']
+                product['source_costs'].update(estimated_cost=gateway_result['estimated_cost'], currency='USD',
+                    remaining_estimated_budget=round(task.budget.amount - gateway_result['estimated_cost'], 8))
+                product['collection_limits'] = gateway_result['concurrency']
             product["report_markdown"] = self.render_report(product)
             product = json.loads(canonical(product))
             # Store only after service-level result checks succeed.
@@ -401,6 +250,9 @@ class InvestigationPipeline:
         if len(documents) != len(evidence) or any(e.case_id != task.case_id for e in evidence):
             raise ValueError("analysis input evidence case mismatch")
         observations, fact_rows, gaps = [], [], {"human-report-release-required"}
+        capability_plan = SourceState(self.store).plan(task)
+        if capability_plan:
+            gaps.update('unavailable-capability-' + cap for cap in capability_plan['information_gaps'])
         if not any(d.source_id in SEARCH_SOURCES for d in documents):
             gaps.add("no-captured-web-search")
         lineage = SourceIndependenceEngine().group([SourceRecord(d.source_id, d.source_uri, d.content, d.original_source_id, d.ownership_group) for d in documents])
@@ -506,7 +358,7 @@ class InvestigationPipeline:
                                  "evidence_id": observation.evidence_id, "source_id": doc.source_id,
                                  "statement": observation.statement, "verification_status": decision.status.value})
         for outcome in outcomes:
-            if outcome["status"] != "captured":
+            if outcome["status"] not in {"captured", "not_needed"}:
                 gaps.add("source-" + outcome["source_id"] + "-" + outcome.get("reason", "unavailable"))
         if not observations:
             gaps.add("no-source-observations")

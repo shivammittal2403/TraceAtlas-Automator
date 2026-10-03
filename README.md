@@ -5,7 +5,7 @@
 > supplies an OpenCTI deployment, provider credentials and explicit authority.
 > See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.10.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.11.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -855,3 +855,24 @@ references, coverage and failure behavior. Real public response capture/replay
 passed through this environment's proxy; the shipped direct transport requires
 runtime network qualification. Wayback timed out; keyed search/provider access
 and hosted worker/UI deployment remain unqualified.
+
+
+## Source Fabric (1.11.0)
+
+The new capability router chooses a bounded subset from twenty shared workforce
+adapters for domain, IP and exact company-identifier investigations. It adds
+Cloudflare DNS, crt.sh, RIPEstat, GLEIF, Companies House, SEC and OpenCorporates,
+and reuses GitHub, Shodan and VirusTotal in the canonical evidence workflow.
+Case-scoped cache, conservative rate/cost limits, two-wave fallback, health
+canaries and six optional MCP tools share existing authority and replay.
+
+```bash
+traceatlas workforce sources --catalog
+traceatlas workforce sources --candidates
+traceatlas workforce golden --source-fabric
+```
+
+The supplied 400 candidates deduplicate to 351 review rows, including generic
+categories; these are **not 400 live integrations**. Production-qualified count
+is zero pending runtime and entitlement evidence. See the [Source Fabric runbook](docs/sources/SOURCE_FABRIC.md)
+and [two-brief delivery ledger](docs/sources/DELIVERY_LEDGER.md).

@@ -15,7 +15,9 @@ PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "re
                         "registration_status", "observed_port", "archived_url", "public_label",
                         "associated_with", "mentions", "indicator", "dependency", "search_result_url",
                         "indexed_url", "scan_observed_ip", "approximate_country", "network_asn",
-                        "network_isp", "provider_classification", "provider_last_seen"})
+                        "network_isp", "provider_classification", "provider_last_seen", "certificate_log_id",
+                        "announced_prefix", "filing_accession", "repository_count", "organization_profile",
+                        "provider_malicious_detections"})
 MAX_DOCUMENT_BYTES = 512 * 1024
 MAX_DOCUMENTS = 8
 

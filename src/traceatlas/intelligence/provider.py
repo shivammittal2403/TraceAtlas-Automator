@@ -33,6 +33,10 @@ class ProviderResult:
 def _validate_shape(source: str, data: Any) -> None:
     """Reject provider error pages and schema drift before evidence ingestion."""
     valid = isinstance(data, (dict, list))
+    if source in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"}:
+        from .registry_requests import validate_shape
+        validate_shape(source, data)
+        return
     if source == "github":
         valid = isinstance(data, dict) and isinstance(data.get("login"), str)
     elif source == "youtube":

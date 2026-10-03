@@ -20,7 +20,7 @@ scan submission, returned-URL fetch or target pivot is implemented here.
 
 `workforce sources` prints configuration status and environment reference names.
 It performs no network calls and does not claim provider health. The wider
-`intel sources` catalog has 38 governed entries, including 24 API connectors;
+`intel sources` catalog has 45 governed entries, including 31 API connectors;
 only the table above is bound into this investigation runner. Existing social,
 package, scholarly and CTI connectors retain their separate `intel collect`
 commands and consent/asset/public-record gates. Person/company workforce seeds
@@ -117,3 +117,10 @@ See [verification record](verification/live-sources-2026-10-03.json).
 CODED and local TESTED are established. Real response parsing/replay is verified
 through the environment proxy. Deployed direct transport, search credentials,
 private worker/UI integration and production readiness are not established.
+
+## Source Fabric update (1.11)
+
+New plans use the capability router rather than the older fixed default list above.
+The shared runner now has 20 adapters, including exact company registry identifiers.
+See [the Source Fabric runbook](sources/SOURCE_FABRIC.md) for the current catalog,
+price ceilings, cache, health canaries, MCP interface and remaining qualification gates.

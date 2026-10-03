@@ -7,6 +7,9 @@ from .sources import SOURCES
 from .rdap import RDAP_HOSTS
 
 SOURCE_HOSTS = {
+    'cloudflare_dns': 'cloudflare-dns.com', 'crtsh': 'crt.sh', 'ripestat': 'stat.ripe.net',
+    'gleif': 'api.gleif.org', 'companieshouse': 'api.company-information.service.gov.uk',
+    'sec': 'data.sec.gov', 'opencorporates': 'api.opencorporates.com',
     'rdap': 'data.iana.org', 'dns': 'dns.google', 'wayback': 'web.archive.org', 'urlscan': 'urlscan.io',
     'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
     'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
@@ -50,9 +53,11 @@ class ConnectorContract:
 # These types describe the implemented request validators, not every input a
 # provider may advertise. A catalogue row cannot add to this mapping.
 SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
+    "cloudflare_dns": ("domain",), "crtsh": ("domain",), "ripestat": ("ip",),
+    "gleif": ("company",), "companieshouse": ("company",), "sec": ("company",), "opencorporates": ("company",),
     "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",), "urlscan": ("domain", "ip"),
     "internetdb": ("ip",), "ipwhois": ("ip",), "ipdata": ("ip",),
-    "greynoise": ("ip",), "bluesky": ("username",), "github": ("username",),
+    "greynoise": ("ip",), "bluesky": ("username",), "github": ("username", "company"),
     "gitlab": ("username",), "hackernews": ("username",), "mastodon": ("username",),
     "stackexchange": ("user_id",), "dockerhub": ("username",), "youtube": ("channel",),
     "discord": ("invite",), "shodan": ("ip",), "censys": ("ip",),

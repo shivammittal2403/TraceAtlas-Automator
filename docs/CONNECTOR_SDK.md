@@ -32,3 +32,14 @@ Approved structured exports use `schema: traceatlas-structured-source/v1` and an
 exact StructuredFact `facts` array. Unstructured text remains captured but its
 supplied extraction cannot become SUPPORTED without a verified parser. A schema
 proves what a captured record asserts, not who authored it or whether it is true.
+
+## Canonical Source Fabric SDK (1.11)
+
+`workforce/source_sdk.py` provides health, capabilities, validate_input,
+estimate_cost, search, fetch, normalize, evidence_metadata, rate_limit_status,
+provenance and close for the twenty Phase A adapters. It reuses this module's
+fixed-host provider transport and reviewed request builders. The router and gateway
+bind source IDs/costs into approved tasks; candidate catalog rows cannot execute.
+See `sources/SOURCE_FABRIC.md` for the result contract, cache, rate limits, recovery
+and qualification process. Existing IntelligenceHub adapters remain supported;
+not every legacy adapter has been migrated into this canonical workforce contract.

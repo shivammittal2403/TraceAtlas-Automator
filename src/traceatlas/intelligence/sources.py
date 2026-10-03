@@ -29,6 +29,23 @@ def _source(name: str, title: str, category: str, acquisition: str,
 
 
 SOURCES: dict[str, SourceSpec] = {
+    "cloudflare_dns": _source("cloudflare_dns", "Cloudflare DNS", "internet-registration", "public-doh",
+        "DNS_RECORD", "Public DNS through the Cloudflare JSON resolver.", live_connector=True),
+    "crtsh": _source("crtsh", "crt.sh", "certificate-intelligence", "public-index-api",
+        "CERTIFICATE_RECORD", "Historical certificate log metadata for an exact domain; no host probing.", live_connector=True),
+    "ripestat": _source("ripestat", "RIPEstat", "internet-intelligence", "public-api",
+        "IP_CONTEXT", "Announced network prefix and ASNs for an exact public IP.", live_connector=True),
+    "gleif": _source("gleif", "GLEIF LEI", "business-intelligence", "public-registry-api",
+        "BUSINESS_RECORD", "Exact legal-entity reference record by LEI.", live_connector=True, public_record=True),
+    "companieshouse": _source("companieshouse", "UK Companies House", "business-intelligence", "public-registry-api",
+        "BUSINESS_RECORD", "Exact UK company profile by registration number.", live_connector=True, public_record=True,
+        credential_env=("COMPANIES_HOUSE_API_KEY",)),
+    "sec": _source("sec", "SEC EDGAR", "business-intelligence", "public-government-api",
+        "BUSINESS_RECORD", "Public filer identity and recent filing metadata by exact CIK.", live_connector=True,
+        public_record=True, credential_env=("SEC_USER_AGENT",)),
+    "opencorporates": _source("opencorporates", "OpenCorporates", "business-intelligence", "licensed-api",
+        "BUSINESS_RECORD", "Exact registry record by jurisdiction and company number; upstream attribution preserved.",
+        live_connector=True, public_record=True, credential_env=("OPENCORPORATES_API_TOKEN",)),
     "rdap": _source(
         "rdap", "RDAP", "internet-registration", "public-rdap",
         "REGISTRATION_RECORD", "Authoritative registration metadata for a public domain or IP.",

@@ -1,0 +1,285 @@
+{
+  "schema": "traceatlas-source-golden/v1",
+  "bootstrap": {
+    "version": "1.0",
+    "services": [
+      [
+        [
+          "org"
+        ],
+        [
+          "https://rdap.publicinterestregistry.org/rdap/"
+        ]
+      ]
+    ]
+  },
+  "fixtures": {
+    "dns": [
+      "domain",
+      "example.org",
+      {
+        "Status": 0,
+        "Question": [
+          {
+            "name": "example.org"
+          }
+        ],
+        "Answer": [
+          {
+            "name": "example.org",
+            "type": 1,
+            "data": "8.8.8.8"
+          }
+        ]
+      }
+    ],
+    "cloudflare_dns": [
+      "domain",
+      "example.org",
+      {
+        "Status": 0,
+        "Question": [
+          {
+            "name": "example.org"
+          }
+        ],
+        "Answer": [
+          {
+            "name": "example.org",
+            "type": 1,
+            "data": "8.8.8.8"
+          }
+        ]
+      }
+    ],
+    "rdap": [
+      "domain",
+      "example.org",
+      {
+        "objectClassName": "domain",
+        "ldhName": "example.org",
+        "handle": "fixture-org"
+      }
+    ],
+    "crtsh": [
+      "domain",
+      "example.org",
+      [
+        {
+          "id": 7,
+          "name_value": "example.org",
+          "entry_timestamp": "2025-01-01T00:00:00"
+        }
+      ]
+    ],
+    "ripestat": [
+      "ip",
+      "8.8.8.8",
+      {
+        "status": "ok",
+        "query_id": "fixture",
+        "data": {
+          "prefix": "8.8.8.0/24",
+          "asns": [
+            "15169"
+          ]
+        }
+      }
+    ],
+    "urlscan": [
+      "domain",
+      "example.org",
+      {
+        "results": [
+          {
+            "page": {
+              "domain": "example.org",
+              "ip": "8.8.8.8",
+              "url": "https://example.org/"
+            },
+            "task": {
+              "time": "2025-01-01T00:00:00Z"
+            }
+          }
+        ]
+      }
+    ],
+    "wayback": [
+      "domain",
+      "example.org",
+      [
+        [
+          "timestamp",
+          "original"
+        ],
+        [
+          "20250101000000",
+          "https://example.org/"
+        ]
+      ]
+    ],
+    "internetdb": [
+      "ip",
+      "8.8.8.8",
+      {
+        "ip": "8.8.8.8",
+        "ports": [
+          53
+        ]
+      }
+    ],
+    "ipwhois": [
+      "ip",
+      "8.8.8.8",
+      {
+        "ip": "8.8.8.8",
+        "success": true,
+        "country_code": "US"
+      }
+    ],
+    "ipdata": [
+      "ip",
+      "8.8.8.8",
+      {
+        "ip": "8.8.8.8",
+        "country_code": "US"
+      }
+    ],
+    "greynoise": [
+      "ip",
+      "8.8.8.8",
+      {
+        "ip": "8.8.8.8",
+        "noise": false,
+        "riot": true,
+        "classification": "benign"
+      }
+    ],
+    "brave": [
+      "domain",
+      "example.org",
+      {
+        "query": {
+          "original": "\"example.org\""
+        },
+        "web": {
+          "results": [
+            {
+              "url": "https://example.org/"
+            }
+          ]
+        }
+      }
+    ],
+    "searxng": [
+      "domain",
+      "example.org",
+      {
+        "query": "\"example.org\"",
+        "results": [
+          {
+            "url": "https://example.org/"
+          }
+        ]
+      }
+    ],
+    "gleif": [
+      "company",
+      "lei:5493001KJTIIGC8Y1R12",
+      {
+        "data": {
+          "id": "5493001KJTIIGC8Y1R12",
+          "attributes": {
+            "lei": "5493001KJTIIGC8Y1R12",
+            "entity": {
+              "legalName": {
+                "name": "Fixture Company"
+              },
+              "legalAddress": {
+                "country": "US"
+              },
+              "status": "ACTIVE"
+            }
+          }
+        }
+      }
+    ],
+    "companieshouse": [
+      "company",
+      "gb:00000001",
+      {
+        "company_number": "00000001",
+        "company_name": "Fixture Company",
+        "company_status": "active"
+      }
+    ],
+    "sec": [
+      "company",
+      "cik:1",
+      {
+        "cik": "1",
+        "name": "Fixture Company",
+        "filings": {
+          "recent": {
+            "accessionNumber": [
+              "0000000001-25-000001"
+            ],
+            "filingDate": [
+              "2025-01-01"
+            ]
+          }
+        }
+      }
+    ],
+    "opencorporates": [
+      "company",
+      "gb:00000001",
+      {
+        "results": {
+          "company": {
+            "company_number": "00000001",
+            "jurisdiction_code": "gb",
+            "name": "Fixture Company",
+            "current_status": "active",
+            "retrieved_at": "2025-01-01T00:00:00Z"
+          }
+        }
+      }
+    ],
+    "github": [
+      "company",
+      "github:fixture-org",
+      {
+        "login": "fixture-org",
+        "type": "Organization",
+        "name": "Fixture Organization",
+        "public_repos": 3,
+        "html_url": "https://github.com/fixture-org"
+      }
+    ],
+    "shodan": [
+      "ip",
+      "8.8.8.8",
+      {
+        "ip_str": "8.8.8.8",
+        "ports": [
+          53
+        ]
+      }
+    ],
+    "virustotal": [
+      "ip",
+      "8.8.8.8",
+      {
+        "data": {
+          "id": "8.8.8.8",
+          "attributes": {
+            "last_analysis_stats": {
+              "malicious": 0
+            }
+          }
+        }
+      }
+    ]
+  }
+}
