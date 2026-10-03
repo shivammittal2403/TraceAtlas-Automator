@@ -75,9 +75,11 @@ flowchart TD
 Create a local case, register lawful purpose/actor/jurisdiction/retention and exact
 seed scope, then plan and approve the immutable envelope digest. Planner source
 selection uses seed type and implemented connector contracts. Domain chooses
-DNS/RDAP/archive; IPv4 chooses RDAP/InternetDB; IPv6 excludes InternetDB. Person
-and company select approved-record ingestion. Queries are planning-only until
-an approved search provider is configured.
+DNS/RDAP/urlscan/archive; IPv4 chooses RDAP/IPWHOIS/InternetDB/urlscan; IPv6 excludes
+InternetDB. Source IDs are bound into task constraints before digest approval.
+Person and company select approved-record ingestion. Configure Brave or numeric
+loopback SearXNG to execute the exact quoted domain/IP search; result URLs remain
+leads with preserved search-response citations and no automatic fetch/pivot.
 
 Before each request, runtime checks authority validity, deadline, kill switch,
 tool/action permissions, remaining attempts and time. Provider retries use a

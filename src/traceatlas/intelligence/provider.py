@@ -47,6 +47,19 @@ def _validate_shape(source: str, data: Any) -> None:
         valid = isinstance(data, dict) and isinstance(data.get("data"), dict)
     elif source == "rdap":
         valid = isinstance(data, dict) and isinstance(data.get("objectClassName"), str)
+    elif source == "rdap_bootstrap":
+        valid = isinstance(data, dict) and data.get("version") == "1.0" and isinstance(data.get("services"), list)
+    elif source == "urlscan":
+        valid = isinstance(data, dict) and isinstance(data.get("results"), list) and len(data["results"]) <= 20
+    elif source == "brave":
+        valid = (isinstance(data, dict) and isinstance(data.get("query"), dict)
+                 and isinstance(data["query"].get("original"), str)
+                 and isinstance(data.get("web", {}), dict)
+                 and isinstance(data.get("web", {}).get("results", []), list)
+                 and len(data.get("web", {}).get("results", [])) <= 10)
+    elif source == "searxng":
+        valid = (isinstance(data, dict) and isinstance(data.get("query"), str)
+                 and isinstance(data.get("results"), list) and len(data["results"]) <= 100)
     elif source == "dns":
         valid = isinstance(data, dict) and isinstance(data.get("Status"), int)
     elif source == "wayback":
@@ -134,12 +147,13 @@ class ResilientJSONClient:
 
     def __init__(self, requester: Requester, *, sleeper: Sleeper = time.sleep,
                  max_attempts: int = 3, max_body_bytes: int = 5 * 1024 * 1024,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic, retry_rate_limits: bool = True):
         self.requester = requester
         self.sleeper = sleeper
         self.clock = clock
         self.max_attempts = max(1, min(int(max_attempts), 3))
         self.max_body_bytes = max(1024, min(int(max_body_bytes), 10 * 1024 * 1024))
+        self.retry_rate_limits = retry_rate_limits
 
     @staticmethod
     def _status_error(status: int) -> ProviderError:
@@ -186,6 +200,8 @@ class ResilientJSONClient:
                 last_error = ProviderError("provider_transport_failure", retryable=True)
                 last_error.__cause__ = exc
             last_error.attempts = attempt
+            if last_error.code == "provider_rate_limited" and not self.retry_rate_limits:
+                raise last_error
             if not last_error.retryable or attempt >= self.max_attempts:
                 raise last_error
             delay = 0.25 * attempt

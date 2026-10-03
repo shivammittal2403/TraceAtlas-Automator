@@ -4,9 +4,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from .sources import SOURCES
+from .rdap import RDAP_HOSTS
 
 SOURCE_HOSTS = {
-    'rdap': 'rdap.org', 'dns': 'dns.google', 'wayback': 'web.archive.org',
+    'rdap': 'data.iana.org', 'dns': 'dns.google', 'wayback': 'web.archive.org', 'urlscan': 'urlscan.io',
     'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
     'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
     'gitlab': 'gitlab.com', 'hackernews': 'hacker-news.firebaseio.com', 'mastodon': 'mastodon.social',
@@ -49,7 +50,7 @@ class ConnectorContract:
 # These types describe the implemented request validators, not every input a
 # provider may advertise. A catalogue row cannot add to this mapping.
 SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
-    "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",),
+    "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",), "urlscan": ("domain", "ip"),
     "internetdb": ("ip",), "ipwhois": ("ip",), "ipdata": ("ip",),
     "greynoise": ("ip",), "bluesky": ("username",), "github": ("username",),
     "gitlab": ("username",), "hackernews": ("username",), "mastodon": ("username",),
@@ -59,7 +60,7 @@ SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
     "npm": ("package",), "crossref": ("doi",), "orcid": ("orcid",),
 }
 
-OPTIONAL_CREDENTIALS = {"github", "nvd", "greynoise"}
+OPTIONAL_CREDENTIALS = {"github", "nvd", "greynoise", "urlscan"}
 
 
 def source_contract(source_id: str) -> ConnectorContract:
@@ -72,7 +73,7 @@ def source_contract(source_id: str) -> ConnectorContract:
     )
     return ConnectorContract(
         source_id=source_id,
-        contract_version=1,
+        contract_version=2 if source_id == "rdap" else 1,
         mode="api" if live else "import",
         inputs=SOURCE_INPUTS.get(source_id, ("approved-export",)),
         allowed_actions=("lookup",) if live else ("ingest",),
@@ -80,8 +81,9 @@ def source_contract(source_id: str) -> ConnectorContract:
         credential_env=credentials,
         capability_state="implemented" if live else "import-only",
         live_validation="deployment-required" if live else "not-applicable",
-        allowed_hosts=(SOURCE_HOSTS[source_id],) if live else (),
+        allowed_hosts=tuple(sorted(RDAP_HOSTS)) if source_id == "rdap" else (SOURCE_HOSTS[source_id],) if live else (),
         supported_ip_versions=(4,) if source_id in IPV4_ONLY else (4, 6) if 'ip' in SOURCE_INPUTS.get(source_id, ()) else (),
+        max_pages=2 if source_id == "rdap" else 1,
     )
 
 

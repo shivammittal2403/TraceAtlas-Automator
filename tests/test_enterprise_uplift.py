@@ -31,7 +31,8 @@ class EnterpriseUpliftTests(unittest.TestCase):
 
     def test_new_live_sources_use_fixed_provider_hosts_and_validate_schema(self):
         responses = {
-            "rdap.org": {"objectClassName": "domain", "ldhName": "example.com"},
+            "data.iana.org": {"version": "1.0", "services": [[["com"], ["https://rdap.verisign.com/com/v1/"]]]},
+            "rdap.verisign.com": {"objectClassName": "domain", "ldhName": "example.com"},
             "dns.google": {"Status": 0, "Answer": [{"name": "example.com.", "data": "93.184.216.34"}]},
             "web.archive.org": [["timestamp", "original"], ["20240101", "https://example.com/"]],
             "internetdb.shodan.io": {"ip": "8.8.8.8", "ports": [53]},

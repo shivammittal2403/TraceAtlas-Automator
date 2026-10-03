@@ -17,22 +17,26 @@ from urllib.parse import urlsplit
 
 from ..evidence import EvidenceStore
 from ..intelligence.ai import detect_instruction_injection
-from ..intelligence.hub import IntelligenceHub
-from ..intelligence.provider import ProviderError, ResilientJSONClient
-from ..intelligence.sources import SOURCES
-from ..intelligence.transport import request
+from ..intelligence.hub import ConnectorNotConfigured
+from ..intelligence.provider import ProviderError, ResilientJSONClient, _validate_shape
+from ..intelligence.transport import request, request_loopback_search
+from ..intelligence.rdap import lookup as rdap_lookup, validate_response as validate_rdap_response
 from .contracts import Claim, CostRecord, EvidenceObject, Observation, ResultEnvelope, SemanticClass, TraceSpan
 from .documents import DOCUMENT_SCHEMA, MAX_DOCUMENTS, SourceDocument, StructuredFact
 from .graph import GraphEdge, GraphNode, TemporalClaimGraph
 from .lineage import SourceIndependenceEngine, SourceRecord
 from .service import WorkforceService
 from .verification import VerificationEngine
+from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
 
-WORKFLOW_VERSION = "evidence-investigation/1.0.0"
-PARSER_VERSION = "structured-fact/1"
+WORKFLOW_VERSION = "evidence-investigation/1.1.0"
+PARSER_VERSION = "structured-fact/2"
 POLICY_VERSION = "bounded-readonly/1"
-SOURCE_TOOLS = {"dns": "dns.lookup", "rdap": "rdap.lookup", "wayback": "archive.lookup", "internetdb": "ip.lookup"}
 SINGLE_VALUES = frozenset({"registry_handle", "registered_name", "registered_country"})
+
+
+class CollectionStopped(ValueError):
+    """Authority/kill changes stop execution, rather than becoming source errors."""
 
 
 def now():
@@ -72,19 +76,26 @@ def _grounded(document, fact):
 
 def plan_sources(task, *, live=False):
     kind, value = task.target_entities[0].split(":", 1)
-    sources = ["dns", "rdap", "wayback"] if kind == "domain" else ["rdap", "internetdb"] if kind == "ip" else []
+    bound = tuple(row.split(":", 1)[1] for row in task.constraints if row.startswith("live-source:"))
+    # Legacy approvals never acquire newly added sources or environment-based search.
+    legacy = ["dns", "rdap", "wayback"] if kind == "domain" else ["rdap", "internetdb"] if kind == "ip" else []
     if kind == "ip" and ipaddress.ip_address(value).version == 6:
-        sources.remove("internetdb")
+        legacy.remove("internetdb")
+    sources = list(select_sources(kind, value, bound)) if bound else legacy
+    search = next((source for source in sources if source in SEARCH_SOURCES), None)
     return {"workflow_version": WORKFLOW_VERSION, "seed": task.target_entities[0],
             "mode": "live" if live else "approved-records", "sources": sources if live else [],
             "selection_basis": "typed seed and implemented fixed-host connector contracts",
             "maximum_documents": min(MAX_DOCUMENTS, task.budget.tool_calls),
-            "query_intents": [{"category": "official-record", "query": '"' + value + '"',
-                               "state": "not-executed", "reason": "no-approved-search-provider-bound"}],
+            "query_intents": [{"category": "public-web-leads", "query": '"' + value + '"',
+                               "state": "planned" if live and search else "not-executed",
+                               "provider": search if live else None,
+                               "reason": "approved-source-selection" if live and search else "no-approved-search-provider-bound"}],
             "automatic_pivots": False}
 
 
 def _live_facts(source, seed, data, stamp):
+    _validate_shape(source, data)
     facts = []
     def add(predicate, value, at=stamp):
         if isinstance(value, (str, int)) and str(value).strip():
@@ -99,18 +110,11 @@ def _live_facts(source, seed, data, stamp):
                 if isinstance(row, dict) and row.get("type") in {1, 28} and str(row.get("name", "")).rstrip(".").casefold() == target:
                     add("resolves_to", row.get("data"))
     elif source == "rdap":
-        if kind == "domain":
-            if str(data.get("ldhName", "")).rstrip(".").casefold() != target:
-                raise ProviderError("provider_target_mismatch")
-        else:
-            try:
-                address = ipaddress.ip_address(target)
-                if not ipaddress.ip_address(data["startAddress"]) <= address <= ipaddress.ip_address(data["endAddress"]):
-                    raise ValueError("wrong allocation")
-            except (KeyError, TypeError, ValueError):
-                raise ProviderError("provider_target_mismatch") from None
+        validate_rdap_response(kind, target, data)
         add("registry_handle", data.get("handle"))
         add("registered_name", data.get("ldhName") if kind == "domain" else data.get("name"))
+        if kind == "ip":
+            add("registered_country", data.get("country"))
         for status in data.get("status", [])[:20]:
             add("registration_status", status)
     elif source == "internetdb":
@@ -118,6 +122,57 @@ def _live_facts(source, seed, data, stamp):
             raise ProviderError("provider_target_mismatch")
         for port in data.get("ports", [])[:100]:
             add("observed_port", port)
+    elif source in {"ipwhois", "ipdata", "greynoise"}:
+        if ipaddress.ip_address(data["ip"]) != ipaddress.ip_address(target):
+            raise ProviderError("provider_target_mismatch")
+        if source == "greynoise":
+            add("provider_classification", data.get("classification"))
+            add("provider_last_seen", data.get("last_seen"))
+        else:
+            add("approximate_country", data.get("country_code"))
+            network = data.get("connection", {}) if source == "ipwhois" else data.get("asn", {})
+            if isinstance(network, dict):
+                add("network_asn", network.get("asn"))
+                add("network_isp", network.get("isp") if source == "ipwhois" else network.get("name"))
+    elif source in SEARCH_SOURCES:
+        query = data["query"]["original"] if source == "brave" else data["query"]
+        if query != '"' + target + '"':
+            raise ProviderError("provider_target_mismatch")
+        rows = data.get("web", {}).get("results", []) if source == "brave" else data["results"]
+        for row in rows[:10]:
+            if not isinstance(row, dict):
+                raise ProviderError("provider_schema_mismatch")
+            url = _public_result_url(row.get("url"))
+            if url:
+                add("search_result_url", url)
+    elif source == "urlscan":
+        for row in data["results"]:
+            if not isinstance(row, dict):
+                raise ProviderError("provider_schema_mismatch")
+            page, task = row.get("page", {}), row.get("task", {})
+            if not isinstance(page, dict) or not isinstance(task, dict):
+                raise ProviderError("provider_schema_mismatch")
+            # Missing optional fields yield no assertions; different targets fail closed.
+            if kind == "domain" and page.get("domain") is not None:
+                if str(page["domain"]).rstrip(".").lower() != target:
+                    raise ProviderError("provider_target_mismatch")
+            elif kind == "ip" and page.get("ip") is not None:
+                if ipaddress.ip_address(page["ip"]) != ipaddress.ip_address(target):
+                    raise ProviderError("provider_target_mismatch")
+            else:
+                continue
+            at = task.get("time")
+            if not isinstance(at, str):
+                continue
+            parsed_time = datetime.fromisoformat(at.replace("Z", "+00:00"))
+            if parsed_time.tzinfo is None:
+                raise ProviderError("provider_schema_mismatch")
+            at = parsed_time.astimezone(timezone.utc).isoformat()
+            url = _public_result_url(page.get("url"))
+            if url and (kind == "ip" or (urlsplit(url).hostname or "").lower() == target):
+                add("indexed_url", url, at)
+            if page.get("ip"):
+                add("scan_observed_ip", str(ipaddress.ip_address(page["ip"])), at)
     elif source == "wayback":
         if not data:
             return ()
@@ -139,12 +194,32 @@ def _live_facts(source, seed, data, stamp):
     return tuple(facts)
 
 
+def _public_result_url(value):
+    if not isinstance(value, str) or not 1 <= len(value) <= 500 or any(ord(c) < 33 for c in value):
+        return None
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            return None
+        if parsed.hostname.lower() in {"localhost", "localhost.localdomain"}:
+            return None
+        try:
+            if not ipaddress.ip_address(parsed.hostname).is_global:
+                return None
+        except ValueError:
+            pass
+    except ValueError:
+        return None
+    return value
+
+
 class InvestigationPipeline:
-    def __init__(self, service: WorkforceService, workspace: Path, *, requester=request):
+    def __init__(self, service: WorkforceService, workspace: Path, *, requester=request, search_requester=request_loopback_search):
         self.service = service
         self.store = service.store
         self.workspace = workspace
         self.requester = requester
+        self.search_requester = search_requester
 
     def run(self, task_id, *, documents=(), live=False, authorized=False):
         if live and documents:
@@ -174,14 +249,19 @@ class InvestigationPipeline:
             collected, outcomes, spans, tools = [], [], [], []
             network_attempts = 0
             def check(tool):
-                self.service._check_authority(context, task)
+                try:
+                    self.service._check_authority(context, task)
+                except ValueError as exc:
+                    raise CollectionStopped("collection authority is no longer valid") from exc
                 if not self.service._enabled():
-                    raise ValueError("workforce kill switch stopped collection")
+                    raise CollectionStopped("workforce kill switch stopped collection")
                 if tool not in context.allowed_tools or tool not in employee.allowed_tools:
                     raise ValueError("collection tool is outside effective authority")
                 if "request_collection" not in context.allowed_actions or "request_collection" not in employee.allowed_actions:
                     raise ValueError("collection action is outside effective authority")
-                return min(30.0, task.budget.runtime_seconds - (time.monotonic() - started),
+                # Reserve bounded time for evidence capture, analysis and the final transaction.
+                reserve = min(5.0, task.budget.runtime_seconds * 0.1)
+                return min(30.0, task.budget.runtime_seconds - reserve - (time.monotonic() - started),
                            (datetime.fromisoformat(task.deadline) - datetime.now(timezone.utc)).total_seconds())
             if not live:
                 if supplied and check("evidence.retrieve") <= 0:
@@ -196,44 +276,75 @@ class InvestigationPipeline:
                 unhealthy = {r["source"] for r in self.store.db.connector_health() if r["consecutive_failures"] >= 3}
                 kind, value = task.target_entities[0].split(":", 1)
                 for source in plan["sources"]:
+                    if source not in employee.allowed_sources:
+                        raise ValueError("collection source is outside employee authority")
                     tool = SOURCE_TOOLS[source]
                     remaining = check(tool)
-                    stamp, call_started = now(), time.monotonic()
+                    span_stamp, call_started = now(), time.monotonic()
                     if source in unhealthy or remaining <= 0 or network_attempts >= task.budget.tool_calls:
                         outcomes.append({"source_id": source, "status": "skipped", "reason": "circuit_open" if source in unhealthy else "budget_exhausted", "attempts": 0})
+                        for intent in plan["query_intents"]:
+                            if intent.get("provider") == source:
+                                intent.update(state="skipped", reason=outcomes[-1]["reason"])
                         continue
-                    tools.append(tool)
-                    captured = []
+                    if tool not in tools:
+                        tools.append(tool)
+                    captured = {}
+                    bootstrap_attempts = 0
                     def governed_request(url, headers, timeout):
                         nonlocal network_attempts
                         remaining = check(tool)
                         if network_attempts >= task.budget.tool_calls or remaining <= 0:
                             raise ProviderError("provider_deadline_exceeded")
                         network_attempts += 1
-                        status, raw = self.requester(url, headers, min(timeout, remaining))
+                        dispatch = self.search_requester if source == "searxng" else self.requester
+                        status, raw = dispatch(url, headers, min(timeout, remaining))
                         if status == 200:
-                            captured[:] = [raw]
+                            captured[url] = raw
                         return status, raw
-                    client = ResilientJSONClient(governed_request, max_body_bytes=400 * 1024)
+                    # Without Retry-After metadata, surface 429 instead of guessing a reset.
+                    client = ResilientJSONClient(governed_request, max_body_bytes=400 * 1024, retry_rate_limits=False)
                     attempts_before = network_attempts
                     try:
-                        url, headers = IntelligenceHub._live_request(SOURCES[source], kind, value)
-                        response = client.get(source, url, headers, remaining)
+                        if source == "rdap":
+                            def preserve_bootstrap(bootstrap_uri, response):
+                                nonlocal bootstrap_attempts
+                                bootstrap_attempts = response.attempts
+                                collected.append(SourceDocument(DOCUMENT_SCHEMA, "rdap_bootstrap", bootstrap_uri,
+                                    now(), captured[bootstrap_uri].decode("utf-8"), (), None, "iana"))
+                                outcomes.append({"source_id": "rdap_bootstrap", "status": "captured", "mode": "live", "attempts": response.attempts})
+                            url, response = rdap_lookup(client, kind, value, remaining, on_bootstrap=preserve_bootstrap)
+                        else:
+                            url, headers = request_spec(source, kind, value)
+                            response = client.get(source, url, headers, remaining)
+                        stamp = now()
                         facts = _live_facts(source, task.target_entities[0], response.data, stamp)
                         # Queries and headers are omitted; captured body bytes remain in content.
-                        uri = url.split("?", 1)[0]
+                        uri = "urn:traceatlas:provider:searxng:search" if source == "searxng" else url.split("?", 1)[0]
                         doc = SourceDocument(DOCUMENT_SCHEMA, source, uri, stamp,
-                                             captured[0].decode("utf-8"), facts, None, source)
+                                             captured[url].decode("utf-8"), facts, None, source)
                         collected.append(doc)
-                        outcomes.append({"source_id": source, "status": "captured", "mode": "live", "attempts": network_attempts-attempts_before})
+                        outcomes.append({"source_id": source, "status": "captured", "mode": "live", "attempts": network_attempts-attempts_before-bootstrap_attempts})
+                        for intent in plan["query_intents"]:
+                            if intent.get("provider") == source:
+                                intent["state"] = "executed"
+                                intent["result_count"] = len(facts)
                         self.store.db.record_connector_result(source, True)
+                    except CollectionStopped:
+                        raise
                     except (ProviderError, OSError, ValueError, KeyError, TypeError) as exc:
                         # Stable codes only. Never serialize URL/header/body or exception messages.
-                        reason = exc.code if isinstance(exc, ProviderError) else "connector_contract_failure"
-                        outcomes.append({"source_id": source, "status": "failed", "reason": reason, "attempts": network_attempts-attempts_before})
-                        self.store.db.record_connector_result(source, False, reason)
+                        reason = exc.code if isinstance(exc, (ProviderError, ConnectorNotConfigured)) else "connector_contract_failure"
+                        status = "skipped" if isinstance(exc, ConnectorNotConfigured) else "failed"
+                        outcomes.append({"source_id": source, "status": status, "reason": reason, "attempts": network_attempts-attempts_before-bootstrap_attempts})
+                        for intent in plan["query_intents"]:
+                            if intent.get("provider") == source:
+                                intent["state"] = status
+                                intent["reason"] = reason
+                        if status == "failed":
+                            self.store.db.record_connector_result(source, False, reason)
                     spans.append(TraceSpan(identifier("span", [task.task_id, source]), task.trace_id, None,
-                                           tool, outcomes[-1]["status"], stamp, now(),
+                                           tool, outcomes[-1]["status"], span_stamp, now(),
                                            int((time.monotonic()-call_started)*1000), ()))
             evidence = tuple(self.store.capture_document(task, doc, self.workspace) for doc in collected)
             analysis = self.analyze(task, tuple(collected), evidence, outcomes)
@@ -258,7 +369,7 @@ class InvestigationPipeline:
                 uncertainties=("structured_assertions_not_identity_or_causation",), confidence_basis=("deterministic-evidence-verification",),
                 source_independence=tuple(sorted({r["independence_group"] for r in analysis["source_lineage"]})),
                 information_gaps=tuple(analysis["information_gaps"]), recommended_next_actions=tuple(r["action_id"] for r in analysis["next_actions"]),
-                cost=CostRecord("traceatlas", "deterministic-no-model", 0, 0, 0, 0, "NONE"),
+                cost=CostRecord("traceatlas", "deterministic-no-model", 0, 0, 0, None if live else 0, "NONE"),
                 latency_ms=int((time.monotonic()-started)*1000), model_used="deterministic-no-model",
                 tool_calls=tuple(tools), execution_trace=tuple(spans), stop_reason=stop, completed_at=now())
             product = {"schema": "traceatlas-investigation-product/v1", "task_id": task.task_id, "case_id": task.case_id,
@@ -269,14 +380,16 @@ class InvestigationPipeline:
                        "replay_manifest": {"schema": "traceatlas-replay/v1", "workflow_version": WORKFLOW_VERSION,
                            "parser_version": PARSER_VERSION, "policy_version": POLICY_VERSION,
                            "worker_version": employee.version, "envelope_digest": row["envelope_digest"],
-                           "connector_versions": {d.source_id: 1 for d in collected},
+                           "connector_versions": {d.source_id: 2 if d.source_id == "rdap" else 1 for d in collected},
                            "source_timestamps": {d.source_id: d.retrieved_at for d in collected},
                            "dataset_versions": {}, "trace_id": task.trace_id,
                            "execution_parameters": {"seed": task.target_entities[0], "budget": task.budget.to_dict()},
                            "model": "deterministic-no-model", "prompt_version": None,
                            "source_outcomes": outcomes, "evidence": [e.to_dict() for e in evidence],
                            "analysis_digest": digest(analysis), "requires_network": False},
-                       "report_status": "DRAFT_REQUIRES_HUMAN_RELEASE", "network_attempts": network_attempts}
+                       "report_status": "DRAFT_REQUIRES_HUMAN_RELEASE", "network_attempts": network_attempts,
+                       "source_costs": {"status": "not-measured" if live else "no-network-calls", "actual_cost": None if live else 0,
+                                        "limitation": "Request count is bounded; provider billing and entitlements require operator qualification."}}
             product["report_markdown"] = self.render_report(product)
             product = json.loads(canonical(product))
             # Store only after service-level result checks succeed.
@@ -287,7 +400,9 @@ class InvestigationPipeline:
     def analyze(self, task, documents, evidence, outcomes):
         if len(documents) != len(evidence) or any(e.case_id != task.case_id for e in evidence):
             raise ValueError("analysis input evidence case mismatch")
-        observations, fact_rows, gaps = [], [], {"unconfigured-search-provider", "human-report-release-required"}
+        observations, fact_rows, gaps = [], [], {"human-report-release-required"}
+        if not any(d.source_id in SEARCH_SOURCES for d in documents):
+            gaps.add("no-captured-web-search")
         lineage = SourceIndependenceEngine().group([SourceRecord(d.source_id, d.source_uri, d.content, d.original_source_id, d.ownership_group) for d in documents])
         lineage_index = {r.source_id: r.independence_group for r in lineage}
         injection_sources = set()
@@ -342,6 +457,10 @@ class InvestigationPipeline:
             contrary = [(f, o, d) for f, o, d in fact_rows if f.subject == subject and f.predicate == predicate
                         and f.value != value and predicate in SINGLE_VALUES and any(_overlap(f, r[0]) for r in rows)]
             adversarial = []
+            if predicate == "search_result_url":
+                adversarial.append("search_listing_not_content_verification")
+            if predicate == "approximate_country":
+                adversarial.append("ip_geolocation_not_person_location")
             if any(d.source_id in injection_sources for _, _, d in rows):
                 adversarial.append("untrusted_instruction_content")
             if any(f.value not in d.content for f, _, d in rows):
@@ -366,7 +485,7 @@ class InvestigationPipeline:
                 conflicts.append({"claim_id": claim.claim_id, "predicate": predicate,
                                   "contrary_observation_ids": [o.observation_id for _, o, _ in contrary]})
             target_id = identifier("entity", [task.case_id, predicate, value])
-            node_type = "IP" if predicate == "resolves_to" else "URL" if predicate == "archived_url" else "Document"
+            node_type = "IP" if predicate in {"resolves_to", "scan_observed_ip"} else "URL" if predicate in {"archived_url", "indexed_url", "search_result_url"} else "Document"
             eids = tuple(dict.fromkeys(o.evidence_id for _, o, _ in rows))
             oids = tuple(o.observation_id for _, o, _ in rows)
             if target_id not in graph.nodes:
@@ -433,6 +552,11 @@ class InvestigationPipeline:
         for d in analysis["verification"]:
             claim = index[d["claim_id"]]
             lines.append(f"- {d['status']}: {esc(claim['statement'])}; observations: {', '.join(claim['observation_ids'])}")
+        lines += ["", "## Source collection"]
+        for outcome in product["replay_manifest"]["source_outcomes"]:
+            lines.append(f"- {outcome['source_id']}: {outcome['status']}; attempts {outcome['attempts']}"
+                         + ("; " + outcome["reason"] if "reason" in outcome else ""))
+        lines += ["", "## Provider costs", esc(product["source_costs"]["limitation"])]
         lines += ["", "## Evidence"]
         for e in product["replay_manifest"]["evidence"]:
             lines.append(f"- {e['evidence_id']}: {esc(e['source_uri'])}; SHA-256 {e['content_hash']}")

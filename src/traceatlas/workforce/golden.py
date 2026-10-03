@@ -68,14 +68,17 @@ def evaluate_pipeline_investigations() -> dict:
                     "IN", "fixture-only", stamp.isoformat(), (stamp+timedelta(hours=1)).isoformat(), "a"*64)
                 service.register_authorization(context)
                 kind, seed = fixture["seed"].split(":", 1)
-                planned = service.create_investigation_task(context.context_id, kind, seed, fixture["objective"])
+                controlled_sources = ("dns", "rdap", "wayback") if kind == "domain" else ("rdap",) if kind == "ip" else None
+                planned = service.create_investigation_task(context.context_id, kind, seed, fixture["objective"], sources=controlled_sources)
                 task_id = planned["task"]["task_id"]
                 service.approve(task_id, actor_id=context.actor_id, rationale="Approved synthetic exact-scope fixture only",
                                 envelope_digest=planned["envelope_digest"], authorized=True)
                 def requester(url, headers, timeout):
                     if url.startswith("https://dns.google/"):
                         return 200, b'{"Status":0,"Question":[{"name":"example.org.","type":1}],"Answer":[{"name":"example.org.","type":1,"data":"192.0.2.10"}]}'
-                    if url.startswith("https://rdap.org/"):
+                    if url.startswith("https://data.iana.org/"):
+                        return 200, b'{"version":"1.0","services":[[["org"],["https://rdap.publicinterestregistry.org/rdap/"]]]}'
+                    if url.startswith("https://rdap.publicinterestregistry.org/"):
                         return 503, b''
                     return 200, b'[]'
                 pipeline = InvestigationPipeline(service, root, requester=requester)

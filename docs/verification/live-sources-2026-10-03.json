@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-03",
+  "baseline_commit": "afec63367ce6500c621d8f3129168949af4addd3",
+  "workflow": "evidence-investigation/1.1.0",
+  "parser": "structured-fact/2",
+  "controlled_tests": {
+    "python_regressions": 256,
+    "node_pglite": 26,
+    "golden_pipeline_cases": 12,
+    "state": "passed",
+    "cli_live_source_flow": {
+      "cli_live_source_flow": "passed",
+      "approved_sources": [
+        "searxng"
+      ],
+      "network_attempts": 1,
+      "replay": true,
+      "search_result_count": 1,
+      "configuration_rows": 10
+    }
+  },
+  "direct_transport": {
+    "state": "not-qualified",
+    "reason": "provider_dns_failure in restricted execution environment",
+    "domain_run": {
+      "attempts": 8,
+      "captures": 0,
+      "offline_replay": true
+    },
+    "ip_run": {
+      "attempts": 8,
+      "captures": 0,
+      "offline_replay": true
+    }
+  },
+  "environment_proxy_real_responses": {
+    "production_transport_qualified": false,
+    "runs": [
+      {
+        "target_type": "domain",
+        "reference_target": "example.org",
+        "state": "PARTIAL",
+        "sources": [
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "dns",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "rdap_bootstrap",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "rdap",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "urlscan",
+            "status": "captured"
+          },
+          {
+            "attempts": 2,
+            "reason": "provider_deadline_exceeded",
+            "source_id": "wayback",
+            "status": "failed"
+          }
+        ],
+        "network_attempts": 6,
+        "evidence_captures": 4,
+        "observations": 47,
+        "offline_replay": true
+      },
+      {
+        "target_type": "ip",
+        "reference_target": "1.1.1.1",
+        "state": "HUMAN_REVIEW",
+        "sources": [
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "rdap_bootstrap",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "rdap",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "ipwhois",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "internetdb",
+            "status": "captured"
+          },
+          {
+            "attempts": 1,
+            "mode": "live",
+            "source_id": "urlscan",
+            "status": "captured"
+          }
+        ],
+        "network_attempts": 5,
+        "evidence_captures": 5,
+        "observations": 56,
+        "offline_replay": true
+      }
+    ]
+  },
+  "credentials_qualified": [],
+  "hosted_deployment_qualified": false,
+  "limits": [
+    "Public reference calls only; no target scans or URL submissions.",
+    "Injected proxy requester qualified response parsing/capture/replay, not shipped direct transport.",
+    "SearXNG HTTP integration uses a loopback fixture.",
+    "Brave/ipdata/GreyNoise real credentials and entitlement qualification remain pending.",
+    "Wayback timed out; failure retained.",
+    "Provider billing is not measured."
+  ]
+}

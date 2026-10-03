@@ -5,7 +5,7 @@
 > supplies an OpenCTI deployment, provider credentials and explicit authority.
 > See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.9.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.10.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -42,7 +42,7 @@ human review where judgment, attribution, privacy or legal authority matters.
   per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 37 social, code, package, scholarly, video, community,
+- Governed intelligence hub covering 38 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
 - Twenty-three live official/public API connectors: GitHub, GitLab, Hacker News,
@@ -829,6 +829,29 @@ The feature flag, exact authority and digest approval are still required. For
 setup and all commands see [runbook](docs/RUNBOOK.md). See [current state](CURRENT_STATE.md),
 [gap analysis](docs/GAP_ANALYSIS.md), [workflow](docs/WORKFLOW.md),
 [acceptance gates](docs/ACCEPTANCE_GATES.md) and [implementation report](docs/IMPLEMENTATION_REPORT.md).
-G01–G12 are controlled backbone tests; no new hosted deployment or live-source
-qualification is claimed. All requested design/domain/operations documents now
+G01–G12 are controlled backbone tests. No hosted deployment qualification is
+claimed; source-specific qualification is recorded separately below. All requested design/domain/operations documents now
 state their actual executable versus planned boundaries.
+
+
+## Live-source investigation integration (1.10.0)
+
+Domain/IP investigations now bind source selection before approval and collect
+DNS, IANA-routed RDAP, passive urlscan/Wayback index and IPWHOIS/InternetDB context.
+Explicit IP selections can use ipdata/GreyNoise. Configure Brave or your numeric
+loopback SearXNG service for evidence-linked web search leads. Source outcomes,
+unknown billing, graph/timeline and draft report share preserved-byte replay.
+
+```bash
+traceatlas workforce sources
+traceatlas workforce plan --context AUTH_ID --target-type domain --target example.org \
+  --objective 'Review authorized passive exposure' --sources dns rdap urlscan wayback
+traceatlas workforce run --task TASK_ID --live --authorized
+```
+
+Register authority and approve the returned task digest before running. See
+[live source setup and qualification](docs/LIVE_SOURCES.md) for search environment
+references, coverage and failure behavior. Real public response capture/replay
+passed through this environment's proxy; the shipped direct transport requires
+runtime network qualification. Wayback timed out; keyed search/provider access
+and hosted worker/UI deployment remain unqualified.

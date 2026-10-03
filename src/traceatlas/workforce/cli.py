@@ -12,6 +12,7 @@ from .registry import EmployeeRegistry
 from .service import WorkforceService
 from .documents import normalize_seed, load_documents
 from .pipeline import InvestigationPipeline
+from .live_sources import readiness, select_sources, SOURCE_TOOLS
 
 
 TOOLS = ("dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "ip.lookup", "evidence.retrieve")
@@ -22,6 +23,7 @@ def add_workforce_parser(sub) -> None:
     root = sub.add_parser("workforce", help="Bounded hybrid AI workforce; disabled unless explicitly enabled")
     commands = root.add_subparsers(dest="workforce_command", required=True)
     commands.add_parser("registry", help="List the five initial employee definitions")
+    commands.add_parser("sources", help="List implemented investigation sources and secret-safe configuration readiness")
     authorize = commands.add_parser("authorize-domain", help="Register an immutable local owned-domain authority")
     authorize.add_argument("--case", required=True)
     authorize.add_argument("--domain", required=True)
@@ -43,11 +45,12 @@ def add_workforce_parser(sub) -> None:
     generic.add_argument("--target-type", choices=("domain", "ip", "person", "company"), required=True)
     generic.add_argument("--target", required=True)
     generic.add_argument("--objective", required=True)
+    generic.add_argument("--sources", nargs="+", help="Bind explicit source IDs into the immutable approved task")
     collect = commands.add_parser("run", help="Execute approved collection, verification and draft reporting")
     collect.add_argument("--task", required=True)
     modes = collect.add_mutually_exclusive_group(required=True)
     modes.add_argument("--documents", type=Path, help="Approved source-document JSON")
-    modes.add_argument("--live", action="store_true", help="Fixed-host owned-domain/IP collection")
+    modes.add_argument("--live", action="store_true", help="Collect the live sources bound into the approved domain/IP task")
     collect.add_argument("--authorized", action="store_true")
     replay = commands.add_parser("replay", help="Verify and reanalyse captured bytes without network/model calls")
     replay.add_argument("--task", required=True)
@@ -77,6 +80,8 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "golden":
         from .golden import evaluate_pipeline_investigations
         return evaluate_pipeline_investigations()
+    if args.workforce_command == "sources":
+        return {"sources": readiness(), "network_requests": 0, "configuration_is_not_live_validation": True}
     service = WorkforceService(engine.db)
     if args.workforce_command in {"authorize-domain", "authorize"}:
         if not args.authorized:
@@ -86,9 +91,7 @@ def run_workforce(args, engine) -> dict:
         kind = "domain" if args.workforce_command == "authorize-domain" else args.target_type
         domain = normalize_seed(kind, args.domain if kind == "domain" and args.workforce_command == "authorize-domain" else args.target)
         now = datetime.now(timezone.utc)
-        effective_tools = {"domain": ("dns.lookup", "rdap.lookup", "archive.lookup", "evidence.retrieve"),
-                           "ip": ("rdap.lookup", "ip.lookup", "evidence.retrieve"),
-                           "person": ("evidence.retrieve",), "company": ("evidence.retrieve",)}[kind]
+        effective_tools = tuple(sorted({"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in select_sources(kind, domain)}))
         body = {"case": args.case, "target_type": kind, "target": domain, "tools": effective_tools, "actor": args.actor, "purpose": args.purpose,
                 "jurisdiction": args.jurisdiction, "retention": args.retention, "issued_at": now.isoformat()}
         context = AuthorizationContext(
@@ -104,7 +107,7 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "plan-domain":
         return service.create_owned_domain_task(args.context, args.domain, args.objective)
     if args.workforce_command == "plan":
-        return service.create_investigation_task(args.context, args.target_type, args.target, args.objective)
+        return service.create_investigation_task(args.context, args.target_type, args.target, args.objective, sources=args.sources)
     pipeline = InvestigationPipeline(service, engine.workspace)
     if args.workforce_command == "run":
         documents = load_documents(args.documents) if args.documents else ()

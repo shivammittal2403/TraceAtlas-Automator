@@ -13,7 +13,9 @@
 | 17 evaluation | Controlled contract pack | Held-out reviewers/model/source/human metrics |
 | 18 production | Not accepted | Hosted security, durability, recovery, load and pilot |
 
-Next highest-value task: vetted RDAP bootstrap/registry destination handling and
-one approved search adapter with preserved bytes; then connect the canonical
-product to a private hosted worker and evidence/claim UI. Do not replace the
+RDAP bootstrap routing, passive urlscan/IP enrichment and configurable Brave or
+SearXNG search are now implemented locally with preserved bytes and bound source
+selection. Next highest-value task: qualify the deployed transport and provider
+entitlements, then connect the canonical product to a private hosted worker and
+evidence/claim UI. Do not replace the
 working stack with Temporal/NATS/Neo4j simply because the blueprint lists them.

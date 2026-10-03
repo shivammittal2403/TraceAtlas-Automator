@@ -44,6 +44,12 @@ SOURCES: dict[str, SourceSpec] = {
         "ARCHIVED_URL", "Public web-archive index metadata; archived pages are not fetched.",
         live_connector=True,
     ),
+    "urlscan": _source(
+        "urlscan", "urlscan.io Search", "web-archive", "public-index-api",
+        "ARCHIVED_URL", "Read-only search of existing scans for an authorized domain or public IP.",
+        live_connector=True, credential_env=("URLSCAN_API_KEY",),
+        limitation="Historical scan metadata only; no scan submissions or automatic URL fetches. Anonymous quotas are limited.",
+    ),
     "internetdb": _source(
         "internetdb", "Shodan InternetDB", "internet-intelligence", "public-api",
         "INTERNET_EXPOSURE", "Keyless passive service metadata for an organisation-owned public IP.",
