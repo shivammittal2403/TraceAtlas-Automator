@@ -61,5 +61,15 @@
   "browser_local": "blocked: Chromium download returned invalid/truncated ZIP; no local browser pass",
   "live_verified_connectors": 0,
   "production_accepted": false,
-  "remote_ci": "pending branch publication"
+  "remote_ci": {
+    "verified_commit": "c6adcc73f368f416fb778e18c9cdb4e094eb28cc",
+    "CI": "success",
+    "CodeQL": "success",
+    "core_python": [
+      "3.10",
+      "3.12"
+    ],
+    "browser_fixture": "success in both core jobs",
+    "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37100210567"
+  }
 }

@@ -74,7 +74,12 @@ end-to-end/replay pass, 8/8 existing AI output-contract cases pass, local eviden
 bundle and SQLite restore pass, 8,275 pinned connector files verify, wheel builds.
 Nine delivery verification gates pass. Browser testing locally is blocked:
 Chromium download returned an invalid/truncated ZIP. Do not report a local browser
-pass. Remote CI/CodeQL on this change is pending branch publication.
+pass. The first published implementation commit `c6adcc73f368f416fb778e18c9cdb4e094eb28cc`
+passed remote CI and both CodeQL analyses. CI passed Python 3.10/3.12 core jobs,
+including the real Chromium synthetic browser flow, worker image, package/SBOM,
+dependency review and preserved OpenOSINT runtime. This resolves browser
+verification in CI; it does not claim a local browser pass or live provider proof.
+Subsequent documentation/worker-version publication requires its own CI result.
 Compact evidence is `docs/verification/2026-10-03.json`.
 
 ## Security Review

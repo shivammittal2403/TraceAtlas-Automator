@@ -9,3 +9,7 @@ Authority and runtime tool contracts still intersect the registry's maximum
 permissions. A registry capability is not live provider verification. New
 specialists require a unique capability, minimum authority, measurable evaluation
 and independent evidence validation; do not add roles for catalog size.
+
+WEBINT/INFRAINT Specialist is version 1.1.0 for the added IP/approved-record
+capabilities. Changed definitions invalidate previous execution approvals;
+create and approve a fresh task while preserving earlier captured products.

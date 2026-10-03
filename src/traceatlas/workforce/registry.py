@@ -6,9 +6,9 @@ from .contracts import Budget, EmployeeDefinition, SCHEMA_VERSION, TaskEnvelope
 
 def _employee(employee_id: str, name: str, role: str, domain: str, objective: str,
               tools: tuple[str, ...], sources: tuple[str, ...], actions: tuple[str, ...],
-              capabilities: tuple[str, ...]) -> EmployeeDefinition:
+              capabilities: tuple[str, ...], *, version: str = "1.0.0") -> EmployeeDefinition:
     return EmployeeDefinition(
-        schema_version=SCHEMA_VERSION, employee_id=employee_id, name=name, version="1.0.0",
+        schema_version=SCHEMA_VERSION, employee_id=employee_id, name=name, version=version,
         role=role, domain=domain, objective=objective, allowed_tools=tools,
         allowed_sources=sources, allowed_actions=actions,
         prohibited_actions=("change_scope", "grant_authority", "contact_subject", "execute_code", "install_tool"),
@@ -30,7 +30,7 @@ INITIAL_EMPLOYEES: tuple[EmployeeDefinition, ...] = (
               "Collect and interpret approved public domain and infrastructure evidence",
               ("search.execute", "dns.lookup", "rdap.lookup", "archive.lookup", "ip.lookup", "evidence.retrieve"),
               ("dns", "rdap", "wayback", "internetdb", "approved_search", "approved_export"),
-              ("request_collection", "propose_observation", "propose_claim"), ("webint", "infraint", "domain", "ip", "person", "company")),
+              ("request_collection", "propose_observation", "propose_claim"), ("webint", "infraint", "domain", "ip", "person", "company"), version="1.1.0"),
     _employee("verification-supervisor", "Verification Supervisor", "supervisor", "VERIFICATION",
               "Challenge material claims and surface contradictions without changing evidence",
               ("evidence.verify", "verification.run", "graph.query"), (),
