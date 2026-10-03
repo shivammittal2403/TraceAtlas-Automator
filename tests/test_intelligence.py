@@ -34,9 +34,8 @@ class IntelligenceTests(unittest.TestCase):
         self.assertTrue({"gitlab", "hackernews", "nvd"}.issubset(SOURCES))
         self.assertTrue({"mastodon", "stackexchange", "dockerhub", "npm", "crossref", "orcid"}.issubset(SOURCES))
         self.assertTrue({"ipwhois", "ipdata", "greynoise"}.issubset(SOURCES))
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 27)
         self.assertIn("urlscan", SOURCES)
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 31)
+        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 33)
 
     def test_new_ip_context_connectors_enforce_scope_and_validate_contracts(self):
         fixtures = {

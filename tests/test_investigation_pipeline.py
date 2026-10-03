@@ -224,7 +224,12 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             load_documents(path)
         link = self.root / 'link.json'
-        link.symlink_to(path)
+        try:
+            link.symlink_to(path)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege unavailable; exercised in Linux CI")
+            raise
         with self.assertRaises(ValueError):
             load_documents(link)
 

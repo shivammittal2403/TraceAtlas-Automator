@@ -54,3 +54,19 @@ See `docs/sources/SOURCE_FABRIC.md`, `docs/sources/SOURCE_AUDIT_MATRIX.csv`,
 `docs/verification/source-fabric-2026-10-03.json`, `docs/LIVE_SOURCES.md` and
 `docs/ACCEPTANCE_GATES.md`. Earlier cycle evidence remains in
 `docs/verification/live-sources-2026-10-03.json` and `docs/IMPLEMENTATION_REPORT.md`.
+
+## Employee console integration (PR #26)
+
+Adds `employee serve` and `employee investigate`: local bounded runs, checkpoints,
+cancellation, cited graph/report, optional local-model drafting and evidence ZIP.
+Shared IntelligenceHub now has 47 records / 33 API implementations with EPSS and
+OSV. Canonical workforce adapters, MCP, registered company keys and IANA RDAP
+remain intact. Employee run telemetry/qualification is separate from canonical
+workforce state; do not combine their verification counts. The employee replay
+checks bundle integrity, not canonical semantic recomputation.
+
+CODED: console, employee routing and additional connectors. TESTED: 302 Python tests (299 pass, three environment skips), 25 Node graph/target tests pass; see PR #26
+verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
+hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;
+hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones remain
+open in the canonical delivery ledger.

@@ -177,17 +177,9 @@ class IntelligenceHub:
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
         headers = {"User-Agent": "TraceAtlas-Automator/1.8"}
-        if spec.name == "gleif":
-            if target_type == "lei" and re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", target):
-                return "https://api.gleif.org/api/v1/lei-records/" + target, headers
-            if target_type == "company" and 2 <= len(target) <= 150 and not any(ord(c) < 32 or c in ',|*' for c in target):
-                query = urlencode({"filter[entity.names]": target, "page[size]": 3})
-                return "https://api.gleif.org/api/v1/lei-records?" + query, headers
-            raise PolicyError("GLEIF requires an uppercase LEI or a bounded company-name query without wildcards, commas or pipes")
-        if spec.name == "ripestat":
-            if target_type != "ip" or not ipaddress.ip_address(target).is_global:
-                raise PolicyError("RIPEstat requires a public IP")
-            return "https://stat.ripe.net/data/network-info/data.json?" + urlencode({"resource": target}), headers
+        if spec.name in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"} or (spec.name == "github" and target_type == "company"):
+            from .registry_requests import registry_request
+            return registry_request(spec.name, target_type, target)
         if spec.name == "epss":
             if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", target):
                 raise PolicyError("EPSS requires one exact CVE")
@@ -196,9 +188,6 @@ class IntelligenceHub:
             if target_type != "vulnerability" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{3,119}", target):
                 raise PolicyError("OSV requires one exact vulnerability identifier")
             return "https://api.osv.dev/v1/vulns/" + quote(target, safe=""), headers
-        if spec.name in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"} or (spec.name == "github" and target_type == "company"):
-            from .registry_requests import registry_request
-            return registry_request(spec.name, target_type, target)
         if spec.name == "rdap":
             raise PolicyError("RDAP requires IANA bootstrap resolution through collect")
         if spec.name == "urlscan":
@@ -408,8 +397,10 @@ class IntelligenceHub:
                 matches = False
         elif source == "osv":
             matches = data["id"] == target or target in data.get("aliases", [])
-        elif source == "gleif" and target_type == "lei":
-            matches = isinstance(data["data"], dict) and data["data"].get("id") == target
+        elif source == "gleif":
+            from .registry_requests import company_identifier
+            identifier = company_identifier("gleif", target)[0]
+            matches = isinstance(data["data"], dict) and data["data"].get("id") == identifier
         if not matches:
             raise ProviderError("provider_target_mismatch")
         if source == "stackexchange":

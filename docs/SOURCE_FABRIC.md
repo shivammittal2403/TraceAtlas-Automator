@@ -1,25 +1,18 @@
-# Source Fabric: Phase A implementation and qualification status
+# Employee console source integration
 
-## Audit and actual counts
+## Integration with current main
 
-Baseline main `fe51ba7b2e085038751a0de1fb546a2ec8453397` had 37 source records, 23 API connector implementations, 14 export-only records, 49 capability adapters and 308 pinned external OpenCTI packages. External packages are not local live sources.
+This delivery was reconciled with main `fe4a07809ceed92b3f5be35baf7441101ce3445e` after PRs #22, #24 and #25 merged during development. Preserve their canonical `workforce/pipeline.py`, 20 workforce source adapters, SourceRegistry, MCP tools, strict registered company identifiers and IANA RDAP bootstrap. See [canonical Source Fabric](sources/SOURCE_FABRIC.md) and [CURRENT_STATE](../CURRENT_STATE.md).
 
-This implementation has **41 source records, 27 API implementations, 14 export-only records**. It adds GLEIF, RIPEstat, FIRST EPSS and OSV. The requested list is preserved as **400 candidate slots, 361 canonical slots, 39 explicit aliases**; 31 slots are tools or dataset families. Canonical slots are not a claim of unique verified providers. Most candidates remain unreviewed; selected official documentation has only partial reviews. Unknown commercial, license, jurisdiction and maintenance fields remain null.
+The employee console adds a local, single-user objective/seed workflow with checkpoints, cancellation, cited graph/report, optional Ollama draft and evidence ZIP. Its `--source-fabric` adapter path uses shared IntelligenceHub connectors and separate employee run telemetry; it is not a replacement for canonical workforce authorization, semantic replay, health records or hosted approvals. Its replay checks integrity and references, whereas canonical workforce replay reanalyses captured source records. Do not combine the two health databases' verification counts.
 
-There are 20 prioritized P0 implementations, including credential-gated and unverified connectors. RDAP is a known incompatibility: [rdap.org](https://about.rdap.org/) redirects to authoritative servers, while the pinned transport forbids redirects. Source Fabric excludes it and reports the registration gap. No claim of 20 healthy or production-qualified sources is made.
+Combined IntelligenceHub inventory: **47 records, 33 API implementations, 14 export-only records**. EPSS and OSV are the two additional implementations beyond current main. GLEIF and RIPEstat reuse main's implementations. Company inputs require exact qualified identifiers, e.g. `company:lei:5493001KJTIIGC8Y1R12`; free-name company search is not enabled. RDAP now uses the reviewed IANA bootstrap; the earlier rdap.org redirect incompatibility is resolved by main without enabling arbitrary redirects.
 
-Three live API canaries succeeded on 2026-10-03: GLEIF, EPSS and OSV. See `source-fabric-live-verification.json`. **Production-qualified: 0.** These measurements belong to the delivery workspace. Fresh installations correctly start with zero locally live-verified sources. Live verification expires after seven days and requires a successful non-fixture call. Production promotion requires a recent live canary, intact canary/review evidence, 16 explicitly recorded analyst checks and local authorization. Local analyst identities are assertions, not authenticated users.
+Two historical candidate inventories are preserved. Canonical workforce deduplication produces 351 research rows from 400 supplied slots. The employee catalogue's conservative explicit-alias map produces 361 canonical slots (39 aliases, 31 tool/family slots). These are different grouping policies over candidates, never independent source counts. Neither list demonstrates 400 implemented or legally qualified providers. Prefer the canonical catalogue for programme planning.
 
-## Implemented flow
+## Actual verification
 
-1. Exact typed seeds, objective, actor, attestations, expiry and budgets produce a digest-bound immutable manifest.
-2. The router derives capabilities and greedily selects a small source set. Scores are documented policy weights, not learned information gain. Country/language fit remains unknown; it does not grant jurisdiction approval.
-3. Wave 1 queries selected providers; wave 2 uses alternatives only for unresolved capabilities. Nonempty records indicate retrieval coverage, not proof of a claim. Credentialed providers require an entitlement contract and are excluded from unattended routing.
-4. A gateway rechecks case authorization, cancellation and scope, including cache hits. HTTPS destinations are fixed and public DNS addresses pinned. Requests reject redirects and oversized/non-JSON responses.
-5. SQLite leases enforce workspace limits: four global calls, three per case, one per provider. A process-local one-second provider interval supplements these leases. Independent workspaces do not share quotas. Network work runs in threads; evidence writes remain serialized. Retries share the bounded deadline.
-6. Case-scoped cache reuse verifies custody integrity. Fixture and live responses are separated. Valid schema changes create drift warnings; invalid responses produce failure metadata, never normalized evidence. This is metadata quarantine, not a full isolated body repository.
-7. Normalized evidence is hash-preserved. Original response bytes are additionally retained for eligible non-personal JSON; personal sources and recognized sensitive-field responses withhold raw bytes. Hashes establish byte integrity, not truth. The redactor cannot guarantee detection of every secret embedded in arbitrary text.
-8. Existing verification, lineage and graph engines produce cited observations, claims, conflicts, unknowns, reports and offline replay. Company LEIs are candidate associations, never automatic identity merges. Optional local Ollama drafting cannot execute tools or alter scope.
+Three direct live canaries succeeded in the employee delivery workspace before main reconciliation: GLEIF, EPSS and OSV. Sanitized hashes/timings are in `source-fabric-live-verification.json`. They do not establish post-merge live qualification of every adapter. Fresh workspaces start at zero locally live-verified sources. **Production-qualified: zero.** Optional credentials, commercial entitlements, hosted rollout and installed Ollama remain unverified.
 
 ## Run
 
@@ -29,38 +22,38 @@ $env:TRACEATLAS_WORKFORCE_ENABLED = '1'
 traceatlas --workspace ./cases employee serve
 ```
 
-Open `http://127.0.0.1:8765`. Source Fabric is selected by default in the local console. The console remains loopback-only with Host/Origin checks and CSRF; it has no remote authentication or tenant isolation.
+Open `http://127.0.0.1:8765`. Create a case, supply authorized typed seeds, actor, objective, attestations and budget. The Source Fabric checkbox selects employee capability routing. The server is loopback-only, with Host/Origin checks and CSRF. Analyst IDs are local assertions, not authenticated identities; no remote tenancy is provided.
 
 ```text
 traceatlas --workspace ./cases source-fabric audit
-traceatlas --workspace ./cases source-fabric catalog GLEIF
-traceatlas --workspace ./cases source-fabric manifest gleif
-traceatlas --workspace ./cases source-fabric plan --objective "Review company LEI records" --seed "company:Example Company" --public-record-basis
-traceatlas --workspace ./cases init company-review --title "Company records" --purpose "Authorized public-record research"
-traceatlas --workspace ./cases employee investigate --case company-review --objective "Review company LEI records" --seed "company:Example Company" --actor analyst-1 --public-record-basis --authorized --source-fabric --output ./reports
+traceatlas --workspace ./cases source-fabric catalog EPSS
+traceatlas --workspace ./cases source-fabric manifest epss
+traceatlas --workspace ./cases source-fabric plan --objective "Review company LEI records" --seed company:lei:5493001KJTIIGC8Y1R12 --public-record-basis
 traceatlas --workspace ./cases source-fabric metrics
 traceatlas --workspace ./cases source-fabric discover --opencti
 ```
 
-Replace example scope with real authorized scope. `discover --file candidates.json` accepts bounded candidate name/documentation URL records; discovery only stages candidates. It never downloads code, enables execution, or promotes production status.
+For canonical workforce routing, use the commands in `docs/sources/SOURCE_FABRIC.md`. Discovery here stages bounded candidate metadata only. It never downloads code, enables execution or promotes sources.
 
-## SDK and operations
+## Employee execution limits
 
-`source_fabric/sdk.py` defines health, capabilities, input validation, cost estimation, search/fetch, normalization, provenance, evidence metadata, rate status and close. It reuses IntelligenceHub contracts and transport. Manifests expose provider grouping, capabilities, privacy, authentication references, pricing unknowns and implementation status. Credentials themselves are never included.
+- Digest-bound exact seeds, authority expiry, action/runtime budgets, kill switch and cancellation. Source content cannot grant permissions or expand scope.
+- Greedy capability coverage and one fallback wave; explicit heuristic scores, not measured information gain. Unknown country/language/cost qualification stays unknown. Credentialed unattended calls are excluded.
+- Workspace SQLite concurrency leases: four global calls, three per case, one per provider, plus a process-local interval. Separate workspaces and canonical workforce calls do not share these employee quotas.
+- Fixed-host public-address-pinned HTTPS and bounded retries/response size. RDAP destinations intersect IANA data with reviewed registry bases.
+- Case-scoped cache rechecks authority and ledger integrity; fixture/live modes are separated. Network calls run concurrently, custody writes serially.
+- Schema field changes are flagged. Invalid bodies create failure metadata, not normalized evidence. This is metadata quarantine, not isolated raw-body storage.
+- Eligible non-personal JSON retains original bytes; personal sources and recognized secret fields withhold raw bytes. Arbitrary embedded secrets cannot all be detected. Normalized redaction and evidence hashes do not prove claim truth.
+- Reports distinguish observations, claims, unknowns and unresolved company associations. Optional local model drafts have no tools. No contact, account actions, publication, bypass or exploitation.
+- Qualification requires a recent real canary, intact canary/review ledger and 16 evidence-backed analyst checks. Fixture responses cannot promote sources.
+- Telemetry includes bytes, attempts, cache, timing and drift. Parser-only success, actual API/compute cost and causal completion improvement are null when unmeasured. Health percentage is represented as a fraction.
 
-Execution telemetry records timing, bytes, attempts, errors, cache and schema fingerprints. Retrieval success is end-to-end completion; parser-only success, measured API/compute costs, independent evidence yield and causal completion improvement are currently unknown (null). Health percentage uses recent local state and returns a fraction from 0 to 1. Historical success does not override a later failure.
+## Remaining programme work
 
-No automatic source promotion occurs. Use `source-fabric review --help` and `promote --help` for evidence-backed local analyst qualification. Candidate discovery is manually invoked; scheduled online source discovery, full recurring drift probes and centralized distributed quotas are not implemented.
+The requested 200 technically qualified / 100 live-verified / 50 production-qualified milestones remain incomplete. Current main supplies CT, public search/registry adapters absent from the initial audit; their entitlement and live-runtime readiness still require qualification. Beneficial ownership, sanctions, procurement, geospatial, distributed quotas, periodic online discovery and calibrated model/source selection remain gaps. See the canonical delivery ledger for progressive releases.
 
-## Research findings and remaining releases
+Official research also established [Bing Search API retirement](https://learn.microsoft.com/en-us/lifecycle/announcements/bing-search-api-retirement) and [Google Custom Search new-customer restrictions](https://developers.google.com/custom-search/v1/overview). Candidate flags preserve these findings. EPSS is a probability estimate, not proof of exploitation; [EPSS API](https://api.first.org/epss/) and [OSV API](https://google.github.io/osv.dev/get-v1-vulns/) document the new exact-identifier calls.
 
-- [Bing Search APIs retired on 2025-08-11](https://learn.microsoft.com/en-us/lifecycle/announcements/bing-search-api-retirement). Old Bing candidates are marked deprecated.
-- [Google Custom Search](https://developers.google.com/custom-search/v1/overview) is closed to new customers; existing customers must transition by 2027-01-01. It is not treated as a generally available new connector.
-- [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get) is a documented candidate, not an implemented provider here.
-- New connector contracts reference [GLEIF](https://www.gleif.org/en/lei-data/gleif-api/), [RIPEstat](https://stat.ripe.net/docs/data-api/api-endpoints/network-info), [EPSS](https://api.first.org/epss/) and [OSV](https://google.github.io/osv.dev/get-v1-vulns/). EPSS is a probability estimate, not evidence of exploitation.
+## Combined regression checkpoint
 
-The requested 200 technically qualified, 100 live-verified and 50 production-qualified milestones remain future qualification work. Unimplemented coverage includes certificate transparency, official filings, beneficial ownership, procurement, sanctions, web search and geospatial connectors. Waves 3–5, commercial entitlement allocation, automatic source development and blanket 400-provider research completion are not claimed. No autonomous contact, account actions, publication, exploitation or authentication bypass is implemented.
-
-## Verification checkpoint
-
-Full Python regression: 240 tests, 239 passed, one environment-dependent skip on Windows (Bash unavailable). This includes fixture gateway concurrency, same-case cache, cross-case isolation, scope/cancellation rejection, drift, privacy withholding, routing exclusions, report and replay integrity. Wheel packaging succeeded. Browser employee flow was verified with synthetic responses; live provider canaries are separately recorded above.
+After reconciliation with main: 302 Python tests, 299 passed and three environment skips (Bash, Windows symlink privilege, optional MCP SDK). All 25 Node graph/target tests passed. Source compilation and secret scanning passed. Linux CI exercises symlinks and the locked MCP SDK; database/browser gates run there.

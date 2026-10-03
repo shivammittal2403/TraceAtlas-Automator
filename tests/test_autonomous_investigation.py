@@ -31,7 +31,11 @@ class InvestigationTests(unittest.TestCase):
         self.requests.append(url)
         if "dns.google" in url:
             data = {"Status": 0, "Answer": [{"name": "example.org", "type": 1, "data": "1.1.1.1"}]}
-        elif "rdap.org" in url:
+        elif "data.iana.org" in url:
+            data = {"version":"1.0", "services": [[["org"], ["https://rdap.publicinterestregistry.org/rdap/"]]] if "dns.json" in url else [[["8.0.0.0/8"], ["https://rdap.arin.net/registry/"]]]}
+        elif "rdap.arin.net" in url:
+            data = {"objectClassName":"ip network", "startAddress":"8.0.0.0", "endAddress":"8.255.255.255", "country":"US"}
+        elif "rdap.publicinterestregistry.org" in url:
             data = {"objectClassName": "domain", "ldhName": "EXAMPLE.ORG", "country": "US"}
         elif "web.archive.org" in url:
             data = [["timestamp", "original"], ["20240101000000", "https://example.org"]]
@@ -63,7 +67,7 @@ class InvestigationTests(unittest.TestCase):
 
     def test_real_hub_to_report_graph_and_offline_replay(self):
         current = self.run_task(self.create())
-        self.assertEqual(len(self.requests), 3)
+        self.assertEqual(len(self.requests), 4)
         self.assertTrue(EvidenceStore(self.root, self.db, "case-a").verify_ledger()[0])
         report = current["report"]
         self.assertGreater(len(report["observations"]), 0)
@@ -81,7 +85,7 @@ class InvestigationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             verify_replay(folder)
         self.run_task(current)
-        self.assertEqual(len(self.requests), 3)  # Terminal retry does not recollect.
+        self.assertEqual(len(self.requests), 4)  # Terminal retry does not recollect.
 
     def test_missing_authority_person_consent_and_wrong_actor_fail_before_network(self):
         for kwargs in ({"authorized": False}, {"attestations": {}}, {"subject_type": "person"}):
@@ -129,7 +133,7 @@ class InvestigationTests(unittest.TestCase):
                 self.run_task(current)
         self.assertEqual(self.service.get("case-a", current["id"])["status"], "interrupted")
         resumed = self.run_task(current, resume=True)
-        self.assertEqual(len(self.requests), 2)
+        self.assertEqual(len(self.requests), 3)  # Remaining RDAP source uses bootstrap plus registry.
         self.assertEqual(sum(a["state"] == "uncertain" for a in resumed["actions"]), 1)
         self.assertGreaterEqual(resumed["elapsed"], 30)
 
