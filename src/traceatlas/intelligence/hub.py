@@ -25,6 +25,7 @@ from .sources import SOURCES, SourceSpec
 from .provider import ProviderError, ResilientJSONClient
 from .contracts import source_contract
 from .transport import request as _request
+from .rdap import lookup as rdap_lookup
 
 
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
@@ -177,12 +178,19 @@ class IntelligenceHub:
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
         headers = {"User-Agent": "TraceAtlas-Automator/1.8"}
         if spec.name == "rdap":
+            raise PolicyError("RDAP requires IANA bootstrap resolution through collect")
+        if spec.name == "urlscan":
             if target_type not in {"domain", "ip"}:
-                raise PolicyError("RDAP target must be a domain or public IP")
-            validate_target(target_type, target)
-            if target_type == "ip" and not ipaddress.ip_address(target).is_global:
-                raise PolicyError("RDAP accepts public IPs only")
-            return f"https://rdap.org/{target_type}/{quote(target)}", headers
+                raise PolicyError("urlscan search requires a domain or public IP")
+            value = validate_target(target_type, target).value
+            if target_type == "ip" and not ipaddress.ip_address(value).is_global:
+                raise PolicyError("urlscan search accepts public IPs only")
+            key = os.environ.get("URLSCAN_API_KEY", "").strip()
+            if key:
+                if len(key) > 512 or any(char.isspace() for char in key):
+                    raise ConnectorNotConfigured("URLSCAN_API_KEY is not configured correctly")
+                headers["api-key"] = key
+            return "https://urlscan.io/api/v1/search/?" + urlencode({"q": f'page.{target_type}:"{value}"', "size": 20}), headers
         if spec.name == "dns":
             if target_type != "domain":
                 raise PolicyError("DNS collection requires a domain target")
@@ -379,11 +387,14 @@ class IntelligenceHub:
             target_hash = fingerprint([source, target_type, target])
             source_run_id = str(uuid4())
             self.db.start_source_run(source_run_id, case_id, source, "live", target_hash)
-            url, headers = self._live_request(spec, target_type, target)
             contract = source_contract(source)
-            if urlsplit(url).hostname not in contract.allowed_hosts:
-                raise ProviderError('provider_destination_rejected')
-            provider_result = self.provider.get(source, url, headers, timeout_seconds)
+            if source == "rdap":
+                url, provider_result = rdap_lookup(self.provider, target_type, validate_target(target_type, target).value.lower(), timeout_seconds)
+            else:
+                url, headers = self._live_request(spec, target_type, target)
+                if urlsplit(url).hostname not in contract.allowed_hosts:
+                    raise ProviderError('provider_destination_rejected')
+                provider_result = self.provider.get(source, url, headers, timeout_seconds)
             data = provider_result.data
             # Do not attach another target's response to this investigation.
             if source in {"internetdb", "ipwhois", "ipdata", "greynoise"}:

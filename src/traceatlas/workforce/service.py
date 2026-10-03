@@ -58,8 +58,9 @@ class WorkforceService:
     def create_owned_domain_task(self, context_id: str, domain: str, objective: str) -> dict:
         return self.create_investigation_task(context_id, "domain", domain, objective)
 
-    def create_investigation_task(self, context_id: str, target_type: str, target: str, objective: str) -> dict:
+    def create_investigation_task(self, context_id: str, target_type: str, target: str, objective: str, *, sources=None) -> dict:
         from .documents import normalize_seed
+        from .live_sources import select_sources, SOURCE_TOOLS
         if not self._enabled():
             raise ValueError("AI workforce execution is disabled by the server-side feature flag")
         target = normalize_seed(target_type, target)
@@ -69,11 +70,8 @@ class WorkforceService:
         if seed not in context.scope:
             raise ValueError("target is outside the immutable authorization scope")
         self._check_authority(context)
-        required_tools = {"evidence.retrieve"}
-        if target_type == "domain":
-            required_tools |= {"dns.lookup", "rdap.lookup", "archive.lookup"}
-        elif target_type == "ip":
-            required_tools |= {"rdap.lookup", "ip.lookup"}
+        selected = select_sources(target_type, target, sources)
+        required_tools = {"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in selected}
         required_actions = {"request_collection", "propose_observation", "propose_claim"}
         if not required_tools.issubset(context.allowed_tools) or not required_actions.issubset(context.allowed_actions):
             raise ValueError("authorization does not permit the domain vertical slice")
@@ -83,13 +81,16 @@ class WorkforceService:
             objective=objective, scope=(seed,), authorization_context_id=context.context_id,
             policy_digest=context.policy_digest, target_entities=(seed,),
             required_capabilities=(target_type, "webint"), evidence_context_ids=(),
-            constraints=("passive_only", "no_contact", "no_identity_merge", "human_release_required"),
+            constraints=("passive_only", "no_contact", "no_identity_merge", "human_release_required",
+                         *("live-source:" + source for source in selected)),
             budget=Budget("USD", 1.0, 120, 8, 2),
             deadline=(now + timedelta(minutes=15)).isoformat(),
             stop_conditions=("budget_exhausted", "deadline_reached", "source_exhausted", "human_review_required"),
             created_by=context.actor_id, created_at=now.isoformat(),
         )
         employee = self.registry.select(task, set(context.allowed_tools), set(context.allowed_actions))
+        if not set(selected).issubset(employee.allowed_sources):
+            raise ValueError("employee does not permit the selected sources")
         definition_digest = _digest(employee.to_dict())
         envelope_digest = self.store.create_task(task, employee.employee_id, definition_digest)
         return {"task": task.to_dict(), "employee": employee.to_dict(), "envelope_digest": envelope_digest,
@@ -139,6 +140,8 @@ class WorkforceService:
             if time.monotonic() - started > task.budget.runtime_seconds:
                 raise ValueError("result exceeded the runtime budget")
             self._check_authority(context, task)
+            if not self._enabled():
+                raise ValueError("workforce kill switch stopped completion")
             self.store.finish(task_id, result, product=product_factory() if product_factory else None)
         except BaseException:
             self.store.fail(task_id)

@@ -13,7 +13,9 @@ from .contracts import StrictContract, _id, _text, _utc
 DOCUMENT_SCHEMA = "traceatlas-source-document/v1"
 PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "registered_country",
                         "registration_status", "observed_port", "archived_url", "public_label",
-                        "associated_with", "mentions", "indicator", "dependency"})
+                        "associated_with", "mentions", "indicator", "dependency", "search_result_url",
+                        "indexed_url", "scan_observed_ip", "approximate_country", "network_asn",
+                        "network_isp", "provider_classification", "provider_last_seen"})
 MAX_DOCUMENT_BYTES = 512 * 1024
 MAX_DOCUMENTS = 8
 
@@ -50,7 +52,7 @@ class StructuredFact(StrictContract):
             object.__setattr__(self, "valid_to", _utc(self.valid_to, "valid_to"))
             if self.valid_to < self.valid_from:
                 raise ValueError("valid_to precedes valid_from")
-        if self.predicate == "resolves_to":
+        if self.predicate in {"resolves_to", "scan_observed_ip"}:
             object.__setattr__(self, "value", str(ipaddress.ip_address(self.value)))
         if self.predicate == "observed_port" and (not self.value.isdigit() or not 1 <= int(self.value) <= 65535):
             raise ValueError("invalid observed port")

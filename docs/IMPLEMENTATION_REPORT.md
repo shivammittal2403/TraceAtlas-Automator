@@ -133,3 +133,6 @@ Qualify a vetted RDAP bootstrap destination policy and one approved search
 adapter with preserved bytes, then connect this canonical product to a private
 hosted worker and the investigator evidence/claim view with staging isolation
 and recovery proof.
+
+
+The subsequent live-source cycle is recorded in [LIVE_SOURCE_IMPLEMENTATION.md](LIVE_SOURCE_IMPLEMENTATION.md), with source-specific qualification in [LIVE_SOURCES.md](LIVE_SOURCES.md).

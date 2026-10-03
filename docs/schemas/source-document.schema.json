@@ -66,7 +66,15 @@
               "associated_with",
               "mentions",
               "indicator",
-              "dependency"
+              "dependency",
+              "search_result_url",
+              "indexed_url",
+              "scan_observed_ip",
+              "approximate_country",
+              "network_asn",
+              "network_isp",
+              "provider_classification",
+              "provider_last_seen"
             ]
           },
           "value": {

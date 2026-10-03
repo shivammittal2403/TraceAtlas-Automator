@@ -114,18 +114,18 @@ _EXPECTED_MCP_TOOLS = {
 }
 
 
-def test_mcp_tool_set_matches_rest_allow_list():
-    registered = {t.name for t in _mcp._tool_manager.list_tools()}
+async def test_mcp_tool_set_matches_rest_allow_list():
+    registered = {t.name for t in await _mcp.list_tools()}
     assert registered == _EXPECTED_MCP_TOOLS
 
 
-def test_mcp_tool_set_matches_rest_allow_list_keys():
-    registered = {t.name for t in _mcp._tool_manager.list_tools()}
+async def test_mcp_tool_set_matches_rest_allow_list_keys():
+    registered = {t.name for t in await _mcp.list_tools()}
     assert registered == set(_REST_ALLOW_LIST.keys())
 
 
-def test_unlisted_tools_not_in_mcp():
-    registered = {t.name for t in _mcp._tool_manager.list_tools()}
+async def test_unlisted_tools_not_in_mcp():
+    registered = {t.name for t in await _mcp.list_tools()}
     for blocked in ("search_email", "search_username", "search_breach", "search_paste"):
         assert blocked not in registered
 

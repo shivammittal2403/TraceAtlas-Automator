@@ -28,3 +28,9 @@ Set `TRACEATLAS_WORKFORCE_KILL_SWITCH=1` to stop new dispatch. On provider failu
 inspect source_outcomes/gaps; do not interpret missing results as absence. On
 expired authority create fresh authority and a new task. On failed replay retain
 files for review; never bypass byte/digest/custody checks. Reports remain drafts.
+
+Live source setup, explicit source selection and credential references are in
+[LIVE_SOURCES.md](LIVE_SOURCES.md). Run `workforce sources` before planning;
+configure search before registering authority so `search.execute` is permitted.
+Use `plan --sources ...` to bind your intended connectors, approve its digest,
+then `run --live`. Source failure and unknown provider costs remain in the product.

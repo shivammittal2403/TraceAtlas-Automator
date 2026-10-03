@@ -114,3 +114,15 @@ Keep prototypes under `modules/` non-canonical; do not delete reusable history.
 This delivery can prove a local architecture slice. It cannot establish market
 parity, live-source quality, fully autonomous semantic research, or production
 readiness through fixture counts or documentation volume.
+
+
+## Live-source follow-up — 2026-10-03
+
+The local connector integration gap is reduced by immutable source selection,
+IANA bootstrap/registry routing, passive urlscan search, IP enrichment and
+configurable Brave/SearXNG adapters. All successful acquisitions feed the canonical
+evidence, graph, report and replay path. The wider catalog retains separate
+connectors; person/company live discovery is not claimed. Runtime direct network
+access, real search/paid-provider credentials, hosted worker/UI integration and
+provider billing qualification remain gaps. Source failures remain explicit.
+See [LIVE_SOURCES.md](LIVE_SOURCES.md) for exact coverage and qualification evidence.

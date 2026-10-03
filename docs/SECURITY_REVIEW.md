@@ -15,7 +15,7 @@ independent penetration test or a clean production security certification.
 | Reference-only evidence check | Medium / confirmed | Direct verifier receives valid-looking hash/object references | Tampered bytes could retain favorable status | New runner always supplies store byte/metadata/case validator; raw/product/result/metadata tamper tests |
 | Supplied semantic assertion accepted from substring | Medium / confirmed in initial implementation cycle | Source contains value but no verified subject/predicate extraction | False support of unrelated text | Fixed provider parser or exact structured-source assertion required; otherwise INCONCLUSIVE regression |
 
-Capture data has no instruction authority. The runner calls only anonymous,
+Capture data has no instruction authority. The runner calls anonymous or explicitly configured,
 fixed-host read-only providers and performs no network pivots/model calls/identity
 merges/report release. Wrong-target DNS/RDAP/IP/archive records fail before claims.
 Results use stable error codes; provider messages/headers/query-secret strings are
@@ -40,3 +40,20 @@ cancellation, encryption/KMS, immutable storage, independent adversarial semanti
 search and remote model cost reservations remain unqualified. The existing generic
 model router's full spend/fallback/provider-output guarantees were not remediated
 by this no-model runner. Malware isolation was not tested because no specimen runs.
+
+## Live-source extension
+
+RDAP uses IANA bootstrap intersected with exact reviewed HTTPS bases; all redirects
+remain rejected. Public provider DNS/IP/TLS checks remain unchanged. SearXNG is a
+separate numeric-loopback-only `/search` transport without proxy, hostname lookup,
+credentials or redirect handling. Tests reject private/unreviewed bootstrap bases,
+wrong targets/queries, loopback escape, compression and oversized responses.
+
+Source IDs are immutable task constraints covered by approval. Current authority
+and kill state are checked on both bootstrap and registry dispatch; cancellation
+is not downgraded to a source failure. Completion also rechecks the kill switch.
+Configured keys enter server-side request headers/query construction only, not
+plans, reports or failure telemetry. Search URLs are preserved leads and never
+fetched. Actual provider billing remains unknown. Fixture tests and proxy-based
+public reference collection do not qualify the deployed direct transport or a
+real SearXNG/Brave service. No hosted schema, API grant or worker deployment changed.
