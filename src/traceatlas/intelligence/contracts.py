@@ -7,6 +7,8 @@ from .sources import SOURCES
 from .rdap import RDAP_HOSTS
 
 SOURCE_HOSTS = {
+    'gleif': 'api.gleif.org', 'ripestat': 'stat.ripe.net', 'epss': 'api.first.org', 'osv': 'api.osv.dev',
+    'rdap': 'rdap.org', 'dns': 'dns.google', 'wayback': 'web.archive.org',
     'cloudflare_dns': 'cloudflare-dns.com', 'crtsh': 'crt.sh', 'ripestat': 'stat.ripe.net',
     'gleif': 'api.gleif.org', 'companieshouse': 'api.company-information.service.gov.uk',
     'sec': 'data.sec.gov', 'opencorporates': 'api.opencorporates.com',
@@ -53,6 +55,8 @@ class ConnectorContract:
 # These types describe the implemented request validators, not every input a
 # provider may advertise. A catalogue row cannot add to this mapping.
 SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
+    "gleif": ("lei", "company"), "ripestat": ("ip",), "epss": ("cve",), "osv": ("vulnerability",),
+    "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",),
     "cloudflare_dns": ("domain",), "crtsh": ("domain",), "ripestat": ("ip",),
     "gleif": ("company",), "companieshouse": ("company",), "sec": ("company",), "opencorporates": ("company",),
     "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",), "urlscan": ("domain", "ip"),

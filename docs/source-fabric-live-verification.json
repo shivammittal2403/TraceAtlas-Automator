@@ -1,0 +1,52 @@
+{
+  "verified_at": "2026-10-03",
+  "scope": "Delivery workspace only; does not promote fresh deployments",
+  "production_qualified": 0,
+  "executions": [
+    {
+      "source": "gleif",
+      "status": "completed",
+      "mode": "live",
+      "started_at": "2026-10-03T10:35:08.247526+00:00",
+      "duration_ms": 1469,
+      "bytes": 2627,
+      "attempts": 1,
+      "raw_evidence_hashes": [
+        "521240b679b7e4f2e56784c6e630db4af3c8300d850ec9e0022b004caab4adc9"
+      ],
+      "normalized_evidence_hashes": [
+        "0cb0ce722cfb664cfa5753c2ec4e61f0a24dc76f8d008e1d5dfc0c06e798c7c8"
+      ]
+    },
+    {
+      "source": "epss",
+      "status": "completed",
+      "mode": "live",
+      "started_at": "2026-10-03T10:35:09.824805+00:00",
+      "duration_ms": 1218,
+      "bytes": 201,
+      "attempts": 1,
+      "raw_evidence_hashes": [
+        "339c1344e6a4f7d4c1a1049a4c08f07f8a54fb6f260b928e77f84ce41ee9080d"
+      ],
+      "normalized_evidence_hashes": [
+        "1156460c4e77d63600cb5a64709b1d08ac786937d0ac1b0b0c084868d480ec68"
+      ]
+    },
+    {
+      "source": "osv",
+      "status": "completed",
+      "mode": "live",
+      "started_at": "2026-10-03T10:35:11.124701+00:00",
+      "duration_ms": 844,
+      "bytes": 20722,
+      "attempts": 1,
+      "raw_evidence_hashes": [
+        "9d2bbb07c7389fadb57a3a706619429036a954b7ba93ec70aca679be833c5066"
+      ],
+      "normalized_evidence_hashes": [
+        "5d01d5bb001c8fe7325d42a57499298e892ad3061c3370a37401c8ca67ec4802"
+      ]
+    }
+  ]
+}

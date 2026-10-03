@@ -9,6 +9,7 @@ NODE_TYPES = frozenset({
     "Case", "Task", "Employee", "Person", "Organization", "Company", "Account", "Domain", "IP",
     "Email", "Phone", "Username", "Device", "Document", "Location", "Event", "Asset", "Supplier",
     "Facility", "Software", "Hardware", "AIModel", "ThreatActor", "Campaign", "Indicator",
+    "Transaction", "Evidence", "Observation", "Claim", "Hypothesis", "Source", "Acquisition", "ASN",
     "Transaction", "Evidence", "Observation", "Claim", "Hypothesis", "Source", "Acquisition",
     "URL", "ASN", "Certificate", "Hash", "Malware", "Vulnerability", "TTP", "Dataset",
 })

@@ -28,11 +28,33 @@ class ProviderResult:
     attempts: int
     bytes_received: int
     response_sha256: str
+    raw: bytes | None = None
 
 
 def _validate_shape(source: str, data: Any) -> None:
     """Reject provider error pages and schema drift before evidence ingestion."""
     valid = isinstance(data, (dict, list))
+    if source == "gleif":
+        rows = data.get("data") if isinstance(data, dict) else None
+        rows = [rows] if isinstance(rows, dict) else rows
+        valid = isinstance(rows, list) and len(rows) <= 3 and all(
+            isinstance(r, dict) and isinstance(r.get("id"), str) and isinstance(r.get("attributes"), dict)
+            and isinstance(r["attributes"].get("entity"), dict) for r in rows)
+    elif source == "ripestat":
+        value = data.get("data") if isinstance(data, dict) else None
+        valid = isinstance(value, dict) and data.get("status") == "ok" and isinstance(value.get("asns"), list) and isinstance(value.get("prefix"), str)
+    elif source == "epss":
+        rows = data.get("data") if isinstance(data, dict) else None
+        valid = isinstance(rows, list) and len(rows) <= 1 and data.get("status") == "OK"
+        if valid:
+            try:
+                valid = all(isinstance(r, dict) and isinstance(r.get("cve"), str)
+                            and 0 <= float(r["epss"]) <= 1 and isinstance(r.get("date"), str) for r in rows)
+            except (ValueError, TypeError, KeyError):
+                valid = False
+    elif source == "osv":
+        valid = isinstance(data, dict) and isinstance(data.get("id"), str) and isinstance(data.get("modified"), str) and isinstance(data.get("affected"), list)
+    elif source == "github":
     if source in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"}:
         from .registry_requests import validate_shape
         validate_shape(source, data)
@@ -197,7 +219,7 @@ class ResilientJSONClient:
                     raise ProviderError("provider_invalid_json") from exc
                 _validate_shape(source, data)
                 return ProviderResult(data=data, attempts=attempt, bytes_received=len(raw),
-                                      response_sha256=hashlib.sha256(raw).hexdigest())
+                                      response_sha256=hashlib.sha256(raw).hexdigest(), raw=raw)
             except ProviderError as exc:
                 last_error = exc
             except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
