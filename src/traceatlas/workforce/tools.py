@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -10,6 +11,16 @@ from .contracts import AuthorizationContext, EmployeeDefinition, TaskEnvelope
 
 ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
 SECRET_KEYS = frozenset({"password", "secret", "token", "api_key", "authorization", "cookie"})
+
+
+def _has_secret(value, depth=0):
+    if depth > 12:
+        raise ValueError("tool arguments exceed nesting limit")
+    if isinstance(value, dict):
+        return any(str(key).casefold() in SECRET_KEYS or _has_secret(item, depth + 1) for key, item in value.items())
+    if isinstance(value, list):
+        return any(_has_secret(item, depth + 1) for item in value)
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,12 +49,22 @@ class ToolFacade:
             raise ValueError("tool call authority binding is invalid")
         if task.policy_digest != authorization.policy_digest:
             raise ValueError("tool call policy digest changed")
+        stamp = datetime.now(timezone.utc)
+        if not datetime.fromisoformat(authorization.issued_at) <= stamp < datetime.fromisoformat(authorization.expires_at):
+            raise ValueError("tool authority expired or not yet valid")
+        if datetime.fromisoformat(task.deadline) <= stamp:
+            raise ValueError("tool task deadline reached")
+        if not set(task.scope).issubset(authorization.scope) or not set(task.target_entities).issubset(task.scope):
+            raise ValueError("tool task scope is outside registered authority")
         if tool_id not in authorization.allowed_tools or tool_id not in employee.allowed_tools:
             raise ValueError("tool is outside the effective permission intersection")
         if contract.action not in authorization.allowed_actions or contract.action not in employee.allowed_actions:
             raise ValueError("tool action is outside the effective permission intersection")
-        if not isinstance(arguments, dict) or any(str(key).casefold() in SECRET_KEYS for key in arguments):
+        if not isinstance(arguments, dict) or _has_secret(arguments):
             raise ValueError("tool arguments contain a forbidden secret field")
+        scoped_values = set(task.target_entities) | {v.split(":", 1)[-1] for v in task.target_entities}
+        if any(arguments[key] not in scoped_values for key in ("domain", "ip", "subject", "target") if key in arguments and isinstance(arguments[key], str)):
+            raise ValueError("tool argument target is outside task scope")
         encoded = json.dumps(arguments, ensure_ascii=False, allow_nan=False).encode()
         if len(encoded) > contract.maximum_input_bytes:
             raise ValueError("tool input exceeds its contract")

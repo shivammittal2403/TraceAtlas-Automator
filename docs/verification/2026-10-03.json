@@ -1,0 +1,75 @@
+{
+  "schema": "traceatlas-engineering-verification/v1",
+  "date": "2026-10-03",
+  "audit_head": "fe51ba7b2e085038751a0de1fb546a2ec8453397",
+  "python": "3.12.14",
+  "python_tests": 237,
+  "node_tests": 26,
+  "golden_cases": 12,
+  "golden_passed": true,
+  "checks": {
+    "python-regressions": {
+      "exit_code": 0,
+      "seconds": 4.248
+    },
+    "compile": {
+      "exit_code": 0,
+      "seconds": 0.036
+    },
+    "graph-and-target-tests": {
+      "exit_code": 0,
+      "seconds": 0.261
+    },
+    "database-regressions": {
+      "exit_code": 0,
+      "seconds": 2.903
+    },
+    "secret-scan": {
+      "exit_code": 0,
+      "seconds": 0.6
+    },
+    "javascript-syntax-app": {
+      "exit_code": 0,
+      "seconds": 0.053
+    },
+    "javascript-syntax-employee": {
+      "exit_code": 0,
+      "seconds": 0.052
+    },
+    "javascript-syntax-graph-model": {
+      "exit_code": 0,
+      "seconds": 0.052
+    },
+    "javascript-syntax-target-validation": {
+      "exit_code": 0,
+      "seconds": 0.053
+    }
+  },
+  "cli_e2e": {
+    "passed": true,
+    "flow": "init/authorize/plan/approve/run/report/replay",
+    "claims": 1,
+    "draft": "DRAFT_REQUIRES_HUMAN_RELEASE",
+    "replay": true,
+    "new_network_calls": 0
+  },
+  "evidence_bundle_verified": true,
+  "sqlite_restore_status": "pass",
+  "ai_contract_cases_passed": 8,
+  "opencti_files_verified": 8275,
+  "wheel_build": "passed",
+  "browser_local": "blocked: Chromium download returned invalid/truncated ZIP; no local browser pass",
+  "live_verified_connectors": 0,
+  "production_accepted": false,
+  "remote_ci": {
+    "verified_commit": "c6adcc73f368f416fb778e18c9cdb4e094eb28cc",
+    "CI": "success",
+    "CodeQL": "success",
+    "core_python": [
+      "3.10",
+      "3.12"
+    ],
+    "browser_fixture": "success in both core jobs",
+    "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37100210567"
+  }
+}

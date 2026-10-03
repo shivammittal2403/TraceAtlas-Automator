@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,10 @@ CREATE TABLE IF NOT EXISTS verification_decisions_v2 (
 CREATE INDEX IF NOT EXISTS workforce_tasks_case_idx ON workforce_tasks(case_id,created_at);
 CREATE INDEX IF NOT EXISTS evidence_objects_v2_hash_idx ON evidence_objects_v2(case_id,content_hash);
 CREATE INDEX IF NOT EXISTS observations_v2_evidence_idx ON observations_v2(case_id,evidence_id);
+CREATE TABLE IF NOT EXISTS workforce_products (
+  task_id TEXT PRIMARY KEY REFERENCES workforce_tasks(task_id) ON DELETE CASCADE,
+  product_json TEXT NOT NULL, product_digest TEXT NOT NULL, created_at TEXT NOT NULL
+);
 """
 
 
@@ -128,7 +133,11 @@ class WorkforceStore:
             raise ValueError("unknown workforce task")
         result = dict(row)
         result["envelope"] = TaskEnvelope.from_dict(json.loads(result.pop("envelope_json")))
-        stored = self.db.conn.execute("SELECT result_json FROM workforce_results WHERE task_id=?", (task_id,)).fetchone()
+        if digest(result["envelope"].to_dict()) != result["envelope_digest"]:
+            raise ValueError("stored task digest mismatch")
+        stored = self.db.conn.execute("SELECT result_json,result_digest FROM workforce_results WHERE task_id=?", (task_id,)).fetchone()
+        if stored and hashlib.sha256(stored["result_json"].encode()).hexdigest() != stored["result_digest"]:
+            raise ValueError("stored result digest mismatch")
         result["result"] = ResultEnvelope.from_dict(json.loads(stored["result_json"])) if stored else None
         return result
 
@@ -163,17 +172,22 @@ class WorkforceStore:
             if changed.rowcount != 1:
                 raise ValueError("task is not approved or was already claimed")
 
-    def finish(self, task_id: str, result: ResultEnvelope) -> None:
+    def finish(self, task_id: str, result: ResultEnvelope, *, product: dict | None = None) -> None:
         encoded = _json(result.to_dict())
         with self.db.conn:
+            if product is not None:
+                self.db.conn.execute("INSERT INTO workforce_products VALUES(?,?,?,?)",
+                    (task_id, _json(product), hashlib.sha256(_json(product).encode()).hexdigest(), _now()))
             self.db.conn.execute(
                 "INSERT INTO workforce_results VALUES(?,?,?,?)",
                 (task_id, encoded, hashlib.sha256(encoded.encode()).hexdigest(), _now()),
             )
-            self.db.conn.execute(
+            changed = self.db.conn.execute(
                 "UPDATE workforce_tasks SET status='completed',completed_at=? WHERE task_id=? AND status='running'",
                 (_now(), task_id),
             )
+            if changed.rowcount != 1:
+                raise ValueError("task no longer owns the running completion state")
 
     def fail(self, task_id: str) -> None:
         with self.db.conn:
@@ -241,7 +255,12 @@ class WorkforceStore:
     def verify_evidence(self, item: EvidenceObject) -> bool:
         try:
             path = Path(item.raw_artifact_pointer)
-            return path.is_file() and sha256_file(path) == item.content_hash and any(
+            stored = self.db.conn.execute(
+                "SELECT object_json,object_digest FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=? AND version=?",
+                (item.case_id, item.evidence_id, item.version),
+            ).fetchone()
+            return bool(stored and _json(item.to_dict()) == stored["object_json"]
+                        and hashlib.sha256(stored["object_json"].encode()).hexdigest() == stored["object_digest"]) and path.is_file() and not path.is_symlink() and sha256_file(path) == item.content_hash and any(
                 row["sha256"] == item.content_hash and Path(row["path"]).resolve() == path.resolve()
                 for row in self.db.evidence(item.case_id)
             )
@@ -249,16 +268,63 @@ class WorkforceStore:
             return False
 
     def record_observation(self, case_id: str, observation: Observation) -> None:
-        if not self.db.conn.execute(
-            "SELECT 1 FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=?",
+        row = self.db.conn.execute(
+            "SELECT object_json FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=? ORDER BY version DESC LIMIT 1",
             (case_id, observation.evidence_id),
-        ).fetchone():
+        ).fetchone()
+        if not row or json.loads(row["object_json"])["acquisition_id"] != observation.acquisition_id:
             raise ValueError("observation references unknown evidence")
         self.db.conn.execute(
             "INSERT INTO observations_v2 VALUES(?,?,?,?,?)",
             (case_id, observation.observation_id, observation.evidence_id, _json(observation.to_dict()), _now()),
         )
         self.db.conn.commit()
+
+    def capture_document(self, task: TaskEnvelope, document, workspace: Path) -> EvidenceObject:
+        from ..evidence import EvidenceStore
+        acquisition_id = "acquisition-" + hashlib.sha256((task.task_id + document.source_id).encode()).hexdigest()[:24]
+        body = {"task_id": task.task_id, "case_id": task.case_id, "trace_id": task.trace_id,
+                "acquisition_id": acquisition_id, "document": document.to_dict()}
+        with tempfile.TemporaryDirectory(prefix="traceatlas-source-") as temp:
+            path = Path(temp) / "source-document.json"
+            path.write_text(_json(body), encoding="utf-8")
+            preserved = EvidenceStore(workspace, self.db, task.case_id).preserve_file(path, "workforce:" + document.source_id)
+        item = EvidenceObject(
+            schema_version="1.0", evidence_id="evidence-" + preserved["sha256"][:24], version=1,
+            prior_version_id=None, case_id=task.case_id, source_id=document.source_id,
+            source_uri=document.source_uri, acquisition_id=acquisition_id,
+            acquisition_method="source-document-capture", retrieved_at=document.retrieved_at,
+            content_hash=preserved["sha256"], mime_type="application/json",
+            raw_artifact_pointer=preserved["path"], parser="source-document", parser_version="1",
+            extractor="structured-fact", extractor_version="1", observation_ids=(),
+            chain_of_custody=("source-capture", "sha256-preserve"), access_policy="case-members",
+            retention_policy=self.authorization(task.authorization_context_id).retention_policy,
+            classification="untrusted-source", created_at=_now(),
+        )
+        with self.db.conn:
+            self.db.conn.execute("INSERT INTO acquisitions_v2 VALUES(?,?,?,?,?,?,?)",
+                (acquisition_id, task.case_id, document.source_id, item.acquisition_method,
+                 item.retrieved_at, task.trace_id, item.created_at))
+            encoded = _json(item.to_dict())
+            self.db.conn.execute("INSERT INTO evidence_objects_v2 VALUES(?,?,?,?,?,?,?)",
+                (task.case_id, item.evidence_id, 1, item.content_hash, encoded,
+                 hashlib.sha256(encoded.encode()).hexdigest(), item.created_at))
+        return item
+
+    def save_product(self, task_id: str, value: dict) -> None:
+        encoded = _json(value)
+        with self.db.conn:
+            self.db.conn.execute("INSERT INTO workforce_products VALUES(?,?,?,?)",
+                (task_id, encoded, hashlib.sha256(encoded.encode()).hexdigest(), _now()))
+
+    def product(self, task_id: str) -> dict:
+        self.task(task_id)
+        row = self.db.conn.execute("SELECT product_json,product_digest FROM workforce_products WHERE task_id=?", (task_id,)).fetchone()
+        if not row:
+            raise ValueError("task has no investigation product")
+        if hashlib.sha256(row["product_json"].encode()).hexdigest() != row["product_digest"]:
+            raise ValueError("stored investigation product digest mismatch")
+        return json.loads(row["product_json"])
 
     def record_lineage(self, case_id: str, item: SourceLineage) -> None:
         self.db.conn.execute(

@@ -22,7 +22,7 @@ from traceatlas.workforce.tools import ToolContract, ToolFacade
 from traceatlas.workforce.verification import VerificationEngine
 
 
-NOW = datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc)
+NOW = datetime.now(timezone.utc) - timedelta(seconds=1)
 POLICY_DIGEST = hashlib.sha256(b"fixture-policy").hexdigest()
 
 

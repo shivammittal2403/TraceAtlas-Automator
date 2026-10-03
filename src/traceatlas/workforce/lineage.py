@@ -36,39 +36,54 @@ class SourceIndependenceEngine:
         self.threshold = similarity_threshold
 
     def group(self, records: list[SourceRecord]) -> tuple[SourceLineage, ...]:
-        groups: list[tuple[str, SourceRecord, frozenset[str]]] = []
-        result = []
-        for record in sorted(records, key=lambda row: row.source_id):
-            canonical = _canonical_uri(record.uri)
-            normalized = " ".join(record.content.casefold().split())
-            fingerprint = hashlib.sha256(normalized.encode()).hexdigest()
-            tokens = _tokens(normalized)
-            group_id, reasons = "", []
-            for candidate_id, candidate, candidate_tokens in groups:
-                same_origin = bool(record.original_source_id and record.original_source_id == candidate.original_source_id)
-                same_owner = bool(record.ownership_group and record.ownership_group == candidate.ownership_group)
-                union = tokens | candidate_tokens
-                similarity = len(tokens & candidate_tokens) / len(union) if union else 1.0
-                if fingerprint == hashlib.sha256(" ".join(candidate.content.casefold().split()).encode()).hexdigest():
-                    group_id, reasons = candidate_id, ["exact_content"]
-                elif same_origin:
-                    group_id, reasons = candidate_id, ["declared_original_source"]
-                elif similarity >= self.threshold:
-                    group_id, reasons = candidate_id, ["near_duplicate_content"]
-                elif canonical == _canonical_uri(candidate.uri):
-                    group_id, reasons = candidate_id, ["canonical_uri"]
-                elif same_owner:
-                    group_id, reasons = candidate_id, ["common_ownership"]
-                if group_id:
-                    break
-            if not group_id:
-                group_id = "lineage-" + hashlib.sha256((record.original_source_id or canonical).encode()).hexdigest()[:16]
-                reasons = ["distinct_origin"]
-                groups.append((group_id, record, tokens))
-            result.append(SourceLineage(
-                lineage_id="source-lineage-" + hashlib.sha256(record.source_id.encode()).hexdigest()[:16],
-                source_id=record.source_id, independence_group=group_id,
-                original_source_id=record.original_source_id, content_fingerprint=fingerprint,
-                ownership_group=record.ownership_group, reasons=tuple(reasons),
-            ))
-        return tuple(result)
+        if len(records) > 128 or len({r.source_id for r in records}) != len(records):
+            raise ValueError("source records require unique IDs and at most 128 entries")
+        rows = sorted(records, key=lambda r: r.source_id)
+        parent = list(range(len(rows)))
+        reasons = [set() for _ in rows]
+        normalized = [" ".join(r.content.casefold().split()) for r in rows]
+        fingerprints = [hashlib.sha256(t.encode()).hexdigest() for t in normalized]
+        tokens = [_tokens(t) for t in normalized]
+
+        def root(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i, row in enumerate(rows):
+            for j in range(i):
+                other = rows[j]
+                links = set()
+                if row.original_source_id and row.original_source_id in {other.source_id, other.original_source_id}:
+                    links.add("declared_original_source")
+                if other.original_source_id == row.source_id:
+                    links.add("declared_original_source")
+                if row.ownership_group and row.ownership_group == other.ownership_group:
+                    links.add("common_ownership")
+                if _canonical_uri(row.uri) == _canonical_uri(other.uri):
+                    links.add("canonical_uri")
+                host = (urlsplit(row.uri).hostname or "").lower().removeprefix("www.")
+                other_host = (urlsplit(other.uri).hostname or "").lower().removeprefix("www.")
+                if host and host == other_host:
+                    links.add("common_publisher_host")
+                if normalized[i] and fingerprints[i] == fingerprints[j]:
+                    links.add("exact_content")
+                union = tokens[i] | tokens[j]
+                if tokens[i] and tokens[j] and len(tokens[i] & tokens[j]) / len(union) >= self.threshold:
+                    links.add("near_duplicate_content")
+                if links:
+                    a, b = root(i), root(j)
+                    parent[max(a, b)] = min(a, b)
+                    reasons[i].update(links)
+                    reasons[j].update(links)
+        components = {}
+        for i, row in enumerate(rows):
+            components.setdefault(root(i), []).append(row.source_id)
+        return tuple(SourceLineage(
+            lineage_id="source-lineage-" + hashlib.sha256(row.source_id.encode()).hexdigest()[:16],
+            source_id=row.source_id,
+            independence_group="lineage-" + hashlib.sha256("|".join(components[root(i)]).encode()).hexdigest()[:16],
+            original_source_id=row.original_source_id, content_fingerprint=fingerprints[i],
+            ownership_group=row.ownership_group, reasons=tuple(sorted(reasons[i])) or ("distinct_origin",),
+        ) for i, row in enumerate(rows))

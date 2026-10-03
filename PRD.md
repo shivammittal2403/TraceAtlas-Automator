@@ -60,3 +60,16 @@ gate.
 - no-model and provider-outage cases complete deterministically;
 - local tests, PostgreSQL migration tests, tenant RLS tests and hosted review
   contract tests pass before deployment consideration.
+
+## 2026-10-03 local slice extension
+
+Release-one implementation now includes one integrated deterministic collection
+cycle for domain/IP and approved-record person/company investigations. It returns
+preserved evidence, typed assertions, graph, timeline, contradictions, visible
+unknowns, verification, draft report and replay metadata. Same-name associations
+remain unresolved identities. Unverified semantic extraction is INCONCLUSIVE.
+
+The first production acceptance remains unfulfilled: approved live search,
+semantic planning/adversarial search, private hosted worker/result UI, live provider
+qualification and production operating gates are open. Broad CTI/malware/supply
+labels in G01–G12 qualify only the common backbone, not complete domain engines.
