@@ -34,16 +34,11 @@ class ProviderResult:
 def _validate_shape(source: str, data: Any) -> None:
     """Reject provider error pages and schema drift before evidence ingestion."""
     valid = isinstance(data, (dict, list))
-    if source == "gleif":
-        rows = data.get("data") if isinstance(data, dict) else None
-        rows = [rows] if isinstance(rows, dict) else rows
-        valid = isinstance(rows, list) and len(rows) <= 3 and all(
-            isinstance(r, dict) and isinstance(r.get("id"), str) and isinstance(r.get("attributes"), dict)
-            and isinstance(r["attributes"].get("entity"), dict) for r in rows)
-    elif source == "ripestat":
-        value = data.get("data") if isinstance(data, dict) else None
-        valid = isinstance(value, dict) and data.get("status") == "ok" and isinstance(value.get("asns"), list) and isinstance(value.get("prefix"), str)
-    elif source == "epss":
+    if source in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"}:
+        from .registry_requests import validate_shape
+        validate_shape(source, data)
+        return
+    if source == "epss":
         rows = data.get("data") if isinstance(data, dict) else None
         valid = isinstance(rows, list) and len(rows) <= 1 and data.get("status") == "OK"
         if valid:
@@ -55,11 +50,6 @@ def _validate_shape(source: str, data: Any) -> None:
     elif source == "osv":
         valid = isinstance(data, dict) and isinstance(data.get("id"), str) and isinstance(data.get("modified"), str) and isinstance(data.get("affected"), list)
     elif source == "github":
-    if source in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"}:
-        from .registry_requests import validate_shape
-        validate_shape(source, data)
-        return
-    if source == "github":
         valid = isinstance(data, dict) and isinstance(data.get("login"), str)
     elif source == "youtube":
         valid = isinstance(data, dict) and isinstance(data.get("items"), list)

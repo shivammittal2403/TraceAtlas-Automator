@@ -23,7 +23,7 @@ CAPABILITIES = {
     "crossref": ("publication",), "youtube": ("media-profile",), "discord": ("community-metadata",),
 }
 DOCS = {'gleif': 'https://www.gleif.org/en/lei-data/gleif-api/', 'ripestat': 'https://stat.ripe.net/docs/data-api/api-endpoints/network-info', 'epss': 'https://api.first.org/epss/', 'osv': 'https://google.github.io/osv.dev/get-v1-vulns/', 'dns': 'https://developers.google.com/speed/public-dns/docs/doh/json', 'rdap': 'https://about.rdap.org/', 'wayback': 'https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server', 'github': 'https://docs.github.com/en/rest/users/users', 'gitlab': 'https://docs.gitlab.com/api/users/', 'hackernews': 'https://github.com/HackerNews/API', 'crossref': 'https://www.crossref.org/documentation/retrieve-metadata/rest-api/', 'ipwhois': 'https://ipwhois.io/documentation', 'shodan': 'https://developer.shodan.io/api', 'virustotal': 'https://docs.virustotal.com/reference/overview', 'censys': 'https://docs.censys.com/docs/platform-api', 'npm': 'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md', 'bluesky': 'https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/actor/getProfile.json', 'greynoise': 'https://docs.greynoise.io/reference/getcommunityip', 'internetdb': 'https://internetdb.shodan.io/'}
-KNOWN_BROKEN = {"rdap": "rdap.org requires redirects; pinned transport intentionally refuses redirects"}
+KNOWN_BROKEN = {}  # Main now uses approved IANA bootstrap and registry hosts.
 PRIMARY = frozenset({"gleif", "ripestat", "epss", "github", "gitlab", "npm", "crossref", "nvd"})
 
 

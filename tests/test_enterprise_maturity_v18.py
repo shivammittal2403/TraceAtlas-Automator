@@ -34,10 +34,8 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_six_new_live_sources_have_fixed_official_hosts(self):
-        self.assertEqual(len(SOURCES), 41)
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 27)
-        self.assertEqual(len(SOURCES), 45)
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 31)
+        self.assertEqual(len(SOURCES), 47)
+        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 33)
         expected = {"mastodon", "stackexchange", "dockerhub", "npm", "crossref", "orcid"}
         self.assertTrue(expected.issubset(SOURCES))
         hub = IntelligenceHub(self.db, self.workspace)

@@ -11,32 +11,19 @@ TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
 human review where judgment, attribution, privacy or legal authority matters.
 
-## Source Fabric (Phase A)
+## Local autonomous employee console
 
-Capability routing, bounded parallel research, case-scoped caching, raw-evidence custody and source qualification are integrated into the local employee console. The catalogue preserves 400 candidate slots; the platform has 27 API implementations, three delivery-workspace live canaries and zero production-qualified sources. See [current capabilities and limitations](docs/SOURCE_FABRIC.md).
+Run `traceatlas --workspace ./cases employee serve` with
+`TRACEATLAS_WORKFORCE_ENABLED=1`, then open `http://127.0.0.1:8765`.
+The local console provides bounded objective/seed execution, checkpoint recovery,
+citations, graph inspection and evidence/replay ZIP export. Optional Ollama drafts
+remain advisory. See [setup](docs/AUTONOMOUS_IMPLEMENTATION.md) and
+[employee source integration](docs/SOURCE_FABRIC.md).
 
-## Autonomous investigation employee
-
-Use `employee investigate` or `employee serve` to give an objective and exact
-authorized identifiers once, then collect and analyze within a fixed budget.
-The new local coordinator connects the existing source adapters, evidence ledger,
-verification engine, temporal graph and optional Ollama analysis. It saves each
-action for interruption recovery and exports a cited report with an offline
-integrity-verification bundle.
-
-```powershell
-python -m pip install -e .
-$env:TRACEATLAS_WORKFORCE_ENABLED = '1'
-traceatlas --workspace ./cases employee serve
-```
-
-Open **http://127.0.0.1:8765**, create a case, enter the objective and authorized
-seeds, then start. The dashboard provides activity, cancellation, resume,
-evidence citations, graph inspection and a downloadable report/evidence ZIP.
-This is a local single-user console. Its endpoints are not deployed by the
-existing Vercel application.
-
-See [setup, executable skills and operating limits](docs/AUTONOMOUS_IMPLEMENTATION.md).
+The canonical workforce pipeline and its 20 source adapters remain available through
+`workforce investigate`. The employee console is an additional local workflow;
+it does not replace canonical workforce authority or hosted control-plane approval.
+EPSS and OSV extend the shared IntelligenceHub to 47 records / 33 API implementations.
 
 ## What is included
 
@@ -69,7 +56,6 @@ See [setup, executable skills and operating limits](docs/AUTONOMOUS_IMPLEMENTATI
   per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 41 social, code, package, scholarly, video, community,
 - Governed intelligence hub covering 38 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.

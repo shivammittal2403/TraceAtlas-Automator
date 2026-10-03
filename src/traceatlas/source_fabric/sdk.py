@@ -44,7 +44,11 @@ class HubConnector:
     def validate_input(self, kind, target):
         if kind not in self.definition["entity_types"] or not isinstance(target, str) or len(target) > 253:
             raise PolicyError("Unsupported source input")
-        IntelligenceHub._live_request(self.spec, kind, target)
+        if self.source == "rdap":
+            from ..intelligence.rdap import bootstrap_url
+            bootstrap_url(kind, target)
+        else:
+            IntelligenceHub._live_request(self.spec, kind, target)
         return True
 
     def estimate_cost(self):
@@ -55,13 +59,14 @@ class HubConnector:
         if contract["authentication"] == "secret-reference" or any(os.getenv(k) for k in contract["credential_env"]):
             raise PolicyError("Source Fabric requires a reviewed unattended entitlement for credentialed calls")
         self.validate_input(kind, target)
+        if self.source == "rdap":
+            from ..intelligence.rdap import lookup
+            return lookup(self.client, kind, target, timeout)[1]
         url, headers = IntelligenceHub._live_request(self.spec, kind, target)
         return self.client.get(self.source, url, headers, timeout)
 
     def search(self, kind, target, timeout=30):
-        if self.source != "gleif" or kind != "company":
-            raise PolicyError("This connector exposes exact fetch only")
-        return self.fetch(kind, target, timeout)
+        raise PolicyError("This connector exposes exact fetch only")
 
     def normalize(self, kind, target, response):
         return IntelligenceHub._validated_records(self.source, kind, target, response.data)

@@ -59,6 +59,8 @@ traceatlas employee verify-replay --directory ./reports/EXPORTED_DIRECTORY
 traceatlas employee executable-skills
 ```
 
+Company Source Fabric seeds use exact qualified registry identifiers such as `company:lei:5493001KJTIIGC8Y1R12`.
+
 Person/company investigations use `--subject-type person|company` and an optional
 `--subject-label`. Person work requires recorded subject consent. A name alone
 does not identify a person or company: supply the exact authorized identifiers.
@@ -66,7 +68,7 @@ Associations remain unresolved candidates for human review.
 
 ## Legacy default executable coverage
 
-The console now defaults to Source Fabric; CLI users opt in with `--source-fabric`. See [Source Fabric](SOURCE_FABRIC.md) for expanded typed coverage, wave routing, raw evidence and current qualification counts. RDAP is excluded from Fabric due to its redirect incompatibility. The table below describes the older fixed-list CLI path.
+The console now defaults to Source Fabric; CLI users opt in with `--source-fabric`. See [Source Fabric](SOURCE_FABRIC.md) for expanded typed coverage, wave routing, raw evidence and current qualification counts. RDAP uses the IANA bootstrap and reviewed registry hosts integrated on current main. The table below describes the older fixed-list CLI path.
 
 The registry contains **14 typed source skills across 13 providers**. RDAP accepts
 both domain and IP inputs. Skills are selected only for their declared input:
