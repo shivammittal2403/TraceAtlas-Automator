@@ -58,7 +58,7 @@ class WorkforceService:
     def create_owned_domain_task(self, context_id: str, domain: str, objective: str) -> dict:
         return self.create_investigation_task(context_id, "domain", domain, objective)
 
-    def create_investigation_task(self, context_id: str, target_type: str, target: str, objective: str, *, sources=None) -> dict:
+    def create_investigation_task(self, context_id: str, target_type: str, target: str, objective: str, *, sources=None, capabilities=None, source_prices=None, health_probe=False) -> dict:
         from .documents import normalize_seed
         from .live_sources import select_sources, SOURCE_TOOLS
         if not self._enabled():
@@ -70,7 +70,14 @@ class WorkforceService:
         if seed not in context.scope:
             raise ValueError("target is outside the immutable authorization scope")
         self._check_authority(context)
-        selected = select_sources(target_type, target, sources)
+        from .source_router import ObjectiveSpec, SourceRouter
+        from .source_state import SourceState, stable_digest
+        state = SourceState(self.store)
+        objective_spec = ObjectiveSpec(context.case_id, objective, (seed,), (), (context.jurisdiction,),
+            (target_type,), ('no_contact', 'no_identity_merge', 'no_active_probe'), ('report', 'graph', 'timeline', 'replay'), context.context_id)
+        source_plan = SourceRouter(health=state.health).plan(objective_spec, allowed_tools=context.allowed_tools,
+            capabilities=capabilities, prices=source_prices, explicit_sources=sources, health_probe=health_probe)
+        selected = tuple(source_plan['sources'])
         required_tools = {"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in selected}
         required_actions = {"request_collection", "propose_observation", "propose_claim"}
         if not required_tools.issubset(context.allowed_tools) or not required_actions.issubset(context.allowed_actions):
@@ -82,7 +89,7 @@ class WorkforceService:
             policy_digest=context.policy_digest, target_entities=(seed,),
             required_capabilities=(target_type, "webint"), evidence_context_ids=(),
             constraints=("passive_only", "no_contact", "no_identity_merge", "human_release_required",
-                         *("live-source:" + source for source in selected)),
+                         'source-plan:' + stable_digest(source_plan), *("live-source:" + source for source in selected)),
             budget=Budget("USD", 1.0, 120, 8, 2),
             deadline=(now + timedelta(minutes=15)).isoformat(),
             stop_conditions=("budget_exhausted", "deadline_reached", "source_exhausted", "human_review_required"),
@@ -93,8 +100,9 @@ class WorkforceService:
             raise ValueError("employee does not permit the selected sources")
         definition_digest = _digest(employee.to_dict())
         envelope_digest = self.store.create_task(task, employee.employee_id, definition_digest)
+        state.save_plan(task, source_plan)
         return {"task": task.to_dict(), "employee": employee.to_dict(), "envelope_digest": envelope_digest,
-                "status": "planned", "execution_enabled": self.enabled}
+                "status": "planned", "execution_enabled": self.enabled, "source_plan": source_plan}
 
     def approve(self, task_id: str, *, actor_id: str, rationale: str, envelope_digest: str,
                 authorized: bool = False) -> dict:

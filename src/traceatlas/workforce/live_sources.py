@@ -9,14 +9,11 @@ from ..intelligence.contracts import source_contract
 from ..intelligence.hub import IntelligenceHub, ConnectorNotConfigured
 from ..intelligence.sources import SOURCES
 
-SOURCE_TOOLS = {"dns": "dns.lookup", "rdap": "rdap.lookup", "rdap_bootstrap": "rdap.lookup",
-                "wayback": "archive.lookup", "urlscan": "archive.lookup", "internetdb": "ip.lookup",
-                "ipwhois": "ip.lookup", "ipdata": "ip.lookup", "greynoise": "ip.lookup",
-                "brave": "search.execute", "searxng": "search.execute"}
-SOURCE_TYPES = {"dns": ("domain",), "rdap": ("domain", "ip"), "wayback": ("domain",),
-                "urlscan": ("domain", "ip"), "internetdb": ("ip",), "ipwhois": ("ip",),
-                "ipdata": ("ip",), "greynoise": ("ip",), "brave": ("domain", "ip"),
-                "searxng": ("domain", "ip")}
+from .source_registry import P0_BY_ID, SourceRegistry
+
+SOURCE_TOOLS = {key: value["tool"] for key, value in P0_BY_ID.items()}
+SOURCE_TOOLS["rdap_bootstrap"] = "rdap.lookup"
+SOURCE_TYPES = {key: tuple(value["entity_types"]) for key, value in P0_BY_ID.items()}
 SEARCH_SOURCES = frozenset({"brave", "searxng"})
 
 
@@ -41,7 +38,7 @@ def default_sources(kind, target):
     if kind == "ip" and ipaddress.ip_address(target).version == 6:
         sources.remove("internetdb")
     search = os.environ.get("TRACEATLAS_SEARCH_PROVIDER", "").strip().lower()
-    if sources and search:
+    if kind in {"domain", "ip", "company"} and search:
         if search not in SEARCH_SOURCES:
             raise ValueError("TRACEATLAS_SEARCH_PROVIDER must be brave or searxng")
         sources.append(search)
@@ -55,7 +52,7 @@ def select_sources(kind, target, sources=None):
     if sum(source in SEARCH_SOURCES for source in selected) > 1:
         raise ValueError("select one web search provider per task")
     for source in selected:
-        if source not in SOURCE_TYPES or kind not in SOURCE_TYPES[source]:
+        if not SourceRegistry().supports(source, kind, target):
             raise ValueError("source does not support this investigation seed type")
         if kind == "ip" and source in {"internetdb", "greynoise"} and ipaddress.ip_address(target).version != 4:
             raise ValueError("selected source supports IPv4 only")
@@ -85,7 +82,7 @@ def readiness():
     for source, kinds in SOURCE_TYPES.items():
         credentials = (("BRAVE_SEARCH_API_KEY",) if source == "brave" else ("SEARXNG_URL",)
                        if source == "searxng" else source_contract(source).credential_env)
-        optional = source in {"urlscan", "greynoise"}
+        optional = source in {"urlscan", "greynoise", "github"}
         missing = [name for name in credentials if not os.environ.get(name, "").strip()]
         state = "configured" if credentials and not missing else "keyless" if not credentials or optional else "not_configured"
         if source == "searxng" and not missing:
@@ -96,5 +93,5 @@ def readiness():
         rows.append({"source_id": source, "target_types": list(kinds), "tool": SOURCE_TOOLS[source],
                      "configuration_status": state, "credential_env": list(credentials),
                      "credentials_optional": optional, "live_validation": "deployment-required",
-                     "selection": "explicit" if source in {"brave", "searxng", "ipdata", "greynoise"} else "default-keyless"})
+                     "selection": "capability-router-or-explicit-approved-plan"})
     return rows

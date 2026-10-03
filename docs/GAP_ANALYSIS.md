@@ -126,3 +126,13 @@ connectors; person/company live discovery is not claimed. Runtime direct network
 access, real search/paid-provider credentials, hosted worker/UI integration and
 provider billing qualification remain gaps. Source failures remain explicit.
 See [LIVE_SOURCES.md](LIVE_SOURCES.md) for exact coverage and qualification evidence.
+
+## Source Fabric phase A update — 1.11.0
+
+The ten-source runner audited above now uses a twenty-source shared SDK and a
+capability router/gateway. The new scoped cache, concurrency/cost limits, health
+canaries and MCP surface reuse canonical policy and evidence. The deduplicated
+candidate queue is discovery data only. The current implementation and remaining
+50/100/400-source production objectives are reconciled in
+`sources/DELIVERY_LEDGER.md`; this supersedes older source-count snapshots without
+rewriting their historical verification results.

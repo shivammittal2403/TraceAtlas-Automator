@@ -92,7 +92,8 @@ def request(url: str, headers: dict[str, str], timeout: float) -> tuple[int, byt
         if response.getheader('Content-Encoding', 'identity').lower() not in {'', 'identity'}:
             raise ProviderError('provider_encoding_rejected')
         media = response.getheader('Content-Type', '').split(';', 1)[0].strip().lower()
-        if media != 'application/json' and not (media.startswith('application/') and media.endswith('+json')):
+        dns_json = host == 'cloudflare-dns.com' and media == 'application/dns-json'
+        if not dns_json and media != 'application/json' and not (media.startswith('application/') and media.endswith('+json')):
             raise ProviderError('provider_content_type_rejected')
         length = response.getheader('Content-Length')
         if length is not None and (not length.isdigit() or int(length) > MAX_BYTES):

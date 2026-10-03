@@ -15,7 +15,7 @@ from .pipeline import InvestigationPipeline
 from .live_sources import readiness, select_sources, SOURCE_TOOLS
 
 
-TOOLS = ("dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "ip.lookup", "evidence.retrieve")
+TOOLS = ("dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "ip.lookup", "registry.lookup", "evidence.retrieve")
 ACTIONS = ("request_collection", "propose_observation", "propose_claim")
 
 
@@ -23,7 +23,11 @@ def add_workforce_parser(sub) -> None:
     root = sub.add_parser("workforce", help="Bounded hybrid AI workforce; disabled unless explicitly enabled")
     commands = root.add_subparsers(dest="workforce_command", required=True)
     commands.add_parser("registry", help="List the five initial employee definitions")
-    commands.add_parser("sources", help="List implemented investigation sources and secret-safe configuration readiness")
+    sources = commands.add_parser("sources", help="Inspect source capabilities, health and secret-safe configuration")
+    sources.add_argument("--catalog", action="store_true", help="Include all registered sources and truthful state counts")
+    sources.add_argument("--capability", help="Filter the catalog by capability")
+    sources.add_argument("--describe", help="Describe one registered source")
+    sources.add_argument("--candidates", action="store_true", help="Show non-executable discovery candidates")
     authorize = commands.add_parser("authorize-domain", help="Register an immutable local owned-domain authority")
     authorize.add_argument("--case", required=True)
     authorize.add_argument("--domain", required=True)
@@ -46,6 +50,10 @@ def add_workforce_parser(sub) -> None:
     generic.add_argument("--target", required=True)
     generic.add_argument("--objective", required=True)
     generic.add_argument("--sources", nargs="+", help="Bind explicit source IDs into the immutable approved task")
+    generic.add_argument("--capabilities", nargs="+", help="Required intelligence capabilities; router chooses sources")
+    generic.add_argument("--health-probe", action="store_true", help="Plan a fresh, separately approved canary for one explicit source")
+    generic.add_argument("--source-price", action="append", default=[], metavar="SOURCE=USD",
+                         help="Operator-approved per-request estimate for an account-priced source")
     collect = commands.add_parser("run", help="Execute approved collection, verification and draft reporting")
     collect.add_argument("--task", required=True)
     modes = collect.add_mutually_exclusive_group(required=True)
@@ -56,7 +64,8 @@ def add_workforce_parser(sub) -> None:
     replay.add_argument("--task", required=True)
     report = commands.add_parser("report", help="Return immutable investigation draft")
     report.add_argument("--task", required=True)
-    commands.add_parser("golden", help="Execute G01-G12 controlled end-to-end investigations")
+    golden = commands.add_parser("golden", help="Execute controlled end-to-end investigations")
+    golden.add_argument("--source-fabric", action="store_true", help="Execute 60 Source Fabric fixture investigations")
     plan = commands.add_parser("plan-domain", help="Create a bounded owned-domain task")
     plan.add_argument("--context", required=True)
     plan.add_argument("--domain", required=True)
@@ -78,9 +87,26 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "registry":
         return {"employees": [item.to_dict() for item in EmployeeRegistry().list()], "count": 5}
     if args.workforce_command == "golden":
+        if args.source_fabric:
+            from .source_golden import evaluate_source_fabric
+            return evaluate_source_fabric()
         from .golden import evaluate_pipeline_investigations
         return evaluate_pipeline_investigations()
     if args.workforce_command == "sources":
+        from .source_registry import SourceRegistry, P0_IDS
+        from .source_state import SourceState
+        registry = SourceRegistry()
+        state = SourceState(WorkforceService(engine.db).store)
+        if args.candidates:
+            from .source_discovery import candidate_catalog
+            return candidate_catalog()
+        if args.describe:
+            return {"manifest": registry.get(args.describe).to_dict(), "health": state.health(args.describe)}
+        if args.catalog or args.capability:
+            rows = [r.to_dict() for r in registry.list() if not args.capability or args.capability in r.capabilities]
+            return {"sources": rows, "capabilities": registry.capabilities(), "registered": len(registry.list()),
+                    "canonical_adapters": len(P0_IDS), "production_qualified": 0,
+                    "health": {r['source_id']: state.health(r['source_id']) for r in rows}, "network_requests": 0}
         return {"sources": readiness(), "network_requests": 0, "configuration_is_not_live_validation": True}
     service = WorkforceService(engine.db)
     if args.workforce_command in {"authorize-domain", "authorize"}:
@@ -91,7 +117,9 @@ def run_workforce(args, engine) -> dict:
         kind = "domain" if args.workforce_command == "authorize-domain" else args.target_type
         domain = normalize_seed(kind, args.domain if kind == "domain" and args.workforce_command == "authorize-domain" else args.target)
         now = datetime.now(timezone.utc)
-        effective_tools = tuple(sorted({"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in select_sources(kind, domain)}))
+        from .source_registry import SourceRegistry, P0_IDS
+        registry = SourceRegistry()
+        effective_tools = tuple(sorted({"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in P0_IDS if registry.supports(source, kind, domain)}))
         body = {"case": args.case, "target_type": kind, "target": domain, "tools": effective_tools, "actor": args.actor, "purpose": args.purpose,
                 "jurisdiction": args.jurisdiction, "retention": args.retention, "issued_at": now.isoformat()}
         context = AuthorizationContext(
@@ -107,7 +135,14 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "plan-domain":
         return service.create_owned_domain_task(args.context, args.domain, args.objective)
     if args.workforce_command == "plan":
-        return service.create_investigation_task(args.context, args.target_type, args.target, args.objective, sources=args.sources)
+        prices = {}
+        for entry in args.source_price:
+            source, value = entry.split('=', 1)
+            if source in prices:
+                raise ValueError('duplicate source price')
+            prices[source] = float(value)
+        return service.create_investigation_task(args.context, args.target_type, args.target, args.objective,
+            sources=args.sources, capabilities=args.capabilities, source_prices=prices, health_probe=args.health_probe)
     pipeline = InvestigationPipeline(service, engine.workspace)
     if args.workforce_command == "run":
         documents = load_documents(args.documents) if args.documents else ()

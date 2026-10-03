@@ -177,6 +177,9 @@ class IntelligenceHub:
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
         headers = {"User-Agent": "TraceAtlas-Automator/1.8"}
+        if spec.name in {"cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec", "opencorporates"} or (spec.name == "github" and target_type == "company"):
+            from .registry_requests import registry_request
+            return registry_request(spec.name, target_type, target)
         if spec.name == "rdap":
             raise PolicyError("RDAP requires IANA bootstrap resolution through collect")
         if spec.name == "urlscan":
