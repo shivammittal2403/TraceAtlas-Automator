@@ -5,7 +5,7 @@
 > supplies an OpenCTI deployment, provider credentials and explicit authority.
 > See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
 
-**RedKross TraceAtlas × OpenOSINT Fusion — version 1.9.0**
+**RedKross TraceAtlas × OpenOSINT Fusion — version 1.11.0**
 
 TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
@@ -70,6 +70,7 @@ See [setup, executable skills and operating limits](docs/AUTONOMOUS_IMPLEMENTATI
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
 - Governed intelligence hub covering 41 social, code, package, scholarly, video, community,
+- Governed intelligence hub covering 38 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
 - Twenty-three live official/public API connectors: GitHub, GitLab, Hacker News,
@@ -835,3 +836,71 @@ See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
 See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
 AI-assisted intelligence workflows.
 See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.
+
+## Integrated evidence-first investigation slice (2026-10-03)
+
+The local workforce now executes approved source records or fixed-host owned
+Domain/IP collection through captured bytes, observations, structured assertions,
+transitive source lineage, verification, temporal graph/timeline, draft reporting
+and network-free replay. Person/company use approved records and case-local IDs.
+No semantic text assertion, identity merge or consequential action is silently
+promoted. Unsupported extraction remains INCONCLUSIVE.
+
+```bash
+./start.sh workforce golden
+./start.sh workforce run --task TASK_ID --documents source-records.json --authorized
+./start.sh workforce report --task TASK_ID
+./start.sh workforce replay --task TASK_ID
+```
+
+The feature flag, exact authority and digest approval are still required. For
+setup and all commands see [runbook](docs/RUNBOOK.md). See [current state](CURRENT_STATE.md),
+[gap analysis](docs/GAP_ANALYSIS.md), [workflow](docs/WORKFLOW.md),
+[acceptance gates](docs/ACCEPTANCE_GATES.md) and [implementation report](docs/IMPLEMENTATION_REPORT.md).
+G01–G12 are controlled backbone tests. No hosted deployment qualification is
+claimed; source-specific qualification is recorded separately below. All requested design/domain/operations documents now
+state their actual executable versus planned boundaries.
+
+
+## Live-source investigation integration (1.10.0)
+
+Domain/IP investigations now bind source selection before approval and collect
+DNS, IANA-routed RDAP, passive urlscan/Wayback index and IPWHOIS/InternetDB context.
+Explicit IP selections can use ipdata/GreyNoise. Configure Brave or your numeric
+loopback SearXNG service for evidence-linked web search leads. Source outcomes,
+unknown billing, graph/timeline and draft report share preserved-byte replay.
+
+```bash
+traceatlas workforce sources
+traceatlas workforce plan --context AUTH_ID --target-type domain --target example.org \
+  --objective 'Review authorized passive exposure' --sources dns rdap urlscan wayback
+traceatlas workforce run --task TASK_ID --live --authorized
+```
+
+Register authority and approve the returned task digest before running. See
+[live source setup and qualification](docs/LIVE_SOURCES.md) for search environment
+references, coverage and failure behavior. Real public response capture/replay
+passed through this environment's proxy; the shipped direct transport requires
+runtime network qualification. Wayback timed out; keyed search/provider access
+and hosted worker/UI deployment remain unqualified.
+
+
+## Source Fabric (1.11.0)
+
+The new capability router chooses a bounded subset from twenty shared workforce
+adapters for domain, IP and exact company-identifier investigations. It adds
+Cloudflare DNS, crt.sh, RIPEstat, GLEIF, Companies House, SEC and OpenCorporates,
+and reuses GitHub, Shodan and VirusTotal in the canonical evidence workflow.
+Case-scoped cache, conservative rate/cost limits, two-wave fallback, health
+canaries and six optional MCP tools share existing authority and replay.
+
+```bash
+traceatlas workforce sources --catalog
+traceatlas workforce sources --candidates
+traceatlas workforce golden --source-fabric
+```
+
+The supplied 400 candidates deduplicate to 351 review rows, including generic
+categories; these are **not 400 live integrations**. Production-qualified count
+is zero pending runtime and entitlement evidence. See the [Source Fabric runbook](docs/sources/SOURCE_FABRIC.md)
+and [two-brief delivery ledger](docs/sources/DELIVERY_LEDGER.md).

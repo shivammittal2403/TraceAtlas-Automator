@@ -118,3 +118,18 @@ read-only graph foundation. It deliberately does not turn Vercel into a scanner.
 3. Add encrypted secret references, member administration and approval workflows.
 4. Add signed report manifests, external timestamping and backup restoration tests.
 5. Add graph merge/split history, saved views and collaboration conflict rules.
+
+## Integrated local investigation product
+
+`workforce/pipeline.py` composes the existing authorization/task service,
+EvidenceStore, fixed-host provider transport, source lineage, verifier and temporal
+graph gate. SQLite remains canonical; no new runtime dependency or database
+platform is introduced. Result, immutable product and terminal task status share
+one local transaction. Capture/custody occurs earlier and may survive a failed
+task; this is not distributed exactly-once processing.
+
+Source documents and structured facts have strict versioned contracts. Extraction
+must match a known provider parser or structured-source record before it can
+be supported. Replay reanalyses captured bytes with pinned workflow/parser/policy
+versions and verifies substantive decisions, independently of completion clocks.
+The hosted UI/API is not connected to this new runner. See docs/WORKFLOW.md.

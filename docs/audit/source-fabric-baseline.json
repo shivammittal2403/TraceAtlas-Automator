@@ -1,0 +1,26 @@
+{
+  "commit": "26dc8b8f41ed901ae65246f5ff91e38aff7fe1b1",
+  "core_python_tests": 256,
+  "core_result": "passed",
+  "baseline_pr": 24,
+  "github_ci": "37104607893 success",
+  "codeql": "37104607842 success",
+  "inputs": [
+    {
+      "name": "Pasted text (2)(5).txt",
+      "sha256": "031827ebd627f73c81a8a3d82dfd3c6eb22497af3f22f24236563dc2e22c1a13"
+    },
+    {
+      "name": "Pasted text (3)(1).txt",
+      "sha256": "e10544306a46e6de4f7e5eb574dc0eb0ce985d47b72d1f9857a22f7a1a5aa3c2"
+    },
+    {
+      "name": "Pasted text(20261003-075546).txt",
+      "sha256": "b513127e6fa1a1deafb4b81f8fb240aa86d19544b3ed96aa32ef431da99cddc9"
+    },
+    {
+      "name": "TraceAtlas_AI_Employee_Blueprint_v2(1).docx",
+      "sha256": "179bb410593a238ed4aec33ed89ee24d3a54669733ef0f587603e2ff1356bdbb"
+    }
+  ]
+}

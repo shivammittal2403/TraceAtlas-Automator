@@ -1,0 +1,892 @@
+{
+  "schema": "traceatlas-source-fabric-verification/v1",
+  "checked_at": "2026-10-03T15:06:00.600049+00:00",
+  "baseline_main": "26dc8b8f41ed901ae65246f5ff91e38aff7fe1b1",
+  "runtime_version": "1.11.0",
+  "core_suite": {
+    "tests_run": 271,
+    "optional_mcp_skipped": 1,
+    "failures": 0,
+    "command": "PYTHONPATH=src python -m unittest discover -s tests -q"
+  },
+  "optional_mcp_suite": {
+    "tests_run": 15,
+    "failures": 0,
+    "sdk_version": "2.3.0"
+  },
+  "node_regression": {
+    "test_files": 3,
+    "failures": 0
+  },
+  "source_golden": {
+    "schema": "traceatlas-source-golden-result/v1",
+    "mode": "controlled-fixtures",
+    "production_qualification": false,
+    "cases": [
+      {
+        "case": "dns-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "dns-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "dns-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "cloudflare_dns-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "cloudflare_dns-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "cloudflare_dns-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "rdap-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 2,
+        "replay": true,
+        "evidence": 2,
+        "network_attempts": 2,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "rdap-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "rdap-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "crtsh-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "crtsh-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "crtsh-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ripestat-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 2,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ripestat-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ripestat-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "urlscan-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 2,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "urlscan-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "urlscan-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "wayback-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "wayback-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "wayback-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "internetdb-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "internetdb-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "internetdb-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipwhois-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipwhois-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipwhois-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipdata-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipdata-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "ipdata-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "greynoise-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "greynoise-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "greynoise-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "brave-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "brave-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "brave-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "searxng-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "searxng-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "searxng-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "gleif-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 4,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "gleif-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "gleif-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "companieshouse-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 3,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "companieshouse-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "companieshouse-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "sec-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 3,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "sec-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "sec-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "opencorporates-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 3,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "opencorporates-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "opencorporates-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "github-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 3,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "github-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "github-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "shodan-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "shodan-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "shodan-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "virustotal-success",
+        "passed": true,
+        "expected": "success",
+        "observations": 1,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "virustotal-authentication_failure",
+        "passed": true,
+        "expected": "authentication_failure",
+        "observations": 0,
+        "replay": true,
+        "evidence": 0,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      },
+      {
+        "case": "virustotal-schema_drift",
+        "passed": true,
+        "expected": "schema_drift",
+        "observations": 0,
+        "replay": true,
+        "evidence": 1,
+        "network_attempts": 1,
+        "unsupported_released_claims": 0
+      }
+    ],
+    "total": 60,
+    "passed": 60,
+    "replay_success_rate": 1.0
+  },
+  "real_canaries": [
+    {
+      "checked_at": "2026-10-03T14:59:45.988026+00:00",
+      "scope": "public reference entities; bounded read-only canaries",
+      "production_qualified": false,
+      "results": [
+        {
+          "source_id": "cloudflare_dns",
+          "mode": "direct",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 2,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 5258,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_dns_failure",
+              "source_id": "cloudflare_dns",
+              "started_at": "2026-10-03T14:59:19.659991+00:00",
+              "status": "failed"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        },
+        {
+          "source_id": "ripestat",
+          "mode": "direct",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 2,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 5256,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_dns_failure",
+              "source_id": "ripestat",
+              "started_at": "2026-10-03T14:59:24.927424+00:00",
+              "status": "failed"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        },
+        {
+          "source_id": "gleif",
+          "mode": "direct",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 2,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 5257,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_dns_failure",
+              "source_id": "gleif",
+              "started_at": "2026-10-03T14:59:30.194515+00:00",
+              "status": "failed"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        },
+        {
+          "source_id": "github",
+          "mode": "direct",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 2,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 5252,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_dns_failure",
+              "source_id": "github",
+              "started_at": "2026-10-03T14:59:35.462521+00:00",
+              "status": "failed"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        },
+        {
+          "source_id": "crtsh",
+          "mode": "direct",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 2,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 5257,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_dns_failure",
+              "source_id": "crtsh",
+              "started_at": "2026-10-03T14:59:40.724518+00:00",
+              "status": "failed"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        }
+      ]
+    },
+    {
+      "checked_at": "2026-10-03T15:00:45.202530+00:00",
+      "scope": "public reference entities; bounded read-only canaries",
+      "production_qualified": false,
+      "results": [
+        {
+          "source_id": "cloudflare_dns",
+          "mode": "environment-proxy",
+          "state": "HUMAN_REVIEW",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 1,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 139,
+              "mode": "live",
+              "observations": 2,
+              "source_id": "cloudflare_dns",
+              "started_at": "2026-10-03T15:00:32.916761+00:00",
+              "status": "captured"
+            }
+          ],
+          "observations": 2,
+          "replay": true
+        },
+        {
+          "source_id": "ripestat",
+          "mode": "environment-proxy",
+          "state": "HUMAN_REVIEW",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 1,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 7062,
+              "mode": "live",
+              "observations": 2,
+              "source_id": "ripestat",
+              "started_at": "2026-10-03T15:00:33.072796+00:00",
+              "status": "captured"
+            }
+          ],
+          "observations": 2,
+          "replay": true
+        },
+        {
+          "source_id": "gleif",
+          "mode": "environment-proxy",
+          "state": "HUMAN_REVIEW",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 1,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 781,
+              "mode": "live",
+              "observations": 4,
+              "source_id": "gleif",
+              "started_at": "2026-10-03T15:00:40.149956+00:00",
+              "status": "captured"
+            }
+          ],
+          "observations": 4,
+          "replay": true
+        },
+        {
+          "source_id": "github",
+          "mode": "environment-proxy",
+          "state": "HUMAN_REVIEW",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 1,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 248,
+              "mode": "live",
+              "observations": 3,
+              "source_id": "github",
+              "started_at": "2026-10-03T15:00:40.947658+00:00",
+              "status": "captured"
+            }
+          ],
+          "observations": 3,
+          "replay": true
+        },
+        {
+          "source_id": "crtsh",
+          "mode": "environment-proxy",
+          "state": "PARTIAL",
+          "outcomes": [
+            {
+              "actual_cost": null,
+              "attempts": 1,
+              "cache_hit": false,
+              "estimated_cost": 0.0,
+              "latency_ms": 3981,
+              "mode": "live",
+              "observations": 0,
+              "reason": "provider_schema_mismatch",
+              "source_id": "crtsh",
+              "started_at": "2026-10-03T15:00:41.210664+00:00",
+              "status": "quarantined"
+            }
+          ],
+          "observations": 0,
+          "replay": true
+        }
+      ]
+    }
+  ],
+  "production_qualified_sources": 0,
+  "hosted_deployment_verified": false,
+  "limitations": [
+    "Fixture scenarios are not production qualification",
+    "Direct transport DNS blocked in this environment",
+    "Account-priced/credentialed providers unverified",
+    "Remaining candidate API/terms research incomplete",
+    "Distributed quotas and hosted worker/UI flow not deployed"
+  ],
+  "local_browser": {
+    "state": "BLOCKED",
+    "reason": "Playwright browser CDN returned invalid ZIP; no browser regression claimed locally",
+    "required_gate": "CI Core Python 3.10 and 3.12 employee UI regression"
+  },
+  "github_verification": {
+    "commit": "c199c79909a27b4fa8f4ad9a70ac0463d5de5f20",
+    "ci": {
+      "id": 37132577702,
+      "conclusion": "success",
+      "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37132577702"
+    },
+    "codeql": {
+      "id": 37132577695,
+      "conclusion": "success",
+      "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37132577695"
+    },
+    "browser": "passed in both Python 3.10 and 3.12 Core CI jobs",
+    "mcp": "passed against locked SDK in bundled runtime CI job"
+  }
+}

@@ -6,9 +6,9 @@ from .contracts import Budget, EmployeeDefinition, SCHEMA_VERSION, TaskEnvelope
 
 def _employee(employee_id: str, name: str, role: str, domain: str, objective: str,
               tools: tuple[str, ...], sources: tuple[str, ...], actions: tuple[str, ...],
-              capabilities: tuple[str, ...]) -> EmployeeDefinition:
+              capabilities: tuple[str, ...], *, version: str = "1.0.0") -> EmployeeDefinition:
     return EmployeeDefinition(
-        schema_version=SCHEMA_VERSION, employee_id=employee_id, name=name, version="1.0.0",
+        schema_version=SCHEMA_VERSION, employee_id=employee_id, name=name, version=version,
         role=role, domain=domain, objective=objective, allowed_tools=tools,
         allowed_sources=sources, allowed_actions=actions,
         prohibited_actions=("change_scope", "grant_authority", "contact_subject", "execute_code", "install_tool"),
@@ -28,9 +28,11 @@ INITIAL_EMPLOYEES: tuple[EmployeeDefinition, ...] = (
               ("investigation.plan", "search.query"), (), ("propose_plan", "estimate_information_gain"), ("planning",)),
     _employee("webint-infra-specialist", "WEBINT/INFRAINT Specialist", "specialist", "WEBINT_INFRAINT",
               "Collect and interpret approved public domain and infrastructure evidence",
-              ("search.execute", "dns.lookup", "rdap.lookup", "archive.lookup", "evidence.retrieve"),
-              ("dns", "rdap", "wayback", "approved_search"),
-              ("request_collection", "propose_observation", "propose_claim"), ("webint", "infraint", "domain")),
+              ("search.execute", "dns.lookup", "rdap.lookup", "archive.lookup", "ip.lookup", "registry.lookup", "evidence.retrieve"),
+              ("dns", "rdap", "rdap_bootstrap", "wayback", "urlscan", "internetdb", "ipwhois", "ipdata", "greynoise",
+               "brave", "searxng", "cloudflare_dns", "crtsh", "ripestat", "gleif", "companieshouse", "sec",
+               "opencorporates", "github", "shodan", "virustotal", "approved_search", "approved_export"),
+              ("request_collection", "propose_observation", "propose_claim"), ("webint", "infraint", "domain", "ip", "person", "company"), version="1.3.0"),
     _employee("verification-supervisor", "Verification Supervisor", "supervisor", "VERIFICATION",
               "Challenge material claims and surface contradictions without changing evidence",
               ("evidence.verify", "verification.run", "graph.query"), (),
@@ -63,9 +65,9 @@ class EmployeeRegistry:
         for definition in self._definitions.values():
             if not required.intersection(definition.required_capabilities):
                 continue
-            if not set(definition.allowed_tools).issubset(allowed_tools):
+            if not set(definition.allowed_tools).intersection(allowed_tools):
                 continue
-            if not set(definition.allowed_actions).issubset(allowed_actions):
+            if not set(definition.allowed_actions).intersection(allowed_actions):
                 continue
             if task.budget.tool_calls > definition.budget_limit.tool_calls or task.budget.runtime_seconds > definition.budget_limit.runtime_seconds:
                 continue
@@ -77,4 +79,6 @@ class EmployeeRegistry:
         if not candidates:
             raise ValueError("no eligible employee for the requested capabilities and authority")
         exact = [item for item in candidates if set(task.required_capabilities).issubset(item.required_capabilities)]
-        return (exact or list(candidates))[0]
+        if not exact:
+            raise ValueError("no employee implements every requested capability")
+        return exact[0]

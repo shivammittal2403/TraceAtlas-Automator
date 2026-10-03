@@ -12,9 +12,10 @@ from urllib.parse import urlsplit
 
 from .provider import ProviderError
 from .contracts import SOURCE_HOSTS
+from .rdap import RDAP_HOSTS
 
 MAX_BYTES = 5 * 1024 * 1024
-PROVIDER_HOSTS = frozenset(SOURCE_HOSTS.values())
+PROVIDER_HOSTS = frozenset(SOURCE_HOSTS.values()) | RDAP_HOSTS | {"api.search.brave.com"}
 
 
 def _resolve(host, timeout):
@@ -91,7 +92,8 @@ def request(url: str, headers: dict[str, str], timeout: float) -> tuple[int, byt
         if response.getheader('Content-Encoding', 'identity').lower() not in {'', 'identity'}:
             raise ProviderError('provider_encoding_rejected')
         media = response.getheader('Content-Type', '').split(';', 1)[0].strip().lower()
-        if media != 'application/json' and not (media.startswith('application/') and media.endswith('+json')):
+        dns_json = host == 'cloudflare-dns.com' and media == 'application/dns-json'
+        if not dns_json and media != 'application/json' and not (media.startswith('application/') and media.endswith('+json')):
             raise ProviderError('provider_content_type_rejected')
         length = response.getheader('Content-Length')
         if length is not None and (not length.isdigit() or int(length) > MAX_BYTES):
@@ -111,3 +113,63 @@ def request(url: str, headers: dict[str, str], timeout: float) -> tuple[int, byt
         if tls:
             tls.close()
         raw.close()
+
+
+def request_loopback_search(url: str, headers: dict[str, str], timeout: float) -> tuple[int, bytes]:
+    """Only the explicitly configured numeric loopback SearXNG search endpoint.
+
+    Direct sockets bypass proxies and hostname resolution. Redirects cannot
+    escape loopback. This is separate from the public-provider allowlist.
+    """
+    try:
+        parsed = urlsplit(url)
+        address = ipaddress.ip_address(parsed.hostname or "")
+        valid = (parsed.scheme == "http" and address.is_loopback and parsed.path == "/search"
+                 and parsed.port is not None and 1 <= parsed.port <= 65535
+                 and not parsed.username and not parsed.password and not parsed.fragment
+                 and not any(ord(c) < 33 for c in url))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ProviderError("provider_destination_rejected")
+    seconds = max(0, min(float(timeout), 30))
+    if seconds <= 0:
+        raise ProviderError("provider_deadline_exceeded")
+    deadline = time.monotonic() + seconds
+    connection = http.client.HTTPConnection(str(address), parsed.port, timeout=seconds)
+    timer = None
+    try:
+        connection.connect()
+        sock = connection.sock
+        def expire():
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        timer = threading.Timer(max(0, deadline - time.monotonic()), expire)
+        timer.daemon = True
+        timer.start()
+        safe_headers = {k: v for k, v in headers.items() if k.lower() in {"accept", "user-agent"}}
+        safe_headers.update({"Accept-Encoding": "identity", "Connection": "close"})
+        connection.request("GET", parsed.path + "?" + parsed.query, headers=safe_headers)
+        response = connection.getresponse()
+        if 300 <= response.status < 400:
+            raise ProviderError("provider_redirect_rejected")
+        if response.status != 200:
+            return response.status, b""
+        if response.getheader("Content-Encoding", "identity").lower() not in {"", "identity"}:
+            raise ProviderError("provider_encoding_rejected")
+        if response.getheader("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            raise ProviderError("provider_content_type_rejected")
+        raw = response.read(400 * 1024 + 1)
+        if time.monotonic() >= deadline:
+            raise ProviderError("provider_deadline_exceeded")
+        if len(raw) > 400 * 1024:
+            raise ProviderError("provider_response_too_large")
+        return 200, raw
+    except (OSError, http.client.HTTPException):
+        raise ProviderError("provider_transport_failure", retryable=True) from None
+    finally:
+        if timer:
+            timer.cancel()
+        connection.close()

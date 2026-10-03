@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:traceatlas:source-document:v1",
+  "title": "TraceAtlas SourceDocument v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_id",
+    "source_uri",
+    "retrieved_at",
+    "content",
+    "facts",
+    "original_source_id",
+    "ownership_group"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "traceatlas-source-document/v1"
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+    },
+    "source_uri": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "content": {
+      "type": "string",
+      "maxLength": 524288
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subject",
+          "predicate",
+          "value",
+          "valid_from",
+          "valid_to"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+          },
+          "predicate": {
+            "enum": [
+              "resolves_to",
+              "registry_handle",
+              "registered_name",
+              "registered_country",
+              "registration_status",
+              "observed_port",
+              "archived_url",
+              "public_label",
+              "associated_with",
+              "mentions",
+              "indicator",
+              "dependency",
+              "search_result_url",
+              "indexed_url",
+              "scan_observed_ip",
+              "approximate_country",
+              "network_asn",
+              "network_isp",
+              "provider_classification",
+              "provider_last_seen"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "original_source_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ownership_group": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

@@ -53,6 +53,13 @@ jobs:
         run: traceatlas-research status --verify > /dev/null
       - name: Run AI evidence-contract benchmark
         run: traceatlas benchmark --json
+      - name: Run complete controlled workforce investigations and offline replay
+        run: |
+          mkdir -p artifacts
+          traceatlas workforce golden > artifacts/workforce-golden.json
+          python -c "import json; assert json.load(open('artifacts/workforce-golden.json'))['passed']"
+          traceatlas workforce golden --source-fabric > artifacts/source-fabric-golden.json
+          python -c "import json; r=json.load(open('artifacts/source-fabric-golden.json')); assert r['passed'] == r['total'] == 60"
       - name: Verify governed OpenCTI connector snapshot
         run: |
           traceatlas opencti-connectors doctor --json
@@ -123,6 +130,10 @@ jobs:
             --ignore=packages/openosint/tests/test_playbooks.py \
             --ignore=packages/openosint/tests/test_sponsor_metrics.py \
             --ignore=packages/openosint/tests/test_sponsors.py
+      - name: Verify Source Fabric against the locked MCP SDK
+        env:
+          PYTHONPATH: src
+        run: .openosint-test-venv/bin/python -m unittest discover -s tests -p test_source_fabric.py -v
 
   worker-image:
     name: Private worker image

@@ -4,10 +4,15 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from .sources import SOURCES
+from .rdap import RDAP_HOSTS
 
 SOURCE_HOSTS = {
     'gleif': 'api.gleif.org', 'ripestat': 'stat.ripe.net', 'epss': 'api.first.org', 'osv': 'api.osv.dev',
     'rdap': 'rdap.org', 'dns': 'dns.google', 'wayback': 'web.archive.org',
+    'cloudflare_dns': 'cloudflare-dns.com', 'crtsh': 'crt.sh', 'ripestat': 'stat.ripe.net',
+    'gleif': 'api.gleif.org', 'companieshouse': 'api.company-information.service.gov.uk',
+    'sec': 'data.sec.gov', 'opencorporates': 'api.opencorporates.com',
+    'rdap': 'data.iana.org', 'dns': 'dns.google', 'wayback': 'web.archive.org', 'urlscan': 'urlscan.io',
     'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
     'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
     'gitlab': 'gitlab.com', 'hackernews': 'hacker-news.firebaseio.com', 'mastodon': 'mastodon.social',
@@ -52,8 +57,11 @@ class ConnectorContract:
 SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
     "gleif": ("lei", "company"), "ripestat": ("ip",), "epss": ("cve",), "osv": ("vulnerability",),
     "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",),
+    "cloudflare_dns": ("domain",), "crtsh": ("domain",), "ripestat": ("ip",),
+    "gleif": ("company",), "companieshouse": ("company",), "sec": ("company",), "opencorporates": ("company",),
+    "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",), "urlscan": ("domain", "ip"),
     "internetdb": ("ip",), "ipwhois": ("ip",), "ipdata": ("ip",),
-    "greynoise": ("ip",), "bluesky": ("username",), "github": ("username",),
+    "greynoise": ("ip",), "bluesky": ("username",), "github": ("username", "company"),
     "gitlab": ("username",), "hackernews": ("username",), "mastodon": ("username",),
     "stackexchange": ("user_id",), "dockerhub": ("username",), "youtube": ("channel",),
     "discord": ("invite",), "shodan": ("ip",), "censys": ("ip",),
@@ -61,7 +69,7 @@ SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
     "npm": ("package",), "crossref": ("doi",), "orcid": ("orcid",),
 }
 
-OPTIONAL_CREDENTIALS = {"github", "nvd", "greynoise"}
+OPTIONAL_CREDENTIALS = {"github", "nvd", "greynoise", "urlscan"}
 
 
 def source_contract(source_id: str) -> ConnectorContract:
@@ -74,7 +82,7 @@ def source_contract(source_id: str) -> ConnectorContract:
     )
     return ConnectorContract(
         source_id=source_id,
-        contract_version=1,
+        contract_version=2 if source_id == "rdap" else 1,
         mode="api" if live else "import",
         inputs=SOURCE_INPUTS.get(source_id, ("approved-export",)),
         allowed_actions=("lookup",) if live else ("ingest",),
@@ -82,8 +90,9 @@ def source_contract(source_id: str) -> ConnectorContract:
         credential_env=credentials,
         capability_state="implemented" if live else "import-only",
         live_validation="deployment-required" if live else "not-applicable",
-        allowed_hosts=(SOURCE_HOSTS[source_id],) if live else (),
+        allowed_hosts=tuple(sorted(RDAP_HOSTS)) if source_id == "rdap" else (SOURCE_HOSTS[source_id],) if live else (),
         supported_ip_versions=(4,) if source_id in IPV4_ONLY else (4, 6) if 'ip' in SOURCE_INPUTS.get(source_id, ()) else (),
+        max_pages=2 if source_id == "rdap" else 1,
     )
 
 

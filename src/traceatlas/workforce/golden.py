@@ -39,3 +39,67 @@ def evaluate_golden_investigations() -> dict:
         results.append({"id": fixture["id"], "passed": all(checks.values()), "checks": checks,
                         "replay_digest": hashlib.sha256(canonical.encode()).hexdigest()})
     return {"schema": pack["schema"], "passed": all(row["passed"] for row in results), "results": results}
+
+
+def evaluate_pipeline_investigations() -> dict:
+    """Run the complete local slice; domain labels are backbone fixtures, not live proof."""
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    from .contracts import AuthorizationContext
+    from .documents import SourceDocument
+    from .pipeline import InvestigationPipeline
+    from .service import WorkforceService
+    from ..db import CaseDB
+    pack = json.loads(files("traceatlas.workforce.data").joinpath("pipeline_investigations.json").read_text(encoding="utf-8"))
+    results = []
+    for fixture in pack["cases"]:
+        with tempfile.TemporaryDirectory(prefix="traceatlas-golden-") as temp:
+            root = Path(temp)
+            db = CaseDB(root / "cases.db")
+            try:
+                db.create_case("golden-case", fixture["id"], "Controlled synthetic investigation, no subject contact")
+                service = WorkforceService(db, enabled=True)
+                stamp = datetime.now(timezone.utc) - timedelta(seconds=1)
+                context = AuthorizationContext("1.0", "golden-auth", "golden-case", "golden-analyst",
+                    "Controlled synthetic evidence-first evaluation", (fixture["seed"],),
+                    ("request_collection", "propose_observation", "propose_claim"),
+                    ("dns.lookup", "rdap.lookup", "archive.lookup", "ip.lookup", "search.execute", "evidence.retrieve"),
+                    "IN", "fixture-only", stamp.isoformat(), (stamp+timedelta(hours=1)).isoformat(), "a"*64)
+                service.register_authorization(context)
+                kind, seed = fixture["seed"].split(":", 1)
+                controlled_sources = ("dns", "rdap", "wayback") if kind == "domain" else ("rdap",) if kind == "ip" else None
+                planned = service.create_investigation_task(context.context_id, kind, seed, fixture["objective"], sources=controlled_sources)
+                task_id = planned["task"]["task_id"]
+                service.approve(task_id, actor_id=context.actor_id, rationale="Approved synthetic exact-scope fixture only",
+                                envelope_digest=planned["envelope_digest"], authorized=True)
+                def requester(url, headers, timeout):
+                    if url.startswith("https://dns.google/"):
+                        return 200, b'{"Status":0,"Question":[{"name":"example.org.","type":1}],"Answer":[{"name":"example.org.","type":1,"data":"192.0.2.10"}]}'
+                    if url.startswith("https://data.iana.org/"):
+                        return 200, b'{"version":"1.0","services":[[["org"],["https://rdap.publicinterestregistry.org/rdap/"]]]}'
+                    if url.startswith("https://rdap.publicinterestregistry.org/"):
+                        return 503, b''
+                    return 200, b'[]'
+                pipeline = InvestigationPipeline(service, root, requester=requester)
+                docs = tuple(SourceDocument.from_dict(row) for row in fixture.get("documents", []))
+                product = pipeline.run(task_id, documents=docs, live=fixture.get("live", False), authorized=True)
+                replay = pipeline.replay(task_id)
+                analysis = product["analysis"]
+                statuses = [row["status"] for row in analysis["verification"]]
+                checks = {"offline_replay": replay["verified"],
+                          "evidence_coverage": bool(product["replay_manifest"]["evidence"]),
+                          "no_material_release": analysis["metrics"]["released_material_claims"] == 0,
+                          "no_identity_merge": all(not row["canonical_merge"] for row in analysis["identity_candidates"]),
+                          "expected_status": fixture["expected_status"] in statuses}
+                if fixture.get("expected_gap"):
+                    checks["expected_gap"] = fixture["expected_gap"] in analysis["information_gaps"]
+                if fixture.get("live"):
+                    checks["provider_failure_preserved"] = product["state"] == "PARTIAL" and any(r.get("reason") == "provider_unavailable" for r in product["replay_manifest"]["source_outcomes"])
+                    checks["attempt_budget"] = product["network_attempts"] <= 8
+                results.append({"id": fixture["id"], "domain": fixture["domain"], "passed": all(checks.values()),
+                                "checks": checks, "metrics": analysis["metrics"], "verification_statuses": statuses})
+            finally:
+                db.close()
+    return {"schema": pack["schema"], "passed": all(row["passed"] for row in results), "results": results,
+            "limitations": "G01-G12 exercise the shared local backbone on controlled records; they do not qualify live person discovery, malware sandboxing, actor attribution or BOM analysis."}

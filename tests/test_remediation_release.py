@@ -50,8 +50,10 @@ class RemediationReleaseTests(unittest.TestCase):
     def test_connector_contracts_are_versioned_bounded_and_catalog_cannot_activate(self):
         rows = connector_contracts()
         self.assertEqual(len(rows), len(set(row["source_id"] for row in rows)))
-        self.assertTrue(all(row["contract_version"] == 1 for row in rows))
-        self.assertTrue(all(row["max_targets"] == 1 and row["max_pages"] == 1 for row in rows))
+        self.assertTrue(all(row["contract_version"] == (2 if row["source_id"] == "rdap" else 1) for row in rows))
+        self.assertTrue(all(row["max_targets"] == 1 and row["max_pages"] == (2 if row["source_id"] == "rdap" else 1) for row in rows))
+        self.assertIn("data.iana.org", source_contract("rdap").allowed_hosts)
+        self.assertNotIn("rdap.org", source_contract("rdap").allowed_hosts)
         self.assertTrue(all(row["live_validation"] != "verified" for row in rows))
         self.assertEqual(source_contract("ipdata").authentication, "secret-reference")
         self.assertEqual(source_contract("greynoise").authentication, "optional-secret-reference")

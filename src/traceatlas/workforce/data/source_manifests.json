@@ -1,0 +1,644 @@
+[
+  {
+    "source_id": "dns",
+    "capabilities": [
+      "domain.dns"
+    ],
+    "entity_types": [
+      "domain"
+    ],
+    "tool": "dns.lookup",
+    "provider": "google",
+    "upstream_group": "dns-authority",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 300,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://developers.google.com/speed/public-dns/docs/doh/json",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "cloudflare_dns",
+    "capabilities": [
+      "domain.dns"
+    ],
+    "entity_types": [
+      "domain"
+    ],
+    "tool": "dns.lookup",
+    "provider": "cloudflare",
+    "upstream_group": "dns-authority",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 300,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "rdap",
+    "capabilities": [
+      "domain.registration",
+      "ip.ownership"
+    ],
+    "entity_types": [
+      "domain",
+      "ip"
+    ],
+    "tool": "rdap.lookup",
+    "provider": "iana-rdap",
+    "upstream_group": "registry-authority",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://www.iana.org/assignments/rdap-dns/rdap-dns.xhtml",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "crtsh",
+    "capabilities": [
+      "domain.certificates"
+    ],
+    "entity_types": [
+      "domain"
+    ],
+    "tool": "archive.lookup",
+    "provider": "sectigo",
+    "upstream_group": "certificate-transparency",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://groups.google.com/g/crtsh/c/sCpRljHP4dw",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "urlscan",
+    "capabilities": [
+      "web.index",
+      "ip.exposure"
+    ],
+    "entity_types": [
+      "domain",
+      "ip"
+    ],
+    "tool": "archive.lookup",
+    "provider": "urlscan",
+    "upstream_group": "urlscan",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 900,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://urlscan.io/docs/api/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "wayback",
+    "capabilities": [
+      "web.archive"
+    ],
+    "entity_types": [
+      "domain"
+    ],
+    "tool": "archive.lookup",
+    "provider": "internet-archive",
+    "upstream_group": "internet-archive",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 86400,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "internetdb",
+    "capabilities": [
+      "ip.exposure"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "shodan",
+    "upstream_group": "shodan",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://internetdb.shodan.io/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "ipwhois",
+    "capabilities": [
+      "ip.geolocation",
+      "ip.asn"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "ipwhois",
+    "upstream_group": "ipwhois",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://ipwhois.io/documentation",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "ipdata",
+    "capabilities": [
+      "ip.geolocation",
+      "ip.asn"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "ipdata",
+    "upstream_group": "ipdata",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://docs.ipdata.co/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "greynoise",
+    "capabilities": [
+      "cti.indicator"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "greynoise",
+    "upstream_group": "greynoise",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://docs.greynoise.io/docs/community-api",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": null,
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "brave",
+    "capabilities": [
+      "web.search",
+      "document.search"
+    ],
+    "entity_types": [
+      "domain",
+      "ip",
+      "company"
+    ],
+    "tool": "search.execute",
+    "provider": "brave",
+    "upstream_group": "brave-index",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 900,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://api-dashboard.search.brave.com/app/documentation/web-search/get-started",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "searxng",
+    "capabilities": [
+      "web.search",
+      "document.search"
+    ],
+    "entity_types": [
+      "domain",
+      "ip",
+      "company"
+    ],
+    "tool": "search.execute",
+    "provider": "self-hosted",
+    "upstream_group": "search-upstream-unknown",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 900,
+    "pricing_model": "LOCAL",
+    "documentation_url": "https://docs.searxng.org/dev/search_api.html",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "ripestat",
+    "capabilities": [
+      "ip.asn",
+      "ip.routing"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "ripe",
+    "upstream_group": "ripe-ris",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://stat.ripe.net/docs/data-api/api-endpoints/network-info.html",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "gleif",
+    "capabilities": [
+      "company.registration",
+      "company.lei"
+    ],
+    "entity_types": [
+      "company"
+    ],
+    "tool": "registry.lookup",
+    "provider": "gleif",
+    "upstream_group": "company-register",
+    "official": true,
+    "primary_source": false,
+    "cache_ttl_seconds": 86400,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://api.gleif.org/docs",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "CC0 for LEI data; API acceptable-use terms still apply"
+  },
+  {
+    "source_id": "companieshouse",
+    "capabilities": [
+      "company.registration"
+    ],
+    "entity_types": [
+      "company"
+    ],
+    "tool": "registry.lookup",
+    "provider": "uk-companies-house",
+    "upstream_group": "company-register",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://developer-specs.company-information.service.gov.uk/companies-house-public-data-api/reference/company-profile/company-profile",
+    "countries": [
+      "GB"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "600 requests/5 minutes; application quota",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "sec",
+    "capabilities": [
+      "company.filings",
+      "company.registration"
+    ],
+    "entity_types": [
+      "company"
+    ],
+    "tool": "registry.lookup",
+    "provider": "us-sec",
+    "upstream_group": "sec-filings",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+    "countries": [
+      "US"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "10 requests/second across client machines",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "opencorporates",
+    "capabilities": [
+      "company.registration"
+    ],
+    "entity_types": [
+      "company"
+    ],
+    "tool": "registry.lookup",
+    "provider": "opencorporates",
+    "upstream_group": "company-register",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://api.opencorporates.com/documentation/API-Reference",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "github",
+    "capabilities": [
+      "code.organization"
+    ],
+    "entity_types": [
+      "company"
+    ],
+    "tool": "registry.lookup",
+    "provider": "github",
+    "upstream_group": "github",
+    "official": true,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://docs.github.com/en/rest/orgs/orgs#get-an-organization",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "60 requests/hour without authentication; originating-IP quota",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "shodan",
+    "capabilities": [
+      "ip.exposure"
+    ],
+    "entity_types": [
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "shodan",
+    "upstream_group": "shodan",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://developer.shodan.io/api",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "UNKNOWN; operator review required"
+  },
+  {
+    "source_id": "virustotal",
+    "capabilities": [
+      "cti.indicator"
+    ],
+    "entity_types": [
+      "domain",
+      "ip"
+    ],
+    "tool": "ip.lookup",
+    "provider": "virustotal",
+    "upstream_group": "virustotal-upstream-unknown",
+    "official": false,
+    "primary_source": false,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "ACCOUNT",
+    "documentation_url": "https://docs.virustotal.com/reference/overview",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-03",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": null,
+    "provider_concurrency": 1,
+    "rate_limit": "Public: 4 requests/minute, 500/day; licensed limits depend on plan",
+    "license": "UNKNOWN; operator review required",
+    "legal_constraints": [
+      "authorized-purpose",
+      "operator-terms-review",
+      "public-api-not-for-commercial-use",
+      "licensed-plan-required-for-commercial-workflows"
+    ]
+  }
+]
