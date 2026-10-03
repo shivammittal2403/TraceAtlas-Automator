@@ -10,6 +10,7 @@ NODE_TYPES = frozenset({
     "Email", "Phone", "Username", "Device", "Document", "Location", "Event", "Asset", "Supplier",
     "Facility", "Software", "Hardware", "AIModel", "ThreatActor", "Campaign", "Indicator",
     "Transaction", "Evidence", "Observation", "Claim", "Hypothesis", "Source", "Acquisition",
+    "URL", "ASN", "Certificate", "Hash", "Malware", "Vulnerability", "TTP", "Dataset",
 })
 IDENTITY_STATES = frozenset({"MATCH", "LIKELY_MATCH", "POSSIBLE_MATCH", "CONFLICT", "NO_MATCH"})
 

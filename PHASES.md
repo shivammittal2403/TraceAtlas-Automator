@@ -18,3 +18,14 @@
 The repository implementation does not claim that remote providers, a hosted
 Supabase project, Vercel deployment or production incident/restore drills have
 been verified. Those are deployment gates, not code-completeness claims.
+
+## 2026-10-03 integration cycle
+
+The previous phase table describes component-level tests. H is now an integrated
+local pipeline with source-document capture, graph/timeline/claim verification,
+draft and replay. Transitive lineage and current authority gates are repaired.
+G01–G12 execute controlled shared-backbone cases; free-text extraction abstains.
+
+Hosted operational phase L remains NOT DEPLOYED / NOT VERIFIED for this runner.
+The master prompt's phases 11–18 and semantic autonomous planning are not marked
+complete. docs/ROADMAP.md records remaining dependencies and release gates.
