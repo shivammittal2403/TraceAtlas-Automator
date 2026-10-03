@@ -18,3 +18,15 @@
   remain unregistered until a separate deployment review.
 - Feature flag default: off. Kill switch always overrides enablement.
 - Repository test success is not production deployment evidence.
+
+## 2026-10-03 decisions
+
+- Audited refreshed main fe51ba7; 2a8789e is historical, not the current baseline.
+- Wrote docs/GAP_ANALYSIS.md before significant implementation.
+- Reused the core stack and workforce rather than adding agents or dependencies.
+- Person/company are approved-record modes; domain/IP reuse fixed-host transport.
+- Claims verify structured assertions, not real-world identity, intent or guilt.
+- Unverified free-text semantics and detected instructions remain INCONCLUSIVE.
+- Source lineage uses transitive components; same-source URLs are not corroboration.
+- Reports stay drafts; analysis/replay are network-free and use zero model tokens.
+- Hosted deployment, provider entitlements and full production gates remain open.

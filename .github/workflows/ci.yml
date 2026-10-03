@@ -53,6 +53,11 @@ jobs:
         run: traceatlas-research status --verify > /dev/null
       - name: Run AI evidence-contract benchmark
         run: traceatlas benchmark --json
+      - name: Run complete controlled workforce investigations and offline replay
+        run: |
+          mkdir -p artifacts
+          traceatlas workforce golden > artifacts/workforce-golden.json
+          python -c "import json; assert json.load(open('artifacts/workforce-golden.json'))['passed']"
       - name: Verify governed OpenCTI connector snapshot
         run: |
           traceatlas opencti-connectors doctor --json

@@ -17,3 +17,13 @@
 14. Approvals bind the exact task/evidence/report digest and become stale when inputs change.
 15. Rollback stops scheduling but never deletes evidence or custody history.
 16. `CODED`, `TESTED`, `DEPLOYED` and `VERIFIED` are reported separately.
+
+17. Recheck authority issuance/expiry, task deadline and kill switch before dispatch.
+18. A source substring does not validate extracted subject/predicate semantics;
+    unverified extraction remains INCONCLUSIVE.
+19. Contradictions compare overlapping valid times and registered single-valued
+    predicates; multivalued DNS answers are not contradictions.
+20. Raw captured inputs and substantive analysis digests own replay, not refreshed
+    external responses or today's decision clock.
+21. Result, draft product and terminal task state commit together locally; do not
+    claim filesystem capture or distributed execution is exactly-once.

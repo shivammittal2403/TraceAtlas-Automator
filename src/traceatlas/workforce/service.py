@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 from uuid import uuid4
 
-from ..policy import validate_target
 from .contracts import (
     AuthorizationContext, Budget, CostRecord, ResultEnvelope, SCHEMA_VERSION,
     TaskEnvelope,
@@ -40,26 +39,50 @@ class WorkforceService:
     def register_authorization(self, context: AuthorizationContext) -> None:
         self.store.register_authorization(context)
 
+    def _enabled(self) -> bool:
+        return self.enabled and os.environ.get("TRACEATLAS_WORKFORCE_KILL_SWITCH", "").casefold() not in {"1", "true", "yes"}
+
+    @staticmethod
+    def _check_authority(context, task=None) -> None:
+        now = datetime.now(timezone.utc)
+        if not datetime.fromisoformat(context.issued_at) <= now < datetime.fromisoformat(context.expires_at):
+            raise ValueError("authorization context expired or not yet valid")
+        if task is not None:
+            if datetime.fromisoformat(task.deadline) <= now:
+                raise ValueError("task deadline reached")
+            if (task.policy_digest != context.policy_digest or task.case_id != context.case_id
+                    or task.created_by != context.actor_id or not set(task.scope).issubset(context.scope)
+                    or not set(task.target_entities).issubset(task.scope)):
+                raise ValueError("task authority binding is invalid")
+
     def create_owned_domain_task(self, context_id: str, domain: str, objective: str) -> dict:
-        if not self.enabled:
+        return self.create_investigation_task(context_id, "domain", domain, objective)
+
+    def create_investigation_task(self, context_id: str, target_type: str, target: str, objective: str) -> dict:
+        from .documents import normalize_seed
+        if not self._enabled():
             raise ValueError("AI workforce execution is disabled by the server-side feature flag")
-        target = validate_target("domain", domain).value.lower()
+        target = normalize_seed(target_type, target)
         context = self.store.authorization(context_id)
         now = datetime.now(timezone.utc)
-        if datetime.fromisoformat(context.expires_at) <= now:
-            raise ValueError("authorization context expired")
-        if f"domain:{target}" not in context.scope:
-            raise ValueError("domain is outside the immutable authorization scope")
-        required_tools = {"dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "evidence.retrieve"}
+        seed = f"{target_type}:{target}"
+        if seed not in context.scope:
+            raise ValueError("target is outside the immutable authorization scope")
+        self._check_authority(context)
+        required_tools = {"evidence.retrieve"}
+        if target_type == "domain":
+            required_tools |= {"dns.lookup", "rdap.lookup", "archive.lookup"}
+        elif target_type == "ip":
+            required_tools |= {"rdap.lookup", "ip.lookup"}
         required_actions = {"request_collection", "propose_observation", "propose_claim"}
         if not required_tools.issubset(context.allowed_tools) or not required_actions.issubset(context.allowed_actions):
             raise ValueError("authorization does not permit the domain vertical slice")
         task = TaskEnvelope(
             schema_version=SCHEMA_VERSION, task_id="task-" + uuid4().hex, case_id=context.case_id,
             parent_task_id=None, trace_id="trace-" + uuid4().hex,
-            objective=objective, scope=(f"domain:{target}",), authorization_context_id=context.context_id,
-            policy_digest=context.policy_digest, target_entities=(f"domain:{target}",),
-            required_capabilities=("domain", "webint", "infraint"), evidence_context_ids=(),
+            objective=objective, scope=(seed,), authorization_context_id=context.context_id,
+            policy_digest=context.policy_digest, target_entities=(seed,),
+            required_capabilities=(target_type, "webint"), evidence_context_ids=(),
             constraints=("passive_only", "no_contact", "no_identity_merge", "human_release_required"),
             budget=Budget("USD", 1.0, 120, 8, 2),
             deadline=(now + timedelta(minutes=15)).isoformat(),
@@ -80,11 +103,12 @@ class WorkforceService:
         context = self.store.authorization(task["envelope"].authorization_context_id)
         if actor_id != context.actor_id:
             raise ValueError("approval actor does not own the authorization context")
+        self._check_authority(context, task["envelope"])
         self.store.approve(task_id, actor_id, rationale, envelope_digest, "approval-" + uuid4().hex)
         return self.describe(task_id)
 
-    def execute(self, task_id: str, runner: Runner, *, authorized: bool = False) -> dict:
-        if not self.enabled or not authorized:
+    def execute(self, task_id: str, runner: Runner, *, authorized: bool = False, product_factory=None) -> dict:
+        if not self._enabled() or not authorized:
             raise ValueError("workforce execution requires enabled feature flag and explicit authorization")
         current = self.store.task(task_id)
         if current["status"] == "completed":
@@ -93,8 +117,7 @@ class WorkforceService:
             raise ValueError("only an approved task can execute")
         task = current["envelope"]
         context = self.store.authorization(task.authorization_context_id)
-        if task.policy_digest != context.policy_digest or task.case_id != context.case_id:
-            raise ValueError("task authority binding is invalid")
+        self._check_authority(context, task)
         employee = self.registry.get(current["employee_id"])
         if _digest(employee.to_dict()) != current["definition_digest"]:
             raise ValueError("employee definition changed after task creation")
@@ -108,11 +131,15 @@ class WorkforceService:
                 raise ValueError("result contains an unapproved tool call")
             if len(result.tool_calls) > task.budget.tool_calls:
                 raise ValueError("result exceeds the tool-call budget")
+            model_calls = sum(span.operation == "model.generate" for span in result.execution_trace)
+            if model_calls > task.budget.model_calls or (result.model_used != "deterministic-no-model" and task.budget.model_calls == 0):
+                raise ValueError("result exceeds the model-call budget")
             if result.cost.estimated_cost > task.budget.amount or (result.cost.actual_cost or 0) > task.budget.amount:
                 raise ValueError("result exceeds the cost budget")
             if time.monotonic() - started > task.budget.runtime_seconds:
                 raise ValueError("result exceeded the runtime budget")
-            self.store.finish(task_id, result)
+            self._check_authority(context, task)
+            self.store.finish(task_id, result, product=product_factory() if product_factory else None)
         except BaseException:
             self.store.fail(task_id)
             raise

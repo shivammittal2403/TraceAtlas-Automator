@@ -808,3 +808,27 @@ See [SPIDER_ENGINE.md](SPIDER_ENGINE.md) for the event/module contract.
 See [INTELLIGENCE_HUB.md](INTELLIGENCE_HUB.md) for social, media, business and
 AI-assisted intelligence workflows.
 See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.
+
+## Integrated evidence-first investigation slice (2026-10-03)
+
+The local workforce now executes approved source records or fixed-host owned
+Domain/IP collection through captured bytes, observations, structured assertions,
+transitive source lineage, verification, temporal graph/timeline, draft reporting
+and network-free replay. Person/company use approved records and case-local IDs.
+No semantic text assertion, identity merge or consequential action is silently
+promoted. Unsupported extraction remains INCONCLUSIVE.
+
+```bash
+./start.sh workforce golden
+./start.sh workforce run --task TASK_ID --documents source-records.json --authorized
+./start.sh workforce report --task TASK_ID
+./start.sh workforce replay --task TASK_ID
+```
+
+The feature flag, exact authority and digest approval are still required. For
+setup and all commands see [runbook](docs/RUNBOOK.md). See [current state](CURRENT_STATE.md),
+[gap analysis](docs/GAP_ANALYSIS.md), [workflow](docs/WORKFLOW.md),
+[acceptance gates](docs/ACCEPTANCE_GATES.md) and [implementation report](docs/IMPLEMENTATION_REPORT.md).
+G01–G12 are controlled backbone tests; no new hosted deployment or live-source
+qualification is claimed. All requested design/domain/operations documents now
+state their actual executable versus planned boundaries.

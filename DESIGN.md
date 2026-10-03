@@ -39,3 +39,15 @@ Evidence Fabric v2 indexes existing v1 evidence without altering its stored
 bytes, hash or ledger. Parser/extractor changes append metadata versions.
 Existing Employee, intelligence, graph and evidence services remain canonical
 for their current responsibilities.
+
+## Integrated runner and source contracts
+
+- `workforce/documents.py`: strict source/fact records and typed seed validation.
+- `workforce/pipeline.py`: bounded capture, graph/timeline, structured verification,
+  immutable draft, manifest and network-free replay.
+- `workforce_products`: additive local SQLite product persistence; result/product/
+  terminal state is atomic while earlier byte/custody capture is retained.
+- `workforce/data/pipeline_investigations.json`: controlled G01–G12 fixtures.
+
+Existing hosted API/SQL and browser ownership do not change. See CURRENT_STATE.md
+and docs/USER_FLOW.md for the local/hosted boundary and unsupported resume behavior.
