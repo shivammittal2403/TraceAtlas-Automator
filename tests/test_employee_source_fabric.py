@@ -7,6 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 from traceatlas.db import CaseDB
 from traceatlas.evidence import EvidenceStore
@@ -115,7 +116,8 @@ class SourceFabricTests(unittest.TestCase):
     def test_fallback_only_after_failure_and_stops_when_gap_is_filled(self):
         original = self.request
         def fail_github(url, *args):
-            if 'api.github.com' in url:
+            host = (urlparse(url).hostname or '').lower()
+            if host == 'api.github.com':
                 self.calls.append(url)
                 return 403, b''
             return original(url, *args)
