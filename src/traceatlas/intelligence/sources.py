@@ -29,6 +29,18 @@ def _source(name: str, title: str, category: str, acquisition: str,
 
 
 SOURCES: dict[str, SourceSpec] = {
+    "gleif": _source("gleif", "GLEIF LEI records", "business-intelligence", "public-api",
+        "BUSINESS_RECORD", "Exact LEI lookup or bounded company-name candidates.", live_connector=True,
+        public_record=True, limitation="A name-search candidate is not an identity or beneficial-ownership determination."),
+    "ripestat": _source("ripestat", "RIPEstat Network Info", "internet-intelligence", "public-api",
+        "IP_CONTEXT", "Containing prefix and announcing ASN from RIPE RIS.", live_connector=True,
+        public_record=True, limitation="Routing observations do not establish legal ownership or present reachability."),
+    "epss": _source("epss", "FIRST EPSS", "vulnerability-intelligence", "public-api",
+        "VULNERABILITY_RECORD", "Exact CVE exploitation probability metadata.", live_connector=True,
+        public_record=True, limitation="EPSS is a dated probability estimate, not observed exploitation of this asset."),
+    "osv": _source("osv", "OSV", "vulnerability-intelligence", "public-api",
+        "VULNERABILITY_RECORD", "Exact vulnerability record, aliases and affected package metadata.",
+        live_connector=True, public_record=True, limitation="An advisory does not prove an installed package is affected."),
     "rdap": _source(
         "rdap", "RDAP", "internet-registration", "public-rdap",
         "REGISTRATION_RECORD", "Authoritative registration metadata for a public domain or IP.",

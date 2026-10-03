@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from .sources import SOURCES
 
 SOURCE_HOSTS = {
+    'gleif': 'api.gleif.org', 'ripestat': 'stat.ripe.net', 'epss': 'api.first.org', 'osv': 'api.osv.dev',
     'rdap': 'rdap.org', 'dns': 'dns.google', 'wayback': 'web.archive.org',
     'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
     'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
@@ -49,6 +50,7 @@ class ConnectorContract:
 # These types describe the implemented request validators, not every input a
 # provider may advertise. A catalogue row cannot add to this mapping.
 SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
+    "gleif": ("lei", "company"), "ripestat": ("ip",), "epss": ("cve",), "osv": ("vulnerability",),
     "rdap": ("domain", "ip"), "dns": ("domain",), "wayback": ("domain",),
     "internetdb": ("ip",), "ipwhois": ("ip",), "ipdata": ("ip",),
     "greynoise": ("ip",), "bluesky": ("username",), "github": ("username",),

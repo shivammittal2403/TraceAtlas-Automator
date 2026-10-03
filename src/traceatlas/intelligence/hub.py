@@ -176,6 +176,25 @@ class IntelligenceHub:
     @staticmethod
     def _live_request(spec: SourceSpec, target_type: str, target: str) -> tuple[str, dict[str, str]]:
         headers = {"User-Agent": "TraceAtlas-Automator/1.8"}
+        if spec.name == "gleif":
+            if target_type == "lei" and re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", target):
+                return "https://api.gleif.org/api/v1/lei-records/" + target, headers
+            if target_type == "company" and 2 <= len(target) <= 150 and not any(ord(c) < 32 or c in ',|*' for c in target):
+                query = urlencode({"filter[entity.names]": target, "page[size]": 3})
+                return "https://api.gleif.org/api/v1/lei-records?" + query, headers
+            raise PolicyError("GLEIF requires an uppercase LEI or a bounded company-name query without wildcards, commas or pipes")
+        if spec.name == "ripestat":
+            if target_type != "ip" or not ipaddress.ip_address(target).is_global:
+                raise PolicyError("RIPEstat requires a public IP")
+            return "https://stat.ripe.net/data/network-info/data.json?" + urlencode({"resource": target}), headers
+        if spec.name == "epss":
+            if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", target):
+                raise PolicyError("EPSS requires one exact CVE")
+            return "https://api.first.org/data/v1/epss?" + urlencode({"cve": target, "limit": 1}), headers
+        if spec.name == "osv":
+            if target_type != "vulnerability" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{3,119}", target):
+                raise PolicyError("OSV requires one exact vulnerability identifier")
+            return "https://api.osv.dev/v1/vulns/" + quote(target, safe=""), headers
         if spec.name == "rdap":
             if target_type not in {"domain", "ip"}:
                 raise PolicyError("RDAP target must be a domain or public IP")
@@ -361,6 +380,35 @@ class IntelligenceHub:
             return f"https://pub.orcid.org/v3.0/{orcid}/person", headers
         raise PolicyError(f"{spec.title} is export/API-ingestion only")
 
+    @staticmethod
+    def _validated_records(source, target_type, target, data):
+        matches = True
+        if source in {"internetdb", "ipwhois", "ipdata", "greynoise"}:
+            try:
+                matches = ipaddress.ip_address(data['ip']) == ipaddress.ip_address(target)
+            except (KeyError, ValueError, TypeError):
+                matches = False
+        elif source == "epss":
+            matches = all(row["cve"] == target for row in data["data"])
+        elif source == "ripestat":
+            try:
+                matches = ipaddress.ip_address(target) in ipaddress.ip_network(data["data"]["prefix"], strict=False)
+            except (KeyError, ValueError, TypeError):
+                matches = False
+        elif source == "osv":
+            matches = data["id"] == target or target in data.get("aliases", [])
+        elif source == "gleif" and target_type == "lei":
+            matches = isinstance(data["data"], dict) and data["data"].get("id") == target
+        if not matches:
+            raise ProviderError("provider_target_mismatch")
+        if source == "stackexchange":
+            return data.get("items", [])
+        if source == "crossref":
+            return [data.get("message", {})]
+        if source in {"gleif", "epss"}:
+            return data["data"] if isinstance(data["data"], list) else [data["data"]]
+        return data if isinstance(data, list) else [data]
+
     def collect(self, case_id: str, source: str, target_type: str, target: str, *,
                 authorized: bool = False, subject_consent: bool = False,
                 owned_org: bool = False, owned_asset: bool = False,
@@ -385,20 +433,7 @@ class IntelligenceHub:
                 raise ProviderError('provider_destination_rejected')
             provider_result = self.provider.get(source, url, headers, timeout_seconds)
             data = provider_result.data
-            # Do not attach another target's response to this investigation.
-            if source in {"internetdb", "ipwhois", "ipdata", "greynoise"}:
-                try:
-                    matches = ipaddress.ip_address(data['ip']) == ipaddress.ip_address(target)
-                except (KeyError, ValueError, TypeError):
-                    matches = False
-                if not matches:
-                    raise ProviderError('provider_target_mismatch', attempts=provider_result.attempts)
-            if source == "stackexchange" and isinstance(data, dict):
-                records = data.get("items", [])
-            elif source == "crossref" and isinstance(data, dict):
-                records = [data.get("message", {})]
-            else:
-                records = data if isinstance(data, list) else [data]
+            records = self._validated_records(source, target_type, target, data)
             result = self._store(
                 case_id, spec, records, mode="intel:live",
                 target_fingerprint=target_hash,

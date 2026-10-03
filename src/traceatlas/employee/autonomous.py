@@ -58,12 +58,20 @@ def executable_skills():
     return rows
 
 
+def skill_contract_digest(source_fabric=False):
+    if source_fabric:
+        from ..source_fabric.registry import manifest
+        return digest([manifest(source) for source in sorted(SOURCES)])
+    return digest(executable_skills())
+
+
 class AutonomousInvestigator:
     def __init__(self, db, workspace: Path, *, hub=None, enabled=None, model_requester=None):
         self.db, self.workspace = db, workspace
         self.hub = hub or IntelligenceHub(db, workspace)
         self.enabled = workforce_enabled() if enabled is None else enabled
         self.model_requester = model_requester
+        self.fabric_requester = hub.requester if hub is not None else None
         db.conn.executescript(SCHEMA)
         db.conn.commit()
 
@@ -78,7 +86,7 @@ class AutonomousInvestigator:
 
     def create(self, case_id, objective, seeds, *, actor, attestations, authorized=False,
                subject_type="asset", subject_label="", max_actions=8, runtime_seconds=120,
-               hours=24, model=None):
+               hours=24, model=None, source_fabric=False):
         self._enabled()
         if not authorized or not self.db.get_case(case_id):
             raise PolicyError("An existing case and explicit authorization are required")
@@ -103,7 +111,7 @@ class AutonomousInvestigator:
             raise PolicyError("Supply 1-10 explicit typed seeds; a name alone cannot authorize identity discovery")
         if model is not None and (not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]{1,120}", model)):
             raise PolicyError("Invalid local model name")
-        normalized, actions = [], []
+        normalized, actions, routing_plans = [], [], []
         for seed in seeds:
             if not isinstance(seed, dict) or set(seed) != {"type", "value"}:
                 raise PolicyError("Each seed requires only type and value")
@@ -115,7 +123,13 @@ class AutonomousInvestigator:
                 value = value.lower()
             if kind == "ip":
                 value = str(ipaddress.ip_address(value))
-            steps = plan_collection(kind, value, mode="osint", attestations=attestations)
+            if source_fabric:
+                from ..source_fabric.router import SourceRouter
+                routing = SourceRouter(self.db).plan(objective, kind, value, attestations)
+                steps = routing["actions"]
+                routing_plans.append({"seed": {"type": kind, "value": value}, **routing})
+            else:
+                steps = plan_collection(kind, value, mode="osint", attestations=attestations)
             normalized_seed = {"type": kind, "value": value}
             if normalized_seed in normalized:
                 continue
@@ -126,6 +140,8 @@ class AutonomousInvestigator:
                     raise PolicyError("Source contract does not accept seed")
                 action = {"source": step["source"], "target_type": kind, "target": value,
                           "skill_id": f"{kind}.{step['source']}", "contract_version": contract.contract_version}
+                if source_fabric:
+                    action.update({k: step[k] for k in ("wave", "capabilities", "score", "provider", "rationale")})
                 action["action_id"] = "action-" + digest(action)[:20]
                 actions.append(action)
         manifest = {"schema": "traceatlas.autonomous.v1", "case_id": case_id,
@@ -134,8 +150,10 @@ class AutonomousInvestigator:
                     "seeds": normalized, "actions": actions, "attestations": attestations,
                     "max_actions": max_actions, "runtime_seconds": runtime_seconds,
                     "expires_at": (now() + timedelta(hours=hours)).isoformat(), "model": model,
-                    "skills_digest": digest(executable_skills()), "external_actions": False,
+                    "skills_digest": skill_contract_digest(source_fabric), "external_actions": False,
                     "scope_expansion": False, "human_release_required": True}
+        manifest["source_fabric"] = bool(source_fabric)
+        manifest["routing_plans"] = routing_plans
         identifier = "investigation-" + uuid4().hex
         self.db.conn.execute("INSERT INTO autonomous_investigations(id,case_id,manifest_json,manifest_hash,status,created_at) VALUES(?,?,?,?,?,?)",
                              (identifier, case_id, json.dumps(manifest), digest(manifest), "ready", now().isoformat()))
@@ -186,7 +204,7 @@ class AutonomousInvestigator:
             raise PolicyError("Execution requires the authorizing analyst")
         if now() >= datetime.fromisoformat(manifest["expires_at"]):
             raise PolicyError("Investigation authorization expired")
-        if digest(executable_skills()) != manifest["skills_digest"]:
+        if skill_contract_digest(manifest.get("source_fabric", False)) != manifest["skills_digest"]:
             raise PolicyError("Executable skill contracts changed; authorize a new investigation")
         if current["status"] in {"completed", "partial", "cancelled"}:
             return current
@@ -205,6 +223,9 @@ class AutonomousInvestigator:
             if changed.rowcount != 1:
                 raise PolicyError("Investigation or case is already claimed by another worker")
             self.db.conn.execute("UPDATE autonomous_actions SET state='uncertain' WHERE investigation_id=? AND state='running'", (investigation_id,))
+        if manifest.get("source_fabric"):
+            from ..source_fabric.execution import execute
+            return execute(self, case_id, investigation_id)
         stop = "sources_exhausted"
         try:
             while True:
@@ -239,7 +260,7 @@ class AutonomousInvestigator:
                     self.db.conn.commit()
                     self._event(investigation_id, "source_skipped", {"source": action["source"], "reason": reason})
                     continue
-                timeout = min(30, remaining)
+                timeout = min(30, remaining, (datetime.fromisoformat(manifest["expires_at"])-now()).total_seconds())
                 # Reserve before network I/O: a killed process consumes this reservation.
                 with self.db.conn:
                     self.db.conn.execute("INSERT INTO autonomous_actions VALUES(?,?,?,?)", (investigation_id, action["action_id"], "running", json.dumps({"source": action["source"]})))

@@ -110,7 +110,8 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                                 actor=body.get("actor"), authorized=body.get("authorized") is True,
                                 attestations=body.get("attestations"), subject_type=body.get("subject_type", "asset"),
                                 subject_label=body.get("subject_label", ""), max_actions=body.get("max_actions", 8),
-                                runtime_seconds=body.get("runtime_seconds", 120), model=body.get("model") or None)
+                                runtime_seconds=body.get("runtime_seconds", 120), model=body.get("model") or None,
+                                source_fabric=body.get("source_fabric") is True)
                         else:
                             current = service.get(case, body.get("investigation_id", ""))
                             if not body.get("authorized") is True or body.get("actor") != current["manifest"]["actor"]:

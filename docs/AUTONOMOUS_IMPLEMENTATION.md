@@ -64,7 +64,9 @@ Person/company investigations use `--subject-type person|company` and an optiona
 does not identify a person or company: supply the exact authorized identifiers.
 Associations remain unresolved candidates for human review.
 
-## Actual executable coverage
+## Legacy default executable coverage
+
+The console now defaults to Source Fabric; CLI users opt in with `--source-fabric`. See [Source Fabric](SOURCE_FABRIC.md) for expanded typed coverage, wave routing, raw evidence and current qualification counts. RDAP is excluded from Fabric due to its redirect incompatibility. The table below describes the older fixed-list CLI path.
 
 The registry contains **14 typed source skills across 13 providers**. RDAP accepts
 both domain and IP inputs. Skills are selected only for their declared input:
@@ -154,9 +156,8 @@ autonomous messages, account actions or publication are performed.
 ## Verification
 
 The full Python suite ran with the pinned OpenCTI source submodule available:
-**226 tests, 225 passed, 1 skipped**. The skipped check is the existing
-environment-dependent test; no live provider or installed Ollama availability is
-claimed. New tests exercise the real IntelligenceHub with fixture HTTP responses,
+**Employee-only checkpoint: 226 tests, 225 passed, 1 skipped**. The skipped check is the existing
+environment-dependent test; installed Ollama availability is not claimed. Subsequent Source Fabric live canaries are documented separately. New tests exercise the real IntelligenceHub with fixture HTTP responses,
 evidence tamper rejection, scope/actor binding, same-case leases, cancellation,
 interrupted resume, cumulative runtime, source failure isolation, IP contradictions,
 prompt-injection containment and model fallback. Console HTTP tests cover case

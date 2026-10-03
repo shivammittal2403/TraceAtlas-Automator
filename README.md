@@ -11,6 +11,10 @@ TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
 human review where judgment, attribution, privacy or legal authority matters.
 
+## Source Fabric (Phase A)
+
+Capability routing, bounded parallel research, case-scoped caching, raw-evidence custody and source qualification are integrated into the local employee console. The catalogue preserves 400 candidate slots; the platform has 27 API implementations, three delivery-workspace live canaries and zero production-qualified sources. See [current capabilities and limitations](docs/SOURCE_FABRIC.md).
+
 ## Autonomous investigation employee
 
 Use `employee investigate` or `employee serve` to give an objective and exact
@@ -65,7 +69,7 @@ See [setup, executable skills and operating limits](docs/AUTONOMOUS_IMPLEMENTATI
   per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 37 social, code, package, scholarly, video, community,
+- Governed intelligence hub covering 41 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
 - Twenty-three live official/public API connectors: GitHub, GitLab, Hacker News,

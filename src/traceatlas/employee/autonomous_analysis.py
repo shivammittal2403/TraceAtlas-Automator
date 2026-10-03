@@ -24,6 +24,14 @@ def _facts(source, data):
     if not isinstance(data, dict):
         return []
     facts = []
+    if source == "ripestat":
+        network = data.get("data", {})
+        if isinstance(network, dict) and isinstance(network.get("asns"), list):
+            for asn in network["asns"][:20]:
+                if str(asn).isdigit() and 0 < int(asn) <= 4294967295:
+                    facts.append(("announced_by", "AS"+str(asn), "ASN"))
+    if source == "gleif" and isinstance(data.get("id"), str) and re.fullmatch(r"[A-Z0-9]{18}[0-9]{2}", data["id"]):
+        facts.append(("candidate_lei", data["id"], "Company"))
     if source == "dns":
         answers = data.get("Answer", [])
         for answer in (answers if isinstance(answers, list) else [])[:20]:
@@ -53,7 +61,10 @@ def build_report(db, workspace, current, stop):
     store = WorkforceStore(db)
     graph = TemporalClaimGraph(case_id)
     observations, evidence, sources, triples, brief_rows = [], {}, {}, {}, []
+    raw_evidence = {}
     timeline, unknowns, warnings = [], [], []
+    for plan in manifest.get("routing_plans", []):
+        unknowns += [{"seed": plan["seed"], "capability": cap, "reason": "no_eligible_implemented_source"} for cap in plan["uncovered_capabilities"]]
     actions_by_id = {a["action_id"]: a for a in manifest["actions"]}
     occurred = {a["action_id"] for a in current["actions"]}
     for pending in manifest["actions"]:
@@ -62,10 +73,18 @@ def build_report(db, workspace, current, stop):
     for action in current["actions"]:
         step = actions_by_id[action["action_id"]]
         outcome = action["outcome"]
+        if outcome.get("reason") == "sufficient_capability_coverage":
+            continue
         if action["state"] != "completed":
             unknowns.append({"action_id": action["action_id"], "source": step["source"],
                              "reason": outcome.get("reason", outcome.get("error_type", action["state"]))})
             continue
+        for sha in outcome.get("raw_evidence_refs", []):
+            raw = store.import_v1_evidence(case_id, sha, source_uri="https://"+SOURCE_HOSTS[step["source"]]+"/",
+                parser="raw-json", parser_version="1", extractor="none", extractor_version="1")
+            raw_evidence[raw.evidence_id] = raw
+        if outcome.get("schema_drift"):
+            warnings.append({"source": step["source"], "reason": "schema_field_drift_requires_review"})
         subject = step["target_type"] + ":" + step["target"]
         subject_id = "entity-" + digest(subject)[:20]
         refs = outcome.get("evidence_refs", [])
@@ -86,7 +105,7 @@ def build_report(db, workspace, current, stop):
             if len(records) > 20:
                 unknowns.append({"source": step["source"], "reason": "analysis_record_limit", "preserved_records": len(records)})
             if subject_id not in graph.nodes:
-                node_type = {"domain": "Domain", "ip": "IP", "username": "Username"}.get(step["target_type"], "Indicator")
+                node_type = {"domain": "Domain", "ip": "IP", "username": "Username", "company": "Company", "lei": "Company"}.get(step["target_type"], "Indicator")
                 graph.add_node(GraphNode(subject_id, case_id, node_type, subject, (), (), item.retrieved_at, None, "operator-seed"))
             for index, record in enumerate(records[:20]):
                 if len(observations) >= 200:
@@ -142,7 +161,7 @@ def build_report(db, workspace, current, stop):
                               "reason": "Provider values differ; collection time and geography semantics may explain the difference"})
     # No cross-claim corroboration: two unrelated source responses cannot support one fact.
     brief = build_brief(case_id, manifest["objective"], brief_rows[:200], mode="osint")
-    if manifest["subject_type"] in {"person", "company"}:
+    if manifest["subject_type"] in {"person", "company"} or any(s["type"] in {"company", "lei"} for s in manifest["seeds"]):
         unknowns.append({"reason": "subject_identifier_associations_require_human_review"})
     if not observations:
         unknowns.append({"reason": "no_observations"})
@@ -151,12 +170,13 @@ def build_report(db, workspace, current, stop):
             "verification_status": "INCONCLUSIVE" if not claims else "DISPUTED" if conflicts else "PARTIALLY_SUPPORTED",
             "observations": [o.to_dict() for o in observations], "claims": claims, "verification": decisions,
             "evidence": [e.to_dict() for e in evidence.values()], "source_independence": [r.to_dict() for r in lineage],
+            "raw_evidence": [e.to_dict() for e in raw_evidence.values()],
             "graph": graph.snapshot(), "timeline": sorted(timeline, key=lambda r: (r["at"], r["observation_id"])),
             "contradictions": conflicts, "unknowns": unknowns, "warnings": warnings,
             "brief": brief, "skills": skill_catalog(manifest["objective"], "osint"),
             "model_advisory": {"status": "not_requested", "may_execute": False},
             "cost": {"provider_spend": "not_measured", "metered_connectors": "not_executed", "currency": "USD"},
-            "limitations": ["Normalized redacted API artifacts are preserved; raw response bytes are not retained.",
+            "limitations": ["Normalized redacted API artifacts are preserved; raw bytes are included only when Source Fabric privacy policy permits.",
                             "Provider host URLs identify the source; secret-bearing request URLs are not exported.",
                             "No silent identity merge, causal attribution, or expansion beyond authorized seeds.",
                             "Distinct provider labels do not guarantee independently originated information.",
@@ -201,7 +221,7 @@ def export_report(db, workspace, current, output):
     (target / "artifacts").mkdir()
     files = []
     seen = set()
-    for evidence in report["evidence"]:
+    for evidence in report["evidence"] + report.get("raw_evidence", []):
         sha = evidence["content_hash"]
         if sha in seen:
             continue
@@ -214,7 +234,7 @@ def export_report(db, workspace, current, output):
         files.append({"path": relative, "sha256": sha, "bytes": len(raw)})
     # Portable report does not disclose machine-specific filesystem locations.
     portable = json.loads(json.dumps(report))
-    for evidence in portable["evidence"]:
+    for evidence in portable["evidence"] + portable.get("raw_evidence", []):
         evidence["raw_artifact_pointer"] = "artifacts/" + evidence["content_hash"] + ".json"
     portable.pop("report_digest")
     portable["report_digest"] = digest(portable)
@@ -273,7 +293,7 @@ def verify_replay(directory: Path):
     report = json.loads((directory / "report.json").read_text(encoding="utf-8"))
     if digest({k: v for k, v in report.items() if k != "report_digest"}) != report["report_digest"]:
         raise ValueError("Replay report digest mismatch")
-    for evidence in report["evidence"]:
+    for evidence in report["evidence"] + report.get("raw_evidence", []):
         if evidence["raw_artifact_pointer"] not in names or sha256_file(directory / evidence["raw_artifact_pointer"]) != evidence["content_hash"]:
             raise ValueError("Replay report evidence is missing or invalid")
     evidence_ids = {e["evidence_id"] for e in report["evidence"]}
