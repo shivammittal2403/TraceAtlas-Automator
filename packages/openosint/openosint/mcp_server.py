@@ -36,7 +36,8 @@ load_env_or_exit(prefer_package_root=True)
 
 from mcp.server import Server  # noqa: E402
 from mcp.server.stdio import stdio_server  # noqa: E402
-from mcp.types import CallToolResult, TextContent, Tool  # noqa: E402
+from mcp_types import CallToolResult, CallToolRequestParams, ListToolsResult, TextContent, Tool  # noqa: E402
+from jsonschema import ValidationError, validate  # noqa: E402
 
 from openosint.json_output import to_json  # noqa: E402
 from openosint.tools.generate_dorks import run_dork_osint  # noqa: E402
@@ -61,7 +62,6 @@ from openosint.tools.search_whois import run_whois_osint  # noqa: E402
 from openosint.tools.search_footprint import run_footprint_osint  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[MCP] %(levelname)s: %(message)s")
-app = Server("openosint")
 
 _JSON_PROP = {
     "json_output": {"type": "boolean", "description": "Return result as structured JSON."}
@@ -75,13 +75,12 @@ def _with_json(schema: dict) -> dict:
     return {**schema, "properties": props}
 
 
-@app.list_tools()
-async def list_tools() -> list[Tool]:
+def _tool_definitions() -> list[Tool]:
     return [
         Tool(
             name="search_email",
             description="Enumerate accounts linked to an email using holehe.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"email": {"type": "string"}},
@@ -92,7 +91,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_username",
             description="Enumerate platforms where a username is registered using sherlock.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"username": {"type": "string"}},
@@ -103,7 +102,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_breach",
             description="Check if an email appears in data breaches via HaveIBeenPwned. Uses HIBP_API_KEY env var.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"email": {"type": "string"}},
@@ -114,7 +113,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_whois",
             description="Retrieve WHOIS registration data for a domain.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"domain": {"type": "string"}},
@@ -125,14 +124,14 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_ip",
             description="Retrieve geolocation and ASN data for an IP address via ipinfo.io.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {"type": "object", "properties": {"ip": {"type": "string"}}, "required": ["ip"]}
             ),
         ),
         Tool(
             name="search_domain",
             description="Enumerate subdomains of a target domain using sublist3r.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"domain": {"type": "string"}},
@@ -143,7 +142,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="generate_dorks",
             description="Generate targeted Google dork URLs for any target (name, email, username, domain).",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -154,7 +153,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_paste",
             description="Search Pastebin dumps for an email or username via psbdmp.ws.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"query": {"type": "string"}},
@@ -165,7 +164,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_phone",
             description="Gather carrier and geolocation data for a phone number using phoneinfoga. Use E.164 format.",
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"phone": {"type": "string"}},
@@ -181,7 +180,7 @@ async def list_tools() -> list[Tool]:
                 "Any other string → keyword/service search. "
                 "Uses SHODAN_API_KEY env var."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"query": {"type": "string"}},
@@ -196,7 +195,7 @@ async def list_tools() -> list[Tool]:
                 "engines and threat intelligence. Auto-detects input type. "
                 "Uses VIRUSTOTAL_API_KEY env var."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -212,7 +211,7 @@ async def list_tools() -> list[Tool]:
                 "Domain → certificate history, SANs, issuer, first/last seen. "
                 "Uses CENSYS_API_ID and CENSYS_SECRET env vars."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -228,7 +227,7 @@ async def list_tools() -> list[Tool]:
                 "and datacenter hosting. Sponsored integration. "
                 "Uses IP2LOCATION_API_KEY env var."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {"type": "object", "properties": {"ip": {"type": "string"}}, "required": ["ip"]}
             ),
         ),
@@ -240,7 +239,7 @@ async def list_tools() -> list[Tool]:
                 "and last reported timestamp. Shows a warning when score exceeds 50%. "
                 "Uses ABUSEIPDB_API_KEY env var."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {"type": "object", "properties": {"ip": {"type": "string"}}, "required": ["ip"]}
             ),
         ),
@@ -252,7 +251,7 @@ async def list_tools() -> list[Tool]:
                 "discovered from commit history. For other queries: top 5 matching accounts. "
                 "Optional GITHUB_TOKEN env var raises rate limit from 60 to 5000 req/h."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"query": {"type": "string"}},
@@ -268,7 +267,7 @@ async def list_tools() -> list[Tool]:
                 "missing or unenforced DMARC, and absent DKIM across common selectors. "
                 "No external API or credentials required."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"domain": {"type": "string"}},
@@ -283,7 +282,7 @@ async def list_tools() -> list[Tool]:
                 "No API key required. Returns a text summary plus the raw GeoJSON "
                 "FeatureCollection. Optionally scope to a bounding box."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {
@@ -316,7 +315,7 @@ async def list_tools() -> list[Tool]:
                 "Runs up to 5 dorks by default — each is a billable API call. "
                 "Uses BRIGHTDATA_API_KEY and BRIGHTDATA_SERP_ZONE env vars."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"target": {"type": "string"}},
@@ -331,7 +330,7 @@ async def list_tools() -> list[Tool]:
                 "Cloudflare, CAPTCHA, and bot-protection. Returns the page as clean Markdown. "
                 "Uses BRIGHTDATA_API_KEY and BRIGHTDATA_UNLOCKER_ZONE env vars."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {"url": {"type": "string"}},
@@ -348,7 +347,7 @@ async def list_tools() -> list[Tool]:
                 "Correlation Graph nodes/edges for discovered domains and profiles. "
                 "Uses BRIGHTDATA_API_KEY and BRIGHTDATA_SERP_ZONE env vars."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {
@@ -371,7 +370,7 @@ async def list_tools() -> list[Tool]:
                 "to omit every breach-derived fact. Requires the 'graph' extra: "
                 "pip install 'openosint[graph]'."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {
@@ -393,7 +392,7 @@ async def list_tools() -> list[Tool]:
                 "links into the raw infra correlation graph (IPs, domains, hashes). "
                 "Requires the 'graph' extra: pip install 'openosint[graph]'."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {
@@ -423,7 +422,7 @@ async def list_tools() -> list[Tool]:
                 "(judgement='negative'). Nothing in this project ever auto-merges — only "
                 "this action can write judgement='positive'."
             ),
-            inputSchema=_with_json(
+            input_schema=_with_json(
                 {
                     "type": "object",
                     "properties": {
@@ -470,7 +469,7 @@ async def list_tools() -> list[Tool]:
                 "Each target gets its own report file. A summary report is also generated. "
                 "Maximum 10 targets. Uses ANTHROPIC_API_KEY env var."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "targets": {
@@ -574,9 +573,8 @@ _HANDLERS: dict[str, tuple] = {
 }
 
 
-@app.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
-    logger.info("Tool: %s | args: %s", name, arguments)
+    logger.info("Tool: %s", name)
     should_use_json = bool(arguments.get("json_output", False))
 
     # Special handler for multi-target investigation
@@ -604,15 +602,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
             text = to_json(name, target, result)
         else:
             text = result
-        return CallToolResult(content=[TextContent(type="text", text=text)], isError=False)
+        return CallToolResult(content=[TextContent(type="text", text=text)], is_error=False)
     except (KeyError, ValueError) as exc:
         logger.error("Validation error: %s", exc)
-        return CallToolResult(content=[TextContent(type="text", text=str(exc))], isError=True)
+        return CallToolResult(content=[TextContent(type="text", text=str(exc))], is_error=True)
     except Exception as exc:
         logger.exception("Unhandled error in tool '%s'.", name)
         return CallToolResult(
             content=[TextContent(type="text", text=f"Internal error: {exc}")],
-            isError=True,
+            is_error=True,
         )
 
 
@@ -653,21 +651,21 @@ async def _call_graph_tool(name: str, arguments: dict[str, Any]) -> CallToolResu
             target = arguments.get("entity_id", arguments["action"])
 
         text = to_json(name, target, result) if should_use_json else result
-        return CallToolResult(content=[TextContent(type="text", text=text)], isError=False)
+        return CallToolResult(content=[TextContent(type="text", text=text)], is_error=False)
     except ImportError as exc:
         message = (
             f"{name} requires the 'graph' extra (followthemoney), which is not installed in "
             f"this environment. Install it with: pip install 'openosint[graph]' ({exc})"
         )
-        return CallToolResult(content=[TextContent(type="text", text=message)], isError=True)
+        return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
     except (KeyError, ValueError) as exc:
         logger.error("Validation error in graph tool '%s': %s", name, exc)
-        return CallToolResult(content=[TextContent(type="text", text=str(exc))], isError=True)
+        return CallToolResult(content=[TextContent(type="text", text=str(exc))], is_error=True)
     except Exception as exc:
         logger.exception("Unhandled error in graph tool '%s'.", name)
         return CallToolResult(
             content=[TextContent(type="text", text=f"Internal error: {exc}")],
-            isError=True,
+            is_error=True,
         )
 
 
@@ -678,7 +676,7 @@ async def _call_investigate_multi(arguments: dict[str, Any]) -> CallToolResult:
     if not isinstance(targets, list) or not targets:
         return CallToolResult(
             content=[TextContent(type="text", text="'targets' must be a non-empty list.")],
-            isError=True,
+            is_error=True,
         )
     if len(targets) > MAX_TARGETS:
         return CallToolResult(
@@ -688,17 +686,44 @@ async def _call_investigate_multi(arguments: dict[str, Any]) -> CallToolResult:
                     text=f"Too many targets ({len(targets)}). Maximum is {MAX_TARGETS}.",
                 )
             ],
-            isError=True,
+            is_error=True,
         )
     try:
         summary = await run_multi_target(targets, is_pdf_disabled=True)
-        return CallToolResult(content=[TextContent(type="text", text=summary)], isError=False)
+        return CallToolResult(content=[TextContent(type="text", text=summary)], is_error=False)
     except Exception as exc:
         logger.exception("Error in investigate_multi.")
         return CallToolResult(
             content=[TextContent(type="text", text=f"Internal error: {exc}")],
-            isError=True,
+            is_error=True,
         )
+
+
+async def list_tools() -> list[Tool]:
+    """Keep the callable catalog while registering explicit MCP 2.x handlers."""
+    return _tool_definitions()
+
+
+_TOOL_SCHEMAS = {tool.name: tool.input_schema for tool in _tool_definitions()}
+
+
+async def _list_tools_handler(_context, _params) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _call_tool_handler(_context, params: CallToolRequestParams) -> CallToolResult:
+    arguments = params.arguments or {}
+    schema = _TOOL_SCHEMAS.get(params.name)
+    if schema is not None:
+        try:
+            validate(arguments, schema)
+        except ValidationError:
+            return CallToolResult(content=[TextContent(type="text", text="Invalid tool arguments")], is_error=True)
+    return await call_tool(params.name, arguments)
+
+
+app = Server("openosint", on_list_tools=_list_tools_handler, on_call_tool=_call_tool_handler,
+             get_tool_input_schema=_TOOL_SCHEMAS.get)
 
 
 async def _serve() -> None:

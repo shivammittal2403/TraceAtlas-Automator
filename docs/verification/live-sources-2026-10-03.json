@@ -129,5 +129,32 @@
     "Brave/ipdata/GreyNoise real credentials and entitlement qualification remain pending.",
     "Wayback timed out; failure retained.",
     "Provider billing is not measured."
-  ]
+  ],
+  "initial_ci": {
+    "commit": "cf83bb32315a8eef9be321095445428a6f590529",
+    "ci_run": 37103727447,
+    "passed_jobs": [
+      "Core / Python 3.10",
+      "Core / Python 3.12",
+      "dependency-review",
+      "Private worker image",
+      "Supply chain evidence"
+    ],
+    "failure": "Bundled OpenOSINT: outdated uv.lock after previously merged dependency floors",
+    "codeql_run": 37103727408,
+    "codeql": "success",
+    "ai_scan_run": 37103730239,
+    "ai_scan": "success"
+  },
+  "dependency_repair": {
+    "method": "uv lock --project packages/openosint; retain dependency floors and --locked CI gate",
+    "lock_check": "passed",
+    "isolated_locked_install": "passed",
+    "runtime_suite": "passed",
+    "runtime_tests_passed": 629,
+    "existing_runtime_skips": 28,
+    "new_mcp_compatibility_tests": 3,
+    "mcp_migration": "MCP 2.x registration and wire types; argument validation and cloud tool allowlist preserved",
+    "final_head_ci": "pending; PR checks are authoritative"
+  }
 }

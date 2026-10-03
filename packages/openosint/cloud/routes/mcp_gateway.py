@@ -17,7 +17,7 @@ import logging
 import time
 from contextvars import ContextVar
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from cloud import db, rate_limit, tools
@@ -32,13 +32,10 @@ _customer_ctx: ContextVar[db.Customer | None] = ContextVar("_mcp_customer", defa
 
 _ERROR_PREFIXES = ("Scan error", "Internal error", "Error:")
 
-# ── FastMCP instance ──────────────────────────────────────────────────────────
+# ── MCPServer instance ──────────────────────────────────────────────────────────
 # streamable_http_path="/" because FastAPI mounts this at /mcp and Starlette
 # strips the /mcp prefix before passing the request to the sub-app.
-_mcp = FastMCP(
-    "OpenOSINT Cloud",
-    streamable_http_path="/",
-)
+_mcp = MCPServer("OpenOSINT Cloud")
 
 
 def _credits_error(plan: str) -> str:
@@ -207,6 +204,6 @@ class _AuthMiddleware:
 # ── ASGI app factory ──────────────────────────────────────────────────────────
 
 def create_mcp_asgi_app() -> ASGIApp:
-    """Return the FastMCP Starlette app wrapped with the auth middleware."""
-    starlette_app = _mcp.streamable_http_app()
+    """Return the MCPServer Starlette app wrapped with the auth middleware."""
+    starlette_app = _mcp.streamable_http_app(streamable_http_path="/")
     return _AuthMiddleware(starlette_app)

@@ -73,7 +73,16 @@ No automatic identity merge, model call, consequential action or report release.
 256 Python regressions, 26 Node/PGlite tests, 12 controlled golden investigations,
 source compilation, secret scanning and an actual CLI plan/approval/loopback-
 source-run/report/replay smoke passed locally. Loopback is a fixture, not SearXNG
-service qualification. CI/CodeQL are publication gates, reported by the PR checks.
+service qualification. The first PR run passed both core/browser/database matrix
+jobs, worker image, dependency review, supply-chain artifacts and CodeQL. Bundled
+OpenOSINT failed installation because concurrently merged dependency floors
+excluded older locked versions. Its lockfile was regenerated without changing
+the requested dependency floors or relaxing `--locked`. The bundled server was
+also migrated to MCP 2.x registration, typed results and input schemas; validation
+before dispatch and the cloud tool allowlist remain enforced. Its isolated locked
+installation and full existing CI runtime selection passed: 629 tests, 28 existing
+skips, with three new MCP compatibility regressions and no new exclusions.
+Final-head CI remains the merge gate; exact status is reported by the PR checks.
 
 ## 13. Real response checks
 
