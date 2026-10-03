@@ -873,5 +873,20 @@
     "state": "BLOCKED",
     "reason": "Playwright browser CDN returned invalid ZIP; no browser regression claimed locally",
     "required_gate": "CI Core Python 3.10 and 3.12 employee UI regression"
+  },
+  "github_verification": {
+    "commit": "c199c79909a27b4fa8f4ad9a70ac0463d5de5f20",
+    "ci": {
+      "id": 37132577702,
+      "conclusion": "success",
+      "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37132577702"
+    },
+    "codeql": {
+      "id": 37132577695,
+      "conclusion": "success",
+      "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37132577695"
+    },
+    "browser": "passed in both Python 3.10 and 3.12 Core CI jobs",
+    "mcp": "passed against locked SDK in bundled runtime CI job"
   }
 }

@@ -62,7 +62,7 @@ This reserves estimates for every attempt; actual billing remains unknown. Never
 use zero merely to bypass the price gate. Unknown cost prevents dispatch.
 
 Companies House uses `COMPANIES_HOUSE_API_KEY`; OpenCorporates uses
-`OPENCORPORATES_API_KEY`; SEC uses a truthful `SEC_USER_AGENT` with operator contact.
+`OPENCORPORATES_API_TOKEN`; SEC uses a truthful `SEC_USER_AGENT` with operator contact.
 Shodan and VirusTotal use the existing `SHODAN_API_KEY` and `VIRUSTOTAL_API_KEY`
 references. GitHub organization lookup is public and deliberately sends no token.
 Operator terms, permitted purpose, privacy, retention, region and account entitlement
