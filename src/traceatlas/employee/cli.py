@@ -13,6 +13,38 @@ from .catalog import tool_candidates
 def add_employee_parser(sub):
     root = sub.add_parser("employee", help="Evidence-led OSINT/PT research employee; human decisions")
     commands = root.add_subparsers(dest="employee_command", required=True)
+    console = commands.add_parser("serve", help="Open the loopback-only autonomous investigation console")
+    console.add_argument("--port", type=int, default=8765)
+    investigate = commands.add_parser("investigate", help="Authorize once and run a bounded autonomous public-source investigation")
+    investigate.add_argument("--case", required=True)
+    investigate.add_argument("--objective", required=True)
+    investigate.add_argument("--seed", action="append", required=True, help="Exact type:value, e.g. domain:example.org; repeat for explicit scope")
+    investigate.add_argument("--actor", required=True)
+    investigate.add_argument("--subject-type", choices=["asset", "person", "company"], default="asset")
+    investigate.add_argument("--subject-label", default="")
+    investigate.add_argument("--max-actions", type=int, default=8)
+    investigate.add_argument("--runtime-seconds", type=int, default=120)
+    investigate.add_argument("--hours", type=int, default=24)
+    investigate.add_argument("--model", help="Optional local Ollama model; absence uses deterministic analysis")
+    investigate.add_argument("--plan-only", action="store_true")
+    investigate.add_argument("--authorized", action="store_true")
+    investigate.add_argument("--output", type=Path)
+    for key in sorted(ATTESTATIONS):
+        investigate.add_argument("--" + key.replace("_", "-"), action="store_true")
+    commands.add_parser("executable-skills", help="List actual autonomous connector skills and input contracts")
+    for verb in ("investigation-show", "investigation-run", "investigation-cancel", "investigation-export"):
+        parser = commands.add_parser(verb)
+        parser.add_argument("--case", required=True)
+        parser.add_argument("--investigation", required=True)
+        if verb in {"investigation-run", "investigation-cancel"}:
+            parser.add_argument("--actor", required=True)
+            parser.add_argument("--authorized", action="store_true")
+        if verb == "investigation-run":
+            parser.add_argument("--resume", action="store_true")
+        if verb == "investigation-export":
+            parser.add_argument("--output", required=True, type=Path)
+    replay = commands.add_parser("verify-replay", help="Verify exported report, graph and evidence offline")
+    replay.add_argument("--directory", required=True, type=Path)
     skills = commands.add_parser("skills", help="Search versioned analyst procedures")
     skills.add_argument("query", nargs="?", default="")
     skills.add_argument("--mode", choices=["osint", "pt"])
@@ -65,6 +97,45 @@ def add_employee_parser(sub):
 
 def run_employee(args, engine) -> dict:
     command = args.employee_command
+    if command == "serve":
+        from .console import serve
+        serve(engine.workspace, args.port)
+        return {"status": "console_stopped"}
+    if command in {"investigate", "executable-skills", "verify-replay"} or command.startswith("investigation-"):
+        from .autonomous import AutonomousInvestigator, executable_skills
+        if command == "executable-skills":
+            return {"skills": executable_skills(), "selection": "explicit-seed-and-authorization"}
+        if command == "verify-replay":
+            from .autonomous_analysis import verify_replay
+            return verify_replay(args.directory)
+        investigator = AutonomousInvestigator(engine.db, engine.workspace)
+        if command == "investigate":
+            seeds = []
+            for value in args.seed:
+                kind, separator, target = value.partition(":")
+                if not separator:
+                    raise ValueError("Seed must be type:value")
+                seeds.append({"type": kind, "value": target})
+            current = investigator.create(args.case, args.objective, seeds, actor=args.actor,
+                attestations={key: getattr(args, key) for key in ATTESTATIONS}, authorized=args.authorized,
+                subject_type=args.subject_type, subject_label=args.subject_label,
+                max_actions=args.max_actions, runtime_seconds=args.runtime_seconds, hours=args.hours, model=args.model)
+            if args.plan_only:
+                return current
+            # Emit the ID before collection so another local process can inspect/cancel it.
+            import sys
+            print("Investigation started: " + current["id"], file=sys.stderr, flush=True)
+            current = investigator.run(args.case, current["id"], actor=args.actor, authorized=args.authorized)
+            if args.output:
+                current["export"] = investigator.export(args.case, current["id"], args.output)
+            return current
+        if command == "investigation-run":
+            return investigator.run(args.case, args.investigation, actor=args.actor, authorized=args.authorized, resume=args.resume)
+        if command == "investigation-cancel":
+            return investigator.cancel(args.case, args.investigation, actor=args.actor, authorized=args.authorized)
+        if command == "investigation-export":
+            return investigator.export(args.case, args.investigation, args.output)
+        return investigator.get(args.case, args.investigation)
     if command == "skills":
         return {"skills": skill_catalog(args.query, args.mode), "type": "analyst-procedures"}
     if command == "tools":

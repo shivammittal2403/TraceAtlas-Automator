@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from traceatlas.db import CaseDB
 from traceatlas.evidence import EvidenceStore
@@ -140,6 +141,14 @@ class IndependenceAndVerificationTests(unittest.TestCase):
 
 class StoreAndSchedulerTests(unittest.TestCase):
     def setUp(self):
+        # Authorization fixtures use a fixed clock; wall time must not expire them.
+        class FixtureClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return NOW if tz else NOW.replace(tzinfo=None)
+        clock = patch("traceatlas.workforce.service.datetime", FixtureClock)
+        clock.start()
+        self.addCleanup(clock.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.db = CaseDB(self.root / "cases.db")

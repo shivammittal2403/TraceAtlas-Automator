@@ -11,6 +11,29 @@ TraceAtlas Automator converts 40 OSINT investigation methods into one safe,
 repeatable, evidence-first CLI. It automates deterministic collection and keeps
 human review where judgment, attribution, privacy or legal authority matters.
 
+## Autonomous investigation employee
+
+Use `employee investigate` or `employee serve` to give an objective and exact
+authorized identifiers once, then collect and analyze within a fixed budget.
+The new local coordinator connects the existing source adapters, evidence ledger,
+verification engine, temporal graph and optional Ollama analysis. It saves each
+action for interruption recovery and exports a cited report with an offline
+integrity-verification bundle.
+
+```powershell
+python -m pip install -e .
+$env:TRACEATLAS_WORKFORCE_ENABLED = '1'
+traceatlas --workspace ./cases employee serve
+```
+
+Open **http://127.0.0.1:8765**, create a case, enter the objective and authorized
+seeds, then start. The dashboard provides activity, cancellation, resume,
+evidence citations, graph inspection and a downloadable report/evidence ZIP.
+This is a local single-user console. Its endpoints are not deployed by the
+existing Vercel application.
+
+See [setup, executable skills and operating limits](docs/AUTONOMOUS_IMPLEMENTATION.md).
+
 ## What is included
 
 - All 40 attached methods in a machine-readable playbook registry.

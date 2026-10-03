@@ -21,6 +21,7 @@ traceatlas-research = "traceatlas.research_cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"traceatlas.employee" = ["static/*.html"]
 "traceatlas.research.data" = ["*.json", "*.jsonl.gz"]
 "traceatlas.benchmark_data" = ["*.json"]
 "traceatlas.employee.data" = ["*.json"]
