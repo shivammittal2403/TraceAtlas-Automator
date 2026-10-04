@@ -99,7 +99,7 @@ No social account enumeration, private data access, contact, login or bypass is
 implemented or claimed. Production qualification remains zero.
 
 
-## Source lifecycle normalization — PR pending
+## Source lifecycle normalization — PR #46
 
 The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
 qualification gates and could call a source LIVE_VERIFIED with a live-request
@@ -111,4 +111,6 @@ Catalog output separates `connector_implemented` from lifecycle stage and counts
 only LIVE_VERIFIED/PRODUCTION_QUALIFIED sources as live integrations. Evaluated
 lifecycle transitions are proposals only; they are not persisted or promoted. The current
 catalog has no evidence-backed lifecycle promotion; production-qualified count
-remains zero. CI for this lifecycle change is pending.
+remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its CI
+and CodeQL checks passed. The separate automated code-review job could not run
+because the GitHub Copilot monthly quota was exceeded (HTTP 402).
