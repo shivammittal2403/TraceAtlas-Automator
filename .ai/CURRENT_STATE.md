@@ -101,3 +101,13 @@ tests 27 passed/1 skipped, and AI workforce tests 13/13. Full Python suite:
 328 run, 321 pass, 3 skip, 4 fail (3 OpenCTI prerequisite failures and one
 Windows loopback-console connection abort). Representative lineage labels and
 contradiction recall remain unknown.
+
+
+## Source independence slice — pushed
+
+Source-origin grouping no longer treats hostname equality as proof of common
+origin. Commit `7fa0431c5229ac14dbb2da8b657de6d8a2734749` adds the synthetic evaluator and preserves publisher
+aggregation through explicit reviewed ownership metadata. Its 12 synthetic pairs
+match (TP=7, FP=0, TN=5, FN=0); contradiction recall and representative lineage
+quality remain unmeasured. Focused pipeline and AI tests pass; full suite has
+three known OpenCTI checkout failures and one Windows loopback-console abort.
