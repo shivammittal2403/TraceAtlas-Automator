@@ -12,8 +12,9 @@ only with the evidence named in its acceptance criteria.
   golden replay, supply-chain and secret checks; document any environment gaps.
 - [x] TA-P0-004 Review patch against authorization, evidence, fixed-host, graph,
   credential and fail-closed requirements; update state docs; open PR #49.
-- [ ] TA-P0-005 Verify green GitHub CI and CodeQL on the proposed PR. Docker is
-  unavailable locally, so the worker-image gate still requires hosted CI.
+- [x] TA-P0-005 Verify green GitHub CI and CodeQL on PR #49 code/test head
+  `1767708adc27e9dc05e0384a4682571e3797d6c4`: CI `37184302223` and CodeQL
+  `37184302217` passed, including hosted worker-image verification.
 
 ## Level-8 workstreams
 

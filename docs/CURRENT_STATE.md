@@ -147,8 +147,10 @@ vocabulary and lifecycle labels, bounds evidence references, and updates
 focused tests. Available local checks now pass: Python 313 tests (310 passed,
 three skipped), source compilation, secret scan, graph/target 25/25, PGlite 1/1,
 employee UI browser checks, controlled Source Fabric replay 78/78, and restore
-integrity drill. Docker worker-image verification and hosted PR CI/CodeQL remain
-pending; do not treat this repair as merged or released.
+integrity drill. PR #49 code/test head
+`1767708adc27e9dc05e0384a4682571e3797d6c4` passed hosted CI `37184302223`
+and CodeQL `37184302217`, including worker-image verification. The PR is open;
+do not treat this repair as merged or released.
 
 No new live source was contacted or production qualification completed for this
 repair. Existing 26 adapter and zero production-qualified counts remain in force.

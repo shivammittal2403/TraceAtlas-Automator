@@ -9,11 +9,12 @@
    Docker is unavailable; do not claim worker-image build verification.
 4. Review the final diff, exclude `third_party/opencti-connectors` (local
    submodule test material), and update program ledgers with actual outcomes.
-5. PR #49 is open at head `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`, based on
-   verified main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`. CI is queued and
-   CodeQL is running. Check both results before closing TA-P0-001/TA-P0-005.
-6. Do not merge unless the user separately asks. After CI, continue the
-   highest verified gap rather than claiming the transformation is complete.
+5. PR #49 code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` is based
+   on verified main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`; CI
+   `37184302223` and CodeQL `37184302217` passed. Documentation follow-ups may
+   advance the branch and trigger fresh checks.
+6. Do not merge unless the user separately asks. Continue with TA-003 after
+   recording verified outcomes; do not claim the transformation complete.
 
 The persistent prompt does not execute after a session ends. Resume by following
 this checkpoint when the user starts/continues the task.

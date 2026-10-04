@@ -21,5 +21,6 @@ analyst authorization; verify all references individually as TA-003.
 
 No live sources, subjects, accounts, external actions or hosted services were
 used for this repair. Local secret scanning and final diff review passed. PR #49
-CI/CodeQL are pending; independent security review, source-reference
-resolution, deployment, and tenant isolation remain open acceptance gates.
+code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI
+`37184302223` and CodeQL `37184302217`. Independent security review,
+source-reference resolution, deployment, and tenant isolation remain open.

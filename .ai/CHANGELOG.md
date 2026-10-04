@@ -20,3 +20,8 @@
 - PR #49 is open at head `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`, based on
   main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`. CI run `37184062835` is
   queued; CodeQL run `37184062839` is in progress.
+- The first hosted attempt exposed a truncated test-file blob transfer. The
+  UTF-8 source test was re-uploaded in size-verified chunks. Corrected
+  code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI
+  `37184302223` and CodeQL `37184302217`; worker image, both Python versions,
+  locked MCP, dependency review and supply-chain checks all passed.

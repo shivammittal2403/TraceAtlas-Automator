@@ -14,12 +14,13 @@
 - Local CI-equivalent compile, full Python suite, secret scan, Node graph,
   database, browser, research integrity, benchmark, 78-case fixture golden,
   local restore drill and pinned OpenCTI snapshot verification pass. Docker is
-  unavailable. Final diff review is complete. PR #49 is open at
-  `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`; CI is queued and CodeQL is running.
+  unavailable locally. Final diff review is complete. PR #49 code/test head
+  `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI `37184302223` and
+  CodeQL `37184302217`, including hosted worker-image verification.
 
 ## Next item
 
-After PR #49 CI and CodeQL complete, fix any evidence-backed failures. Then take
-the next highest verified issue from `docs/program/MASTER_GAP_REGISTER.md`. Do
-not start a broad SOCMINT connector expansion until source terms, access
-permission, evidence flow and testable API contracts are established.
+TA-P0-001 is verified on the code/test head. Next take TA-003: resolve every
+qualification reference against authorized immutable case artifacts. Do not
+start broad SOCMINT connector expansion until source terms, access permission,
+evidence flow and testable API contracts are established.

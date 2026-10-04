@@ -4,9 +4,10 @@
 passes available local checks: Python 313 tests (310 passed, 3 skipped), source
 compilation, secret scan, graph/target 25/25, PGlite 1/1, employee UI browser
 suite, 78/78 controlled source-fabric replay, and restore/integrity checks.
-PR #49 is open. Its CI run `37184062835` is queued and CodeQL run `37184062839`
-is in progress; neither hosted result is complete yet. Docker worker-image
-verification and hosted staging evidence are unavailable.
+PR #49 is open. Corrected code/test head
+`1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI `37184302223` and CodeQL
+`37184302217`, including the hosted worker-image build. Hosted staging evidence
+remains unavailable.
 
 Required before release: PR CI and CodeQL green; current-state docs accurate;
 source-reference verification; review of auth/evidence/network boundaries;
