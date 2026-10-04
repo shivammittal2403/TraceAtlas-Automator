@@ -139,6 +139,24 @@ class SourceFabricTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SourceRegistry.qualification({}, verified_runtime='yes')
 
+    def test_later_attestations_cannot_skip_connector_prerequisites(self):
+        from traceatlas.workforce.source_registry import SourceRegistry
+        all_gates = {gate: {'passed': True, 'evidence_ref': 'case:review-' + gate}
+                     for gate in SOURCE_QUALIFICATION_GATES}
+        for missing in ('capabilities', 'connector'):
+            with self.subTest(missing=missing):
+                gates = {gate: item for gate, item in all_gates.items() if gate != missing}
+                result = SourceRegistry.qualification(gates, verified_runtime=True)
+                self.assertEqual(result['state'], 'TERMS_REVIEWED')
+                with self.assertRaisesRegex(ValueError, 'lacks required qualification evidence'):
+                    SourceRegistry.transition('CONNECTOR_CODED', 'CONFIGURED', gates,
+                                              verified_runtime=True)
+        for missing in ('configured', 'authentication'):
+            with self.subTest(missing=missing):
+                gates = {gate: item for gate, item in all_gates.items() if gate != missing}
+                self.assertEqual(SourceRegistry.qualification(gates, verified_runtime=True)['state'],
+                                 'CONNECTOR_CODED')
+
     def test_legacy_promotion_does_not_bypass_new_qualification_gates(self):
         from traceatlas.evidence import EvidenceStore
         from traceatlas.source_fabric.store import FabricStore
@@ -150,17 +168,15 @@ class SourceFabricTests(unittest.TestCase):
                              ('dns', 'PRODUCTION_QUALIFIED', 'analyst', stamp))
         for gate in SOURCE_QUALIFICATION_GATES - {'operational_owner'}:
             self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
+                                 ('dns', gate, 'fabric-case', 'f' * 64, 'analyst', stamp))
                                  ('dns', gate, 'fabric-case', 'c' * 64, 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
-        from traceatlas.evidence import EvidenceStore
-        artifact = self.root / 'qualification.json'
-        artifact.write_text('{"synthetic":true}', encoding='utf-8')
-        evidence = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(artifact, 'synthetic qualification test')
-        self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE source='dns'", (evidence['sha256'],))
+        self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE source='dns'", (evidence_hash,))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
         self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
+                             ('dns', 'operational_owner', 'fabric-case', evidence_hash, 'analyst', stamp))
                              ('dns', 'operational_owner', 'fabric-case', evidence['sha256'], 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
@@ -210,6 +226,7 @@ class SourceFabricTests(unittest.TestCase):
                                  ('dns', gate, 'fabric-case', digest, 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
+        with self.assertRaisesRegex(PolicyError, 'resolved live-verification reviews required'):
         with self.assertRaisesRegex(PolicyError, 'canary required'):
             store.promote('dns', 'analyst', self.root, authorized=True)
         # Terms is a live-verification gate; operational_owner is the final
@@ -220,6 +237,11 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
         with self.assertRaisesRegex(PolicyError, 'reference does not resolve within its case'):
             store.promote('dns', 'analyst', self.root, authorized=True)
+        # Even if an upstream state projection is stale, promotion checks each
+        # review reference again instead of trusting the projected maturity.
+        with patch.object(store, 'states', return_value={'dns': 'LIVE_VERIFIED'}):
+            with self.assertRaisesRegex(PolicyError, 'reference does not resolve within its case'):
+                store.promote('dns', 'analyst', self.root, authorized=True)
 
     def test_planner_emits_target_bound_questions_and_evidence_requirements(self):
         objective = ObjectiveSpec('fabric-case', 'Review domain registration, DNS and history',

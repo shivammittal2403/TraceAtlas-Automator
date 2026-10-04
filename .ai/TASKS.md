@@ -87,3 +87,7 @@ gates and session context.
 
 - Closed the local full-suite OpenCTI prerequisite failure: restored inaccessible deep-path files from the pinned submodule blobs; focused OpenCTI tests 7/7 and full Python suite 329 run / 326 pass / 3 skip / 0 failures.
 - Keep open: run hosted CI for the latest program state; qualify a rollback-safe external evidence anchor; obtain authorized representative evaluation labels; continue highest-priority P0/P1 gate work.
+
+## Exact-snapshot merge repair — 2026-10-04
+
+REGISTRY-MERGE-002: local exact-snapshot repair complete; publish codex/repair-qualification-20261004 and inspect CI/CodeQL before closing. No representative quality or production release gate has closed.

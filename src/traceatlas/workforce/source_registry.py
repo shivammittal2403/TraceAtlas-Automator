@@ -36,6 +36,8 @@ LIFECYCLE_ORDER = ("DISCOVERED", "CATALOGUED", "TERMS_REVIEWED", "CONNECTOR_CODE
                    "CONFIGURED", "LIVE_TESTED", "LIVE_VERIFIED", "PRODUCTION_QUALIFIED")
 CATALOGUE_GATES = frozenset({"documentation", "manifest"})
 TERMS_GATES = CATALOGUE_GATES | frozenset({"terms", "license"})
+CONNECTOR_GATES = TERMS_GATES | frozenset({"capabilities", "connector"})
+CONFIGURATION_GATES = CONNECTOR_GATES | frozenset({"configured", "authentication"})
 CONNECTOR_GATES = TERMS_GATES | frozenset({"connector", "security"})
 CONFIGURATION_GATES = TERMS_GATES | frozenset({"connector", "authentication", "configured"})
 
@@ -170,6 +172,10 @@ class SourceRegistry:
         return True
 
     def lifecycle_counts(self):
+        counts = {state: 0 for state in STATES}
+        for item in self._sources.values():
+            counts[normalize_maturity(item.implementation_status)] += 1
+        return counts
         from ..source_maturity import maturity_counts
         return maturity_counts(item.implementation_status for item in self._sources.values())
 
@@ -202,6 +208,7 @@ class SourceRegistry:
             state = "CATALOGUED"
         if TERMS_GATES.issubset(passed):
             state = "TERMS_REVIEWED"
+        if CONNECTOR_GATES.issubset(passed):
         if TERMS_GATES.union({"connector"}).issubset(passed):
             state = "CONNECTOR_CODED"
         if CONFIGURATION_GATES.issubset(passed):

@@ -41,3 +41,7 @@ evaluation or other deterministic local work.
 ## Windows Git long-path status reporting — 2026-10-04
 
 The two deep OpenCTI utility directories exceed the path length Git for Windows can enumerate in this checkout. Win32 extended-path reads confirm restored source bytes match pinned Git blobs, OpenCTI tests pass 7/7, and the full Python suite passes 329 run / 326 pass / 3 skip. `git status` may still show 15 false deletions; avoid staging the submodule.
+
+## Exact-snapshot merge repair — 2026-10-04
+
+REGISTRY-MERGE-002 (P0): latest merged snapshot 9d025c had three compilation failures and duplicate gate definitions. Repair verified locally with 354 tests; hosted checks pending. Previous 329-test evidence belongs only to an unsynchronized checkout.

@@ -33,4 +33,10 @@ limitations. Separate CODED, TESTED, LIVE_VERIFIED and DEPLOYED.
 | 2026-10-04 | PR #50 head `d9c7965e98ba3e26e123fe33c266c97be7b591b8`, stacked on PR #49 | TA-003: resolve qualification-review hashes to immutable same-case EvidenceStore records during state reporting and promotion; reject unresolved legacy/direct DB rows | Focused Source Fabric 28 (27 pass, 1 optional skip); full Python 315 (312 pass, 3 skip); compileall and secret scan pass; hosted CI `37185114010` and CodeQL `37185114003` pass | PR open; TA-003 checks verified |
 
 Update this ledger with final PR SHA and CI run before closing TA-001/TA-002.
-| 2026-10-04 | Merged code state `e2f39d3164b1afc5cb74e3a825c15cab4ba7442b` (PR #52) | Restored the pinned OpenCTI submodule's 15 deep-path test files from their exact Git blobs using Windows extended paths; left the superproject gitlink unchanged. | OpenCTI-focused tests 7/7; full Python suite 329 run / 326 pass / 3 skip / 0 failures. Two sampled restored file hashes equal their pinned blob IDs. | Local Git for Windows cannot enumerate the two deep directories and may show false deletions. Maturity score and release gates remain open. |
+| 2026-10-04 | Earlier unsynchronized checkout; merged-revision attribution withdrawn | Restored the pinned OpenCTI submodule's 15 deep-path test files from their exact Git blobs using Windows extended paths; left the superproject gitlink unchanged. | OpenCTI-focused tests 7/7; full Python suite 329 run / 326 pass / 3 skip / 0 failures. Two sampled restored file hashes equal their pinned blob IDs. | Local Git for Windows cannot enumerate the two deep directories and may show false deletions. Maturity score and release gates remain open. |
+
+## Exact-snapshot merge repair
+
+| Date | Baseline / changes | Verification | Remaining |
+|---|---|---|---|
+| 2026-10-04 | Main 9d025c snapshot plus four repair blobs in verification JSON | 354 run / 351 pass / 3 skip; compileall and secret scan pass; lineage 12 pairs and contradictions 8 pairs pass | Hosted repair CI/CodeQL pending; enterprise gates open |

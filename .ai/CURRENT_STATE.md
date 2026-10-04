@@ -1,5 +1,27 @@
 # Enterprise 8/10 program — current state
 
+## Current repair checkpoint — 2026-10-04
+
+The previous 329-test pass came from an unsynchronized local checkout and was
+incorrectly attributed to merged commit `e2f39d3`; that attribution is withdrawn.
+PR #54 merged while a repair was underway. Continued from exact main snapshot
+`9d025c27a6d9d92294384df85dcbc3f479dae2ec`: all 678 tracked file contents matched.
+This snapshot had duplicate merge fragments in the source registry, FabricStore,
+qualification policy and source tests. The repair preserves the new 26-gate
+qualification policy, same-case evidence validation and stricter LIVE_TESTED
+versus LIVE_VERIFIED distinction. Negative tests cover missing prerequisites,
+unresolved reviews, and promotion rejection despite a stale state projection.
+
+Fresh result on that snapshot plus the four repair blobs: 354 tests run,
+351 passed, 3 skipped, zero failures; compilation and secret scan pass.
+Grouping remains TP=7/FP=0/TN=5/FN=0 on 12 synthetic pairs; temporal contradiction
+remains TP=3/FP=0/TN=5/FN=0 on 8 synthetic pairs. These do not measure field accuracy.
+Baseline, changed blob IDs and verification metadata are recorded in
+`docs/verification/source-registry-merge-repair-2026-10-04.json`.
+Branch: `codex/repair-qualification-20261004`. Hosted repair CI/CodeQL pending.
+The Enterprise 8/10 objective and representative/live acceptance gates remain open.
+
+
 Updated: 2026-10-04
 
 ## Repository baseline
@@ -173,6 +195,6 @@ without authorization.
 
 ## Latest verification — 2026-10-04
 
-- Revalidated the merged program code at GitHub branch commit `e2f39d3164b1afc5cb74e3a825c15cab4ba7442b` (PR #52): Python suite 329 run, 326 passed, 3 skipped, 0 failures.
+- Earlier unsynchronized local checkout: 329 run, 326 passed, 3 skipped, 0 failures. The previous attribution to merged PR #52 is withdrawn; that revision failed compilation.
 - The pinned OpenCTI submodule is at `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`, matching the superproject gitlink. Its 15 deeply nested files are present from the pinned blobs; sampled file hashes match. Focused OpenCTI tests passed 7/7. Windows Git status still cannot enumerate these long paths and may display false deletions; no gitlink change is intended.
 - Overall maturity remains unscored and below any defensible 8/10 claim. Production-qualified sources remain 0; representative identity, lineage, contradiction, live-source, hosted deployment and other acceptance gates remain open.

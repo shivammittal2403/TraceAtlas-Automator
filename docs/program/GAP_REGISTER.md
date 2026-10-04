@@ -21,3 +21,6 @@ Keep historical findings. Update status, evidence, test result, metric and commi
 in the implementation/evaluation ledgers; do not close a gap when only code or
 fixtures exist.
 
+## Exact-snapshot merge repair — 2026-10-04
+
+REGISTRY-MERGE-002 (P0): exact main 9d025c compilation failures repaired; 26-gate requirements and same-case review validation preserved. Local 354-test suite passes; hosted repair verification pending.
