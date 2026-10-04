@@ -7,7 +7,7 @@ TraceAtlas helps investigators organize approved research. It does not turn an A
 ## Current capabilities
 
 - Canonical workforce pipeline with typed targets, capability-based source planning, approval digests, bounded collection, evidence custody, verification, graph/timeline analysis, and replay.
-- 25 approval-driven source adapters, including public DNS/RDAP, certificate transparency, passive URL and archive indexes, public IP context, company registries, NVD, CVE Program, FIRST EPSS, OSV, and npm metadata. NVD observations also retain CISA KEV fields when NVD includes CISA-populated listing and remediation details; these are not a separate CISA adapter.
+- 26 approval-driven source adapters, including public DNS/RDAP, certificate transparency, passive URL and archive indexes, public IP context, company registries, NVD, CVE Program, FIRST EPSS, the exact-CVE CISA KEV catalog adapter, OSV, and npm metadata. CISA KEV rows are filtered to one requested CVE before they become case evidence.
 - Deterministic employee console with checkpointed local workflows and evidence/replay exports.
 - Case storage and evidence handling backed by SQLite, with source provenance and target checks.
 - Source manifests, readiness reporting, runbooks, and explicit limitations for integrations that still need credentials, terms review, live qualification, or deployment work.
