@@ -61,3 +61,15 @@ because the local ledger has no independent trust anchor. The report is
 This harness scores 8/9 (0.8889), reports 5/6 (0.8333) rejection across invalid
 cases, and is **FAIL**. EVIDENCE-001 remains open; external anchoring, immutable
 storage, semantic citation correctness and deployed replay remain unverified.
+
+## Remote synchronization
+
+The authoritative GitHub branch `codex/source-maturity-taxonomy` is currently at
+`083c39db42d271e9d6700c04c5f51f05a576aa6d`. The evidence evaluator is in commit
+`d0c21249d813c88cffe8b0316067608866a112bc`; follow-up commits restore the
+current 1.12.0 repository-state document and record the implementation ledger.
+The local checkout still has `HEAD` at
+`52def959113c721ad2ffc5753e8db9c6c36db2ff` and is missing the remote merge
+ancestry. GitHub API writes were verified, but no workflow runs or status checks
+were reported for the pushed commits. The incomplete OpenCTI submodule working
+tree remains excluded from program changes.
