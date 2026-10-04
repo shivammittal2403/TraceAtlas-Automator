@@ -15,9 +15,12 @@
 ## This repair
 
 Source maturity evidence references now have syntax/length bounds. This is not
-yet independent verification that a reference resolves to an authorized case
-artifact. Promotion continues to require FabricStore integrity checks and
-analyst authorization; verify all references individually as TA-003.
+yet proof of truth. FabricStore review additionally requires explicit analyst
+authorization and the exact SHA-256 of an artifact preserved in the same case.
+Promotion re-verifies case custody and rejects unresolved evidence references,
+including legacy/direct-database rows. The focused test covers fabricated,
+cross-case, valid, and legacy references. This follow-up is implemented locally;
+hosted checks are pending.
 
 No live sources, subjects, accounts, external actions or hosted services were
 used for this repair. Local secret scanning and final diff review passed. PR #49

@@ -18,9 +18,20 @@
   `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI `37184302223` and
   CodeQL `37184302217`, including hosted worker-image verification.
 
-## Next item
+## Work item TA-003 — resolve qualification review evidence references
 
-TA-P0-001 is verified on the code/test head. Next take TA-003: resolve every
-qualification reference against authorized immutable case artifacts. Do not
-start broad SOCMINT connector expansion until source terms, access permission,
-evidence flow and testable API contracts are established.
+- PR #49 source maturity repair and program ledgers passed hosted CI and CodeQL.
+- Tightened Source Fabric state calculation and promotion so every review hash
+  resolves to evidence recorded in the same case; promotion also verifies that
+  case's custody ledger. Legacy/direct database rows with unresolved hashes no
+  longer qualify.
+- Added tests for explicit authorization, missing refs, cross-case refs,
+  valid refs, and unresolved legacy rows at promotion.
+- Local result: 28 Source Fabric tests pass (one optional SDK skip); full Python
+  suite 315 tests pass with three skips; secret scan clean.
+- Remaining: publish as a stacked PR on top of PR #49 and verify hosted CI and
+  CodeQL. Do not merge either PR without the user's request.
+
+After TA-003 is reviewed, move to semantic evidence replay. Do not start broad
+SOCMINT connector expansion until source terms, access permission, evidence
+flow and testable API contracts are established.

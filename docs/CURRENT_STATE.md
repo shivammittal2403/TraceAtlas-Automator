@@ -154,3 +154,10 @@ do not treat this repair as merged or released.
 
 No new live source was contacted or production qualification completed for this
 repair. Existing 26 adapter and zero production-qualified counts remain in force.
+
+The local TA-003 follow-up also closes a review-reference gap: Source Fabric
+review rows now resolve each evidence hash against artifacts in that same case,
+and promotion rechecks the ledger and every reference. Invalid legacy/direct
+database rows cannot sustain production-qualified state. Focused tests (28) and
+the full Python suite (315; 3 skipped) pass locally; hosted checks for this
+follow-up remain pending. No source was promoted.

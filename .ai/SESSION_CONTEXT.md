@@ -13,8 +13,10 @@
    on verified main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`; CI
    `37184302223` and CodeQL `37184302217` passed. Documentation follow-ups may
    advance the branch and trigger fresh checks.
-6. Do not merge unless the user separately asks. Continue with TA-003 after
-   recording verified outcomes; do not claim the transformation complete.
+6. Do not merge unless the user separately asks. TA-003 is implemented locally
+   with focused/full test results in `.ai/ACTIVE_WORK.md`; publish it as a
+   stacked PR on top of PR #49, then check hosted CI/CodeQL. The product
+   transformation remains incomplete while listed workstreams remain open.
 
 The persistent prompt does not execute after a session ends. Resume by following
 this checkpoint when the user starts/continues the task.

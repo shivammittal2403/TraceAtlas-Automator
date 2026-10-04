@@ -1,7 +1,6 @@
 # Highest-priority TODO
 
-1. Implement TA-003: resolve qualification references against authorized,
-   immutable case artifacts before any promotion.
+1. Publish and verify the TA-003 evidence-reference integrity change.
 2. Audit case/evidence replay for semantic recomputation and version handling.
 3. Verify current source maturity persistence, actor authorization and
    promotion revocation behavior.

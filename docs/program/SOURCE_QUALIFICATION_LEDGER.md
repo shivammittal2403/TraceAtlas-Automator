@@ -13,4 +13,6 @@ qualification in separate counts.
 
 No credentials or source entitlements were supplied for this task. Resolve
 evidence references against EvidenceStore and authorization before allowing
-promotion; receipt text alone is not evidence.
+promotion; receipt text alone is not evidence. The local TA-003 change now
+checks same-case hash membership while calculating promotion state and again
+at promotion, with ledger integrity rechecked. Hosted CI/CodeQL are pending.
