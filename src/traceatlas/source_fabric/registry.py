@@ -6,9 +6,9 @@ from importlib.resources import files
 
 from ..intelligence.sources import SOURCES
 from ..intelligence.contracts import source_contract
+from ..source_maturity import MATURITY_STATES, maturity_counts, normalize_maturity
 
-STATES = frozenset({"DISCOVERED", "CATALOGUED", "DOCUMENTED", "CONNECTOR_IMPLEMENTED", "CONFIGURED",
-                    "LIVE_VERIFIED", "PRODUCTION_QUALIFIED", "DEGRADED", "DISABLED", "DEPRECATED", "BROKEN"})
+STATES = frozenset(MATURITY_STATES)
 P0 = ("dns", "rdap", "wayback", "internetdb", "ripestat", "gleif", "github", "gitlab", "npm", "nvd",
       "epss", "osv", "crossref", "ipwhois", "greynoise", "shodan", "censys", "virustotal", "bluesky", "hackernews")
 CAPABILITIES = {
@@ -70,8 +70,9 @@ def manifest(source):
         "freshness": {"provider_sla": None, "local_cache_ttl_seconds": 300 if not spec.personal_data else 0},
         "reliability": {"measured": False}, "legal_constraints": ["deployment terms and entitlement review required"],
         "license": "unknown", "privacy_classification": "personal-public" if spec.personal_data else "public-metadata",
-        "health": {"state": "BROKEN" if source in KNOWN_BROKEN else "UNKNOWN", "reason": KNOWN_BROKEN.get(source)}, "fallback_sources": [],
-        "implementation_status": "CONNECTOR_IMPLEMENTED" if spec.live_connector else "CATALOGUED",
+        "health": {"state": "DEGRADED" if source in KNOWN_BROKEN else "UNKNOWN", "reason": KNOWN_BROKEN.get(source)}, "fallback_sources": [],
+        "implementation_status": "CONNECTOR_CODED" if spec.live_connector else "CATALOGUED",
+        "maturity_state": "CONNECTOR_CODED" if spec.live_connector else "CATALOGUED",
         "execution_path": "traceatlas.intelligence.hub.IntelligenceHub.collect" if spec.live_connector else None,
         "documentation_url": DOCS.get(source), "documentation_review": "partial-documentation-review-2026-10-03" if source in DOCS else "unverified",
         "contract": contract.to_dict(), "p0": source in P0, "limitation": spec.limitation,
@@ -93,13 +94,19 @@ def audit(db=None):
               "jurisdiction_coverage": "not-qualified; no inferred worldwide coverage",
               "p0_gaps": ["beneficial-ownership", "procurement", "sanctions", "web-search", "geospatial"],
               "counting_note": "400 input slots include aliases and tools; external OpenCTI packages are not live local sources."}
+    runtime_states = {}
     if db is not None:
         from .store import FabricStore
         store = FabricStore(db)
         qualified = store.states()
-        result["live_verified"] = sum(v == "LIVE_VERIFIED" or v == "PRODUCTION_QUALIFIED" for v in qualified.values())
+        runtime_states = {source: normalize_maturity(state) for source, state in qualified.items()}
+        result["live_verified"] = sum(v == "LIVE_VERIFIED" for v in runtime_states.values())
         result["production_qualified"] = sum(v == "PRODUCTION_QUALIFIED" for v in qualified.values())
-        result["broken"] = sorted(set(KNOWN_BROKEN) | {s for s, state in qualified.items() if state == "BROKEN"})
-        result["unverified_live_connectors"] = [s for s in result["unverified_live_connectors"] if qualified.get(s) not in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"}]
+        result["broken"] = sorted(set(KNOWN_BROKEN) | {s for s, state in runtime_states.items() if state == "DEGRADED"})
+        result["unverified_live_connectors"] = [s for s in result["unverified_live_connectors"] if runtime_states.get(s) not in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"}]
         result["metrics"] = store.metrics()
+    for row in rows:
+        row["maturity_state"] = runtime_states.get(row["source_id"], row["maturity_state"])
+    result["maturity_counts"] = maturity_counts(row["maturity_state"] for row in rows)
+    result["maturity_state_vocabulary"] = list(MATURITY_STATES)
     return result

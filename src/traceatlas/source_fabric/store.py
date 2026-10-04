@@ -6,10 +6,9 @@ from datetime import datetime, timedelta, timezone
 from ..evidence import EvidenceStore
 from ..policy import PolicyError
 from .registry import SOURCES, KNOWN_BROKEN
+from ..source_maturity import SOURCE_QUALIFICATION_GATES, normalize_maturity
 
-QUALIFICATION_CHECKS = frozenset({"official-documentation", "ownership", "terms", "license", "security",
-    "capability-mapping", "authentication", "cost", "rate-limits", "failure-tests", "normalization-tests",
-    "evidence-tests", "provenance-tests", "schema-monitoring", "health-monitoring", "documentation-sync"})
+QUALIFICATION_CHECKS = SOURCE_QUALIFICATION_GATES
 
 
 def utc():
@@ -68,11 +67,18 @@ class FabricStore:
             elif r["status"] == "failed" or r["drift"]:
                 result[r["source"]] = "DEGRADED"
         for r in self.db.conn.execute("SELECT * FROM fabric_promotions"):
-            if r["state"] in {"DISABLED", "BROKEN", "DEPRECATED"}:
-                result[r["source"]] = r["state"]
+            if r["state"] in {"DISABLED", "BROKEN", "DEGRADED", "DEPRECATED"}:
+                result[r["source"]] = normalize_maturity(r["state"])
             elif r["state"] == "PRODUCTION_QUALIFIED" and result.get(r["source"]) == "LIVE_VERIFIED" and r["at"] > cutoff:
-                result[r["source"]] = r["state"]
-        result.update({source: "BROKEN" for source in KNOWN_BROKEN})
+                review_cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
+                reviewed = {row["check_name"] for row in self.db.conn.execute(
+                    "SELECT DISTINCT check_name FROM fabric_reviews WHERE source=? AND at>?",
+                    (r["source"], review_cutoff))}
+                # Recheck the current checklist so older promotions cannot survive
+                # a qualification-policy expansion on their previous evidence set.
+                if QUALIFICATION_CHECKS.issubset(reviewed):
+                    result[r["source"]] = r["state"]
+        result.update({source: "DEGRADED" for source in KNOWN_BROKEN})
         return result
 
     def review(self, source, check_name, case_id, evidence_hash, actor, workspace, authorized=False):

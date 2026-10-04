@@ -11,15 +11,14 @@ from urllib.parse import urlsplit
 from ..intelligence.sources import SOURCES
 from ..intelligence.contracts import source_contract
 from ..intelligence.registry_requests import company_identifier
+from ..source_maturity import (LIVE_VERIFICATION_GATES, MATURITY_STATES,
+                               SOURCE_QUALIFICATION_GATES, normalize_maturity)
 
-STATES = frozenset({"DISCOVERED", "CATALOGUED", "DOCUMENTED", "CONNECTOR_IMPLEMENTED", "CONFIGURED",
-                    "LIVE_VERIFIED", "PRODUCTION_QUALIFIED", "DEGRADED", "DISABLED", "DEPRECATED", "BROKEN"})
+STATES = frozenset(MATURITY_STATES)
 P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_manifests.json').read_text())
 P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
 P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
-QUALIFICATION_GATES = frozenset({"documentation", "manifest", "capabilities", "connector", "authentication", "live_request",
-    "normalization", "evidence", "provenance", "failure", "rate_limits", "cost", "license", "security",
-    "tests", "canary", "health", "runbook"})
+QUALIFICATION_GATES = SOURCE_QUALIFICATION_GATES
 
 
 @dataclass(frozen=True)
@@ -71,6 +70,8 @@ class SourceManifest:
 
     def to_dict(self):
         value = asdict(self)
+        value["implementation_status"] = normalize_maturity(self.implementation_status)
+        value["maturity_state"] = value["implementation_status"]
         value.update(estimated_cost={'amount': self.estimated_request_cost, 'currency': self.currency,
                                      'basis': self.pricing_model, 'actual': None},
                      freshness={'max_cache_age_seconds': self.cache_ttl_seconds, 'provider_timestamp': 'preserved-when-supplied'},
@@ -96,7 +97,7 @@ def _manifests():
             pricing_model=p.get('pricing_model', 'UNKNOWN'), estimated_request_cost=p.get('cost_per_request_usd'),
             cache_ttl_seconds=p.get('cache_ttl_seconds', 0), upstream_group=p.get('upstream_group', source_id),
             access_type='API' if implemented else 'APPROVED_EXPORT',
-            implementation_status='CONNECTOR_IMPLEMENTED' if implemented else 'DOCUMENTED',
+            implementation_status='CONNECTOR_CODED' if implemented else 'CATALOGUED',
             tool=p.get('tool'), documentation_url=p.get('documentation_url'),
             documentation_checked_at=p.get('documentation_checked_at'), languages=tuple(p.get('languages', ['en'])),
             rate_limit=p.get('rate_limit', 'UNKNOWN'), license=p.get('license', 'UNKNOWN'),
@@ -141,13 +142,31 @@ class SourceRegistry:
 
     @staticmethod
     def qualification(gates, *, verified_runtime=False):
-        """Explicit attestations are needed; a fixture or configured key cannot promote."""
+        """Evidence-backed ladder; fixtures and configured keys cannot promote."""
+        if type(verified_runtime) is not bool:
+            raise ValueError('runtime verification must be an explicit boolean')
         if not isinstance(gates, dict) or set(gates) - QUALIFICATION_GATES:
             raise ValueError('unknown qualification gates')
         if not all(isinstance(v, dict) and set(v) == {'passed', 'evidence_ref'} and type(v['passed']) is bool
                    and isinstance(v['evidence_ref'], str) and v['evidence_ref'].strip() for v in gates.values()):
             raise ValueError('qualification requires evidence references')
-        missing = sorted(k for k in QUALIFICATION_GATES if not gates.get(k, {}).get('passed'))
-        return {'state': 'PRODUCTION_QUALIFIED' if not missing and verified_runtime else
-                'LIVE_VERIFIED' if gates.get('live_request', {}).get('passed') and verified_runtime else 'CONNECTOR_IMPLEMENTED',
+        passed = {key for key, value in gates.items() if value['passed']}
+        missing = sorted(k for k in QUALIFICATION_GATES if k not in passed)
+        if not {'documentation', 'manifest'}.issubset(passed):
+            state = 'DISCOVERED'
+        elif not {'terms', 'license'}.issubset(passed):
+            state = 'CATALOGUED'
+        elif 'connector' not in passed:
+            state = 'TERMS_REVIEWED'
+        elif not {'authentication', 'configured'}.issubset(passed):
+            state = 'CONNECTOR_CODED'
+        elif 'live_request' not in passed:
+            state = 'CONFIGURED'
+        elif not verified_runtime:
+            state = 'LIVE_TESTED'
+        elif LIVE_VERIFICATION_GATES.issubset(passed):
+            state = 'PRODUCTION_QUALIFIED' if not missing else 'LIVE_VERIFIED'
+        else:
+            state = 'LIVE_TESTED'
+        return {'state': state, 'maturity_state': state,
                 'missing_gates': missing, 'runtime_verified': verified_runtime}

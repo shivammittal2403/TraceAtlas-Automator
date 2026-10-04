@@ -62,6 +62,20 @@ See `docs/sources/SOURCE_FABRIC.md`, `docs/sources/SOURCE_AUDIT_MATRIX.csv`,
 in `docs/COMPLETION_AUDIT_2026-10-04.md`. Earlier cycle evidence remains in
 `docs/verification/live-sources-2026-10-03.json` and `docs/IMPLEMENTATION_REPORT.md`.
 
+Source manifests now expose the canonical eleven-state maturity vocabulary;
+catalogued records, coded connectors, live verification and production
+qualification have separate labels and counts. `BROKEN` is normalized to the
+`DEGRADED` maturity state, while source health remains a separate field. This
+local code change does not qualify any source: the repository still has zero
+production-qualified claims until evidence gates and intended-runtime canaries
+are completed. See `docs/SOURCE_MATURITY.md`.
+
+The workforce source plan also carries a deterministic, schema-versioned
+investigation plan with target-bound questions, evidence checks, candidate sources,
+execution waves, verification requirements and stop conditions for registered
+target types. It creates no hypotheses and does not claim multilingual or free-form
+semantic planning; source scores remain uncalibrated heuristics.
+
 ## Employee console integration (PR #26)
 
 Adds `employee serve` and `employee investigate`: local bounded runs, checkpoints,
