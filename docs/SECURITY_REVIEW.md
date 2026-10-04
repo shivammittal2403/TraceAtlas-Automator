@@ -72,6 +72,8 @@ canonical state. Analyst decisions continue through the existing authorized
 `ResolutionService`; this does not create global identity truth. Regression
 coverage checks the sensitive edge types and caller-supplied acceptance.
 
-Review status: code changed; regression tests added; CI result pending. This is a
-focused code review, not a penetration test, and does not qualify the hosted
-identity or analyst-authentication environment.
+Review status: code changed, regression tests added, and PR #44 CI and CodeQL
+passed; merge commit is `89069097a66899eabc55897114146cf51f81dc45`. The automated
+code-scanning AI job failed because its monthly quota was exceeded (HTTP 402), so
+it returned no finding. This is a focused code review, not a penetration test,
+and does not qualify the hosted identity or analyst-authentication environment.

@@ -37,6 +37,6 @@ Evidence/claims/inferences remain distinguished. Hashes establish submitted-byte
 | Temporal claim graph | IMPLEMENTED | In-memory evidence-linked proposal graph; acceptance check trusted caller-supplied state |
 | SOCMINT | NOT_IMPLEMENTED as an integrated social-platform workflow | Public search leads / GitHub org metadata do not equal broad social investigation |
 | Hosted production deployment | NOT_IMPLEMENTED / unverified | No live tenant/auth/recovery acceptance |
-| P0 graph decision-boundary remediation | CODED in this PR | Awaiting PR CI and review |
+| P0 graph decision-boundary remediation | MERGED in PR #44 | PR CI and CodeQL passed; automated code-scanning AI job unavailable on quota |
 
 See the remaining reports for evidence, priority and limitation detail.
