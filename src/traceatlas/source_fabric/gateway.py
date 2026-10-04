@@ -98,7 +98,7 @@ class SourceGateway:
         ready, completed = [], []
         for action in actions:
             connector = HubConnector(action["source"], requester=self.requester)
-            if connector.definition["health"]["state"] == "BROKEN":
+            if connector.definition["health"]["state"] == "DEGRADED":
                 raise PolicyError("Known incompatible connector is disabled in Source Fabric")
             # Authorization is checked again on cache hits and every dispatch.
             self.hub._gate(case_id, connector.spec, authorized=True,

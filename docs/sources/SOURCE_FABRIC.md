@@ -23,6 +23,10 @@ fallback dependencies, cost ceilings, gaps and stop conditions. Scores are trans
 heuristics, not calibrated information gain. One exact seed, eight network attempts,
 USD 1 estimated spend and 120 seconds remain the task limits. No autonomous pivot,
 identity merge, contact, scan submission, model call or report release is introduced.
+The structured plan includes deterministic target-bound questions, evidence checks,
+capabilities, candidate sources, execution waves, verification requirements and stop
+conditions. It emits no hypotheses. This is typed-capability decomposition, not
+multilingual or free-form semantic understanding.
 
 Examples of exact company and security seeds: `lei:5493001KJTIIGC8Y1R12`,
 `gb:00000001`, `cik:1`, `github:python`, `CVE-2024-12345`,
@@ -99,6 +103,10 @@ products or commercial lookup workflows; use appropriate licensed access.
   A canary bypasses cache/circuit state, not authorization, budget or rate limits.
 - Health reports the latest 100 local events, success/error rate, p95 latency,
   schema failures, cache hits and estimated costs. No synthetic event promotes a
+  source to LIVE_VERIFIED or PRODUCTION_QUALIFIED. Eighteen evidence-backed
+  qualification gates must be reviewed against the intended runtime. The shared
+  23-gate checklist also requires terms, configured credentials, fallback behavior,
+  schema-drift monitoring and an operational owner.
   source to LIVE_VERIFIED or PRODUCTION_QUALIFIED. Twenty evidence-backed
   qualification gates must be reviewed against the intended runtime.
 

@@ -45,6 +45,7 @@ Start at [Documentation Index](docs/README.md). Key references:
 - [AI Employee](docs/AI_EMPLOYEE.md)
 - [Workforce Architecture](docs/AI_WORKFORCE_ARCHITECTURE.md)
 - [Source Fabric](docs/SOURCE_FABRIC.md)
+- [Source maturity and qualification](docs/SOURCE_MATURITY.md)
 - [Current State](docs/CURRENT_STATE.md)
 - [Security](docs/SECURITY.md)
 - [Completion Audit](docs/COMPLETION_AUDIT_2026-10-04.md)

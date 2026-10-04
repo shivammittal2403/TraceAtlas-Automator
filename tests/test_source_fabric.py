@@ -23,6 +23,8 @@ from traceatlas.workforce.source_state import SourceState
 from traceatlas.workforce.source_sdk import SourceConnector
 from traceatlas.workforce.source_discovery import candidate_catalog
 from traceatlas.intelligence.hub import IntelligenceHub
+from traceatlas.source_maturity import MATURITY_STATES, SOURCE_QUALIFICATION_GATES, maturity_counts, normalize_maturity
+from traceatlas.source_fabric.registry import audit as audit_source_fabric
 
 LEI = '5493001KJTIIGC8Y1R12'
 BOOT = {'version': '1.0', 'services': [[['org'], ['https://rdap.publicinterestregistry.org/rdap/']]]}
@@ -87,6 +89,91 @@ class SourceFabricTests(unittest.TestCase):
     def tearDown(self):
         self.env.stop(); self.db.close(); self.temp.cleanup()
 
+    def test_source_maturity_uses_one_vocabulary_and_keeps_catalog_counts_separate(self):
+        self.assertEqual(MATURITY_STATES, (
+            'DISCOVERED', 'CATALOGUED', 'TERMS_REVIEWED', 'CONNECTOR_CODED', 'CONFIGURED',
+            'LIVE_TESTED', 'LIVE_VERIFIED', 'PRODUCTION_QUALIFIED', 'DEGRADED', 'DISABLED', 'DEPRECATED'))
+        self.assertEqual(normalize_maturity('CONNECTOR_IMPLEMENTED'), 'CONNECTOR_CODED')
+        self.assertEqual(normalize_maturity('BROKEN'), 'DEGRADED')
+        with self.assertRaises(ValueError):
+            normalize_maturity('INTEGRATED')
+        summary = audit_source_fabric()
+        self.assertEqual(sum(summary['maturity_counts'].values()), summary['source_records'])
+        self.assertEqual(summary['maturity_counts']['CONNECTOR_CODED'], summary['implemented_api_connectors'])
+        self.assertEqual(summary['maturity_counts']['CATALOGUED'], summary['approved_export_only'])
+        self.assertEqual(summary['maturity_counts']['PRODUCTION_QUALIFIED'], 0)
+        self.assertEqual(sum(maturity_counts(['BROKEN']).values()), 1)
+
+    def test_source_manifest_exposes_only_canonical_maturity_labels(self):
+        rows = SourceRegistry().list()
+        self.assertTrue(rows)
+        for row in rows:
+            value = row.to_dict()
+            self.assertIn(value['maturity_state'], MATURITY_STATES)
+            self.assertEqual(value['maturity_state'], value['implementation_status'])
+
+    def test_qualification_requires_complete_gate_evidence_on_both_surfaces(self):
+        from traceatlas.workforce.source_registry import QUALIFICATION_GATES, SourceRegistry
+        from traceatlas.source_fabric.store import QUALIFICATION_CHECKS
+        self.assertEqual(len(SOURCE_QUALIFICATION_GATES), 23)
+        self.assertEqual(QUALIFICATION_GATES, SOURCE_QUALIFICATION_GATES)
+        self.assertEqual(QUALIFICATION_CHECKS, SOURCE_QUALIFICATION_GATES)
+        passed = lambda keys: {key: {'passed': True, 'evidence_ref': 'case:evidence-' + key} for key in keys}
+        self.assertEqual(SourceRegistry.qualification(passed({'documentation', 'manifest'}))['maturity_state'], 'CATALOGUED')
+        self.assertEqual(SourceRegistry.qualification(passed({'documentation', 'manifest', 'terms', 'license'}))['maturity_state'], 'TERMS_REVIEWED')
+        coded = passed({'documentation', 'manifest', 'terms', 'license', 'connector'})
+        self.assertEqual(SourceRegistry.qualification(coded)['maturity_state'], 'CONNECTOR_CODED')
+        configured = {**coded, **passed({'authentication', 'configured'})}
+        self.assertEqual(SourceRegistry.qualification(configured)['maturity_state'], 'CONFIGURED')
+        live_test = passed({'documentation', 'manifest', 'terms', 'license', 'connector', 'authentication', 'configured', 'live_request'})
+        self.assertEqual(SourceRegistry.qualification(live_test)['maturity_state'], 'LIVE_TESTED')
+        verified = passed(SOURCE_QUALIFICATION_GATES - {'operational_owner'})
+        result = SourceRegistry.qualification(verified, verified_runtime=True)
+        self.assertEqual(result['maturity_state'], 'LIVE_VERIFIED')
+        self.assertEqual(result['missing_gates'], ['operational_owner'])
+        self.assertEqual(SourceRegistry.qualification(passed(SOURCE_QUALIFICATION_GATES), verified_runtime=True)['maturity_state'], 'PRODUCTION_QUALIFIED')
+        with self.assertRaises(ValueError):
+            SourceRegistry.qualification({}, verified_runtime='yes')
+
+    def test_legacy_promotion_does_not_bypass_new_qualification_gates(self):
+        from traceatlas.source_fabric.store import FabricStore
+        store = FabricStore(self.db)
+        stamp = datetime.now(timezone.utc).isoformat()
+        self.db.conn.execute("INSERT INTO fabric_executions(id,source,case_id,request_hash,authority_hash,status,mode,started_at) VALUES(?,?,?,?,?,'completed','live',?)",
+                             ('live-canary', 'dns', 'fabric-case', 'a' * 64, 'b' * 64, stamp))
+        self.db.conn.execute("INSERT INTO fabric_promotions(source,state,actor,at) VALUES(?,?,?,?)",
+                             ('dns', 'PRODUCTION_QUALIFIED', 'analyst', stamp))
+        for gate in SOURCE_QUALIFICATION_GATES - {'operational_owner'}:
+            self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
+                                 ('dns', gate, 'fabric-case', 'c' * 64, 'analyst', stamp))
+        self.db.conn.commit()
+        self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
+        self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
+                             ('dns', 'operational_owner', 'fabric-case', 'c' * 64, 'analyst', stamp))
+        self.db.conn.commit()
+        self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
+
+    def test_planner_emits_target_bound_questions_and_evidence_requirements(self):
+        objective = ObjectiveSpec('fabric-case', 'Review domain registration, DNS and history',
+            ('domain:example.org',), (), ('IN',), ('domain',), ('no_contact', 'no_identity_merge'),
+            ('report', 'graph', 'timeline', 'replay'), 'fabric-auth-planner')
+        router = SourceRouter(configured=lambda _source: True)
+        plan = router.plan(objective, allowed_tools={
+            'dns.lookup', 'rdap.lookup', 'archive.lookup', 'search.execute', 'ip.lookup',
+            'registry.lookup', 'vulnerability.lookup', 'package.lookup'})
+        structured = plan['investigation_plan']
+        self.assertEqual(structured['schema'], 'traceatlas-investigation-plan/v1')
+        self.assertEqual(structured['target'], 'domain:example.org')
+        self.assertEqual(structured['authorization_reference'], 'fabric-auth-planner')
+        self.assertEqual(set(structured['capabilities']), {'domain.registration', 'domain.dns', 'web.archive'})
+        self.assertEqual({q['capability'] for q in structured['questions']}, set(structured['capabilities']))
+        self.assertTrue(all(q['target'] == 'domain:example.org' for q in structured['questions']))
+        self.assertTrue(all(r['target'] == 'domain:example.org' and 'provenance' in r['checks']
+                            for r in structured['evidence_requirements']))
+        self.assertFalse(structured['hypotheses'])
+        self.assertFalse(structured['limits']['automatic_pivots'])
+        self.assertEqual(structured['execution_waves'][0]['wave'], 1)
+        self.assertEqual(plan['questions'], [q['question'] for q in structured['questions']])
     def test_source_lifecycle_requires_staged_evidence_and_runtime_gates(self):
         all_gates = {name: {"passed": True, "evidence_ref": "receipt:" + name}
                      for name in QUALIFICATION_GATES}

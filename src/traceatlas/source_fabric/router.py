@@ -58,7 +58,7 @@ class SourceRouter:
                 blocked.append({"source": source, "reason": "input-or-configuration-incompatible"})
                 continue
             contract = m["contract"]
-            if m["health"]["state"] == "BROKEN" or states.get(source) in {"DISABLED", "DEPRECATED", "BROKEN"} or health.get(source, {}).get("consecutive_failures", 0) >= 3:
+            if m["health"]["state"] == "DEGRADED" or states.get(source) in {"DISABLED", "DEPRECATED", "DEGRADED"} or health.get(source, {}).get("consecutive_failures", 0) >= 3:
                 blocked.append({"source": source, "reason": "source-unhealthy-or-disabled"})
                 continue
             if contract["authentication"] == "secret-reference" or any(os.getenv(k) for k in contract["credential_env"]):

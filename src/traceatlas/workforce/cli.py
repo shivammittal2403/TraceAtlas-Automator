@@ -104,6 +104,11 @@ def run_workforce(args, engine) -> dict:
             return {"manifest": registry.get(args.describe).to_dict(), "health": state.health(args.describe)}
         if args.catalog or args.capability:
             rows = [r.to_dict() for r in registry.list() if not args.capability or args.capability in r.capabilities]
+            from ..source_maturity import MATURITY_STATES, maturity_counts
+            return {"sources": rows, "capabilities": registry.capabilities(), "registered": len(registry.list()),
+                    "canonical_adapters": len(P0_IDS), "production_qualified": 0,
+                    "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
+                    "maturity_state_vocabulary": list(MATURITY_STATES),
             lifecycle_counts = registry.lifecycle_counts()
             live_count = len(registry.live_integrations())
             return {"sources": rows, "capabilities": registry.capabilities(), "registered": len(registry.list()),

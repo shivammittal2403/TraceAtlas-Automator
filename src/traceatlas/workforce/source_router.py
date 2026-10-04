@@ -9,6 +9,48 @@ from .source_registry import SourceRegistry, P0_IDS, P0_BY_ID
 from .source_state import stable_digest
 
 
+CAPABILITY_QUESTIONS = {
+    'domain.registration': 'What registration details are recorded for this exact domain?',
+    'domain.dns': 'Which DNS records did the selected public resolvers return for this exact domain?',
+    'domain.certificates': 'Which certificate records name this exact domain or an explicitly related hostname?',
+    'web.archive': 'What dated archive snapshots exist for this exact domain?',
+    'web.index': 'What public index records mention this exact domain?',
+    'web.search': 'What public search listings mention this exact target?',
+    'ip.ownership': 'Which registered network or organization is associated with this exact IP address?',
+    'ip.asn': 'Which routing origin and prefix cover this exact IP address?',
+    'ip.exposure': 'What exposure metadata is returned for this exact public IP address?',
+    'ip.routing': 'What routing records are reported for this exact IP address?',
+    'ip.geolocation': 'What coarse network location metadata is reported for this IP, and what does it not establish?',
+    'company.registration': 'What official registration record matches this exact registered identifier?',
+    'company.filings': 'Which public filing records are associated with this exact registered identifier?',
+    'company.ownership': 'What ownership records are available for this exact registered identifier?',
+    'company.procurement': 'What public procurement records are available for this exact registered identifier?',
+    'vulnerability.advisory': 'What advisory details are published for this exact vulnerability identifier?',
+    'vulnerability.exploitation_probability': 'What dated exploitation-probability record is published for this exact vulnerability?',
+    'vulnerability.cve_record': 'What canonical CVE record is published for this exact identifier?',
+    'vulnerability.affected_packages': 'Which package and version ranges are explicitly listed for this advisory?',
+    'package.metadata': 'What metadata does the selected public registry publish for this exact package name?',
+}
+
+
+def _investigation_questions(objective, kind, target, capabilities):
+    questions = []
+    for capability in capabilities:
+        question = CAPABILITY_QUESTIONS.get(capability, f'What captured records support capability {capability}?')
+        questions.append({
+            'question_id': 'question-' + stable_digest([kind, target, capability])[:16],
+            'question': question,
+            'target': f'{kind}:{target}',
+            'capability': capability,
+            'evidence_requirement_id': 'evidence-' + stable_digest([kind, target, capability])[:16],
+        })
+    for index, question in enumerate(objective.questions):
+        question_id = 'question-' + stable_digest([kind, target, 'analyst', index, question])[:16]
+        questions.append({'question_id': question_id, 'question': question, 'target': f'{kind}:{target}',
+                          'capability': None, 'evidence_requirement_id': 'evidence-' + stable_digest(question_id)[:16]})
+    return questions
+
+
 @dataclass(frozen=True)
 class ObjectiveSpec:
     case_id: str
@@ -100,6 +142,7 @@ class SourceRouter:
             if health['state'] in {'DOWN', 'DISABLED', 'SCHEMA_CHANGED', 'AUTH_FAILURE', 'RATE_LIMITED'}: reasons.append('source_' + health['state'].lower())
             if price is None: reasons.append('unpriced_account_source')
             if price is not None and price > budget: reasons.append('cost_boundary')
+            if item.implementation_status in {'DISABLED', 'DEPRECATED', 'DISCOVERED', 'CATALOGUED'}: reasons.append('not_implemented')
             if not item.connector_implemented or item.implementation_status in {'DISABLED', 'DEPRECATED', 'DEGRADED'}: reasons.append('not_implemented')
             factors = {'capability_match': len(matching) * 100, 'official': 8 if item.official else 0,
                        'primary': 5 if item.primary_source else 0, 'free': 3 if price == 0 else 0,
@@ -143,10 +186,47 @@ class SourceRouter:
         tasks = [{'source_id': sid, 'capabilities': list(self.registry.get(sid).capabilities),
                   'wave': 2 if sid in fallback_for else 1, 'fallback_for': fallback_for.get(sid),
                   'dependencies': [fallback_for[sid]] if sid in fallback_for else []} for sid in selected]
+        investigation_questions = _investigation_questions(objective, kind, target, needed)
+        evidence_requirements = [
+            {'evidence_requirement_id': question['evidence_requirement_id'], 'question_id': question['question_id'],
+             'target': question['target'], 'capability': question['capability'],
+             'checks': ['captured_source_record', 'exact_target_match', 'retrieval_time', 'evidence_reference', 'provenance']}
+            for question in investigation_questions
+        ]
+        waves = [{'wave': wave, 'source_ids': [task['source_id'] for task in tasks if task['wave'] == wave]}
+                 for wave in (1, 2) if any(task['wave'] == wave for task in tasks)]
+        verification_requirements = [
+            'Validate captured bytes and case custody before using observations.',
+            'Check that each source record matches the exact authorized target and preserve its retrieval time.',
+            'Group shared upstream sources before treating records as independent corroboration.',
+            'Keep contradictions, unsupported questions and unavailable capabilities visible.',
+        ]
+        investigation_plan = {
+            'schema': 'traceatlas-investigation-plan/v1',
+            'objective_id': stable_digest(objective.to_dict()),
+            'authorization_reference': objective.authorization_context_id,
+            'target': f'{kind}:{target}',
+            'jurisdictions': list(objective.jurisdictions),
+            'questions': investigation_questions,
+            'hypotheses': [],
+            'evidence_requirements': evidence_requirements,
+            'capabilities': list(needed),
+            'candidate_sources': [{'source_id': row['source_id'], 'eligible': row['eligible'],
+                                   'rejections': row['rejections'], 'score': row['score']}
+                                  for row in candidates],
+            'source_strategy': tasks,
+            'execution_waves': waves,
+            'verification_requirements': verification_requirements,
+            'stop_conditions': ['capabilities_collected', 'sources_exhausted', 'budget_exhausted',
+                                'time_exhausted', 'human_review_required'],
+            'limits': {'budget_usd': budget, 'request_limit': max_calls, 'automatic_pivots': False,
+                       'score_calibration': 'transparent-heuristic-unvalidated'},
+        }
         return {'schema': 'traceatlas-source-plan/v1', 'objective_id': stable_digest(objective.to_dict()),
             'objective': objective.to_dict(), 'source_requirements': list(needed), 'sources': selected,
             'tasks': tasks, 'candidates': candidates, 'information_gaps': sorted(set(needed) - covered),
-            'questions': list(objective.questions) or ['Which captured records support ' + cap + '?' for cap in needed],
+            'questions': [question['question'] for question in investigation_questions],
+            'investigation_plan': investigation_plan,
             'falsification': ['Check target identifiers, timestamps, shared upstream sources and contradictory records.'],
             'price_ceilings': {sid: prices.get(sid, self.registry.get(sid).estimated_request_cost) for sid in selected},
             'estimated_cost': None if any(prices.get(sid, self.registry.get(sid).estimated_request_cost) is None for sid in selected)

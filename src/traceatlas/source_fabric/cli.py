@@ -63,6 +63,7 @@ def run_fabric(args, engine):
     if args.fabric_command == "manifest":
         result = manifest(args.source)
         result["implementation_status"] = store.states().get(args.source, result["implementation_status"])
+        result["maturity_state"] = result["implementation_status"]
         return result
     if args.fabric_command == "plan":
         kind, separator, target = args.seed.partition(":")
