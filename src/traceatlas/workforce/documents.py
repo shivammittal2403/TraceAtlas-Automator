@@ -18,7 +18,7 @@ PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "re
                         "indexed_url", "scan_observed_ip", "approximate_country", "network_asn",
                         "network_isp", "provider_classification", "provider_last_seen", "certificate_log_id",
                         "announced_prefix", "filing_accession", "repository_count", "organization_profile",
-                        "provider_malicious_detections", "vulnerability_id", "vulnerability_alias",
+                        "provider_malicious_detections", "vulnerability_id", "vulnerability_alias", "vulnerability_name", "affected_product",
                         "vulnerability_score", "vulnerability_severity", "exploitation_probability",
                         "exploitation_percentile", "cisa_kev_listed", "cisa_kev_added_date",
                         "cisa_kev_due_date", "cisa_kev_required_action", "cisa_kev_vulnerability_name",
