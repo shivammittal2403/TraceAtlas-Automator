@@ -182,6 +182,38 @@ def _live_facts(source, seed, data, stamp):
                 if isinstance(severity, str):
                     add('vulnerability_severity', severity.upper(), at)
                 break
+    elif source == 'cveorg':
+        metadata = data.get('cveMetadata', {})
+        containers = data.get('containers', {})
+        cna = containers.get('cna', {}) if isinstance(containers, dict) else {}
+        if not isinstance(metadata, dict) or metadata.get('cveId') != target:
+            raise ProviderError('provider_target_mismatch')
+        if not isinstance(cna, dict):
+            raise ProviderError('provider_schema_mismatch')
+        at = _provider_time(metadata.get('datePublished') or metadata.get('dateUpdated'), stamp)
+        add('vulnerability_id', target, at)
+        title = cna.get('title')
+        if not isinstance(title, str):
+            descriptions = cna.get('descriptions', [])
+            if not isinstance(descriptions, list):
+                raise ProviderError('provider_schema_mismatch')
+            description = next((row for row in descriptions[:25]
+                                if isinstance(row, dict) and row.get('lang') in {'en', 'en-US'}
+                                and isinstance(row.get('value'), str)), None)
+            title = description.get('value') if description else None
+        if isinstance(title, str) and title.strip():
+            add('vulnerability_name', title.strip()[:500], at)
+        affected = cna.get('affected', [])
+        if not isinstance(affected, list):
+            raise ProviderError('provider_schema_mismatch')
+        for item in affected[:25]:
+            if not isinstance(item, dict):
+                raise ProviderError('provider_schema_mismatch')
+            vendor, product = item.get('vendor'), item.get('product')
+            if isinstance(product, str) and product.strip():
+                vendor_label = vendor.strip()[:200] if isinstance(vendor, str) else ''
+                product_label = product.strip()[:200]
+                add('affected_product', (vendor_label + ':' if vendor_label else '') + product_label, at)
     elif source == 'epss':
         rows = data['data']
         if not rows:

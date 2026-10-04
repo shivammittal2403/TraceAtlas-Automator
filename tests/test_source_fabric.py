@@ -47,6 +47,10 @@ FIXTURES = {
     'github': ('company', 'github:fixture-org', {'login': 'fixture-org', 'type': 'Organization', 'name': 'Fixture Organization', 'public_repos': 3, 'html_url': 'https://github.com/fixture-org'}),
     'shodan': ('ip', '8.8.8.8', {'ip_str': '8.8.8.8', 'ports': [53]}),
     'virustotal': ('ip', '8.8.8.8', {'data': {'id': '8.8.8.8', 'attributes': {'last_analysis_stats': {'malicious': 0}}}}),
+    'cveorg': ('cve', 'CVE-2024-12345', {'dataType': 'CVE_RECORD', 'dataVersion': '5.1',
+        'cveMetadata': {'cveId': 'CVE-2024-12345', 'state': 'PUBLISHED', 'datePublished': '2025-01-01T00:00:00Z', 'dateUpdated': '2025-01-02T00:00:00Z'},
+        'containers': {'cna': {'title': 'Fixture vulnerability record', 'descriptions': [{'lang': 'en', 'value': 'Synthetic CVE Program fixture.'}],
+            'affected': [{'vendor': 'Fixture Vendor', 'product': 'Fixture Product'}]}}}),
     'nvd': ('cve', 'CVE-2024-12345', {'resultsPerPage': 1, 'startIndex': 0, 'totalResults': 1,
         'format': 'NVD_CVE', 'version': '2.0', 'timestamp': '2025-01-02T00:00:00.000Z',
         'vulnerabilities': [{'cve': {'id': 'CVE-2024-12345', 'published': '2025-01-01T00:00:00.000Z',
@@ -94,7 +98,7 @@ class SourceFabricTests(unittest.TestCase):
                              envelope_digest=plan['envelope_digest'], authorized=True)
         return plan['task']['task_id']
 
-    def test_twenty_four_adapters_seventy_two_controlled_capture_failure_and_drift_investigations(self):
+    def test_twenty_five_adapters_seventy_five_controlled_capture_failure_and_drift_investigations(self):
         self.assertEqual(set(FIXTURES), P0_IDS)
         for source, (kind, target, payload) in FIXTURES.items():
             for scenario in ('success', 'authentication_failure', 'schema_drift'):
@@ -119,7 +123,7 @@ class SourceFabricTests(unittest.TestCase):
 
     def test_vulnerability_and_package_defaults_route_typed_sources(self):
         cases = (
-            ('cve', 'CVE-2024-12345', {'nvd', 'epss'}),
+            ('cve', 'CVE-2024-12345', {'nvd', 'epss', 'cveorg'}),
             ('vulnerability', 'GHSA-1234-5678-9ABC', {'osv'}),
             ('package', '@scope/fixture-package', {'npm'}),
         )
@@ -130,27 +134,34 @@ class SourceFabricTests(unittest.TestCase):
                 self.assertEqual(set(plan['source_plan']['sources']), expected)
 
     def test_cve_collection_normalizes_advisory_probability_and_next_action(self):
-        task = self.task('cve', 'CVE-2024-12345', ['nvd', 'epss'])
+        task = self.task('cve', 'CVE-2024-12345', ['nvd', 'cveorg', 'epss'])
         def request(url, *_):
             host = urlsplit(url).hostname
-            source = 'nvd' if host == 'services.nvd.nist.gov' else 'epss'
+            source = 'nvd' if host == 'services.nvd.nist.gov' else 'cveorg' if host == 'cveawg.mitre.org' else 'epss'
             return 200, json.dumps(FIXTURES[source][2]).encode()
         product = InvestigationPipeline(self.service, self.root, requester=request).run(task, live=True, authorized=True)
         predicates = {row['statement'].split()[1] for row in product['analysis']['observations']}
         self.assertTrue({'vulnerability_id', 'vulnerability_score', 'exploitation_probability',
                          'cisa_kev_listed', 'cisa_kev_added_date', 'cisa_kev_due_date',
-                         'cisa_kev_required_action', 'cisa_kev_vulnerability_name'}.issubset(predicates))
+                         'cisa_kev_required_action', 'cisa_kev_vulnerability_name',
+                         'vulnerability_name', 'affected_product'}.issubset(predicates))
         self.assertIn('review-authorized-asset-applicability', product['result']['recommended_next_actions'])
         self.assertNotIn('no-captured-web-search', product['analysis']['information_gaps'])
         self.assertEqual(product['analysis']['graph']['nodes'][0]['node_type'], 'Vulnerability')
 
     def test_new_exact_identifier_sources_reject_wrong_targets(self):
         stamp = datetime.now(timezone.utc).isoformat()
-        for source, (kind, target, payload) in {key: FIXTURES[key] for key in ('nvd', 'epss', 'osv', 'npm')}.items():
-            wrong = ({**payload, 'name': 'other-package'} if source == 'npm'
-                     else {**payload, 'id': 'GHSA-0000-0000-0000'} if source == 'osv'
-                     else {**payload, 'data': [{**payload['data'][0], 'cve': 'CVE-2024-99999'}]} if source == 'epss'
-                     else {**payload, 'vulnerabilities': [{'cve': {**payload['vulnerabilities'][0]['cve'], 'id': 'CVE-2024-99999'}}]})
+        for source, (kind, target, payload) in {key: FIXTURES[key] for key in ('nvd', 'cveorg', 'epss', 'osv', 'npm')}.items():
+            if source == 'npm':
+                wrong = {**payload, 'name': 'other-package'}
+            elif source == 'osv':
+                wrong = {**payload, 'id': 'GHSA-0000-0000-0000'}
+            elif source == 'epss':
+                wrong = {**payload, 'data': [{**payload['data'][0], 'cve': 'CVE-2024-99999'}]}
+            elif source == 'cveorg':
+                wrong = {**payload, 'cveMetadata': {**payload['cveMetadata'], 'cveId': 'CVE-2024-99999'}}
+            else:
+                wrong = {**payload, 'vulnerabilities': [{'cve': {**payload['vulnerabilities'][0]['cve'], 'id': 'CVE-2024-99999'}}]}
             with self.subTest(source=source), self.assertRaises(Exception):
                 SourceConnector(source).normalize(kind, target, wrong, stamp)
             with self.subTest(source=source + '-intelligence-hub'), self.assertRaises(Exception):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 import time
 import urllib.error
 from dataclasses import dataclass
@@ -127,6 +128,18 @@ def _validate_shape(source: str, data: Any) -> None:
             and isinstance(data.get("results"), list) and len(data.get("results", [])) <= 25
             and all(isinstance(row, dict) and isinstance(row.get("name"), str)
                     for row in data.get("results", []))
+        )
+    elif source == "cveorg":
+        metadata = data.get("cveMetadata") if isinstance(data, dict) else None
+        containers = data.get("containers") if isinstance(data, dict) else None
+        cna = containers.get("cna") if isinstance(containers, dict) else None
+        affected = cna.get("affected", []) if isinstance(cna, dict) else None
+        valid = (
+            isinstance(data, dict) and data.get("dataType") == "CVE_RECORD"
+            and isinstance(metadata, dict) and isinstance(metadata.get("cveId"), str)
+            and re.fullmatch(r"CVE-\d{4}-\d{4,19}", metadata["cveId"]) is not None
+            and isinstance(containers, dict) and isinstance(cna, dict)
+            and isinstance(affected, list)
         )
     elif source == "nvd":
         valid = (

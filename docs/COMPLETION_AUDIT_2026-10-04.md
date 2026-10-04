@@ -8,7 +8,7 @@ there are no unchecked Markdown task boxes.
 ## Completed repository work
 
 - Merged PRs #32–#35 completed the exact-CVE, vulnerability and package source integration in the existing canonical workforce; the adapter count remains 24.
-- The canonical workforce now has 24 approval-driven adapters. NVD, FIRST EPSS,
+- The canonical workforce now has 25 approval-driven adapters. NVD, CVE Program, FIRST EPSS,
   OSV and npm use the same immutable authority, capability plan, gateway,
   evidence, verification, graph/timeline, draft and offline replay path as the
   existing domain, IP and company sources.
@@ -26,8 +26,8 @@ there are no unchecked Markdown task boxes.
 - The deterministic employee recommends asset or inventory applicability review
   and retains human report release. An advisory never becomes proof of an
   installed vulnerable package or observed exploitation.
-- The fixture qualification pack now covers 24 adapters across success,
-  authentication failure and schema drift: 72 of 72 scenarios pass with offline
+- The fixture qualification pack now covers 25 adapters across success,
+  authentication failure and schema drift: 75 of 75 scenarios pass with offline
   replay. Source count, workflow/parser versions and operator instructions are
   aligned across current-state, Source Fabric, live-source, workforce, entity,
   user-flow and runbook documents.
@@ -40,7 +40,7 @@ there are no unchecked Markdown task boxes.
 | Gate | Result |
 |---|---|
 | Python regression suite | 305 run; 304 passed; one optional MCP-SDK test skipped |
-| Controlled Source Fabric | 72/72 passed; replay success rate 1.0 |
+| Controlled Source Fabric | 75/75 passed; replay success rate 1.0 |
 | Node graph/target tests | 25/25 passed |
 | PGlite migration/RLS test | 1/1 passed |
 | Python compilation | Passed |

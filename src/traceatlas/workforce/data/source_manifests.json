@@ -674,6 +674,37 @@
     "license": "US Government public data; provider terms and notices apply"
   },
   {
+    "source_id": "cveorg",
+    "capabilities": [
+      "vulnerability.cve_record"
+    ],
+    "entity_types": [
+      "cve"
+    ],
+    "tool": "vulnerability.lookup",
+    "provider": "cve-program",
+    "upstream_group": "cve-program",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://cveawg.mitre.org/api-docs/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "Public endpoint; current limits require operational review",
+    "license": "CVE Program records; current terms and notices require operator review"
+  },
+  {
     "source_id": "epss",
     "capabilities": [
       "vulnerability.exploitation_probability"

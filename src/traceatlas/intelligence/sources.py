@@ -200,6 +200,12 @@ SOURCES: dict[str, SourceSpec] = {
         "THREAT_INTELLIGENCE", "Reputation metadata for an owned indicator; samples are never downloaded.",
         live_connector=True, credential_env=("VIRUSTOTAL_API_KEY",),
     ),
+    "cveorg": _source(
+        "cveorg", "CVE Program", "vulnerability-intelligence", "official-public-api",
+        "VULNERABILITY_RECORD", "One exact public CVE Record from the CVE Program API; no exploit code is retrieved.",
+        live_connector=True, public_record=True,
+        limitation="A published CNA record is a source statement, not proof that a product is installed or affected."
+    ),
     "nvd": _source(
         "nvd", "NIST National Vulnerability Database", "vulnerability-intelligence",
         "public-government-api", "VULNERABILITY_RECORD",

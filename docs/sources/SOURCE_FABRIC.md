@@ -14,7 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 50 source definitions (48 IntelligenceHub entries plus Brave/SearXNG); 24 have the canonical approval-driven workforce adapter. The IntelligenceHub has 34 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 50 source definitions (48 IntelligenceHub entries plus Brave/SearXNG); 25 have the canonical approval-driven workforce adapter. The IntelligenceHub has 34 API implementations. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP, company, CVE,
 vulnerability-advisory or npm-package identifiers.
@@ -130,7 +130,7 @@ candidate queue, real account credentials, sustained canaries and source-specifi
 adversarial cases. Native sanctions, beneficial ownership, procurement and
 geospatial workflows are not delivered by these 24 adapters. Package and
 vulnerability collection is now part of the bounded canonical workforce surface
-through NVD, EPSS, OSV and npm.
+through NVD, CVE Program, EPSS, OSV and npm.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
 planning and the hosted UI-to-worker flow remain separately unqualified.
 

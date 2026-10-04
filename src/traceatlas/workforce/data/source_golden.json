@@ -364,6 +364,37 @@
         "version": "1.2.3",
         "license": "MIT"
       }
+    ],
+    "cveorg": [
+      "cve",
+      "CVE-2024-12345",
+      {
+        "dataType": "CVE_RECORD",
+        "dataVersion": "5.1",
+        "cveMetadata": {
+          "cveId": "CVE-2024-12345",
+          "state": "PUBLISHED",
+          "datePublished": "2025-01-01T00:00:00.000Z",
+          "dateUpdated": "2025-01-02T00:00:00.000Z"
+        },
+        "containers": {
+          "cna": {
+            "title": "Fixture vulnerability record",
+            "descriptions": [
+              {
+                "lang": "en",
+                "value": "Synthetic CVE Program fixture."
+              }
+            ],
+            "affected": [
+              {
+                "vendor": "Fixture Vendor",
+                "product": "Fixture Product"
+              }
+            ]
+          }
+        }
+      }
     ]
   }
 }
