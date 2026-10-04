@@ -640,5 +640,131 @@
       "public-api-not-for-commercial-use",
       "licensed-plan-required-for-commercial-workflows"
     ]
+  },
+  {
+    "source_id": "nvd",
+    "capabilities": [
+      "vulnerability.advisory",
+      "vulnerability.cvss"
+    ],
+    "entity_types": [
+      "cve"
+    ],
+    "tool": "vulnerability.lookup",
+    "provider": "nist-nvd",
+    "upstream_group": "nist-nvd",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://nvd.nist.gov/developers/vulnerabilities",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "Public limits depend on whether an NVD API key is supplied",
+    "license": "US Government public data; provider terms and notices apply"
+  },
+  {
+    "source_id": "epss",
+    "capabilities": [
+      "vulnerability.exploitation_probability"
+    ],
+    "entity_types": [
+      "cve"
+    ],
+    "tool": "vulnerability.lookup",
+    "provider": "first-epss",
+    "upstream_group": "first-epss",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 86400,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://www.first.org/epss/api",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "CC BY 4.0 for EPSS data; provider terms apply"
+  },
+  {
+    "source_id": "osv",
+    "capabilities": [
+      "vulnerability.advisory",
+      "vulnerability.affected_packages"
+    ],
+    "entity_types": [
+      "vulnerability"
+    ],
+    "tool": "vulnerability.lookup",
+    "provider": "osv",
+    "upstream_group": "osv",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://google.github.io/osv.dev/api/",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "Provider and upstream advisory licenses apply"
+  },
+  {
+    "source_id": "npm",
+    "capabilities": [
+      "package.metadata"
+    ],
+    "entity_types": [
+      "package"
+    ],
+    "tool": "package.lookup",
+    "provider": "npm-registry",
+    "upstream_group": "npm-registry",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 900,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "UNKNOWN; provider response authoritative",
+    "license": "Package metadata and package-specific licenses apply"
   }
 ]

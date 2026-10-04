@@ -9,22 +9,23 @@ plan → digest approval → bounded gateway → captured bytes → observations
 lineage → verification → graph/timeline → draft → offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
-Twenty shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
+Twenty-four shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
 indexes, IP ownership/ASN/exposure/context, search, company registers, LEI, SEC
-filing metadata and public GitHub organizations. Company collection requires exact
+filing metadata, public GitHub organizations, exact CVE/advisory records, exploitation
+probability and npm package metadata. Company collection requires exact
 registered identifiers, never a same-name match. Person investigations still use
 approved records. Model-free normalization and report generation remain supported.
 
 | Delivery state | Evidence |
 |---|---|
-| CODED | Capability registry/router, 20-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
-| TESTED locally | 302 Python tests run: 301 passed and one environment-dependent test skipped; 15 MCP tests passed separately on the Phase A checkpoint; PGlite and 25 Node UI/target tests pass locally; 60/60 controlled source scenarios and the browser flow passed on the recorded implementation checkpoints |
+| CODED | Capability registry/router, 24-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
+| TESTED locally | 305 Python tests run: 304 passed and one optional MCP-SDK test skipped; PGlite and 25 Node UI/target tests pass; 72/72 controlled source scenarios replay successfully; compilation and secret scan pass |
 | Real response parsing/replay | Cloudflare DNS, RIPEstat, GLEIF and GitHub public reference responses through an injected environment-proxy requester; all captured/replayed |
 | Direct transport qualification | All five new canaries fail closed on this environment's direct DNS; crt.sh proxy response quarantined for schema mismatch |
 | DEPLOYED | Private hosted runner/product view and production rollout remain unverified |
 | PRODUCTION_QUALIFIED | Zero source claims; current terms/account entitlement, sustained health and intended-runtime verification outstanding |
 
-Registry counts overlap: 49 workforce metadata entries, 20 canonical approval-driven workforce adapters, and 47 IntelligenceHub entries of which 33 have API implementations. The supplied 400
+Registry counts overlap: 49 workforce metadata entries, 24 canonical approval-driven workforce adapters, and 47 IntelligenceHub entries of which 33 have API implementations. The supplied 400
 candidate rows deduplicate to 351 research rows, 41 flagged as generic categories.
 A candidate, code path or configured key is never counted as a verified integration.
 
@@ -37,9 +38,9 @@ quota guarantee. All fresh collection rechecks authority and the kill switch.
 
 Paid-source credentials, deployed SearXNG and SEC operator contact are not
 established here. Beneficial ownership, sanctions, procurement and public
-geospatial coverage remain gaps. Package and vulnerability collection exists in
-the local autonomous/IntelligenceHub path; promoting it into the canonical
-20-adapter workforce surface still requires adapter qualification.
+geospatial coverage remain gaps. Package and vulnerability collection now uses
+the canonical authority, source plan, evidence, verification, graph, next-action
+and replay path.
 Country packs, calibrated information gain, semantic/multilingual planning,
 marketplace discovery, distributed workers, model-provider qualification and
 hosted operations remain gaps. No contact, active scans, account action, identity
@@ -51,7 +52,8 @@ products. Source health and TTL do not prove the truth of a provider's assertion
 
 See `docs/sources/SOURCE_FABRIC.md`, `docs/sources/SOURCE_AUDIT_MATRIX.csv`,
 `docs/verification/source-fabric-2026-10-03.json`, `docs/LIVE_SOURCES.md` and
-`docs/ACCEPTANCE_GATES.md`. Earlier cycle evidence remains in
+`docs/ACCEPTANCE_GATES.md`. The current Markdown/task reconciliation is recorded
+in `docs/COMPLETION_AUDIT_2026-10-04.md`. Earlier cycle evidence remains in
 `docs/verification/live-sources-2026-10-03.json` and `docs/IMPLEMENTATION_REPORT.md`.
 
 ## Employee console integration (PR #26)
@@ -65,7 +67,7 @@ workforce state; do not combine their verification counts. The employee replay
 checks bundle integrity, not canonical semantic recomputation.
 
 CODED: console, employee routing and additional connectors. TESTED in this workspace:
-302 Python tests run, 301 passed and one environment-dependent test skipped; 25
+305 Python tests run, 304 passed and one optional MCP-SDK test skipped; 25
 Node graph/target tests and the PGlite database test pass. See PR #26
 verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
 hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;

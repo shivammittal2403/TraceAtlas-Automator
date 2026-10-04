@@ -2,9 +2,10 @@
 
 Exactly five existing roles remain: Case Manager, Investigation Planner,
 WEBINT/INFRAINT Specialist, Verification Supervisor and Report Analyst. The
-specialist supports deterministic domain/IP dispatch and person/company approved
-records through one pipeline. These labels are capability boundaries, not five
-independent LLM chatbots.
+specialist supports deterministic domain/IP/CVE/vulnerability/package dispatch
+and person/company approved records through one pipeline. NVD, EPSS, OSV and npm
+use the same immutable authority, evidence, verification, graph and replay gates.
+These labels are capability boundaries, not five independent LLM chatbots.
 
 The new runner uses zero models. Deterministic policy/storage/verification services
 own authority and evidence. AI semantic planning/correlation and a worker fleet

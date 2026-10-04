@@ -397,6 +397,14 @@ class IntelligenceHub:
                 matches = False
         elif source == "osv":
             matches = data["id"] == target or target in data.get("aliases", [])
+        elif source == "nvd":
+            expected = target.strip().upper()
+            rows = data.get("vulnerabilities", [])
+            matches = (data.get("totalResults", 0) >= 1 and len(rows) == 1
+                       and isinstance(rows[0], dict) and isinstance(rows[0].get("cve"), dict)
+                       and rows[0]["cve"].get("id") == expected)
+        elif source == "npm":
+            matches = isinstance(data.get("name"), str) and data["name"].casefold() == target.strip().casefold()
         elif source == "gleif":
             from .registry_requests import company_identifier
             identifier = company_identifier("gleif", target)[0]

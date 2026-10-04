@@ -7,6 +7,12 @@ IP selections can also use ipdata and GreyNoise. Person/company records require
 approved provenance, exact subject scope and review. Source text cannot become
 a fetch instruction.
 
+Exact CVEs default to NVD advisory/CVSS metadata plus dated FIRST EPSS
+probability. Exact OSV/GHSA identifiers use OSV aliases and affected-package
+metadata. Exact npm package names use the public npm registry. These records do
+not prove exploitation, asset applicability, or installed software; deterministic
+next actions direct the analyst to compare them with authorized inventory.
+
 Brave and numeric-loopback SearXNG are bound search adapters. Configure one before
 authority registration and planning. Source IDs become immutable task constraints
 covered by digest approval. Missing keys/service configuration, timeouts, rate

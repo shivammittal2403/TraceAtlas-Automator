@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 from dataclasses import dataclass
 from typing import ClassVar, Mapping, Any
 from urllib.parse import urlsplit
@@ -17,7 +18,9 @@ PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "re
                         "indexed_url", "scan_observed_ip", "approximate_country", "network_asn",
                         "network_isp", "provider_classification", "provider_last_seen", "certificate_log_id",
                         "announced_prefix", "filing_accession", "repository_count", "organization_profile",
-                        "provider_malicious_detections"})
+                        "provider_malicious_detections", "vulnerability_id", "vulnerability_alias",
+                        "vulnerability_score", "vulnerability_severity", "exploitation_probability",
+                        "exploitation_percentile", "affected_package", "package_version", "package_license"})
 MAX_DOCUMENT_BYTES = 512 * 1024
 MAX_DOCUMENTS = 8
 
@@ -32,7 +35,22 @@ def normalize_seed(kind: str, value: str) -> str:
         return str(address)
     if kind in {"person", "company"}:
         return _id(value, "public seed identifier")
-    raise ValueError("supported seed types are domain, ip, person and company")
+    if kind == "cve":
+        result = value.strip().upper()
+        if not re.fullmatch(r"CVE-\d{4}-\d{4,19}", result):
+            raise ValueError("CVE seed must be one exact CVE identifier")
+        return result
+    if kind == "vulnerability":
+        result = value.strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{3,119}", result):
+            raise ValueError("vulnerability seed must be one exact advisory identifier")
+        return result
+    if kind == "package":
+        result = value.strip().lower()
+        if not re.fullmatch(r"(?:@[a-z0-9][a-z0-9._-]{0,63}/)?[a-z0-9][a-z0-9._-]{0,127}", result):
+            raise ValueError("package seed must be one exact npm package name")
+        return result
+    raise ValueError("supported seed types are domain, ip, person, company, cve, vulnerability and package")
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +76,20 @@ class StructuredFact(StrictContract):
             object.__setattr__(self, "value", str(ipaddress.ip_address(self.value)))
         if self.predicate == "observed_port" and (not self.value.isdigit() or not 1 <= int(self.value) <= 65535):
             raise ValueError("invalid observed port")
+        if self.predicate == "vulnerability_score":
+            try:
+                score = float(self.value)
+            except ValueError:
+                raise ValueError("invalid vulnerability score") from None
+            if not 0 <= score <= 10:
+                raise ValueError("invalid vulnerability score")
+        if self.predicate in {"exploitation_probability", "exploitation_percentile"}:
+            try:
+                probability = float(self.value)
+            except ValueError:
+                raise ValueError("invalid probability") from None
+            if not 0 <= probability <= 1:
+                raise ValueError("invalid probability")
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]):

@@ -37,7 +37,7 @@ proves what a captured record asserts, not who authored it or whether it is true
 
 `workforce/source_sdk.py` provides health, capabilities, validate_input,
 estimate_cost, search, fetch, normalize, evidence_metadata, rate_limit_status,
-provenance and close for the twenty Phase A adapters. It reuses this module's
+provenance and close for the twenty-four Phase A adapters. It reuses this module's
 fixed-host provider transport and reviewed request builders. The router and gateway
 bind source IDs/costs into approved tasks; candidate catalog rows cannot execute.
 See `sources/SOURCE_FABRIC.md` for the result contract, cache, rate limits, recovery

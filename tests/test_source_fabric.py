@@ -22,6 +22,7 @@ from traceatlas.workforce.source_router import ObjectiveSpec, SourceRouter
 from traceatlas.workforce.source_state import SourceState
 from traceatlas.workforce.source_sdk import SourceConnector
 from traceatlas.workforce.source_discovery import candidate_catalog
+from traceatlas.intelligence.hub import IntelligenceHub
 
 LEI = '5493001KJTIIGC8Y1R12'
 BOOT = {'version': '1.0', 'services': [[['org'], ['https://rdap.publicinterestregistry.org/rdap/']]]}
@@ -46,6 +47,18 @@ FIXTURES = {
     'github': ('company', 'github:fixture-org', {'login': 'fixture-org', 'type': 'Organization', 'name': 'Fixture Organization', 'public_repos': 3, 'html_url': 'https://github.com/fixture-org'}),
     'shodan': ('ip', '8.8.8.8', {'ip_str': '8.8.8.8', 'ports': [53]}),
     'virustotal': ('ip', '8.8.8.8', {'data': {'id': '8.8.8.8', 'attributes': {'last_analysis_stats': {'malicious': 0}}}}),
+    'nvd': ('cve', 'CVE-2024-12345', {'resultsPerPage': 1, 'startIndex': 0, 'totalResults': 1,
+        'format': 'NVD_CVE', 'version': '2.0', 'timestamp': '2025-01-02T00:00:00.000Z',
+        'vulnerabilities': [{'cve': {'id': 'CVE-2024-12345', 'published': '2025-01-01T00:00:00.000Z',
+            'lastModified': '2025-01-02T00:00:00.000Z', 'vulnStatus': 'Analyzed',
+            'metrics': {'cvssMetricV31': [{'cvssData': {'baseScore': 9.8, 'baseSeverity': 'CRITICAL'}}]}}}]}),
+    'epss': ('cve', 'CVE-2024-12345', {'status': 'OK', 'status-code': 200, 'version': '1.0',
+        'access': 'public', 'total': 1, 'offset': 0, 'limit': 1,
+        'data': [{'cve': 'CVE-2024-12345', 'epss': '0.812340000', 'percentile': '0.987650000', 'date': '2025-01-02'}]}),
+    'osv': ('vulnerability', 'GHSA-1234-5678-9ABC', {'id': 'GHSA-1234-5678-9ABC',
+        'modified': '2025-01-02T00:00:00Z', 'aliases': ['CVE-2024-12345'],
+        'affected': [{'package': {'ecosystem': 'npm', 'name': 'fixture-package'}, 'versions': ['1.0.0']}]}),
+    'npm': ('package', 'fixture-package', {'name': 'fixture-package', 'version': '1.2.3', 'license': 'MIT'}),
 }
 
 
@@ -66,7 +79,8 @@ class SourceFabricTests(unittest.TestCase):
         self.sequence += 1; stamp = datetime.now(timezone.utc)
         ctx = AuthorizationContext('1.0', 'fabric-auth-' + str(self.sequence), 'fabric-case', 'analyst', 'Controlled fixture validation',
             (kind + ':' + target,), ('request_collection', 'propose_observation', 'propose_claim'),
-            ('dns.lookup', 'rdap.lookup', 'archive.lookup', 'ip.lookup', 'search.execute', 'registry.lookup', 'evidence.retrieve'),
+            ('dns.lookup', 'rdap.lookup', 'archive.lookup', 'ip.lookup', 'search.execute', 'registry.lookup',
+             'vulnerability.lookup', 'package.lookup', 'evidence.retrieve'),
             'IN', 'test-only', stamp.isoformat(), (stamp + timedelta(hours=1)).isoformat(), 'a' * 64)
         self.service.register_authorization(ctx); return ctx
 
@@ -78,7 +92,7 @@ class SourceFabricTests(unittest.TestCase):
                              envelope_digest=plan['envelope_digest'], authorized=True)
         return plan['task']['task_id']
 
-    def test_twenty_adapters_sixty_controlled_capture_failure_and_drift_investigations(self):
+    def test_twenty_four_adapters_seventy_two_controlled_capture_failure_and_drift_investigations(self):
         self.assertEqual(set(FIXTURES), P0_IDS)
         for source, (kind, target, payload) in FIXTURES.items():
             for scenario in ('success', 'authentication_failure', 'schema_drift'):
@@ -100,6 +114,42 @@ class SourceFabricTests(unittest.TestCase):
                         self.assertFalse(result['analysis']['observations'])
                         self.assertEqual(result['state'], 'PARTIAL')
                     self.assertTrue(pipeline.replay(task)['verified'])
+
+    def test_vulnerability_and_package_defaults_route_typed_sources(self):
+        cases = (
+            ('cve', 'CVE-2024-12345', {'nvd', 'epss'}),
+            ('vulnerability', 'GHSA-1234-5678-9ABC', {'osv'}),
+            ('package', '@scope/fixture-package', {'npm'}),
+        )
+        for kind, target, expected in cases:
+            with self.subTest(kind=kind):
+                ctx = self.context(kind, target)
+                plan = self.service.create_investigation_task(ctx.context_id, kind, target, 'Inspect exact public security metadata')
+                self.assertEqual(set(plan['source_plan']['sources']), expected)
+
+    def test_cve_collection_normalizes_advisory_probability_and_next_action(self):
+        task = self.task('cve', 'CVE-2024-12345', ['nvd', 'epss'])
+        def request(url, *_):
+            source = 'nvd' if 'nvd.nist.gov' in url else 'epss'
+            return 200, json.dumps(FIXTURES[source][2]).encode()
+        product = InvestigationPipeline(self.service, self.root, requester=request).run(task, live=True, authorized=True)
+        predicates = {row['statement'].split()[1] for row in product['analysis']['observations']}
+        self.assertTrue({'vulnerability_id', 'vulnerability_score', 'exploitation_probability'}.issubset(predicates))
+        self.assertIn('review-authorized-asset-applicability', product['result']['recommended_next_actions'])
+        self.assertNotIn('no-captured-web-search', product['analysis']['information_gaps'])
+        self.assertEqual(product['analysis']['graph']['nodes'][0]['node_type'], 'Vulnerability')
+
+    def test_new_exact_identifier_sources_reject_wrong_targets(self):
+        stamp = datetime.now(timezone.utc).isoformat()
+        for source, (kind, target, payload) in {key: FIXTURES[key] for key in ('nvd', 'epss', 'osv', 'npm')}.items():
+            wrong = ({**payload, 'name': 'other-package'} if source == 'npm'
+                     else {**payload, 'id': 'GHSA-0000-0000-0000'} if source == 'osv'
+                     else {**payload, 'data': [{**payload['data'][0], 'cve': 'CVE-2024-99999'}]} if source == 'epss'
+                     else {**payload, 'vulnerabilities': [{'cve': {**payload['vulnerabilities'][0]['cve'], 'id': 'CVE-2024-99999'}}]})
+            with self.subTest(source=source), self.assertRaises(Exception):
+                SourceConnector(source).normalize(kind, target, wrong, stamp)
+            with self.subTest(source=source + '-intelligence-hub'), self.assertRaises(Exception):
+                IntelligenceHub._validated_records(source, kind, target, wrong)
 
     def test_registry_accepts_401_definitions_without_execution_permissions(self):
         registry = SourceRegistry([SourceManifest('candidate-' + str(i), 'test', 'Test', 'test', ('test.read',), ('domain',)) for i in range(401)])

@@ -1,4 +1,4 @@
-"""Sixty deterministic gateway investigations with explicit expected outcomes."""
+"""Seventy-two deterministic gateway investigations with explicit expected outcomes."""
 from __future__ import annotations
 
 import json
@@ -36,7 +36,8 @@ def evaluate_source_fabric():
                     stamp = datetime.now(timezone.utc)
                     authority = AuthorizationContext('1.0', 'golden-auth', 'golden-case', 'fixture-analyst', 'Controlled source tests',
                         (kind + ':' + target,), ('request_collection', 'propose_observation', 'propose_claim'),
-                        ('dns.lookup', 'rdap.lookup', 'archive.lookup', 'ip.lookup', 'search.execute', 'registry.lookup', 'evidence.retrieve'),
+                        ('dns.lookup', 'rdap.lookup', 'archive.lookup', 'ip.lookup', 'search.execute', 'registry.lookup',
+                         'vulnerability.lookup', 'package.lookup', 'evidence.retrieve'),
                         'TEST', 'test-only', stamp.isoformat(), (stamp + timedelta(hours=1)).isoformat(), 'c' * 64)
                     service.register_authorization(authority)
                     planned = service.create_investigation_task('golden-auth', kind, target, 'Verify controlled source evidence', sources=[source], source_prices={source: 0})
