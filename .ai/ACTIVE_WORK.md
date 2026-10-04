@@ -31,3 +31,5 @@ tasks, gap register, evaluation results and implementation ledger after changes.
 - Evaluator tests 3/3; grouping benchmark 12 pairs TP=7/FP=0/TN=5/FN=0; temporal contradiction benchmark 8 pairs TP=3/FP=0/TN=5/FN=0. Pipeline tests 28 run, 27 pass, 1 skip; AI workforce tests 13/13.
 - Full Python suite: 329 run, 323 pass, 3 skip, 3 fail (all known OpenCTI checkout failures); loopback-console tests passed in the full run. Secret scan, compileall and `git diff --check` passed.
 - LINEAGE-005 remains OPEN: synthetic metrics do not estimate representative lineage quality or contradiction recall. Next: obtain approved curated labels and resolve the OpenCTI checkout prerequisite.
+
+- Remote code commit: `e9d1745790a2c4f42dedd08ffbf1dc0429690686` pushed to `codex/source-maturity-taxonomy`; current state/ledger follow-up is being recorded.

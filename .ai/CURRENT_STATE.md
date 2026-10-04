@@ -128,3 +128,10 @@ other predicates and multivalued DNS. This measures the predicate rule only,
 not operational contradiction recall. Focused evaluator 3/3; pipeline 27 pass,
 1 skip; AI workforce 13/13; full suite 329 run, 323 pass, 3 skip, 3 known
 OpenCTI submodule failures. The Windows loopback failure did not recur.
+
+
+The temporal contradiction refactor and paired synthetic diagnostic are pushed
+in code commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity-taxonomy`. The synthetic
+conflict set is 3/3 recall, but representative recall remains unmeasured. The
+full suite passes all non-OpenCTI tests; the three source prerequisite failures
+remain tied to the incomplete submodule.

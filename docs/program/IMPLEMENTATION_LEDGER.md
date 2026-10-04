@@ -10,6 +10,8 @@
 
 | 2026-10-04 | GitHub commit `7fa0431c5229ac14dbb2da8b657de6d8a2734749` on `codex/source-maturity-taxonomy` | Removed hostname-only source grouping, retained reviewed ownership grouping, and added a 12-pair synthetic evaluator/report. | Evaluator tests 2/2; pair metrics TP=7/FP=0/TN=5/FN=0; pipeline 28 run / 27 passed / 1 skipped; AI workforce 13/13; full Python suite 328 run / 321 passed / 3 skipped / 4 failed (3 OpenCTI prerequisite failures plus one Windows loopback-console abort); compileall and diff check passed. | Synthetic diagnostic only; representative lineage, contradiction recall and full-suite loopback failure did not reproduce in isolation (2/2 console tests pass); root cause remains unknown. |
 
+| 2026-10-04 | GitHub commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity-taxonomy` | Extracted the pipeline's temporal contradiction predicate into a shared helper and added eight labeled synthetic conflict/non-conflict pairs to the lineage report. | Evaluator 3/3; grouping pairs TP=7/FP=0/TN=5/FN=0; contradiction pairs TP=3/FP=0/TN=5/FN=0; pipeline 28 run / 27 passed / 1 skipped; AI workforce 13/13; full suite 329 run / 323 passed / 3 skipped / 3 known OpenCTI prerequisite failures; secret scan, compileall and diff check passed. | Synthetic results do not establish representative lineage or contradiction quality. LINEAGE-005 remains open; the full suite failures are due to the incomplete OpenCTI submodule. |
+
 Add each accepted change with commit SHA, test evidence, actual metrics and known
 limitations. Separate CODED, TESTED, LIVE_VERIFIED and DEPLOYED.
 

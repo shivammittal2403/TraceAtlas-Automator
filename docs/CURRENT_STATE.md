@@ -202,3 +202,9 @@ measure real-world recall. Focused evaluator tests pass 3/3 and pipeline tests
 27/28 (one skip). Full Python suite: 329 run, 323 pass, 3 skip, 3 fail from
 the known incomplete OpenCTI checkout; console tests passed. `LINEAGE-001`
 remains open pending approved representative data.
+
+
+The temporal contradiction helper and eight-case diagnostic were pushed in
+code commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity-taxonomy`. The synthetic report
+matches 3/3 labeled conflict cases; representative contradiction recall remains
+unknown.
