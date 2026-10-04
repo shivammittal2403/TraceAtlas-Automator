@@ -13,7 +13,7 @@ plan → digest approval → bounded gateway → captured bytes → observations
 lineage → verification → graph/timeline → draft → offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
-Twenty-four shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
+Twenty-five shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
 indexes, IP ownership/ASN/exposure/context, search, company registers, LEI, SEC
 filing metadata, public GitHub organizations, exact CVE/advisory records, exploitation
 probability and npm package metadata. NVD records also preserve CISA KEV listing and
@@ -24,14 +24,14 @@ approved records. Model-free normalization and report generation remain supporte
 
 | Delivery state | Evidence |
 |---|---|
-| CODED | Capability registry/router, 24-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
-| TESTED locally | 305 Python tests run: 304 passed and one optional MCP-SDK test skipped; PGlite and 25 Node UI/target tests pass; 72/72 controlled source scenarios replay successfully; compilation and secret scan pass |
+| CODED | Capability registry/router, 25-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
+| TESTED locally | 305 Python tests run: 304 passed and one optional MCP-SDK test skipped; PGlite and 25 Node UI/target tests pass; 75/75 controlled source scenarios replay successfully; compilation and secret scan pass |
 | Real response parsing/replay | Cloudflare DNS, RIPEstat, GLEIF and GitHub public reference responses through an injected environment-proxy requester; all captured/replayed |
 | Direct transport qualification | All five new canaries fail closed on this environment's direct DNS; crt.sh proxy response quarantined for schema mismatch |
 | DEPLOYED | Private hosted runner/product view and production rollout remain unverified |
 | PRODUCTION_QUALIFIED | Zero source claims; current terms/account entitlement, sustained health and intended-runtime verification outstanding |
 
-Registry counts overlap: 49 workforce metadata entries, 24 canonical approval-driven workforce adapters, and 47 IntelligenceHub entries of which 33 have API implementations. The supplied 400
+Registry counts overlap: 50 workforce metadata entries, 25 canonical approval-driven workforce adapters, and 48 IntelligenceHub entries of which 34 have API implementations. The supplied 400
 candidate rows deduplicate to 351 research rows, 41 flagged as generic categories.
 A candidate, code path or configured key is never counted as a verified integration.
 
