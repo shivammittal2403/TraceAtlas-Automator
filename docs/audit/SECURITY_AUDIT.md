@@ -12,7 +12,7 @@ In `src/traceatlas/workforce/graph.py`, `TemporalClaimGraph.add_edge` permitted 
 - Keep those relationship types out of the analytical claim graph; record analyst choices via the existing authorized ResolutionService.
 - Ensure the graph candidate helper cannot set canonical merge from a boolean.
 - Add regression tests for the sensitive relationship names, accepted state and boolean acceptance path.
-- Status: CODED; CI pending at time of audit document creation.
+- Status: CODED; PR #44 CI and CodeQL passed after the audit report was drafted; merge pending.
 
 ## Other material boundaries
 

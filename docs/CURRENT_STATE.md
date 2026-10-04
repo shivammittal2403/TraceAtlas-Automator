@@ -1,9 +1,7 @@
 # Current implementation state — 2026-10-04 / 1.12.0
 
-The source work through PR #43 is included in current `main` at baseline
-`d698ed519be078ec72092b33dacda9f92ffdb42c`. The 2026-10-04 enterprise audit
-and bounded graph acceptance fix are tracked in PR review; see `docs/audit/`.
-Both source briefs are reconciled in `docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented,
+The source work through PR #40 is included in current `main`. Both source
+briefs are reconciled in `docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented,
 later programme phases and production qualification remain incomplete. Exact-CVE
 NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the approved
 source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
@@ -79,19 +77,3 @@ verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
 hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;
 hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones remain
 open in the canonical delivery ledger.
-
-
-## Enterprise audit and graph decision boundary — 2026-10-04
-
-Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`. Nine scoped reports
-under `docs/audit/` record implementation, test, live and production states
-separately. The audit found that the in-memory claim graph accepted caller-created
-`ACCEPTED` identity/causation edges without an authorized decision record. The
-updated graph now rejects those edge types even when a caller supplies
-`decision_state="ACCEPTED"`; human candidate decisions remain in
-`ResolutionService`. The graph change is CODED pending CI on its PR head.
-
-SOCMINT remains a capability gap: approved public search leads and public GitHub
-organization metadata do not constitute a social-platform investigation workflow.
-No social account enumeration, private data access, contact, login or bypass is
-implemented or claimed. Production qualification remains zero.
