@@ -81,6 +81,11 @@ def add_workforce_parser(sub) -> None:
     run.add_argument("--authorized", action="store_true")
     show = commands.add_parser("show", help="Show one workforce task and validated result")
     show.add_argument("--task", required=True)
+    for name in ('cancel', 'recover'):
+        command = commands.add_parser(name, help=name.capitalize() + ' local execution with owner authority')
+        command.add_argument('--task', required=True)
+        command.add_argument('--actor', required=True)
+        command.add_argument('--authorized', action='store_true')
 
 
 def run_workforce(args, engine) -> dict:
@@ -164,6 +169,8 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "approve":
         return service.approve(args.task, actor_id=args.actor, rationale=args.rationale,
                                envelope_digest=args.envelope_digest, authorized=args.authorized)
+    if args.workforce_command in {'cancel', 'recover'}:
+        return getattr(service, args.workforce_command)(args.task, actor_id=args.actor, authorized=args.authorized)
     if args.workforce_command == "run-fallback":
         return service.execute(args.task, lambda *_: service.deterministic_no_model_result(args.task),
                                authorized=args.authorized)

@@ -12,6 +12,7 @@ from .source_sdk import CollectionStopped, SourceBatch, SourceConnector, SourceR
 from .source_registry import SourceRegistry
 from .source_state import stable_digest
 from .source_limits import REQUEST_LIMITER
+from .runtime import ExecutionStopped
 
 _GLOBAL = threading.BoundedSemaphore(4)
 _PROVIDER_LOCK = threading.Lock()
@@ -23,7 +24,10 @@ class SourceGateway:
         self.state, self.requester, self.search_requester = state, requester, search_requester
         self.parser_version, self.registry = parser_version, SourceRegistry()
 
-    def collect(self, task, employee, plan, check, capture=None):
+    def collect(self, task, employee, plan, check, capture=None, attempt_token=None):
+        if not attempt_token:
+            raise ValueError('source gateway requires an active execution attempt')
+        runtime = self.state.store.runtime
         sources = plan['sources']
         if not set(sources).issubset(employee.allowed_sources):
             raise ValueError('collection source is outside employee authority')
@@ -71,7 +75,17 @@ class SourceGateway:
                             raise ProviderError('provider_local_rate_limited')
                         attempts += 1; count += 1; estimated += price; spent += price
                     dispatch = self.search_requester if source == 'searxng' else self.requester
-                    return dispatch(url, headers, remaining)
+                    try:
+                        reservation = runtime.reserve(task.task_id, attempt_token, source, price)
+                    except ExecutionStopped as exc:
+                        raise CollectionStopped(str(exc)) from exc
+                    try:
+                        response = dispatch(url, headers, remaining)
+                    except BaseException:
+                        runtime.settle(task.task_id, attempt_token, reservation)
+                        raise
+                    runtime.settle(task.task_id, attempt_token, reservation, actual=0 if price == 0 else None)
+                    return response
                 finally:
                     for semaphore in reversed(acquired):
                         semaphore.release()
@@ -99,7 +113,11 @@ class SourceGateway:
                 if not plan.get('health_probe') and (source in old_unhealthy or health['state'] in {'DOWN', 'AUTH_FAILURE', 'SCHEMA_CHANGED', 'RATE_LIMITED', 'DISABLED'}):
                     outcomes.append({'source_id': source, 'status': 'skipped', 'reason': 'circuit_open', 'attempts': 0})
                     continue
-                cached = None if plan.get('health_probe') else self.state.cached(task, source, self.parser_version, self.registry.get(source).cache_ttl_seconds)
+                resumed = self.state.store.captured_document(task, source)
+                bootstrap = self.state.store.captured_document(task, 'rdap_bootstrap') if source == 'rdap' else None
+                cached = ((bootstrap[0], resumed[0]) if bootstrap else (resumed[0],)) if resumed else None
+                if cached is None and not plan.get('health_probe'):
+                    cached = self.state.cached(task, source, self.parser_version, self.registry.get(source).cache_ttl_seconds)
                 work.append((source, cached))
             # SQLite and evidence writes stay on the caller thread. Workers receive
             # immutable authority and bounded network callbacks, never a DB handle.
@@ -143,5 +161,6 @@ class SourceGateway:
                 raise cancelled
         return {'documents': tuple(documents), 'outcomes': outcomes, 'results': results,
                 'evidence': tuple(evidence),
-                'tools': tools, 'network_attempts': attempts, 'estimated_cost': round(estimated, 8),
+                'tools': tools, 'network_attempts': attempts,
+                'estimated_cost': runtime.snapshot(task.task_id)['accounted_usd'],
                 'concurrency': {'global': 4, 'case': 2, 'provider': 1, 'scope': 'this-process'}}

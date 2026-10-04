@@ -1,5 +1,17 @@
 # Implementation ledger
 
+## Runtime development — 2026-10-04
+
+Baseline `9d025c27a6d9d92294384df85dcbc3f479dae2ec`; branch
+`codex/durable-workforce-runtime`. Implements canonical local attempt leases,
+fenced finalization, cancellation/recovery, cumulative request/spend reservations,
+capture resume and transactional completion outbox. Repairs baseline merge syntax
+regressions without relaxing qualification evidence. Local tests: 371 run,
+370 passed, 1 skip; runtime 18/18; graph 25/25; PGlite 1/1; source fixtures 78/78;
+golden pipeline, compilation, secret scan and wheel build pass. Browser launch
+blocked by absent Chromium. No new live-source/hosted proof or 10/10 claim.
+Details: `../WORKFORCE_EXECUTION.md`, `../verification/workforce-runtime-2026-10-04.json`.
+
 | Date | Commit / state | Work | Verification | Outcome / remaining gap |
 |---|---|---|---|---|
 | 2026-10-04 | GitHub program branch `83f13df9a8f043f7e4a2536d7d0a26ae674bcc30`; local equivalent tree at `9a20b7f16980049380722602c0868f7958d86e4e` | Unified source maturity vocabulary, conservative qualification gates, deterministic target-bound investigation plan. | Prior session: focused Source Fabric, employee Source Fabric, Node graph/target, compile, secret and whitespace checks. Full suite had OpenCTI checkout failures. | CODED and locally tested; not live-source-qualified; remote branch CI not rechecked here. |

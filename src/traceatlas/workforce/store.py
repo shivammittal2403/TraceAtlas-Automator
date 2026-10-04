@@ -14,6 +14,7 @@ from .contracts import (
     AuthorizationContext, EvidenceObject, Observation, ResultEnvelope, SourceLineage,
     TaskEnvelope, VerificationDecision,
 )
+from .runtime import ExecutionRuntime, SCHEMA as RUNTIME_SCHEMA
 
 
 SCHEMA = """
@@ -85,7 +86,9 @@ class WorkforceStore:
     def __init__(self, db):
         self.db = db
         self.db.conn.executescript(SCHEMA)
+        self.db.conn.executescript(RUNTIME_SCHEMA)
         self.db.conn.commit()
+        self.runtime = ExecutionRuntime(self.db.path)
 
     def register_authorization(self, context: AuthorizationContext) -> None:
         if not self.db.get_case(context.case_id):
@@ -164,20 +167,50 @@ class WorkforceStore:
                 (approval_id, task_id, actor_id, "approved", rationale.strip(), envelope_digest, _now()),
             )
 
-    def claim(self, task_id: str) -> None:
-        with self.db.conn:
-            changed = self.db.conn.execute(
-                "UPDATE workforce_tasks SET status='running' WHERE task_id=? AND status='approved'", (task_id,)
-            )
-            if changed.rowcount != 1:
-                raise ValueError("task is not approved or was already claimed")
+    def claim(self, task_id: str) -> str:
+        return self.runtime.claim(task_id)
 
-    def finish(self, task_id: str, result: ResultEnvelope, *, product: dict | None = None) -> None:
+    def finish(self, task_id: str, result: ResultEnvelope, *, token: str, product: dict | None = None) -> None:
         encoded = _json(result.to_dict())
         with self.db.conn:
+            self.db.conn.execute('BEGIN IMMEDIATE')
+            current = self.task(task_id)
+            if result.task_id != task_id or result.employee_id != current['employee_id']:
+                raise ValueError('result does not belong to task')
+            winner = self.db.conn.execute('SELECT token FROM workforce_attempts WHERE task_id=?', (task_id,)).fetchone()
+            if current['status'] == 'completed':
+                existing = self.db.conn.execute('SELECT product_json FROM workforce_products WHERE task_id=?', (task_id,)).fetchone()
+                if (not winner or winner[0] != token or current['result'] != result
+                        or (existing[0] if existing else None) != (_json(product) if product is not None else None)):
+                    raise ValueError('conflicting duplicate completion')
+                return
+            self.runtime.assert_current(self.db.conn, task_id, token)
             if product is not None:
+                if product.get('task_id') != task_id or product.get('case_id') != current['case_id']:
+                    raise ValueError('product does not belong to task and case')
                 self.db.conn.execute("INSERT INTO workforce_products VALUES(?,?,?,?)",
                     (task_id, _json(product), hashlib.sha256(_json(product).encode()).hexdigest(), _now()))
+                for entry in product['analysis']['observations']:
+                    observation = Observation.from_dict(entry)
+                    reference = self.db.conn.execute('SELECT object_json FROM evidence_objects_v2 '
+                        'WHERE case_id=? AND evidence_id=? ORDER BY version DESC LIMIT 1',
+                        (current['case_id'], observation.evidence_id)).fetchone()
+                    if not reference or json.loads(reference[0])['acquisition_id'] != observation.acquisition_id:
+                        raise ValueError('observation references unknown evidence')
+                    old = self.db.conn.execute('SELECT observation_json FROM observations_v2 WHERE case_id=? AND observation_id=?',
+                                              (current['case_id'], observation.observation_id)).fetchone()
+                    if old and old[0] != _json(entry):
+                        raise ValueError('observation ID conflicts with existing evidence')
+                    self.db.conn.execute('INSERT OR IGNORE INTO observations_v2 VALUES(?,?,?,?,?)',
+                        (current['case_id'], observation.observation_id, observation.evidence_id, _json(entry), _now()))
+                for entry in product['analysis']['source_lineage']:
+                    lineage = SourceLineage.from_dict(entry)
+                    self.db.conn.execute('INSERT OR REPLACE INTO source_lineage_v2 VALUES(?,?,?,?)',
+                        (current['case_id'], lineage.lineage_id, _json(entry), _now()))
+                for entry in product['analysis']['verification']:
+                    decision = VerificationDecision.from_dict({**entry, 'decided_at': _now()})
+                    self.db.conn.execute('INSERT OR REPLACE INTO verification_decisions_v2 VALUES(?,?,?,?)',
+                        (current['case_id'], decision.claim_id, _json(decision.to_dict()), _now()))
             self.db.conn.execute(
                 "INSERT INTO workforce_results VALUES(?,?,?,?)",
                 (task_id, encoded, hashlib.sha256(encoded.encode()).hexdigest(), _now()),
@@ -188,13 +221,35 @@ class WorkforceStore:
             )
             if changed.rowcount != 1:
                 raise ValueError("task no longer owns the running completion state")
+            self.db.conn.execute("UPDATE workforce_request_budget SET state='uncertain' WHERE task_id=? AND state='reserved'", (task_id,))
+            self.db.conn.execute('INSERT INTO workforce_outbox VALUES(?,?,?,?,?,NULL)',
+                ('completed-' + task_id, task_id, 'task.completed',
+                 _json({'task_id': task_id, 'case_id': current['case_id'],
+                        'result_digest': hashlib.sha256(encoded.encode()).hexdigest()}), self.runtime.clock()))
 
-    def fail(self, task_id: str) -> None:
-        with self.db.conn:
-            self.db.conn.execute(
-                "UPDATE workforce_tasks SET status='failed',completed_at=? WHERE task_id=? AND status='running'",
-                (_now(), task_id),
-            )
+    def fail(self, task_id: str, *, token: str) -> None:
+        self.runtime.stop(task_id, token=token)
+
+    def captured_document(self, task, source_id):
+        """Resume immutable task captures without another provider request."""
+        from .documents import SourceDocument
+        acquisition_id = 'acquisition-' + hashlib.sha256((task.task_id + source_id).encode()).hexdigest()[:24]
+        row = self.db.conn.execute('SELECT e.object_json FROM evidence_objects_v2 e JOIN acquisitions_v2 a '
+            "ON json_extract(e.object_json,'$.acquisition_id')=a.acquisition_id "
+            'WHERE e.case_id=? AND a.acquisition_id=? ORDER BY e.version DESC LIMIT 1',
+            (task.case_id, acquisition_id)).fetchone()
+        if not row:
+            return None
+        evidence = EvidenceObject.from_dict(json.loads(row[0]))
+        if not self.verify_evidence(evidence):
+            raise ValueError('captured checkpoint evidence failed integrity validation')
+        body = json.loads(Path(evidence.raw_artifact_pointer).read_text(encoding='utf-8'))
+        if body['task_id'] != task.task_id or body['case_id'] != task.case_id:
+            raise ValueError('captured checkpoint belongs to another task')
+        document = SourceDocument.from_dict(body['document'])
+        if document.source_id != source_id or any(f.subject not in task.target_entities for f in document.facts):
+            raise ValueError('captured checkpoint scope mismatch')
+        return document, evidence
 
     def import_v1_evidence(self, case_id: str, sha256: str, *, source_uri: str | None = None,
                            parser: str = "legacy", parser_version: str = "1",
@@ -282,6 +337,11 @@ class WorkforceStore:
 
     def capture_document(self, task: TaskEnvelope, document, workspace: Path) -> EvidenceObject:
         from ..evidence import EvidenceStore
+        prior = self.captured_document(task, document.source_id)
+        if prior:
+            if prior[0] != document:
+                raise ValueError('source capture is immutable within a task')
+            return prior[1]
         acquisition_id = "acquisition-" + hashlib.sha256((task.task_id + document.source_id).encode()).hexdigest()[:24]
         body = {"task_id": task.task_id, "case_id": task.case_id, "trace_id": task.trace_id,
                 "acquisition_id": acquisition_id, "document": document.to_dict()}
