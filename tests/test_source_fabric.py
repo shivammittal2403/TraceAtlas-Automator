@@ -119,7 +119,7 @@ class SourceFabricTests(unittest.TestCase):
                     pipeline = InvestigationPipeline(self.service, self.root, requester=request, search_requester=request)
                     result = pipeline.run(task, live=True, authorized=True)
                     if scenario == 'success':
-                        self.assertGreater(len(result['analysis']['observations']), 0)
+                        self.assertGreater(len(result['analysis']['observations']), 0, json.dumps(result['replay_manifest']['source_outcomes']))
                         self.assertTrue(all(r['status'] == 'captured' for r in result['replay_manifest']['source_outcomes']))
                         self.assertIsNotNone(result['source_results'][0]['raw_evidence_id'])
                     else:
@@ -129,7 +129,7 @@ class SourceFabricTests(unittest.TestCase):
 
     def test_vulnerability_and_package_defaults_route_typed_sources(self):
         cases = (
-            ('cve', 'CVE-2024-12345', {'nvd', 'epss', 'cveorg'}),
+            ('cve', 'CVE-2024-12345', {'nvd', 'epss', 'cveorg', 'cisa_kev'}),
             ('vulnerability', 'GHSA-1234-5678-9ABC', {'osv'}),
             ('package', '@scope/fixture-package', {'npm'}),
         )
