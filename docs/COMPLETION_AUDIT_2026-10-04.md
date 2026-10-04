@@ -7,6 +7,7 @@ there are no unchecked Markdown task boxes.
 
 ## Completed repository work
 
+- Merged PRs #32–#35 completed the exact-CVE, vulnerability and package source integration in the existing canonical workforce; the adapter count remains 24.
 - The canonical workforce now has 24 approval-driven adapters. NVD, FIRST EPSS,
   OSV and npm use the same immutable authority, capability plan, gateway,
   evidence, verification, graph/timeline, draft and offline replay path as the

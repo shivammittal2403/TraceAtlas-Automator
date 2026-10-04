@@ -1,8 +1,12 @@
 # Current implementation state — 2026-10-04 / 1.11.0
 
-The source work from merged PRs #24–#29 is included in current `main`. Both new source briefs are reconciled in
+The source work from merged PRs #24–#29 and vulnerability-source integration in #32–#35 is included in current `main`. Both source briefs are reconciled in
 `docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented, later programme phases
-are explicitly incomplete.
+are explicitly incomplete. PR #32 connected exact-CVE NVD, FIRST EPSS, OSV and npm
+records to the canonical authority, approval, evidence, verification, graph and replay
+path. PR #34 corrected the NVD fixture host and restored the root README; PR #35
+preserves CISA KEV fields when NVD supplies them, with NVD retained as the evidence
+source and no separate CISA connector claim.
 
 The canonical local path is typed seed → immutable authority → capability/source
 plan → digest approval → bounded gateway → captured bytes → observations → source
@@ -62,8 +66,7 @@ in `docs/COMPLETION_AUDIT_2026-10-04.md`. Earlier cycle evidence remains in
 
 Adds `employee serve` and `employee investigate`: local bounded runs, checkpoints,
 cancellation, cited graph/report, optional local-model drafting and evidence ZIP.
-Shared IntelligenceHub now has 47 records / 33 API implementations with EPSS and
-OSV. Canonical workforce adapters, MCP, registered company keys and IANA RDAP
+Shared IntelligenceHub now has 48 records / 34 API implementations with NVD, FIRST EPSS, OSV and npm. Canonical workforce adapters, MCP, registered company keys and IANA RDAP
 remain intact. Employee run telemetry/qualification is separate from canonical
 workforce state; do not combine their verification counts. The employee replay
 checks bundle integrity, not canonical semantic recomputation.
