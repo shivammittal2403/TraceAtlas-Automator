@@ -142,7 +142,6 @@ class SourceRouter:
             if health['state'] in {'DOWN', 'DISABLED', 'SCHEMA_CHANGED', 'AUTH_FAILURE', 'RATE_LIMITED'}: reasons.append('source_' + health['state'].lower())
             if price is None: reasons.append('unpriced_account_source')
             if price is not None and price > budget: reasons.append('cost_boundary')
-            if item.implementation_status in {'DISABLED', 'DEPRECATED', 'DISCOVERED', 'CATALOGUED'}: reasons.append('not_implemented')
             if not item.connector_implemented or item.implementation_status in {'DISABLED', 'DEPRECATED', 'DEGRADED'}: reasons.append('not_implemented')
             factors = {'capability_match': len(matching) * 100, 'official': 8 if item.official else 0,
                        'primary': 5 if item.primary_source else 0, 'free': 3 if price == 0 else 0,
