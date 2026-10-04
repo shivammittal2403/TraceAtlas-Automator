@@ -6,7 +6,7 @@ Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`, 2026-10-04.
 
 | Priority | Finding | Evidence and impact | Status |
 |---|---|---|---|
-| P0 | Graph decision-state trust | `workforce/graph.py` accepted sensitive edges when caller set `decision_state="ACCEPTED"`; it had no reviewer/authority decision lookup. This could encode an unsupported identity or causal link into an analytical graph. | Fixed in current PR code; awaiting CI |
+| P0 | Graph decision-state trust | `workforce/graph.py` accepted sensitive edges when caller set `decision_state="ACCEPTED"`; it had no reviewer/authority decision lookup. This could encode an unsupported identity or causal link into an analytical graph. | Fixed and merged in PR #44; CI and CodeQL passed |
 | P0 release gate | Hosted identity, tenant isolation and operations unverified | Acceptance gates and security docs require live auth/tenant/recovery evidence; none is presented. | OPEN; cannot infer from local tests |
 | P0 quality gate | No production-qualified source | Current state reports zero; direct transport canaries failed in this environment and live entitlement/billing/health are open. | OPEN |
 | P1 | SOCMINT breadth | No integrated approved social-platform collection and multi-source analysis path; search results and public GitHub org metadata are narrower primitives. | NOT_IMPLEMENTED |
@@ -29,4 +29,4 @@ The product has accumulated useful local evidence, source, graph and workforce c
 5. Evaluate entity resolution with appropriately labeled data, abstention, collision tests and analyst decisions.
 6. Add semantic planning, source expansion and additional domains only after those gates.
 
-The current PR addresses item 1 only. It does not imply the remaining P0 release gates are complete.
+PR #44 addressed item 1 and merged it after CI and CodeQL passed. The code-scanning AI job failed from monthly quota exhaustion (HTTP 402); that job did not return a code finding. Remaining P0 release gates are still open. It does not imply the remaining P0 release gates are complete.
