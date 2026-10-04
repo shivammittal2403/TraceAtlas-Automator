@@ -146,7 +146,7 @@ def _live_facts(source, seed, data, stamp):
         add('cisa_kev_due_date', record['dueDate'], at)
         add('cisa_kev_required_action', record['requiredAction'][:1000], at)
         add('cisa_kev_vulnerability_name', record['vulnerabilityName'][:500], at)
-        add('cisa_kev_vendor_product', record['vendorProject'][:300] + ' / ' + record['product'][:300], at)
+        add('affected_product', record['vendorProject'][:300] + ' / ' + record['product'][:300], at)
     elif source == 'nvd':
         rows = data['vulnerabilities']
         if data['totalResults'] < 1 or not rows:

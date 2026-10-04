@@ -24,7 +24,10 @@ PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "re
                         "cisa_kev_due_date", "cisa_kev_required_action", "cisa_kev_vulnerability_name",
                         "affected_package", "package_version", "package_license"})
 MAX_DOCUMENT_BYTES = 512 * 1024
+MAX_CISA_FEED_BYTES = 5 * 1024 * 1024
+MAX_CISA_DOCUMENT_BYTES = MAX_CISA_FEED_BYTES + 64 * 1024
 MAX_DOCUMENTS = 8
+MAX_DOCUMENT_IMPORT_BYTES = MAX_DOCUMENTS * MAX_DOCUMENT_BYTES + (MAX_CISA_DOCUMENT_BYTES - MAX_DOCUMENT_BYTES)
 
 
 def normalize_seed(kind: str, value: str) -> str:
@@ -122,14 +125,15 @@ class SourceDocument(StrictContract):
         if uri.scheme == "https" and not uri.hostname:
             raise ValueError("HTTPS source URI requires a host")
         object.__setattr__(self, "retrieved_at", _utc(self.retrieved_at, "retrieved_at"))
-        if not isinstance(self.content, str) or len(self.content.encode()) > MAX_DOCUMENT_BYTES:
+        content_limit = MAX_CISA_DOCUMENT_BYTES if self.source_id == "cisa_kev" else MAX_DOCUMENT_BYTES
+        if not isinstance(self.content, str) or len(self.content.encode()) > content_limit:
             raise ValueError("source content exceeds its byte bound")
         if not isinstance(self.facts, tuple) or len(self.facts) > 100 or any(not isinstance(f, StructuredFact) for f in self.facts):
             raise ValueError("facts must be a bounded typed tuple")
         for key in ("original_source_id", "ownership_group"):
             if getattr(self, key) is not None:
                 object.__setattr__(self, key, _id(getattr(self, key), key))
-        if len(json.dumps(self.to_dict(), ensure_ascii=False).encode()) > MAX_DOCUMENT_BYTES:
+        if len(json.dumps(self.to_dict(), ensure_ascii=False).encode()) > content_limit:
             raise ValueError("source document exceeds its total byte bound")
 
     @classmethod
@@ -142,7 +146,7 @@ class SourceDocument(StrictContract):
 
 
 def load_documents(path) -> tuple[SourceDocument, ...]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_DOCUMENTS * MAX_DOCUMENT_BYTES:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_DOCUMENT_IMPORT_BYTES:
         raise ValueError("source input must be a bounded regular JSON file")
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, list) or not 1 <= len(value) <= MAX_DOCUMENTS:
