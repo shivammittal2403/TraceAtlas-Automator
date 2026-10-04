@@ -49,3 +49,15 @@ Persistent scorecard, acceptance gates and program ledgers now exist under
 Overall enterprise score: **not calculated**. There is no accepted numeric
 rubric or adequate representative/live evidence for a defensible weighted score.
 All release gates remain open; see `docs/program/RELEASE_READINESS.md`.
+
+## Evidence integrity diagnostic (2026-10-04)
+
+Added a deterministic nine-case synthetic evaluation of the local custody ledger,
+export bundle verifier and AI citation-ID contract. Eight expected outcomes
+matched; five routine invalid cases were rejected. A local attacker who rewrites
+captured bytes, the SQLite digest and the hash-chain entry together is accepted
+because the local ledger has no independent trust anchor. The report is
+[`docs/verification/evidence-integrity-synthetic-2026-10-04.json`](../docs/verification/evidence-integrity-synthetic-2026-10-04.json).
+This harness scores 8/9 (0.8889), reports 5/6 (0.8333) rejection across invalid
+cases, and is **FAIL**. EVIDENCE-001 remains open; external anchoring, immutable
+storage, semantic citation correctness and deployed replay remain unverified.

@@ -1,40 +1,37 @@
-# Current implementation state — 2026-10-04 / 1.12.0
+# Current implementation state — 2026-10-04 / 1.11.0
 
-Source-inventory metrics below were audited against PR #43 baseline
-`d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04
-enterprise audit and bounded graph acceptance fix, merged in PR #44 at
-`89069097a66899eabc55897114146cf51f81dc45`; its CI and CodeQL checks passed.
-See `docs/audit/` for the baseline reports.
-Both source briefs are reconciled in `docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented,
-later programme phases and production qualification remain incomplete. Exact-CVE
-NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the approved
-source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
-fixed-host and schema-validated; facts are restricted to the exact CVE match while the bounded raw response is retained for replay.
+The source work from merged PRs #24–#29 and vulnerability-source integration in #32–#35 is included in current `main`. Both source briefs are reconciled in
+`docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented, later programme phases
+are explicitly incomplete. PR #32 connected exact-CVE NVD, FIRST EPSS, OSV and npm
+records to the canonical authority, approval, evidence, verification, graph and replay
+path. PR #34 corrected the NVD fixture host and restored the root README; PR #35
+preserves CISA KEV fields when NVD supplies them, with NVD retained as the evidence
+source and no separate CISA connector claim.
 
 The canonical local path is typed seed → immutable authority → capability/source
 plan → digest approval → bounded gateway → captured bytes → observations → source
 lineage → verification → graph/timeline → draft → offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
-Twenty-six shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
+Twenty-five shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
 indexes, IP ownership/ASN/exposure/context, search, company registers, LEI, SEC
 filing metadata, public GitHub organizations, exact CVE/advisory records, exploitation
-probability, CISA KEV catalog listing and remediation metadata, and npm package
-metadata. CISA catalog membership is a source observation, not proof an asset is
-affected; it is not independent evidence of exploitation. Company collection requires exact
+probability and npm package metadata. NVD records also preserve CISA KEV listing and
+remediation metadata when supplied; those embedded CISA fields are not counted as a
+separate CISA connector or independent source. Company collection requires exact
 registered identifiers, never a same-name match. Person investigations still use
 approved records. Model-free normalization and report generation remain supported.
 
 | Delivery state | Evidence |
 |---|---|
-| CODED | Capability registry/router, 26-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
-| VERIFIED in CI | Python 3.10 and 3.12: 305 tests each, 303 passed and two optional tests skipped; PGlite and 25 Node UI/target tests pass; 78/78 controlled source scenarios replay successfully; compilation, dependency review, supply-chain evidence, worker image and CodeQL pass |
+| CODED | Capability registry/router, 25-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
+| VERIFIED in CI | Python 3.10 and 3.12: 305 tests each, 303 passed and two optional tests skipped; PGlite and 25 Node UI/target tests pass; 75/75 controlled source scenarios replay successfully; compilation, dependency review, supply-chain evidence, worker image and CodeQL pass |
 | Real response parsing/replay | Cloudflare DNS, RIPEstat, GLEIF and GitHub public reference responses through an injected environment-proxy requester; all captured/replayed |
 | Direct transport qualification | All five new canaries fail closed on this environment's direct DNS; crt.sh proxy response quarantined for schema mismatch |
 | DEPLOYED | Private hosted runner/product view and production rollout remain unverified |
 | PRODUCTION_QUALIFIED | Zero source claims; current terms/account entitlement, sustained health and intended-runtime verification outstanding |
 
-Registry counts overlap: 51 workforce metadata entries, 26 canonical approval-driven workforce adapters, and 49 IntelligenceHub entries of which 35 have API implementations. The supplied 400
+Registry counts overlap: 50 workforce metadata entries, 25 canonical approval-driven workforce adapters, and 48 IntelligenceHub entries of which 34 have API implementations. The supplied 400
 candidate rows deduplicate to 351 research rows, 41 flagged as generic categories.
 A candidate, code path or configured key is never counted as a verified integration.
 
@@ -79,56 +76,6 @@ execution waves, verification requirements and stop conditions for registered
 target types. It creates no hypotheses and does not claim multilingual or free-form
 semantic planning; source scores remain uncalibrated heuristics.
 
-## Employee console integration (PR #26)
-
-Adds `employee serve` and `employee investigate`: local bounded runs, checkpoints,
-cancellation, cited graph/report, optional local-model drafting and evidence ZIP.
-Shared IntelligenceHub now has 49 records / 35 API implementations with NVD, CVE Program, FIRST EPSS, CISA KEV, OSV and npm. Canonical workforce adapters, MCP, registered company keys and IANA RDAP
-remain intact. Employee run telemetry/qualification is separate from canonical
-workforce state; do not combine their verification counts. The employee replay
-checks bundle integrity, not canonical semantic recomputation.
-
-CODED: console, employee routing and additional connectors. TESTED in this workspace:
-305 Python tests run, 304 passed and one optional MCP-SDK test skipped; 25
-Node graph/target tests and the PGlite database test pass. See PR #26
-verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
-hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;
-hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones remain
-open in the canonical delivery ledger.
-
-
-## Enterprise audit and graph decision boundary — 2026-10-04
-
-Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`. Nine scoped reports
-under `docs/audit/` record implementation, test, live and production states
-separately. The audit found that the in-memory claim graph accepted caller-created
-`ACCEPTED` identity/causation edges without an authorized decision record. The
-updated graph now rejects those edge types even when a caller supplies
-`decision_state="ACCEPTED"`; human candidate decisions remain in
-`ResolutionService`. The graph change is MERGED in PR #44; its CI and CodeQL checks passed.
-
-SOCMINT remains a capability gap: approved public search leads and public GitHub
-organization metadata do not constitute a social-platform investigation workflow.
-No social account enumeration, private data access, contact, login or bypass is
-implemented or claimed. Production qualification remains zero.
-
-
-## Source lifecycle normalization — PR #46
-
-The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
-qualification gates and could call a source LIVE_VERIFIED with a live-request
-receipt plus a runtime flag, even when normalization, evidence, provenance,
-security, health and other gates were missing. The source registry now defines
-the ordered lifecycle and requires all 19 non-runbook gates plus intended-runtime
-verification for LIVE_VERIFIED; PRODUCTION_QUALIFIED requires all 20 gates.
-Catalog output separates `connector_implemented` from lifecycle stage and counts
-only LIVE_VERIFIED/PRODUCTION_QUALIFIED sources as live integrations. Evaluated
-lifecycle transitions are proposals only; they are not persisted or promoted. The current
-catalog has no evidence-backed lifecycle promotion; production-qualified count
-remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its CI
-and CodeQL checks passed. The separate automated code-review job could not run
-because the GitHub Copilot monthly quota was exceeded (HTTP 402).
-
 ## Entity-resolution evaluation update — 2026-10-04
 
 Entity comparisons now preserve exact-agreement and differing-field signals in
@@ -141,5 +88,34 @@ conflicting organization/domain signals scored 0.7258 and crossed the candidate
 threshold; it remained a review candidate and was not merged. Automated merge
 attempts are zero, so false-merge rate is undefined (zero denominator), not zero
 percent. This small synthetic suite does not estimate operational identity
-accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
-and remaining gates.
+accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for the persistent
+program state and remaining gates.
+
+## Employee console integration (PR #26)
+
+Adds `employee serve` and `employee investigate`: local bounded runs, checkpoints,
+cancellation, cited graph/report, optional local-model drafting and evidence ZIP.
+Shared IntelligenceHub now has 48 records / 34 API implementations with NVD, FIRST EPSS, OSV and npm. Canonical workforce adapters, MCP, registered company keys and IANA RDAP
+remain intact. Employee run telemetry/qualification is separate from canonical
+workforce state; do not combine their verification counts. The employee replay
+checks bundle integrity, not canonical semantic recomputation.
+
+CODED: console, employee routing and additional connectors. TESTED in this workspace:
+305 Python tests run, 304 passed and one optional MCP-SDK test skipped; 25
+Node graph/target tests and the PGlite database test pass. See PR #26
+verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
+hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;
+hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones remain
+open in the canonical delivery ledger.
+
+## Evidence integrity diagnostic — 2026-10-04
+
+The new synthetic nine-case evidence/citation evaluation matches 8/9 expected
+outcomes. Five routine invalid cases are rejected. It reproduces an integrity
+bypass when a local actor rewrites captured bytes, the SQLite digest and the
+unanchored hash-chain entry together. The diagnostic is FAIL (exact-outcome
+score 0.8889; invalid-case rejection 5/6). Citation-ID checks do not establish
+semantic support. See `docs/program/EVALUATION_RESULTS.md` and
+`docs/verification/evidence-integrity-synthetic-2026-10-04.json`. External
+anchoring, immutable storage, semantic citation correctness and deployed replay
+remain unverified; EVIDENCE-001 stays open.

@@ -8,6 +8,14 @@
 - Limitation: synthetic data is not representative; the false-merge denominator is zero. Do not use the score as a probability or operational quality estimate.
 - Next: ER-EVAL-002 requires an approved privacy-reviewed adjudication set and pre-registered thresholds; it cannot be completed with fabricated or public-person data.
 
+## Current slice: EVIDENCE-004 diagnostic
+
+- Added `src/traceatlas/evidence_evaluation.py`, CLI `scripts/evaluate_evidence_integrity.py`, focused tests and a versioned JSON report.
+- Nine synthetic cases cover clean ledger/bundle verification, routine ledger/raw-byte/bundle/citation mutations, and full local rewrite of evidence bytes + SQLite digest + hash chain.
+- Observed 8/9 exact outcomes; five routine invalid cases were rejected, while a fully re-anchored local rewrite was accepted. The benchmark is **FAIL**, and EVIDENCE-001 stays OPEN.
+- Citation checks prove allowed-ID membership only. The harness does not claim semantic support, authorship, immutable storage, external anchoring or hosted replay.
+- Next: design an operator-controlled external anchor/immutable-store contract and test the local verifier against signed or remotely anchored manifests; require approved representative citation labels before claiming citation accuracy.
+
 ## Session rules
 
 Read `.ai/CURRENT_STATE.md`, `.ai/TASKS.md`, `.ai/KNOWN_ISSUES.md`, and the

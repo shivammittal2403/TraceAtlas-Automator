@@ -6,7 +6,7 @@
 - [x] ER-SIGNALS-001: expose exact-agreement and differing-field signals in candidate output without converting differences into identity proof or changing ranking thresholds.
 - [ ] ER-EVAL-002: define a governed, privacy-reviewed route for representative adjudicated evaluation records; until approved data exists, operational precision/recall remain unknown.
 - [ ] AUTH-LIVE-003: validate hosted tenant, case, worker and evidence authorization against a disposable staging project; live acceptance remains blocked on operator infrastructure.
-- [ ] EVIDENCE-004: evaluate representative evidence citation correctness and byte-level integrity under controlled adversarial inputs.
+- [ ] EVIDENCE-004: synthetic diagnostic added (9 cases; 8/9 expected outcomes; re-anchored local rewrite bypass reproduced). Still requires an external anchor/immutable store design and representative citation correctness evaluation before closure.
 - [ ] LINEAGE-005: measure independent-source grouping and contradiction recall on a curated labeled corpus.
 
 ## P1 — enterprise workflow

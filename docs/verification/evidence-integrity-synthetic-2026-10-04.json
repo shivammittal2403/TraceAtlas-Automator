@@ -1,0 +1,98 @@
+{
+  "adversarial_rejection_rate": 0.8333,
+  "benchmark": "evidence-integrity-and-citation-guards",
+  "cases": 9,
+  "confusion": {
+    "accepted_expected_invalid": 1,
+    "accepted_expected_valid": 3,
+    "rejected_expected_invalid": 5,
+    "rejected_expected_valid": 0
+  },
+  "corpus_sha256": "832235cc8fb3df3575d732d71e50e64b3dd05b48c08a4b23582226f949009e9b",
+  "limitations": [
+    "All records and mutations are deterministic synthetic fixtures; no operational cases or sources were used.",
+    "Citation checks verify identifier membership and output shape, not whether cited bytes semantically support a claim.",
+    "Hash checks detect tested mutations but do not prove publisher authorship or resist an attacker who can rewrite and re-anchor all local records.",
+    "The report does not verify immutable object storage, external ledger anchoring, or deployed replay behavior."
+  ],
+  "passed": 8,
+  "results": [
+    {
+      "accepted": true,
+      "description": "A preserved synthetic file verifies.",
+      "expected_accept": true,
+      "id": "ledger-valid",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "An exported synthetic evidence bundle verifies.",
+      "expected_accept": true,
+      "id": "bundle-valid",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A local attacker rewrites bytes, the SQLite digest, and the unanchored ledger consistently.",
+      "expected_accept": false,
+      "id": "local-rewrite-reanchored",
+      "kind": "ledger",
+      "limitation_demonstrated": true,
+      "pass": false
+    },
+    {
+      "accepted": false,
+      "description": "A custody record byte changed without a matching hash.",
+      "expected_accept": false,
+      "id": "ledger-record-mutated",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "Preserved bytes changed after capture.",
+      "expected_accept": false,
+      "id": "evidence-bytes-mutated",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle evidence member changed while its manifest stayed fixed.",
+      "expected_accept": false,
+      "id": "bundle-evidence-mutated",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle contains an unlisted member.",
+      "expected_accept": false,
+      "id": "bundle-unlisted-member",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A claim cites an evidence identifier in its allowed set.",
+      "expected_accept": true,
+      "id": "citation-known-id",
+      "kind": "citation",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A claim cites an identifier absent from its allowed set.",
+      "expected_accept": false,
+      "id": "citation-unknown-id",
+      "kind": "citation",
+      "pass": true
+    }
+  ],
+  "score": 0.8889,
+  "status": "fail",
+  "threshold": 1.0,
+  "version": "1.0"
+}
