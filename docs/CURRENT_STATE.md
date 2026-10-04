@@ -1,4 +1,4 @@
-# Current implementation state — 2026-10-04 / 1.12.0
+# Current implementation state — 2026-10-04 / 1.11.0
 
 Source-inventory metrics below were audited against PR #43 baseline
 `d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04
@@ -128,3 +128,37 @@ catalog has no evidence-backed lifecycle promotion; production-qualified count
 remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its CI
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
+
+
+## Persistent enterprise 8/10 program — baseline and active repair
+
+The persistent task checklist and engineering memory now live in `.ai/`; the
+scorecard, gap register, source ledger, golden-case plan, security status and
+release gates live in `docs/program/`. Scores remain UNKNOWN until benchmarked;
+overall 8/10 is not established. The 78 controlled Source Fabric cases remain
+fixtures, not 78 golden investigations or live integrations.
+
+Baseline main is `dd3085b8f0658d28f88171b5c8225c0c46cea9a9` (PR #48). Its CI run
+`37181405185` failed on Python compile jobs and the locked MCP Source Fabric
+check; CodeQL run `37181405183` passed. Local inspection reproduced a syntax
+error in `src/traceatlas/workforce/source_registry.py` and found conflicting
+qualification definitions. An active repair consolidates the shared 23-gate
+vocabulary and lifecycle labels, bounds evidence references, and updates
+focused tests. Available local checks now pass: Python 313 tests (310 passed,
+three skipped), source compilation, secret scan, graph/target 25/25, PGlite 1/1,
+employee UI browser checks, controlled Source Fabric replay 78/78, and restore
+integrity drill. PR #49 code/test head
+`1767708adc27e9dc05e0384a4682571e3797d6c4` passed hosted CI `37184302223`
+and CodeQL `37184302217`, including worker-image verification. The PR is open;
+do not treat this repair as merged or released.
+
+No new live source was contacted or production qualification completed for this
+repair. Existing 26 adapter and zero production-qualified counts remain in force.
+
+The local TA-003 follow-up also closes a review-reference gap: Source Fabric
+review rows now resolve each evidence hash against artifacts in that same case,
+and promotion rechecks the ledger and every reference. Invalid legacy/direct
+database rows cannot sustain production-qualified state. Focused tests (28) and
+the full Python suite (315; 3 skipped) pass locally; hosted checks for this
+follow-up pass in PR #50: CI `37185114010` and CodeQL `37185114003`. No source
+was promoted.

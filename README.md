@@ -14,6 +14,11 @@ TraceAtlas helps investigators organize approved research. It does not turn an A
 
 A connector being present in code or catalogued does not mean that provider access is configured or production-qualified. Current qualification state and open acceptance gates are documented in [Current State](docs/CURRENT_STATE.md) and [Acceptance Gates](docs/ACCEPTANCE_GATES.md).
 
+The persistent enterprise engineering program, baseline scorecard, acceptance
+gates and resume checkpoint are tracked in [docs/program](docs/program/README.md)
+and [.ai](.ai/SESSION_CONTEXT.md). Maturity scores remain unestablished until
+representative workflows have reproducible evaluation evidence.
+
 ## Quick start
 
 Requires Python 3.10 or newer.

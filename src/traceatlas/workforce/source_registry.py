@@ -15,6 +15,10 @@ from ..source_maturity import (LIVE_VERIFICATION_GATES, MATURITY_STATES,
                                SOURCE_QUALIFICATION_GATES, normalize_maturity)
 
 STATES = frozenset(MATURITY_STATES)
+P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_manifests.json').read_text())
+P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
+P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
+QUALIFICATION_GATES = SOURCE_QUALIFICATION_GATES
 LIFECYCLE_TRANSITIONS = {
     "DISCOVERED": frozenset({"CATALOGUED", "DISABLED", "DEPRECATED"}),
     "CATALOGUED": frozenset({"TERMS_REVIEWED", "DISABLED", "DEPRECATED"}),
@@ -30,6 +34,10 @@ LIFECYCLE_TRANSITIONS = {
 }
 LIFECYCLE_ORDER = ("DISCOVERED", "CATALOGUED", "TERMS_REVIEWED", "CONNECTOR_CODED",
                    "CONFIGURED", "LIVE_TESTED", "LIVE_VERIFIED", "PRODUCTION_QUALIFIED")
+CATALOGUE_GATES = frozenset({"documentation", "manifest"})
+TERMS_GATES = CATALOGUE_GATES | frozenset({"terms", "license"})
+CONNECTOR_GATES = TERMS_GATES | frozenset({"capabilities", "connector"})
+CONFIGURATION_GATES = CONNECTOR_GATES | frozenset({"configured", "authentication"})
 P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_manifests.json').read_text())
 P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
 P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
@@ -74,7 +82,11 @@ class SourceManifest:
     connector_implemented: bool = False
 
     def __post_init__(self):
-        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,99}", self.source_id) or self.implementation_status not in STATES:
+        try:
+            normalize_maturity(self.implementation_status)
+        except ValueError:
+            raise ValueError("invalid source manifest identity/state") from None
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,99}", self.source_id):
             raise ValueError("invalid source manifest identity/state")
         if type(self.connector_implemented) is not bool:
             raise ValueError("connector_implemented must be boolean")
@@ -92,6 +104,10 @@ class SourceManifest:
 
     def to_dict(self):
         value = asdict(self)
+        state = normalize_maturity(self.implementation_status)
+        value["implementation_status"] = state
+        value["maturity_state"] = state
+        value.update(lifecycle_state=state,
         value["implementation_status"] = normalize_maturity(self.implementation_status)
         value["maturity_state"] = value["implementation_status"]
         value.update(lifecycle_state=value["implementation_status"],
@@ -165,6 +181,10 @@ class SourceRegistry:
         return True
 
     def lifecycle_counts(self):
+        counts = {state: 0 for state in STATES}
+        for item in self._sources.values():
+            counts[normalize_maturity(item.implementation_status)] += 1
+        return counts
         from ..source_maturity import maturity_counts
         return maturity_counts(item.implementation_status for item in self._sources.values())
 
@@ -175,15 +195,24 @@ class SourceRegistry:
 
     @staticmethod
     def qualification(gates, *, verified_runtime=False):
+        """Derive a source maturity proposal from bounded evidence attestations."""
+        if type(verified_runtime) is not bool:
+            raise ValueError("runtime verification must be an explicit boolean")
         """Derive the highest lifecycle stage supported by submitted evidence attestations."""
         if type(verified_runtime) is not bool:
             raise ValueError("verified_runtime must be boolean")
         if not isinstance(gates, dict) or set(gates) - QUALIFICATION_GATES:
             raise ValueError("unknown qualification gates")
-        if not all(isinstance(v, dict) and set(v) == {"passed", "evidence_ref"} and type(v["passed"]) is bool
-                   and isinstance(v["evidence_ref"], str) and 1 <= len(v["evidence_ref"].strip()) <= 512
-                   and not any(ord(ch) < 32 for ch in v["evidence_ref"]) for v in gates.values()):
-            raise ValueError("qualification requires evidence references")
+        if not all(
+            isinstance(value, dict)
+            and set(value) == {"passed", "evidence_ref"}
+            and type(value["passed"]) is bool
+            and isinstance(value["evidence_ref"], str)
+            and 1 <= len(value["evidence_ref"].strip()) <= 512
+            and not any(ord(ch) < 32 for ch in value["evidence_ref"])
+            for value in gates.values()
+        ):
+            raise ValueError("qualification requires bounded evidence references")
         passed = {name for name, item in gates.items() if item["passed"]}
         missing = sorted(QUALIFICATION_GATES - passed)
         state = "DISCOVERED"
@@ -191,6 +220,7 @@ class SourceRegistry:
             state = "CATALOGUED"
         if TERMS_GATES.issubset(passed):
             state = "TERMS_REVIEWED"
+        if CONNECTOR_GATES.issubset(passed):
         if TERMS_GATES.union({"connector"}).issubset(passed):
             state = "CONNECTOR_CODED"
         if CONFIGURATION_GATES.issubset(passed):
@@ -207,7 +237,10 @@ class SourceRegistry:
     @classmethod
     def transition(cls, current, target, gates, *, verified_runtime=False):
         """Validate a proposed lifecycle transition without persisting a source status."""
-        if current not in STATES or target not in STATES:
+        try:
+            current = normalize_maturity(current)
+            target = normalize_maturity(target)
+        except ValueError:
             raise ValueError("unknown source lifecycle state")
         if target not in LIFECYCLE_TRANSITIONS[current]:
             raise ValueError("source lifecycle transition is not allowed")
