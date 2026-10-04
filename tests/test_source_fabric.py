@@ -131,7 +131,7 @@ class SourceFabricTests(unittest.TestCase):
         task = self.task('cve', 'CVE-2024-12345', ['nvd', 'epss'])
         def request(url, *_):
             host = urlsplit(url).hostname
-            source = 'nvd' if host == 'nvd.nist.gov' else 'epss'
+            source = 'nvd' if host == 'services.nvd.nist.gov' else 'epss'
             return 200, json.dumps(FIXTURES[source][2]).encode()
         product = InvestigationPipeline(self.service, self.root, requester=request).run(task, live=True, authorized=True)
         predicates = {row['statement'].split()[1] for row in product['analysis']['observations']}
