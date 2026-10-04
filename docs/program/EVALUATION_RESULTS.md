@@ -17,7 +17,8 @@ After the lineage change, the full Python suite ran 328 tests: 321 passed,
 3 skipped and 4 failed. Three failures are the known incomplete OpenCTI
 submodule prerequisite (two missing-source errors and vendor count 72/308).
 One unrelated loopback-console test encountered a Windows connection-aborted
-error; rerun is needed to determine whether it is transient.
+error. The isolated console test file then passed 2/2; the suite-level failure
+did not reproduce in isolation, and its cause remains unknown.
 
 
 Updated: 2026-10-04. Results below are freshly observed in this checkout unless

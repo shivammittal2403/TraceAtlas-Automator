@@ -186,3 +186,8 @@ accuracy. Focused lineage tests passed 2/2; investigation pipeline 27 passed,
 1 skipped; AI workforce 13/13. Full suite ran 328: 321 passed, 3 skipped, 4
 failed (three known OpenCTI submodule issues and one Windows loopback-console
 connection abort). Curated lineage and contradiction recall remain unmeasured.
+
+
+The two loopback-console tests passed on an isolated rerun after the full-suite
+connection-aborted error. It did not reproduce in isolation; root cause remains
+unknown.

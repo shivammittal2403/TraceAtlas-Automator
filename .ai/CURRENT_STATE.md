@@ -111,3 +111,8 @@ aggregation through explicit reviewed ownership metadata. Its 12 synthetic pairs
 match (TP=7, FP=0, TN=5, FN=0); contradiction recall and representative lineage
 quality remain unmeasured. Focused pipeline and AI tests pass; full suite has
 three known OpenCTI checkout failures and one Windows loopback-console abort.
+
+
+The two loopback-console tests passed on an isolated rerun. The single failure
+seen in the full suite did not reproduce; root cause remains unknown and is
+tracked as `ENV-WINLOOPBACK-001`.
