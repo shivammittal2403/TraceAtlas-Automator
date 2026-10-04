@@ -47,7 +47,7 @@ def requirements(kind, target, objective):
         caps = ['code.organization'] if target.startswith('github:') else ['company.registration']
         rules = [('filing', 'company.filings'), ('ownership', 'company.ownership'), ('procure', 'company.procurement')]
     elif kind == 'cve':
-        caps = ['vulnerability.advisory', 'vulnerability.exploitation_probability', 'vulnerability.cve_record']
+        caps = ['vulnerability.advisory', 'vulnerability.exploitation_probability', 'vulnerability.cve_record', 'vulnerability.known_exploited']
         rules = []
     elif kind == 'vulnerability':
         caps = ['vulnerability.advisory', 'vulnerability.affected_packages']
