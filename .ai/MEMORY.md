@@ -25,3 +25,7 @@
   production-qualified sources at this baseline.
 - Automated agent continuation only happens when explicitly resumed. Never
   claim background execution or make the prompt “run forever.”
+
+## Windows submodule long-path note — 2026-10-04
+
+The pinned `third_party/opencti-connectors` gitlink is `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`. Git for Windows status warns about two deep directories, but the files can be read with the Win32 extended path prefix and are restored from the exact pinned blobs. Do not stage or change the gitlink to address this display limitation.

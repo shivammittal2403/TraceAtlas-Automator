@@ -73,3 +73,9 @@
   3 skipped; focused Source Fabric: 28 tests, 27 passed, 1 skipped; secret scan
   clean. PR #50 head `d9c7965e98ba3e26e123fe33c266c97be7b591b8` passed CI
   `37185114010` and CodeQL `37185114003`.
+
+## 2026-10-04 — Restore pinned OpenCTI test prerequisites
+
+- Revalidated pinned submodule source blobs with Win32 extended paths; focused OpenCTI tests passed 7/7.
+- Full Python suite: 329 run, 326 passed, 3 skipped, 0 failures.
+- No submodule gitlink change; Git for Windows still cannot enumerate the two deep directories.

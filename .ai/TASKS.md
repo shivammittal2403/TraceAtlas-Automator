@@ -82,3 +82,8 @@ IAM/security/operations/distribution/cost/observability → TA-GOVERNANCE and
 TA-OPERATIONS; golden cases/KPIs/competitor comparisons → TA-EVALUATION;
 definition of done, regressions, recovery, git and session report → acceptance
 gates and session context.
+
+## Latest validation checkpoint — 2026-10-04
+
+- Closed the local full-suite OpenCTI prerequisite failure: restored inaccessible deep-path files from the pinned submodule blobs; focused OpenCTI tests 7/7 and full Python suite 329 run / 326 pass / 3 skip / 0 failures.
+- Keep open: run hosted CI for the latest program state; qualify a rollback-safe external evidence anchor; obtain authorized representative evaluation labels; continue highest-priority P0/P1 gate work.
