@@ -19,6 +19,16 @@ def add_fabric_parser(sub):
     commands = root.add_subparsers(dest="fabric_command", required=True)
     commands.add_parser("audit")
     commands.add_parser("metrics")
+    commands.add_parser("health", help="Observed per-source health, independent of maturity")
+    portfolio = commands.add_parser("portfolio", help="Governed research and 650-source acceptance report")
+    portfolio.add_argument("--file", type=Path, help="Import bounded research metadata; grants no execution")
+    portfolio.add_argument("--source", help="Inspect every governed metadata field for one source")
+    portfolio.add_argument("--html", type=Path, help="Export a self-contained read-only portfolio/health dashboard")
+    portfolio.add_argument("--capability", action="append", help="Generate a non-executing four-wave plan")
+    portfolio.add_argument("--country")
+    portfolio.add_argument("--language")
+    portfolio.add_argument("--budget", type=float, default=0)
+    portfolio.add_argument("--max-sources", type=int, default=8)
     catalog = commands.add_parser("catalog")
     catalog.add_argument("query", nargs="?", default="")
     catalog.add_argument("--limit", type=int, default=30)
@@ -50,6 +60,32 @@ def add_fabric_parser(sub):
 
 def run_fabric(args, engine):
     store = FabricStore(engine.db)
+    if args.fabric_command == "health":
+        from .portfolio import Portfolio
+        return Portfolio(engine.db).health_report()
+    if args.fabric_command == "portfolio":
+        from .portfolio import Portfolio
+        program = Portfolio(engine.db)
+        if sum(bool(value) for value in (args.file, args.source, args.capability, args.html)) > 1:
+            raise PolicyError("Choose one portfolio mode: import, inspect, plan or HTML snapshot")
+        if args.html:
+            from .dashboard import render_dashboard
+            args.html.parent.mkdir(parents=True, exist_ok=True)
+            args.html.write_text(render_dashboard(program.report(), program.records(), program.health_report()), encoding="utf-8")
+            return {"dashboard": str(args.html.resolve()), "snapshot": True, "network_probes": 0}
+        if args.file:
+            if not args.file.is_file() or args.file.stat().st_size > 2*1024*1024:
+                raise PolicyError("Research input must be a JSON file up to 2 MiB")
+            return program.import_records(json.loads(args.file.read_text(encoding="utf-8")))
+        if args.source:
+            row = next((r for r in program.records() if r['source_id'] == args.source), None)
+            if row is None:
+                raise PolicyError("Unknown portfolio source")
+            return row
+        if args.capability:
+            return program.rank(args.capability, country=args.country, language=args.language,
+                                budget=args.budget, max_sources=args.max_sources)
+        return program.report()
     if args.fabric_command == "audit":
         return audit(engine.db)
     if args.fabric_command == "metrics":
