@@ -17,9 +17,11 @@ there are no unchecked Markdown task boxes.
 - Provider records are bound to the requested identifier before they can create
   observations. NVD, EPSS, OSV and npm wrong-target responses fail closed in both
   IntelligenceHub and canonical workforce normalization.
-- Structured CVSS, severity, EPSS probability/percentile, advisory aliases,
-  affected packages, npm version and declared license observations are bounded
-  and replayable. Security-source content has no instruction authority.
+- Structured CVSS, severity, EPSS probability/percentile, NVD-carried CISA KEV
+  listing/remediation metadata, advisory aliases, affected packages, npm version
+  and declared license observations are bounded and replayable. The CISA fields
+  retain NVD evidence provenance and are not counted as an independent adapter.
+  Security-source content has no instruction authority.
 - The deterministic employee recommends asset or inventory applicability review
   and retains human report release. An advisory never becomes proof of an
   installed vulnerable package or observed exploitation.
