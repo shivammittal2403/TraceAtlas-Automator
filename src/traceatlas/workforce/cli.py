@@ -113,6 +113,8 @@ def run_workforce(args, engine) -> dict:
                     "maturity_state_vocabulary": list(MATURITY_STATES),
                     "live_integrations": live_count,
                     "production_qualified": lifecycle_counts["PRODUCTION_QUALIFIED"],
+                    "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
+                    "maturity_state_vocabulary": list(MATURITY_STATES),
                     "health": {r['source_id']: state.health(r['source_id']) for r in rows}, "network_requests": 0}
         return {"sources": readiness(), "network_requests": 0, "configuration_is_not_live_validation": True}
     service = WorkforceService(engine.db)
