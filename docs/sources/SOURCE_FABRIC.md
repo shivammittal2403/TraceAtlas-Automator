@@ -14,7 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 51 source definitions (49 IntelligenceHub entries plus Brave/SearXNG); 26 have the canonical approval-driven workforce adapter. The IntelligenceHub has 35 API implementations. These counts overlap and must never be added together. These counts overlap and must never be added together.
+The workforce registry currently describes 51 source definitions (49 IntelligenceHub entries plus Brave/SearXNG); 26 have the canonical approval-driven workforce adapter. The IntelligenceHub has 35 API implementations. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP, company, CVE,
 vulnerability-advisory or npm-package identifiers.
@@ -99,7 +99,7 @@ products or commercial lookup workflows; use appropriate licensed access.
   A canary bypasses cache/circuit state, not authorization, budget or rate limits.
 - Health reports the latest 100 local events, success/error rate, p95 latency,
   schema failures, cache hits and estimated costs. No synthetic event promotes a
-  source to LIVE_VERIFIED or PRODUCTION_QUALIFIED. Eighteen evidence-backed
+  source to LIVE_VERIFIED or PRODUCTION_QUALIFIED. Twenty evidence-backed
   qualification gates must be reviewed against the intended runtime.
 
 ## MCP
@@ -138,3 +138,29 @@ Parser version is now `structured-fact/4`, workflow `1.3.0`. Old captures remain
 immutable; replay uses its recorded workflow version and fails closed when that
 version is unsupported. Keep the previous release available for historical replay;
 never relabel old captures or silently reparse them as new evidence.
+
+
+## Source lifecycle and qualification gates
+
+Each manifest separates code presence (`connector_implemented`) from its lifecycle
+state. A connector implementation or configured credential does not make a live
+integration. Lifecycle states are:
+
+`DISCOVERED → CATALOGUED → TERMS_REVIEWED → CONNECTOR_IMPLEMENTED → CONFIGURED
+→ LIVE_TESTED → LIVE_VERIFIED → PRODUCTION_QUALIFIED`, with `DEGRADED`,
+`DISABLED` and `DEPRECATED` operational states.
+
+The registry's qualification evaluator requires evidence references for each
+attestation. `LIVE_TESTED` requires the prerequisite terms/configuration stages and
+a successful live-request receipt. `LIVE_VERIFIED` additionally requires the
+non-runbook verification gates and intended-runtime verification. Production
+qualification requires every current gate, including the runbook. A source is
+counted as a live integration only in `LIVE_VERIFIED` or
+`PRODUCTION_QUALIFIED`. Fixtures and code presence cannot satisfy live gates.
+
+On main at audit baseline `641f159326d45afe9797ddf5624a5126640fdd19`, the gate
+evaluator could promote a source to `LIVE_VERIFIED` after only one live-request
+attestation and a runtime boolean. The lifecycle correction adds the missing
+`TERMS_REVIEWED` and `LIVE_TESTED` stages and blocks that shortcut. Lifecycle
+receipts are still not persisted in a durable qualification ledger; promotion
+requires a follow-up persistence and evidence-reference verification capability.

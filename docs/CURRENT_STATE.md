@@ -97,3 +97,17 @@ SOCMINT remains a capability gap: approved public search leads and public GitHub
 organization metadata do not constitute a social-platform investigation workflow.
 No social account enumeration, private data access, contact, login or bypass is
 implemented or claimed. Production qualification remains zero.
+
+
+## Source lifecycle normalization — PR pending
+
+The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
+qualification gates and could call a source LIVE_VERIFIED with a live-request
+receipt plus a runtime flag, even when normalization, evidence, provenance,
+security, health and other gates were missing. The source registry now defines
+the ordered lifecycle and requires all 19 non-runbook gates plus intended-runtime
+verification for LIVE_VERIFIED; PRODUCTION_QUALIFIED requires all 20 gates.
+Catalog output separates `connector_implemented` from lifecycle stage and counts
+only LIVE_VERIFIED/PRODUCTION_QUALIFIED sources as live integrations. The current
+catalog has no evidence-backed lifecycle promotion; production-qualified count
+remains zero. CI for this lifecycle change is pending.
