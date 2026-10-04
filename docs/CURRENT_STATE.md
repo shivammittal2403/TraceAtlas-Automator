@@ -241,3 +241,7 @@ database rows cannot sustain production-qualified state. Focused tests (28) and
 the full Python suite (315; 3 skipped) pass locally; hosted checks for this
 follow-up pass in PR #50: CI `37185114010` and CodeQL `37185114003`. No source
 was promoted.
+
+## Latest local verification — 2026-10-04
+
+At merged branch code state `e2f39d3164b1afc5cb74e3a825c15cab4ba7442b`, the full Python suite passed (329 run, 326 passed, 3 skipped, no failures); OpenCTI-focused tests passed 7/7. Fifteen deep files under the pinned OpenCTI connector commit were restored from Git blobs and sampled hashes match. Git for Windows still warns that these paths exceed its enumeration limit, so its submodule status output is not authoritative here. Enterprise maturity remains unscored; mandatory release gates remain open.

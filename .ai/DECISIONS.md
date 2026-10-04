@@ -39,3 +39,7 @@ or assumed passing.
 
 Implementation changes target a new branch and reviewable PR. Never merge into
 main from this autonomous engineering loop.
+
+## Keep OpenCTI gitlink pinned during Windows long-path repair — 2026-10-04
+
+Decision: retain the superproject's existing OpenCTI gitlink at `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`. The 15 deep files are restored from that commit and the tests pass; Git for Windows still reports inaccessible paths. Do not commit submodule churn caused only by local path enumeration.

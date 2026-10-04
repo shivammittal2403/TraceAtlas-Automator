@@ -85,3 +85,6 @@ rates are still unknown.
 No market-parity, 8/10 weighted maturity or production-readiness score is
 currently supportable.
 
+## Latest full-suite rerun — 2026-10-04
+
+On the merged code state `e2f39d3164b1afc5cb74e3a825c15cab4ba7442b`, `python -m unittest discover -s tests -q` completed successfully: 329 run, 326 passed, 3 skipped, 0 failures. The three skips are expected optional checks. OpenCTI-focused tests passed 7/7 after restoring 15 deeply nested source files from the exact pinned submodule blobs; sampled bytes matched Git blob hashes. Git for Windows still warns that those paths exceed its enumeration limit, so `git status` may report false deletions. This result supersedes the earlier full-suite row that reported three OpenCTI prerequisite failures. It does not establish production qualification or close other program gates.

@@ -37,3 +37,7 @@ evaluation or other deterministic local work.
   review; SOCMINT is not a blanket authorized capability.
 - “Future Record” was not verified as a product name in the prior comparison;
   treat Recorded Future as an assumption until the user confirms.
+
+## Windows Git long-path status reporting — 2026-10-04
+
+The two deep OpenCTI utility directories exceed the path length Git for Windows can enumerate in this checkout. Win32 extended-path reads confirm restored source bytes match pinned Git blobs, OpenCTI tests pass 7/7, and the full Python suite passes 329 run / 326 pass / 3 skip. `git status` may still show 15 false deletions; avoid staging the submodule.

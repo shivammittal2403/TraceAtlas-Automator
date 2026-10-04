@@ -69,3 +69,8 @@ tasks, gap register, evaluation results and implementation ledger after changes.
 After TA-003 is reviewed, move to semantic evidence replay. Do not start broad
 SOCMINT connector expansion until source terms, access permission, evidence
 flow and testable API contracts are established.
+
+## Latest validation checkpoint — 2026-10-04
+
+- Full Python suite passed: 329 run, 326 passed, 3 skipped, 0 failures. OpenCTI-focused tests passed 7/7 against the pinned connector checkout.
+- Next high-value unblocked work remains evidence integrity with a rollback-safe independent anchor and representative authorized evaluation labels. Do not claim 8/10 until the scorecard and mandatory gates have measured evidence.

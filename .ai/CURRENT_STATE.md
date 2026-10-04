@@ -170,3 +170,9 @@ This local engineering branch is based on a source archive of the baseline SHA;
 it is not a clone of Git history. Proposed GitHub commits must use the verified
 baseline main SHA as parent and be reviewed in a PR. Never force-push or merge
 without authorization.
+
+## Latest verification — 2026-10-04
+
+- Revalidated the merged program code at GitHub branch commit `e2f39d3164b1afc5cb74e3a825c15cab4ba7442b` (PR #52): Python suite 329 run, 326 passed, 3 skipped, 0 failures.
+- The pinned OpenCTI submodule is at `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`, matching the superproject gitlink. Its 15 deeply nested files are present from the pinned blobs; sampled file hashes match. Focused OpenCTI tests passed 7/7. Windows Git status still cannot enumerate these long paths and may display false deletions; no gitlink change is intended.
+- Overall maturity remains unscored and below any defensible 8/10 claim. Production-qualified sources remain 0; representative identity, lineage, contradiction, live-source, hosted deployment and other acceptance gates remain open.
