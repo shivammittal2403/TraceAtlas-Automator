@@ -1,0 +1,195 @@
+{
+  "suite": "source-independence-synthetic-v1",
+  "status": "PASS",
+  "scope": "synthetic pairwise source grouping only",
+  "case_count": 12,
+  "counts": {
+    "tp": 7,
+    "fp": 0,
+    "tn": 5,
+    "fn": 0
+  },
+  "metrics": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "specificity": 1.0,
+    "f1": 1.0
+  },
+  "limitations": [
+    "Synthetic cases do not estimate real-world performance.",
+    "Pairwise labels do not measure contradiction detection or recall.",
+    "Contradiction detection is outside this evaluator; reviewed ownership metadata is needed to group separate pages from one publisher."
+  ],
+  "results": [
+    {
+      "id": "upstream-copy",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "shared declared original",
+      "group_reasons": [
+        [
+          "declared_original_source"
+        ],
+        [
+          "declared_original_source"
+        ]
+      ]
+    },
+    {
+      "id": "shared-owner",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "shared ownership group",
+      "group_reasons": [
+        [
+          "common_ownership"
+        ],
+        [
+          "common_ownership"
+        ]
+      ]
+    },
+    {
+      "id": "same-publisher",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "reviewed shared publisher ownership",
+      "group_reasons": [
+        [
+          "common_ownership"
+        ],
+        [
+          "common_ownership"
+        ]
+      ]
+    },
+    {
+      "id": "exact-copy",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "exact content",
+      "group_reasons": [
+        [
+          "exact_content",
+          "near_duplicate_content"
+        ],
+        [
+          "exact_content",
+          "near_duplicate_content"
+        ]
+      ]
+    },
+    {
+      "id": "near-copy",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "near duplicate content",
+      "group_reasons": [
+        [
+          "near_duplicate_content"
+        ],
+        [
+          "near_duplicate_content"
+        ]
+      ]
+    },
+    {
+      "id": "canonical-url",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "same canonical URI",
+      "group_reasons": [
+        [
+          "canonical_uri"
+        ],
+        [
+          "canonical_uri"
+        ]
+      ]
+    },
+    {
+      "id": "distinct-registries",
+      "expected_same_origin": false,
+      "predicted_same_group": false,
+      "rationale": "separate registries with similar subject terms",
+      "group_reasons": [
+        [
+          "distinct_origin"
+        ],
+        [
+          "distinct_origin"
+        ]
+      ]
+    },
+    {
+      "id": "distinct-publishers",
+      "expected_same_origin": false,
+      "predicted_same_group": false,
+      "rationale": "different publishers and materially different text",
+      "group_reasons": [
+        [
+          "distinct_origin"
+        ],
+        [
+          "distinct_origin"
+        ]
+      ]
+    },
+    {
+      "id": "different-hosted-sites",
+      "expected_same_origin": false,
+      "predicted_same_group": false,
+      "rationale": "distinct tenants sharing a hostname",
+      "group_reasons": [
+        [
+          "distinct_origin"
+        ],
+        [
+          "distinct_origin"
+        ]
+      ]
+    },
+    {
+      "id": "unrelated-empty",
+      "expected_same_origin": false,
+      "predicted_same_group": false,
+      "rationale": "empty content and distinct origins",
+      "group_reasons": [
+        [
+          "distinct_origin"
+        ],
+        [
+          "distinct_origin"
+        ]
+      ]
+    },
+    {
+      "id": "similar-but-independent",
+      "expected_same_origin": false,
+      "predicted_same_group": false,
+      "rationale": "shared generic vocabulary only",
+      "group_reasons": [
+        [
+          "distinct_origin"
+        ],
+        [
+          "distinct_origin"
+        ]
+      ]
+    },
+    {
+      "id": "different-path-same-publisher",
+      "expected_same_origin": true,
+      "predicted_same_group": true,
+      "rationale": "reviewed shared publisher ownership",
+      "group_reasons": [
+        [
+          "common_ownership"
+        ],
+        [
+          "common_ownership"
+        ]
+      ]
+    }
+  ]
+}

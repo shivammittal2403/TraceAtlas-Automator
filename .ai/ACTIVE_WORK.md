@@ -22,3 +22,12 @@ Read `.ai/CURRENT_STATE.md`, `.ai/TASKS.md`, `.ai/KNOWN_ISSUES.md`, and the
 active `docs/program/` ledger before extending this slice. Update current state,
 tasks, gap register, evaluation results and implementation ledger after changes.
 
+
+
+## Current slice: LINEAGE-005 synthetic diagnostic
+
+- Added a deterministic 12-pair synthetic evaluator for source-origin grouping, covering declared upstreams, reviewed ownership, copies, canonical URLs and independent sources sharing one hostname.
+- The benchmark exposed that hostname equality could merge separate tenants. Removed hostname-only merging; publisher grouping now requires explicit ownership metadata. Updated the same-publisher regression case to provide reviewed ownership.
+- Focused evaluator: 2/2 passed; report: 12/12 expected pair decisions (TP=7, FP=0, TN=5, FN=0; precision/recall/specificity/F1 all 1.0 on this synthetic set). Pipeline tests 28 run, 27 pass, 1 skip; AI workforce tests 13/13; diff check passes.
+- Full Python suite: 328 run; 321 passed, 3 skipped, 4 failed (3 known OpenCTI checkout failures plus one unrelated Windows loopback-console connection abort; rerun needed).
+- LINEAGE-005 remains OPEN: synthetic pairs do not establish representative lineage accuracy or contradiction recall. Next: prepare an approved route for curated labels and determine whether the loopback failure reproduces.

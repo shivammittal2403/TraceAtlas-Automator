@@ -173,3 +173,16 @@ remote storage, production key management or deployment evidence. Citation-ID
 membership still does not establish semantic claim support. EVIDENCE-001 stays
 open. See `docs/EVIDENCE_ANCHORING.md`.
 
+
+
+## 2026-10-04 source independence update
+
+The deterministic `SourceIndependenceEngine` no longer treats a shared
+hostname as proof of common origin. This prevents false corroboration when
+separate tenants share hosting. Distinct publisher pages can still be grouped
+using explicit reviewed ownership metadata. The 12-pair synthetic benchmark
+reports TP=7, FP=0, TN=5, FN=0; these synthetic metrics are not operational
+accuracy. Focused lineage tests passed 2/2; investigation pipeline 27 passed,
+1 skipped; AI workforce 13/13. Full suite ran 328: 321 passed, 3 skipped, 4
+failed (three known OpenCTI submodule issues and one Windows loopback-console
+connection abort). Curated lineage and contradiction recall remain unmeasured.

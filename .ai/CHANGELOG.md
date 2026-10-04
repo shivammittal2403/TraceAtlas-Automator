@@ -1,5 +1,12 @@
 # Program changelog
 
+## 2026-10-04 — Source independence diagnostic
+
+- Added a 12-pair synthetic source grouping benchmark and JSON report. The initial hostname heuristic caused a false merge for separate tenants sharing one host.
+- Removed hostname equality as an automatic grouping signal. Explicit reviewed ownership metadata still groups separate records from one publisher.
+- Focused evaluator: 2/2 pass; synthetic pair metrics: TP=7, FP=0, TN=5, FN=0 (precision/recall/specificity/F1=1.0). Pipeline tests 27 pass/1 skip; AI workforce 13/13. Full suite 328 run: 321 pass, 3 skip, 4 fail (three OpenCTI checkout failures and one Windows loopback-console abort). Representative contradiction recall remains open.
+
+
 ## 2026-10-04 — Session baseline
 
 - Read repository engineering guidance, current state, acceptance gates, current completion audit, gap analysis, security review, entity-resolution notes and golden-suite documentation.

@@ -1,5 +1,25 @@
 # Evaluation results
 
+## Source independence diagnostic (2026-10-04)
+
+`source-independence-synthetic-v1` runs 12 deterministic source pairs against
+the production `SourceIndependenceEngine`: TP=7, FP=0, TN=5, FN=0; precision,
+recall, specificity and F1 are 1.0 on this synthetic set. The first run exposed
+a false merge when unrelated tenants shared a hostname. The engine no longer
+uses hostname equality as proof of common origin; reviewed ownership metadata
+still groups distinct pages from one publisher. Focused tests passed 2/2,
+investigation-pipeline tests 27 passed/1 skipped, AI workforce tests 13/13, and
+`git diff --check` passed. The result is a regression diagnostic, not an
+operational estimate. It does not evaluate contradiction recall or temporal
+overlap. Report: [`source-independence-synthetic-2026-10-04.json`](../verification/source-independence-synthetic-2026-10-04.json).
+
+After the lineage change, the full Python suite ran 328 tests: 321 passed,
+3 skipped and 4 failed. Three failures are the known incomplete OpenCTI
+submodule prerequisite (two missing-source errors and vendor count 72/308).
+One unrelated loopback-console test encountered a Windows connection-aborted
+error; rerun is needed to determine whether it is transient.
+
+
 Updated: 2026-10-04. Results below are freshly observed in this checkout unless
 marked historical. Environment failures are not reported as code passes.
 

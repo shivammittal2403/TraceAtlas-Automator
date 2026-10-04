@@ -87,3 +87,17 @@ The local checkout still has `HEAD` at
 ancestry. The incomplete OpenCTI submodule working
 tree remains excluded from program changes.
 
+
+
+## Source independence slice (2026-10-04)
+
+Removed hostname equality as a positive source-origin link after a 12-pair
+synthetic benchmark showed that separate tenants on one hostname could be
+falsely grouped. Reviewed `ownership_group` metadata remains the way to group
+separate pages from a known publisher. The post-change synthetic result is
+12/12 expected pairs (TP=7, FP=0, TN=5, FN=0); this is a diagnostic, not an
+operational accuracy estimate. Focused evaluator tests passed 2/2, pipeline
+tests 27 passed/1 skipped, and AI workforce tests 13/13. Full Python suite:
+328 run, 321 pass, 3 skip, 4 fail (3 OpenCTI prerequisite failures and one
+Windows loopback-console connection abort). Representative lineage labels and
+contradiction recall remain unknown.

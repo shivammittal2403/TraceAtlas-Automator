@@ -20,7 +20,7 @@ is assigned. A fixture pass is software-contract evidence only.
 | Graph intelligence | Partial; unscored | Typed offline graph, filters and bounded algorithms; investigation-level relationship precision and UX acceptance are not measured. |
 | Temporal intelligence | Partial; unscored | Temporal conflict/freshness primitives and fixtures; representative dated record accuracy is unmeasured. |
 | Evidence/provenance | Strong local contracts; unscored | Byte hashes, custody, references and replay tests; independent external integrity anchor and citation accuracy remain open. |
-| Source independence | Partial; unscored | Lineage grouping tests exist; labeled syndication/near-duplicate accuracy is not benchmarked. |
+| Source independence | Partial; unscored | Synthetic pair diagnostic passes 12/12 after removing hostname-only grouping; approved representative lineage and contradiction recall remain unmeasured. |
 | Contradiction analysis | Partial; unscored | Structured temporal/multivalue tests exist; representative contradiction recall is unknown. |
 | Semantic planning | Partial; unscored | Deterministic target-bound plan exists; free-form, multilingual and semantically measured planning do not. |
 | Information gaps / NBA | Partial; unscored | Bounded deterministic gap and next-action outputs exist; information gain is not calibrated. |

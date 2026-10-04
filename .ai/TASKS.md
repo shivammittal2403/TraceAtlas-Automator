@@ -7,7 +7,7 @@
 - [ ] ER-EVAL-002: define a governed, privacy-reviewed route for representative adjudicated evaluation records; until approved data exists, operational precision/recall remain unknown.
 - [ ] AUTH-LIVE-003: validate hosted tenant, case, worker and evidence authorization against a disposable staging project; live acceptance remains blocked on operator infrastructure.
 - [ ] EVIDENCE-004: opt-in environment-wired HMAC checkpoint path and bundle receipts added. 14 synthetic cases match 13/14; HMAC mode blocks tested local rewrite, legacy default still accepts it. Requires rollback-safe monotonic provider, required-by-deployment policy and representative citation correctness evaluation.
-- [ ] LINEAGE-005: measure independent-source grouping and contradiction recall on a curated labeled corpus.
+- [ ] LINEAGE-005: synthetic pairwise grouping benchmark added; curated real lineage labels and contradiction recall remain open.
 
 ## P1 — enterprise workflow
 

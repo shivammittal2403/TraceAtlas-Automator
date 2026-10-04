@@ -7,3 +7,4 @@
 | 2026-10-04 | Leave matching weights/thresholds unchanged during benchmark implementation. | Prevent tuning against a small synthetic suite and keep the benchmark diagnostic rather than a performance claim. |
 | 2026-10-04 | Report false-merge rate as undefined when no automatic merge is attempted. | Zero merges means the metric denominator is zero; reporting 0% would imply evidence that does not exist. |
 | 2026-10-04 | Keep Enterprise score uncalculated until category scoring is evidence-backed. | Implementation volume and fixture counts do not establish an 8/10 production capability. |
+| 2026-10-04 | Do not infer source independence from hostname equality alone. | Shared hosting and CDN domains may contain separate tenants; explicit reviewed ownership is required to group distinct pages from one publisher. |

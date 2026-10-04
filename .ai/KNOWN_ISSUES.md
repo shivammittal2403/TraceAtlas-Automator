@@ -14,3 +14,6 @@ No real individual data, live provider credentials or live social sources are
 available for this engineering session. These constraints do not block synthetic
 evaluation or other deterministic local work.
 
+
+
+- LINEAGE-005: source grouping used hostname equality as a positive origin link, which can conflate tenants on shared hosts. Host-only grouping has been removed; explicit reviewed ownership can still group separate publisher pages. Synthetic score is 12/12 only and contradiction recall remains unmeasured.
