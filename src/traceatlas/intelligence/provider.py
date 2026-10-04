@@ -137,7 +137,7 @@ def _validate_shape(source: str, data: Any) -> None:
         valid = (
             isinstance(data, dict) and data.get("dataType") == "CVE_RECORD"
             and isinstance(metadata, dict) and isinstance(metadata.get("cveId"), str)
-            and re.fullmatch(r"CVE-\\d{4}-\\d{4,19}", metadata["cveId"]) is not None
+            and re.fullmatch(r"CVE-\d{4}-\d{4,19}", metadata["cveId"]) is not None
             and isinstance(containers, dict) and isinstance(cna, dict)
             and isinstance(affected, list)
         )
