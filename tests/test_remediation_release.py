@@ -101,6 +101,8 @@ class RemediationReleaseTests(unittest.TestCase):
         self.assertTrue(first["created"])
         self.assertFalse(second["created"])
         self.assertFalse(first["automatic_merge"])
+        self.assertTrue(any(row["field"] == "name" and not row["exact_match"]
+                            for row in first["comparisons"]))
         self.assertEqual(len(service.queue("case-1")), 1)
         decided = service.decide(
             first["id"], "accepted", reviewer="analyst-1",

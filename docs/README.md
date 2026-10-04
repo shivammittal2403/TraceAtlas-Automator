@@ -20,11 +20,11 @@ citations, graph inspection and evidence/replay ZIP export. Optional Ollama draf
 remain advisory. See [setup](AUTONOMOUS_IMPLEMENTATION.md) and
 [employee source integration](SOURCE_FABRIC.md).
 
-The canonical workforce pipeline and its 24 source adapters remain available through
+The canonical workforce pipeline and its 25 source adapters remain available through
 `workforce investigate`. The employee console is an additional local workflow;
 it does not replace canonical workforce authority or hosted control-plane approval.
 NVD, EPSS, OSV and npm also run through the canonical workforce evidence path;
-the shared IntelligenceHub remains 47 records / 33 API implementations.
+the shared IntelligenceHub remains 48 records / 34 API implementations.
 
 ## What is included
 
@@ -131,6 +131,11 @@ the shared IntelligenceHub remains 47 records / 33 API implementations.
 - A persistent explainable entity-resolution queue records public-label
   candidates, analyst rationales and accept/reject decisions without automatic
   identity merging.
+- Entity comparisons preserve exact-agreement and differing-field signals.
+  A synthetic ranking benchmark measures candidate precision/recall and
+  top-k placement without representing scores as probabilities; operational
+  identity accuracy remains unmeasured. See [Entity Resolution](ENTITY_RESOLUTION.md)
+  and the [enterprise program](program/ENTERPRISE_8_SCORECARD.md).
 - Local and hosted case notes plus an RLS-protected review-task lifecycle make
   the analyst-in-the-loop requirement operational rather than documentary.
 - A unified case workspace exposes coverage, source health, timeline, review

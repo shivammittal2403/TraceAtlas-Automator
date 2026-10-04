@@ -128,3 +128,18 @@ catalog has no evidence-backed lifecycle promotion; production-qualified count
 remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its CI
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
+
+## Entity-resolution evaluation update — 2026-10-04
+
+Entity comparisons now preserve exact-agreement and differing-field signals in
+the explainable result and analyst review queue. Matching scores and thresholds
+were not changed. A new deterministic synthetic company-label benchmark evaluates
+24 labeled pairs across six queries at the existing 0.72 candidate threshold:
+precision 0.80, recall 1.00, F1 0.889, false-positive rate 0.05, and ranking
+recall@1/3 both 1.00 on the four positive queries. One same-name candidate with
+conflicting organization/domain signals scored 0.7258 and crossed the candidate
+threshold; it remained a review candidate and was not merged. Automated merge
+attempts are zero, so false-merge rate is undefined (zero denominator), not zero
+percent. This small synthetic suite does not estimate operational identity
+accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
+and remaining gates.

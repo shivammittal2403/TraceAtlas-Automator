@@ -84,15 +84,21 @@ def explainable_entity_match(left: dict[str, Any], right: dict[str, Any]) -> dic
         denominator += weight
         comparisons.append({
             "field": field,
+            "exact_match": a == b,
             "similarity": round(similarity, 4),
             "weight": weight,
             "contribution": round(contribution, 4),
         })
+    exact_agreement_fields = [item["field"] for item in comparisons if item["exact_match"]]
+    differing_fields = [item["field"] for item in comparisons if not item["exact_match"]]
     if len(comparisons) < 2:
         return {
             "classification": "insufficient_evidence",
             "similarity_score": None,
             "comparisons": comparisons,
+            "exact_agreement_fields": exact_agreement_fields,
+            "differing_fields": differing_fields,
+            "attribute_differences_are_identity_proof": False,
             "review_required": True,
             "automatic_merge": False,
         }
@@ -106,6 +112,9 @@ def explainable_entity_match(left: dict[str, Any], right: dict[str, Any]) -> dic
         "classification": classification,
         "similarity_score": round(score, 4),
         "comparisons": comparisons,
+        "exact_agreement_fields": exact_agreement_fields,
+        "differing_fields": differing_fields,
+        "attribute_differences_are_identity_proof": False,
         "review_required": True,
         "automatic_merge": False,
         "limitations": [
