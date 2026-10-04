@@ -141,6 +141,30 @@ def _validate_shape(source: str, data: Any) -> None:
             and isinstance(containers, dict) and isinstance(cna, dict)
             and isinstance(affected, list)
         )
+    elif source == "cisa_kev":
+        rows = data.get("vulnerabilities") if isinstance(data, dict) else None
+        valid = (
+            isinstance(data, dict) and data.get("title") == "Known Exploited Vulnerabilities Catalog"
+            and isinstance(data.get("catalogVersion"), str) and isinstance(data.get("dateReleased"), str)
+            and type(data.get("count")) is int and isinstance(rows, list)
+            and 0 <= len(rows) <= 20000 and data.get("count") == len(rows)
+            and all(isinstance(row, dict)
+                    and isinstance(row.get("cveID"), str)
+                    and re.fullmatch(r"CVE-\d{4}-\d{4,19}", row["cveID"]) is not None
+                    and all(isinstance(row.get(key), str) and 0 < len(row[key]) <= 2000
+                            for key in ("vendorProject", "product", "vulnerabilityName", "dateAdded",
+                                        "shortDescription", "requiredAction", "dueDate"))
+                    for row in rows)
+        )
+        if valid:
+            try:
+                from datetime import date
+                date.fromisoformat(data["dateReleased"][:10])
+                for row in rows:
+                    date.fromisoformat(row["dateAdded"])
+                    date.fromisoformat(row["dueDate"])
+            except (TypeError, ValueError):
+                valid = False
     elif source == "nvd":
         valid = (
             isinstance(data, dict) and isinstance(data.get("totalResults"), int)
