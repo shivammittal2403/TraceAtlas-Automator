@@ -127,6 +127,26 @@ def _live_facts(source, seed, data, stamp):
         count = stats.get('malicious')
         if type(count) is int and count >= 0:
             add('provider_malicious_detections', count)
+    elif source == 'cisa_kev':
+        expected = target.strip().upper()
+        rows = data.get('vulnerabilities', []) if isinstance(data, dict) else []
+        matches = [row for row in rows if isinstance(row, dict) and row.get('cveID') == expected]
+        if len(matches) != 1:
+            raise ProviderError('provider_record_not_found' if not matches else 'provider_target_mismatch')
+        record = matches[0]
+        try:
+            added = datetime.strptime(record['dateAdded'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            datetime.strptime(record['dueDate'], '%Y-%m-%d')
+        except (KeyError, TypeError, ValueError):
+            raise ProviderError('provider_schema_mismatch') from None
+        at = added.isoformat()
+        add('vulnerability_id', expected, at)
+        add('cisa_kev_listed', 'true', at)
+        add('cisa_kev_added_date', record['dateAdded'], at)
+        add('cisa_kev_due_date', record['dueDate'], at)
+        add('cisa_kev_required_action', record['requiredAction'][:1000], at)
+        add('cisa_kev_vulnerability_name', record['vulnerabilityName'][:500], at)
+        add('cisa_kev_vendor_product', record['vendorProject'][:300] + ' / ' + record['product'][:300], at)
     elif source == 'nvd':
         rows = data['vulnerabilities']
         if data['totalResults'] < 1 or not rows:

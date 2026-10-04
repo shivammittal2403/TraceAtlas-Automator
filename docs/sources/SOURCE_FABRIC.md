@@ -1,7 +1,7 @@
-# Source Fabric 1.11
+# Source Fabric 1.12
 
 Both supplied 200+ and 400+ briefs are implemented as one staged programme.
-This release delivers the Phase A architecture and twenty-four canonical adapters.
+Current main delivers the Phase A architecture and twenty-six canonical adapters, including the exact-CVE CISA KEV feed adapter.
 It does not claim the later targets of 50 production-qualified or 100 live-verified
 sources. The 400 supplied candidate entries become 351 deduplicated review rows,
 including 41 entries flagged as generic categories requiring a specific provider.
@@ -14,7 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 50 source definitions (48 IntelligenceHub entries plus Brave/SearXNG); 25 have the canonical approval-driven workforce adapter. The IntelligenceHub has 34 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 51 source definitions (49 IntelligenceHub entries plus Brave/SearXNG); 26 have the canonical approval-driven workforce adapter. The IntelligenceHub has 35 API implementations. These counts overlap and must never be added together. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP, company, CVE,
 vulnerability-advisory or npm-package identifiers.
@@ -130,7 +130,7 @@ candidate queue, real account credentials, sustained canaries and source-specifi
 adversarial cases. Native sanctions, beneficial ownership, procurement and
 geospatial workflows are not delivered by these 24 adapters. Package and
 vulnerability collection is now part of the bounded canonical workforce surface
-through NVD, CVE Program, EPSS, OSV and npm.
+through NVD, CVE Program, EPSS, CISA KEV, OSV and npm. The CISA KEV integration fetches a fixed public catalog, validates its schema and normalizes facts only from the exact requested CVE row. The bounded raw response is retained for replay; catalog absence is not proof about an investigated asset.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
 planning and the hosted UI-to-worker flow remain separately unqualified.
 

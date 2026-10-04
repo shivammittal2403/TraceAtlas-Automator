@@ -18,7 +18,7 @@ SOURCE_HOSTS = {
     'stackexchange': 'api.stackexchange.com', 'dockerhub': 'hub.docker.com', 'youtube': 'www.googleapis.com',
     'discord': 'discord.com', 'shodan': 'api.shodan.io', 'censys': 'search.censys.io',
     'virustotal': 'www.virustotal.com', 'nvd': 'services.nvd.nist.gov', 'npm': 'registry.npmjs.org',
-    'crossref': 'api.crossref.org', 'orcid': 'pub.orcid.org',
+    'crossref': 'api.crossref.org', 'orcid': 'pub.orcid.org', 'cisa_kev': 'www.cisa.gov',
 }
 # This is the supported local integration contract, not a claim about every
 # address family a provider may support outside this connector.
@@ -64,7 +64,7 @@ SOURCE_INPUTS: dict[str, tuple[str, ...]] = {
     "stackexchange": ("user_id",), "dockerhub": ("username",), "youtube": ("channel",),
     "discord": ("invite",), "shodan": ("ip",), "censys": ("ip",),
     "virustotal": ("url", "domain", "ip", "hash"), "nvd": ("cve",),
-    "npm": ("package",), "crossref": ("doi",), "orcid": ("orcid",),
+    "npm": ("package",), "crossref": ("doi",), "orcid": ("orcid",), "cisa_kev": ("cve",),
 }
 
 OPTIONAL_CREDENTIALS = {"github", "nvd", "greynoise", "urlscan"}

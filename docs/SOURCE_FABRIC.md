@@ -2,11 +2,11 @@
 
 ## Integration with current main
 
-This delivery was reconciled with the canonical workforce pipeline and its 25 source adapters, SourceRegistry, MCP tools, strict registered company identifiers and IANA RDAP bootstrap. See [canonical Source Fabric](sources/SOURCE_FABRIC.md) and [CURRENT_STATE](CURRENT_STATE.md).
+This delivery was reconciled with the canonical workforce pipeline and its 26 source adapters, SourceRegistry, MCP tools, strict registered company identifiers and IANA RDAP bootstrap. See [canonical Source Fabric](sources/SOURCE_FABRIC.md) and [CURRENT_STATE](CURRENT_STATE.md).
 
 The employee console adds a local, single-user objective/seed workflow with checkpoints, cancellation, cited graph/report, optional Ollama draft and evidence ZIP. Its `--source-fabric` adapter path uses shared IntelligenceHub connectors and separate employee run telemetry; it is not a replacement for canonical workforce authorization, semantic replay, health records or hosted approvals. Its replay checks integrity and references, whereas canonical workforce replay reanalyses captured source records. Do not combine the two health databases' verification counts.
 
-Combined IntelligenceHub inventory: **47 records, 33 API implementations, 14 export-only records**. EPSS and OSV are the two additional implementations beyond current main. GLEIF and RIPEstat reuse main's implementations. Company inputs require exact qualified identifiers, e.g. `company:lei:5493001KJTIIGC8Y1R12`; free-name company search is not enabled. RDAP now uses the reviewed IANA bootstrap; the earlier rdap.org redirect incompatibility is resolved by main without enabling arbitrary redirects.
+Combined IntelligenceHub inventory: **49 records, 35 API implementations, 14 export-only records**. CISA KEV and the CVE Program use the shared integration runner. GLEIF and RIPEstat reuse main's implementations. Company inputs require exact qualified identifiers, e.g. `company:lei:5493001KJTIIGC8Y1R12`; free-name company search is not enabled. RDAP now uses the reviewed IANA bootstrap; the earlier rdap.org redirect incompatibility is resolved by main without enabling arbitrary redirects.
 
 Two historical candidate inventories are preserved. Canonical workforce deduplication produces 351 research rows from 400 supplied slots. The employee catalogue's conservative explicit-alias map produces 361 canonical slots (39 aliases, 31 tool/family slots). These are different grouping policies over candidates, never independent source counts. Neither list demonstrates 400 implemented or legally qualified providers. Prefer the canonical catalogue for programme planning.
 
