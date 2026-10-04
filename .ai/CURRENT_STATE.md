@@ -50,7 +50,7 @@ Overall enterprise score: **not calculated**. There is no accepted numeric
 rubric or adequate representative/live evidence for a defensible weighted score.
 All release gates remain open; see `docs/program/RELEASE_READINESS.md`.
 
-## Evidence integrity diagnostic (2026-10-04)
+## Earlier evidence integrity diagnostic (2026-10-04; superseded by 14-case run)
 
 Added a deterministic nine-case synthetic evaluation of the local custody ledger,
 export bundle verifier and AI citation-ID contract. Eight expected outcomes
@@ -61,6 +61,19 @@ because the local ledger has no independent trust anchor. The report is
 This harness scores 8/9 (0.8889), reports 5/6 (0.8333) rejection across invalid
 cases, and is **FAIL**. EVIDENCE-001 remains open; external anchoring, immutable
 storage, semantic citation correctness and deployed replay remain unverified.
+
+## Opt-in ledger anchoring update
+
+`LedgerAnchor` plus `HmacFileLedgerAnchor` now provide an opt-in external
+checkpoint path through `EvidenceStore`; anchored exports carry signed receipts
+and require the configured verifier. The expanded 14-case synthetic evaluation
+matches 13/14 expected outcomes (0.9286), rejecting 8/9 invalid cases (0.8889).
+The HMAC path rejects the tested coordinated local rewrite while the key and
+receipt remain separately protected. The unanchored compatibility path still
+accepts it. File-backed HMAC cannot prove monotonic freshness or stop an old
+receipt rollback. No production key service, remote append-only anchor or
+immutable storage has been tested; EVIDENCE-001 remains open. Citation
+membership is not semantic support. See `docs/EVIDENCE_ANCHORING.md`.
 
 ## Remote synchronization
 
@@ -73,3 +86,4 @@ The local checkout still has `HEAD` at
 `52def959113c721ad2ffc5753e8db9c6c36db2ff` and is missing the remote merge
 ancestry. The incomplete OpenCTI submodule working
 tree remains excluded from program changes.
+

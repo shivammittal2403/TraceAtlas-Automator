@@ -5,7 +5,7 @@ marked historical. Environment failures are not reported as code passes.
 
 | Evaluation | Result | Scope and limitation |
 |---|---|---|
-| Python `unittest discover -s tests -q` | 319 run; 313 passed; 3 skipped; 3 failed (2 errors, 1 failure) | All failures are the OpenCTI submodule prerequisite: pinned source files unavailable and vendor count 72 vs expected 308. The 2 focused evidence-evaluation tests pass. |
+| Python `unittest discover -s tests -q` | 326 run; 320 passed; 3 skipped; 3 failed (2 errors, 1 failure) | All failures are the OpenCTI submodule prerequisite: pinned source files unavailable and vendor count 72 vs expected 308. The 16 focused evidence/anchor/bundle tests pass. |
 | Node graph/target suite | 25/25 passed | Set `PYTHON` to the bundled Python executable so Node could spawn Python; tests are local synthetic cases. |
 | PGlite database/RLS | 1/1 passed | Installed exact project dev dependencies with `pnpm install --frozen-lockfile`; local disposable PGlite/Auth-shim gate only. |
 | Python source compilation | Passed | `compileall -q src`. |
@@ -16,23 +16,22 @@ marked historical. Environment failures are not reported as code passes.
 
 ## Evidence integrity and citation guard diagnostic
 
-The deterministic synthetic harness at
+The current deterministic synthetic harness at
 [`evidence-integrity-synthetic-2026-10-04.json`](../verification/evidence-integrity-synthetic-2026-10-04.json)
-executes nine controlled local cases against `EvidenceStore` and the AI advisory
-citation validator. Eight matched the expected outcome. Five of five routine
-mutation cases were rejected (ledger-record edit, captured-byte edit, bundle
-payload edit, unlisted bundle member, and unknown citation ID). Both clean local
-fixtures and the known citation ID were accepted.
+executes 14 cases against `EvidenceStore`, the optional external HMAC checkpoint
+and the AI advisory citation-ID validator. It matched 13/14 expected outcomes
+(0.9286), with 8/9 invalid cases rejected (0.8889). Ordinary local ledger,
+captured-byte and bundle mutations, unknown citation IDs, altered bundle
+receipts and missing required receipts reject. Anchored ledger and bundle
+fixtures verify. The one expected failure remains the legacy unanchored path:
+rewriting captured bytes, SQLite digest and the local hash-chain consistently is
+accepted. EVIDENCE-001 therefore stays OPEN.
 
-One adversarial case failed: rewriting captured bytes, the SQLite digest and
-the unanchored local hash-chain consistently is accepted by the local verifier.
-The observed rejection rate across five routine invalid cases (four byte or
-bundle mutations and one unknown citation) plus this re-anchor case is 5/6
-(0.8333); the overall exact-outcome score is 8/9 (0.8889), status
-FAIL. The result supports keeping EVIDENCE-001 open and prioritizing an external
-trust anchor or immutable storage design. It does not establish semantic
-citation correctness, publisher authorship, deployed replay behavior or
-protection against an actor controlling the full local evidence store.
+The opt-in `HmacFileLedgerAnchor` rejected the same rewrite when the key and
+receipt remain outside the workspace/attacker trust boundary. It is not a
+rollback-safe append-only provider; receipt rollback, concurrent writers, key
+manager integration, immutable storage, deployed replay and semantic citation
+correctness remain unverified. See [Evidence ledger anchoring](../EVIDENCE_ANCHORING.md).
 
 ## Entity-resolution baseline
 
@@ -60,3 +59,4 @@ rates are still unknown.
 
 No market-parity, 8/10 weighted maturity or production-readiness score is
 currently supportable.
+

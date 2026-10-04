@@ -8,16 +8,17 @@
 - Limitation: synthetic data is not representative; the false-merge denominator is zero. Do not use the score as a probability or operational quality estimate.
 - Next: ER-EVAL-002 requires an approved privacy-reviewed adjudication set and pre-registered thresholds; it cannot be completed with fabricated or public-person data.
 
-## Current slice: EVIDENCE-004 diagnostic
+## Current slice: EVIDENCE-004 anchoring path
 
-- Added `src/traceatlas/evidence_evaluation.py`, CLI `scripts/evaluate_evidence_integrity.py`, focused tests and a versioned JSON report.
-- Nine synthetic cases cover clean ledger/bundle verification, routine ledger/raw-byte/bundle/citation mutations, and full local rewrite of evidence bytes + SQLite digest + hash chain.
-- Observed 8/9 exact outcomes; five routine invalid cases were rejected, while a fully re-anchored local rewrite was accepted. The benchmark is **FAIL**, and EVIDENCE-001 stays OPEN.
-- Citation checks prove allowed-ID membership only. The harness does not claim semantic support, authorship, immutable storage, external anchoring or hosted replay.
-- Next: design an operator-controlled external anchor/immutable-store contract and test the local verifier against signed or remotely anchored manifests; require approved representative citation labels before claiming citation accuracy.
+- Added `src/traceatlas/evidence_anchor.py` with a `LedgerAnchor` contract and an opt-in `HmacFileLedgerAnchor`; `EvidenceStore` can require an external checkpoint, anchor ledger heads, embed receipts in bundles, and verify anchored exports.
+- Added `docs/EVIDENCE_ANCHORING.md`, focused tests and expanded the synthetic evaluator from 9 to 14 cases.
+- 13/14 expected outcomes match; 8/9 invalid cases reject. The opt-in HMAC adapter blocks the tested full local rewrite while key and receipt stay outside the attacker boundary. The legacy unanchored path still accepts that rewrite, so EVIDENCE-001 stays OPEN and the benchmark status is **FAIL**.
+- This file adapter cannot prevent rollback of an old receipt, concurrent writers or operator-key service failures. No key manager, append-only remote service, immutable storage or hosted replay was tested.
+- Citation evaluation verifies ID membership only, not semantic support. Next: implement and validate a monotonic remote anchor provider and wire authorized application paths to required anchoring; obtain reviewed citation labels before claiming citation accuracy.
 
 ## Session rules
 
 Read `.ai/CURRENT_STATE.md`, `.ai/TASKS.md`, `.ai/KNOWN_ISSUES.md`, and the
 active `docs/program/` ledger before extending this slice. Update current state,
 tasks, gap register, evaluation results and implementation ledger after changes.
+

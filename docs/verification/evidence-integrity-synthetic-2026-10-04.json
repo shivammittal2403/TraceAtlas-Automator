@@ -1,21 +1,22 @@
 {
-  "adversarial_rejection_rate": 0.8333,
+  "adversarial_rejection_rate": 0.8889,
   "benchmark": "evidence-integrity-and-citation-guards",
-  "cases": 9,
+  "cases": 14,
   "confusion": {
     "accepted_expected_invalid": 1,
-    "accepted_expected_valid": 3,
-    "rejected_expected_invalid": 5,
+    "accepted_expected_valid": 5,
+    "rejected_expected_invalid": 8,
     "rejected_expected_valid": 0
   },
-  "corpus_sha256": "832235cc8fb3df3575d732d71e50e64b3dd05b48c08a4b23582226f949009e9b",
+  "corpus_sha256": "859f7b7ade56eae29450e5760132a6ed725d681b5f677aec0253023b7360700d",
   "limitations": [
     "All records and mutations are deterministic synthetic fixtures; no operational cases or sources were used.",
     "Citation checks verify identifier membership and output shape, not whether cited bytes semantically support a claim.",
-    "Hash checks detect tested mutations but do not prove publisher authorship or resist an attacker who can rewrite and re-anchor all local records.",
-    "The report does not verify immutable object storage, external ledger anchoring, or deployed replay behavior."
+    "The legacy unanchored path accepts a full local rewrite; the opt-in HMAC receipt rejects it only while the key and receipt remain outside the attacker's control.",
+    "The file-backed HMAC adapter does not prevent rollback of an older signed receipt and is not an append-only remote anchor or immutable object store.",
+    "The report does not verify a deployed key manager, immutable storage, remote monotonic anchoring, publisher authorship, or hosted replay."
   ],
-  "passed": 8,
+  "passed": 13,
   "results": [
     {
       "accepted": true,
@@ -89,10 +90,51 @@
       "id": "citation-unknown-id",
       "kind": "citation",
       "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A clean ledger matches its external HMAC checkpoint.",
+      "expected_accept": true,
+      "id": "anchored-ledger-valid",
+      "kind": "anchored-ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "The same local rewrite cannot replace an independent HMAC checkpoint.",
+      "expected_accept": false,
+      "id": "anchored-local-rewrite",
+      "kind": "anchored-ledger",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "An anchored bundle verifies with the external key provider.",
+      "expected_accept": true,
+      "id": "anchored-bundle-valid",
+      "kind": "anchored-bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle receipt signature was altered.",
+      "expected_accept": false,
+      "id": "anchor-receipt-mutated",
+      "kind": "anchored-bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A legacy bundle fails when the verifier requires an anchor.",
+      "expected_accept": false,
+      "id": "required-anchor-missing",
+      "kind": "required-bundle",
+      "pass": true
     }
   ],
-  "score": 0.8889,
+  "score": 0.9286,
   "status": "fail",
   "threshold": 1.0,
   "version": "1.0"
 }
+

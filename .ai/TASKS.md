@@ -6,7 +6,7 @@
 - [x] ER-SIGNALS-001: expose exact-agreement and differing-field signals in candidate output without converting differences into identity proof or changing ranking thresholds.
 - [ ] ER-EVAL-002: define a governed, privacy-reviewed route for representative adjudicated evaluation records; until approved data exists, operational precision/recall remain unknown.
 - [ ] AUTH-LIVE-003: validate hosted tenant, case, worker and evidence authorization against a disposable staging project; live acceptance remains blocked on operator infrastructure.
-- [ ] EVIDENCE-004: synthetic diagnostic added (9 cases; 8/9 expected outcomes; re-anchored local rewrite bypass reproduced). Still requires an external anchor/immutable store design and representative citation correctness evaluation before closure.
+- [ ] EVIDENCE-004: opt-in environment-wired HMAC checkpoint path and bundle receipts added. 14 synthetic cases match 13/14; HMAC mode blocks tested local rewrite, legacy default still accepts it. Requires rollback-safe monotonic provider, required-by-deployment policy and representative citation correctness evaluation.
 - [ ] LINEAGE-005: measure independent-source grouping and contradiction recall on a curated labeled corpus.
 
 ## P1 — enterprise workflow
@@ -22,3 +22,4 @@
 - [ ] CTI-001: independently qualify KEV and other CTI source families; embedded fields from one source do not count as independent.
 - [ ] MEDIA-001: define bounded metadata/OCR/transcription workflows and a safe parser/evaluation policy.
 - [ ] DARKINT-001: remain backlog until isolated, authorized, passive architecture and legal/operator gates exist.
+

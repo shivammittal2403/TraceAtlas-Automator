@@ -16,3 +16,12 @@
 - Five routine invalid cases were rejected. The synthetic re-anchoring mutation rewrote preserved bytes, the SQLite digest and the local ledger consistently and was accepted. Exact-outcome score: 8/9 (0.8889); invalid-case rejection: 5/6 (0.8333); benchmark status: FAIL.
 - Kept EVIDENCE-001 open. The harness establishes a concrete need for an independent trust anchor or immutable store; it does not establish semantic citation correctness, external authorship or deployed replay.
 - Focused evaluator tests passed 2/2. Full suite: 319 run, 313 passed, 3 skipped, 3 failed (same OpenCTI prerequisite: source files unavailable and vendor count 72/308). `compileall`, secret scan (clean) and `git diff --check` passed.
+
+## 2026-10-04 — Opt-in evidence ledger anchoring
+
+- Added `LedgerAnchor` and `HmacFileLedgerAnchor`; anchored `EvidenceStore` captures fail closed on invalid/missing checkpoints, and anchored exports carry signed receipts that require the verifier/key provider.
+- Added external-path enforcement, HMAC-SHA256 signing from an injected 32-byte-or-stronger key provider, same-sequence conflict/rollback checks, and explicit requirements for `require_anchor=True`.
+- Expanded the synthetic benchmark to 14 cases: 13/14 expected outcomes; 8/9 invalid cases rejected. The HMAC mode rejected the tested full local rewrite; unanchored legacy mode still accepts it and drives benchmark status FAIL.
+- Focused evidence/anchor/bundle tests passed 16/16. Full suite: 326 run, 320 passed, 3 skipped, 3 failed (same OpenCTI submodule prerequisite; missing source files and vendor count 72/308). `compileall`, secret scan and `git diff --check` pass.
+- No production key manager, immutable store or remote monotonic anchor was connected. HMAC-file receipts do not prevent old-receipt rollback; EVIDENCE-001 remains open.
+

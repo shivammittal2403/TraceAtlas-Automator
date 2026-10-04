@@ -8,7 +8,7 @@ replace, the repository's existing local and hosted acceptance gates.
 | Source qualification | Every production claim has reviewed terms/entitlement, live canary, parser, evidence/replay, cost/limits, drift/health, owner and runbook. | 25 coded; zero production-qualified. | OPEN |
 | Semantic planning | Target/purpose/jurisdiction/language/time/authorization constraints map to questions, evidence and bounded source waves with measured utility. | Deterministic target-bound plan; no free-form or multilingual evaluation. | PARTIAL |
 | Entity resolution | Human-review only; representative benchmark meets pre-registered precision/recall and false-merge thresholds. | Synthetic diagnostic: 24 pairs, precision .80, recall 1.00; no auto-merge. No representative evaluation set; false-merge rate undefined. | OPEN |
-| Evidence and replay | Immutable bytes, custody, acquisition provenance, tamper detection, offline replay and material citation accuracy pass adversarial evaluation. | Strong local fixture contracts; external anchor and representative citation proof absent. | PARTIAL |
+| Evidence and replay | Immutable bytes, custody, acquisition provenance, tamper detection, offline replay and material citation accuracy pass adversarial evaluation. | 14 synthetic cases: 13/14 exact outcomes; opt-in HMAC checkpoint rejects the tested local rewrite, but legacy unanchored mode accepts it. No rollback-safe external provider or semantic citation labels. | PARTIAL / OPEN |
 | Independence/contradiction | Labeled syndication, shared-upstream, temporal and direct-conflict cases meet pre-registered precision/recall. | Controlled cases only. | PARTIAL |
 | SOCMINT | At least two lawful/authorized public source families use canonical evidence/replay and conservative account matching; no bypass. | Not demonstrated. | OPEN |
 | Temporal graph | Evidence-linked, time-aware edges and graph operations meet labeled correctness tests and investigator workflow acceptance. | Local graph and temporal primitives; end-to-end quality unknown. | PARTIAL |
@@ -19,3 +19,4 @@ replace, the repository's existing local and hosted acceptance gates.
 | Evaluation/release score | 100+ realistic investigations; hard metrics; all critical categories >=7, weighted verified score >=8, CI/CodeQL/release evidence current. | 12 controlled cases; no accepted numeric scoring rubric. | OPEN |
 
 The session baseline is recorded in [Evaluation Results](EVALUATION_RESULTS.md).
+

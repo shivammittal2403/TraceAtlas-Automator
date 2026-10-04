@@ -145,7 +145,7 @@ accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
 and remaining gates.
 
 
-## Evidence integrity diagnostic — 2026-10-04
+## Earlier evidence integrity diagnostic — 2026-10-04 (superseded by 14-case run)
 
 The new synthetic nine-case evidence/citation evaluation matches 8/9 expected
 outcomes. Five routine invalid cases are rejected. It reproduces an integrity
@@ -156,3 +156,20 @@ semantic support. See `docs/program/EVALUATION_RESULTS.md` and
 `docs/verification/evidence-integrity-synthetic-2026-10-04.json`. External
 anchoring, immutable storage, semantic citation correctness and deployed replay
 remain unverified; EVIDENCE-001 stays open.
+
+## Opt-in ledger anchoring update
+
+`EvidenceStore` now accepts an operator-provided `LedgerAnchor`; the included
+`HmacFileLedgerAnchor` stores signed checkpoints outside the case workspace and
+requires an injected key provider. Anchored capture and bundle-verification
+paths are opt-in and fail closed without a matching receipt. The expanded
+14-case synthetic benchmark matches 13/14 outcomes (0.9286) and rejects 8/9
+invalid scenarios (0.8889). It confirms the HMAC path rejects the tested
+coordinated local rewrite while the key and receipt are outside the attack
+boundary. The unanchored compatibility path still accepts the rewrite.
+
+The file-backed adapter does not provide rollback-safe freshness, append-only
+remote storage, production key management or deployment evidence. Citation-ID
+membership still does not establish semantic claim support. EVIDENCE-001 stays
+open. See `docs/EVIDENCE_ANCHORING.md`.
+
