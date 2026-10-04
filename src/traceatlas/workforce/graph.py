@@ -76,6 +76,11 @@ class GraphEdge:
             raise ValueError("valid_to cannot precede valid_from")
         if self.decision_state not in {"PROPOSED", "ACCEPTED", "REJECTED", "RETRACTED", "SUPERSEDED"}:
             raise ValueError("invalid graph decision state")
+        relation = self.edge_type.strip().casefold().replace("-", "_").replace(" ", "_")
+        if relation in {"caused", "same_as", "identity_merge"} and self.decision_state == "ACCEPTED":
+            raise ValueError(
+                "identity and causation decisions must be recorded through the authorized human resolution workflow"
+            )
 
 
 class TemporalClaimGraph:
@@ -96,15 +101,20 @@ class TemporalClaimGraph:
             raise ValueError("graph edge case mismatch or duplicate")
         if edge.source_node_id not in self.nodes or edge.target_node_id not in self.nodes:
             raise ValueError("graph edge references an unknown node")
-        if edge.edge_type.casefold() in {"caused", "same_as", "identity_merge"} and edge.decision_state != "ACCEPTED":
-            raise ValueError("causation and identity edges require explicit human acceptance")
+        relation = edge.edge_type.strip().casefold().replace("-", "_").replace(" ", "_")
+        if relation in {"caused", "same_as", "identity_merge"}:
+            raise ValueError(
+                "identity and causation edges are not accepted in the claim graph; record analyst decisions in ResolutionService"
+            )
         self.edges[edge.edge_id] = edge
 
     @staticmethod
     def identity_candidate(state: str, reasons: tuple[str, ...], *, human_accepted: bool = False) -> dict:
         if state not in IDENTITY_STATES or not reasons:
             raise ValueError("identity candidates require a supported state and reasons")
-        return {"state": state, "reasons": list(reasons), "canonical_merge": state == "MATCH" and human_accepted,
+        if human_accepted:
+            raise ValueError("human identity decisions must be recorded through ResolutionService")
+        return {"state": state, "reasons": list(reasons), "canonical_merge": False,
                 "human_review_required": True}
 
     def snapshot(self) -> dict:
