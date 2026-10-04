@@ -21,7 +21,7 @@ non-runbook qualification gates and verified intended runtime. PRODUCTION_QUALIF
 requires all gates. Counts treat only LIVE_VERIFIED and PRODUCTION_QUALIFIED as
 live integrations.
 
-The evaluator checks that references are present but does not resolve artifacts or independently verify attestations. Registry status receipts are not yet stored in a durable qualification ledger. The transition validator and counts are implemented in this iteration; persisted, independently verified lifecycle governance is the next gap. Current live and production-qualified counts remain 0.
+The evaluator checks that references are present but does not resolve artifacts or independently verify attestations. Registry status receipts are not yet stored in a durable qualification ledger. The transition validator and counts are implemented in this iteration; they validate proposed statuses but do not persist/promote a source. Persisted, independently verified lifecycle governance is the next gap. Current live and production-qualified counts remain 0.
 
 ## Connector quality gaps
 

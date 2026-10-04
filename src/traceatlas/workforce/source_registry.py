@@ -187,7 +187,8 @@ class SourceRegistry:
         if not isinstance(gates, dict) or set(gates) - QUALIFICATION_GATES:
             raise ValueError("unknown qualification gates")
         if not all(isinstance(v, dict) and set(v) == {"passed", "evidence_ref"} and type(v["passed"]) is bool
-                   and isinstance(v["evidence_ref"], str) and v["evidence_ref"].strip() for v in gates.values()):
+                   and isinstance(v["evidence_ref"], str) and 1 <= len(v["evidence_ref"].strip()) <= 512
+                   and not any(ord(ch) < 32 for ch in v["evidence_ref"]) for v in gates.values()):
             raise ValueError("qualification requires evidence references")
         passed = {name for name, item in gates.items() if item["passed"]}
         missing = sorted(QUALIFICATION_GATES - passed)
@@ -206,11 +207,11 @@ class SourceRegistry:
             state = "LIVE_VERIFIED"
         if QUALIFICATION_GATES.issubset(passed) and verified_runtime:
             state = "PRODUCTION_QUALIFIED"
-        return {"state": state, "missing_gates": missing, "runtime_verified": verified_runtime}
+        return {"state": state, "missing_gates": missing, "runtime_verified": verified_runtime, "persisted": False}
 
     @classmethod
     def transition(cls, current, target, gates, *, verified_runtime=False):
-        """Validate a proposed lifecycle transition; callers persist the returned record."""
+        """Validate a proposed lifecycle transition without persisting a source status."""
         if current not in STATES or target not in STATES:
             raise ValueError("unknown source lifecycle state")
         if target not in LIFECYCLE_TRANSITIONS[current]:
@@ -218,4 +219,4 @@ class SourceRegistry:
         qualification = cls.qualification(gates, verified_runtime=verified_runtime)
         if target in LIFECYCLE_ORDER and LIFECYCLE_ORDER.index(qualification["state"]) < LIFECYCLE_ORDER.index(target):
             raise ValueError("source lifecycle transition lacks required qualification evidence")
-        return {"from": current, "state": target, "qualification": qualification}
+        return {"from": current, "state": target, "qualification": qualification, "persisted": False}

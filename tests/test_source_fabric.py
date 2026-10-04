@@ -96,11 +96,13 @@ class SourceFabricTests(unittest.TestCase):
         unverified = SourceRegistry.qualification(all_gates, verified_runtime=False)
         self.assertEqual(unverified["state"], "LIVE_TESTED")
         self.assertEqual(unverified["missing_gates"], [])
+        self.assertFalse(unverified["persisted"])
 
         without_runbook = {key: value for key, value in all_gates.items() if key != "runbook"}
         verified = SourceRegistry.qualification(without_runbook, verified_runtime=True)
         self.assertEqual(verified["state"], "LIVE_VERIFIED")
         self.assertEqual(verified["missing_gates"], ["runbook"])
+        self.assertFalse(verified["persisted"])
         self.assertEqual(SourceRegistry.qualification(all_gates, verified_runtime=True)["state"],
                          "PRODUCTION_QUALIFIED")
 

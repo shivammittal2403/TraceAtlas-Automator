@@ -150,8 +150,10 @@ integration. Lifecycle states are:
 → LIVE_TESTED → LIVE_VERIFIED → PRODUCTION_QUALIFIED`, with `DEGRADED`,
 `DISABLED` and `DEPRECATED` operational states.
 
-The registry's qualification evaluator requires evidence references for each
-attestation. `LIVE_TESTED` requires the prerequisite terms/configuration stages and
+The registry's qualification evaluator requires short printable evidence
+references for each attestation. These are checked for presence, not fetched or
+independently validated; returned lifecycle states are proposals and are not
+persisted or promoted by this evaluator. `LIVE_TESTED` requires the prerequisite terms/configuration stages and
 a successful live-request receipt. `LIVE_VERIFIED` additionally requires the
 non-runbook verification gates and intended-runtime verification. Production
 qualification requires every current gate, including the runbook. A source is

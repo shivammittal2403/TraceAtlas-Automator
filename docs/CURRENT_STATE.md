@@ -108,6 +108,7 @@ security, health and other gates were missing. The source registry now defines
 the ordered lifecycle and requires all 19 non-runbook gates plus intended-runtime
 verification for LIVE_VERIFIED; PRODUCTION_QUALIFIED requires all 20 gates.
 Catalog output separates `connector_implemented` from lifecycle stage and counts
-only LIVE_VERIFIED/PRODUCTION_QUALIFIED sources as live integrations. The current
+only LIVE_VERIFIED/PRODUCTION_QUALIFIED sources as live integrations. Evaluated
+lifecycle transitions are proposals only; they are not persisted or promoted. The current
 catalog has no evidence-backed lifecycle promotion; production-qualified count
 remains zero. CI for this lifecycle change is pending.
