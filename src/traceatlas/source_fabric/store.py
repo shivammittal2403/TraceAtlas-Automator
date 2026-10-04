@@ -134,7 +134,6 @@ class FabricStore:
         for r in reviews:
             if not EvidenceStore(workspace, self.db, r["case_id"]).verify_ledger()[0]:
                 raise PolicyError("Qualification review artifact integrity failed")
-            if not any(item['sha256'] == r['evidence_hash'] for item in self.db.evidence(r['case_id'])):
             if not any(item["sha256"] == r["evidence_hash"] for item in self.db.evidence(r["case_id"])):
                 raise PolicyError("Qualification review reference does not resolve within its case")
         self.db.conn.execute("INSERT INTO fabric_promotions VALUES(?,?,?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state,actor=excluded.actor,at=excluded.at",

@@ -1,0 +1,31 @@
+{
+  "schema": "traceatlas-development-verification/v1",
+  "date": "2026-10-04",
+  "baseline_sha": "9d025c27a6d9d92294384df85dcbc3f479dae2ec",
+  "branch": "codex/durable-workforce-runtime",
+  "environment": "isolated local SQLite and synthetic providers",
+  "package_version": "1.11.0",
+  "runtime_schema": "v1-additive",
+  "reviewer": "coding-agent; independent review not performed",
+  "harness_sha256": "1f7890c0823112502bb1d4a09d441f54765893f7805caf1d766db05d793404d8",
+  "runtime_sha256": "e8063990a9a35f95a787075dc85465d2aeb0e9a597914260b23d62c3d4e17243",
+  "checks": [
+    {"command": "PYTHONPATH=src python -m unittest discover -s tests -q", "run": 371, "passed": 370, "skipped": 1, "failed": 0},
+    {"command": "PYTHONPATH=src python -m unittest discover -s tests -p test_workforce_runtime.py -q", "run": 18, "passed": 18, "failed": 0},
+    {"command": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs", "passed": 25, "failed": 0},
+    {"command": "node --test tests/test_database.mjs", "passed": 1, "failed": 0, "scope": "PGlite; not hosted JWT/Storage/Realtime"},
+    {"command": "PYTHONPATH=src python -m traceatlas workforce golden --source-fabric", "passed": 78, "total": 78},
+    {"command": "PYTHONPATH=src python -m traceatlas workforce golden", "passed": true},
+    {"command": "python -m compileall -q src tests api vercel_control.py scripts", "passed": true},
+    {"command": "python scripts/check_secrets.py", "passed": true, "scope": "bounded repository scanner"},
+    {"command": "bash -n setup.sh start.sh set.sh", "passed": true},
+    {"command": "node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js && node --check public/employee.js", "passed": true},
+    {"command": "node tests/test_employee_ui.cjs", "passed": false, "state": "BLOCKED_ENVIRONMENT", "reason": "Playwright Chromium executable absent; browser assertions not run"},
+    {"command": "python -m pip wheel . --no-deps --no-build-isolation", "passed": true, "sha256": "4e6f92f154adab4e7f40b00bf984c2d85e8332bbc06246eaa0067d1612930aae"}
+  ],
+  "live_source_tests": 0,
+  "hosted_verification": "NOT_RUN",
+  "enterprise_qualification": "NOT_ACHIEVED",
+  "competitive_superiority": "NOT_ACHIEVED",
+  "scope": "Local runtime development and merge-regression repair; no deployment, external collection or hosted database writes"
+}

@@ -35,6 +35,30 @@ class WorkforceService:
         self.store = WorkforceStore(db)
         self.registry = registry or EmployeeRegistry()
         self.enabled = workforce_enabled() if enabled is None else enabled
+        self._attempts = {}
+
+    def execution_token(self, task_id):
+        token = self._attempts.get(task_id)
+        if not token:
+            raise ValueError('no active execution attempt')
+        return token
+
+    def cancel(self, task_id, *, actor_id, authorized=False):
+        current = self.store.task(task_id)
+        context = self.store.authorization(current['envelope'].authorization_context_id)
+        if not authorized or actor_id != context.actor_id:
+            raise ValueError('cancellation requires the authorization owner')
+        self.store.runtime.stop(task_id, cancel=True)
+        return self.describe(task_id)
+
+    def recover(self, task_id, *, actor_id, authorized=False):
+        current = self.store.task(task_id)
+        context = self.store.authorization(current['envelope'].authorization_context_id)
+        if not authorized or actor_id != context.actor_id or not self._enabled():
+            raise ValueError('recovery requires enabled execution and the authorization owner')
+        self._check_authority(context, current['envelope'])
+        self.store.runtime.recover(task_id)
+        return self.describe(task_id)
 
     def register_authorization(self, context: AuthorizationContext) -> None:
         self.store.register_authorization(context)
@@ -130,7 +154,8 @@ class WorkforceService:
         employee = self.registry.get(current["employee_id"])
         if _digest(employee.to_dict()) != current["definition_digest"]:
             raise ValueError("employee definition changed after task creation")
-        self.store.claim(task_id)
+        token = self.store.claim(task_id)
+        self._attempts[task_id] = token
         started = time.monotonic()
         try:
             result = runner(task, employee)
@@ -150,10 +175,13 @@ class WorkforceService:
             self._check_authority(context, task)
             if not self._enabled():
                 raise ValueError("workforce kill switch stopped completion")
-            self.store.finish(task_id, result, product=product_factory() if product_factory else None)
+            self.store.finish(task_id, result, token=token, product=product_factory() if product_factory else None)
         except BaseException:
-            self.store.fail(task_id)
+            self.store.fail(task_id, token=token)
             raise
+        finally:
+            if self._attempts.get(task_id) == token:
+                self._attempts.pop(task_id, None)
         return self.describe(task_id)
 
     def deterministic_no_model_result(self, task_id: str) -> ResultEnvelope:
@@ -176,4 +204,5 @@ class WorkforceService:
             "task": row["envelope"].to_dict(), "employee_id": row["employee_id"], "status": row["status"],
             "envelope_digest": row["envelope_digest"],
             "result": row["result"].to_dict() if row["result"] else None,
+            "execution": self.store.runtime.snapshot(task_id),
         }

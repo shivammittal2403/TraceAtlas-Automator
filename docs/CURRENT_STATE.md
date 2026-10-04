@@ -1,5 +1,15 @@
 # Current implementation state — 2026-10-04 / 1.11.0
 
+## Durable local workforce runtime
+
+Attempt fencing, owner cancellation/recovery, persistent request budgets,
+capture checkpoints and atomic result/product/derived-record/outbox completion
+are implemented in the canonical local workforce. Local verification: 371 Python
+tests run, 370 passed, 1 optional skip; 18 runtime negative tests pass. Hosted
+execution, distributed quotas and new live-source qualification remain unverified.
+See [execution contract](WORKFORCE_EXECUTION.md) and
+[test receipt](verification/workforce-runtime-2026-10-04.json).
+
 Source-inventory metrics below were audited against PR #43 baseline
 `d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04
 enterprise audit and bounded graph acceptance fix, merged in PR #44 at

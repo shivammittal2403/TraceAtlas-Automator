@@ -1,5 +1,15 @@
 # Active work
 
+## Durable execution delivery — 2026-10-04
+
+Branch `codex/durable-workforce-runtime`, baseline `9d025c27a6d9d92294384df85dcbc3f479dae2ec`.
+Canonical leases/fences, cancel/recover, durable request accounting, immutable
+capture reuse and atomic finalization/outbox are implemented and locally tested.
+371 tests run: 370 pass, 1 skip. Browser blocked locally by missing Chromium;
+GitHub CI is a separate gate. See `docs/WORKFORCE_EXECUTION.md` and its receipt.
+Next: review/CI, model reservations, approved outbox consumer and hosted staging
+qualification. Preserve all earlier source/evidence/lineage work below.
+
 ## Completed this session: ER-BENCH-001 and ER-SIGNALS-001
 
 - Status: synthetic diagnostic complete; representative identity quality remains OPEN P0.
