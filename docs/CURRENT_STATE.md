@@ -12,7 +12,9 @@ SQLite/EvidenceStore and five employee roles remain the authorities.
 Twenty-four shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
 indexes, IP ownership/ASN/exposure/context, search, company registers, LEI, SEC
 filing metadata, public GitHub organizations, exact CVE/advisory records, exploitation
-probability and npm package metadata. Company collection requires exact
+probability and npm package metadata. NVD records also preserve CISA KEV listing and
+remediation metadata when supplied; those embedded CISA fields are not counted as a
+separate CISA connector or independent source. Company collection requires exact
 registered identifiers, never a same-name match. Person investigations still use
 approved records. Model-free normalization and report generation remain supported.
 
