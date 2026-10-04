@@ -341,6 +341,11 @@ class IntelligenceHub:
             if target_type == "hash" and len(target) in {32, 40, 64} and all(c in "0123456789abcdefABCDEF" for c in target):
                 return f"https://www.virustotal.com/api/v3/files/{target.lower()}", headers
             raise PolicyError("VirusTotal target must be a URL, domain, IP or MD5/SHA-1/SHA-256 hash")
+        if spec.name == "cisa_kev":
+            cve_id = target.strip().upper()
+            if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", cve_id):
+                raise PolicyError("CISA KEV lookup requires one exact CVE identifier")
+            return "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json", headers
         if spec.name == "nvd":
             cve_id = target.strip().upper()
             if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", cve_id):
@@ -407,6 +412,15 @@ class IntelligenceHub:
             matches = (data.get("totalResults", 0) >= 1 and len(rows) == 1
                        and isinstance(rows[0], dict) and isinstance(rows[0].get("cve"), dict)
                        and rows[0]["cve"].get("id") == expected)
+        elif source == "cisa_kev":
+            expected = target.strip().upper()
+            rows = data.get("vulnerabilities", [])
+            matches = [row for row in rows if isinstance(row, dict) and row.get("cveID") == expected]
+            if len(matches) == 1:
+                return matches
+            if not matches:
+                raise ProviderError("provider_record_not_found")
+            raise ProviderError("provider_target_mismatch")
         elif source == "cveorg":
             metadata = data.get("cveMetadata", {})
             matches = isinstance(metadata, dict) and metadata.get("cveId") == target.strip().upper()
