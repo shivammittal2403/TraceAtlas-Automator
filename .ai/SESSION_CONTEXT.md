@@ -9,8 +9,9 @@
    Docker is unavailable; do not claim worker-image build verification.
 4. Review the final diff, exclude `third_party/opencti-connectors` (local
    submodule test material), and update program ledgers with actual outcomes.
-5. Create a GitHub branch/commit with parent exactly the currently verified
-   main SHA. Create a PR, attach it to the task, and wait for CI/CodeQL.
+5. PR #49 is open at head `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`, based on
+   verified main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`. CI is queued and
+   CodeQL is running. Check both results before closing TA-P0-001/TA-P0-005.
 6. Do not merge unless the user separately asks. After CI, continue the
    highest verified gap rather than claiming the transformation is complete.
 

@@ -20,6 +20,6 @@ artifact. Promotion continues to require FabricStore integrity checks and
 analyst authorization; verify all references individually as TA-003.
 
 No live sources, subjects, accounts, external actions or hosted services were
-used for this repair. Local secret scanning passed. Final diff review and
-GitHub CI/CodeQL remain pending; independent security review, source-reference
+used for this repair. Local secret scanning and final diff review passed. PR #49
+CI/CodeQL are pending; independent security review, source-reference
 resolution, deployment, and tenant isolation remain open acceptance gates.

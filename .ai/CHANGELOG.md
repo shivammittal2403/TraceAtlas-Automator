@@ -17,3 +17,6 @@
 - GitHub PR CI and CodeQL are still pending; Docker, hosted staging, and live
   source qualification were unavailable/not performed.
 - No source has been promoted and no live source was contacted by this run.
+- PR #49 is open at head `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`, based on
+  main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`. CI run `37184062835` is
+  queued; CodeQL run `37184062839` is in progress.

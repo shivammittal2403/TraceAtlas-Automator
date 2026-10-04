@@ -10,8 +10,8 @@ only with the evidence named in its acceptance criteria.
   evaluation; focused Source Fabric suite passes locally.
 - [x] TA-P0-003 Run compileall and full Python, Node, PGlite/browser, restore,
   golden replay, supply-chain and secret checks; document any environment gaps.
-- [ ] TA-P0-004 Review patch against authorization, evidence, fixed-host, graph,
-  credential and fail-closed requirements; update state docs; open PR.
+- [x] TA-P0-004 Review patch against authorization, evidence, fixed-host, graph,
+  credential and fail-closed requirements; update state docs; open PR #49.
 - [ ] TA-P0-005 Verify green GitHub CI and CodeQL on the proposed PR. Docker is
   unavailable locally, so the worker-image gate still requires hosted CI.
 

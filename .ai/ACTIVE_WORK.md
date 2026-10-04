@@ -14,12 +14,12 @@
 - Local CI-equivalent compile, full Python suite, secret scan, Node graph,
   database, browser, research integrity, benchmark, 78-case fixture golden,
   local restore drill and pinned OpenCTI snapshot verification pass. Docker is
-  unavailable. Remaining: final diff/security review, PR creation, then GitHub
-  CI/CodeQL.
+  unavailable. Final diff review is complete. PR #49 is open at
+  `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`; CI is queued and CodeQL is running.
 
 ## Next item
 
-After TA-P0-001 is green, take the next highest verified issue from
-`docs/program/MASTER_GAP_REGISTER.md`. Do not start a broad SOCMINT connector
-expansion until source terms, access permission, evidence flow and testable
-API contracts are established.
+After PR #49 CI and CodeQL complete, fix any evidence-backed failures. Then take
+the next highest verified issue from `docs/program/MASTER_GAP_REGISTER.md`. Do
+not start a broad SOCMINT connector expansion until source terms, access
+permission, evidence flow and testable API contracts are established.

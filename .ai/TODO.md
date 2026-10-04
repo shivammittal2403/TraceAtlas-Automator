@@ -1,6 +1,7 @@
 # Highest-priority TODO
 
-1. Finish verification and PR for TA-P0-001.
+1. Resolve PR #49 CI/CodeQL results; fix any verified regressions and update
+   implementation/release ledgers.
 2. Audit case/evidence replay for semantic recomputation and version handling.
 3. Verify current source maturity persistence, evidence-reference resolution,
    actor authorization and promotion revocation behavior.
