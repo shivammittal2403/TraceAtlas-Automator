@@ -160,4 +160,5 @@ review rows now resolve each evidence hash against artifacts in that same case,
 and promotion rechecks the ledger and every reference. Invalid legacy/direct
 database rows cannot sustain production-qualified state. Focused tests (28) and
 the full Python suite (315; 3 skipped) pass locally; hosted checks for this
-follow-up remain pending. No source was promoted.
+follow-up pass in PR #50: CI `37185114010` and CodeQL `37185114003`. No source
+was promoted.

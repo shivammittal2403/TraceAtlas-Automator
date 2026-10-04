@@ -29,8 +29,9 @@
   valid refs, and unresolved legacy rows at promotion.
 - Local result: 28 Source Fabric tests pass (one optional SDK skip); full Python
   suite 315 tests pass with three skips; secret scan clean.
-- Remaining: publish as a stacked PR on top of PR #49 and verify hosted CI and
-  CodeQL. Do not merge either PR without the user's request.
+- Published as PR #50, stacked on PR #49. Hosted CI `37185114010` and CodeQL
+  `37185114003` both passed, including worker-image and locked MCP checks.
+- Do not merge either PR without the user's request.
 
 After TA-003 is reviewed, move to semantic evidence replay. Do not start broad
 SOCMINT connector expansion until source terms, access permission, evidence

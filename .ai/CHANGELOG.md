@@ -30,4 +30,5 @@
   records; it also refuses to report a legacy promotion as production-qualified
   when a review reference is unresolved. Full suite: 315 tests, 312 passed,
   3 skipped; focused Source Fabric: 28 tests, 27 passed, 1 skipped; secret scan
-  clean. Hosted verification for this follow-up is pending.
+  clean. PR #50 head `d9c7965e98ba3e26e123fe33c266c97be7b591b8` passed CI
+  `37185114010` and CodeQL `37185114003`.
