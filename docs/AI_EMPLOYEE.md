@@ -50,7 +50,7 @@ The Employee also enforces these boundaries:
 | Domain | DNS, RDAP and Internet Archive metadata |
 | IP address | InternetDB, RDAP, IPWHOIS and GreyNoise Community; ipdata is available as an explicit keyed source |
 | File hash | VirusTotal when separately configured |
-| CVE | NIST NVD and FIRST EPSS through Source Fabric |
+| CVE | NIST NVD, CVE Program, FIRST EPSS and CISA KEV through the approved Source Fabric; the KEV feed is filtered to the exact CVE before case evidence is stored |
 | Vulnerability advisory | OSV exact-ID metadata through Source Fabric |
 | Username | GitHub, GitLab and Hacker News public endpoints |
 | DOI | Crossref |
