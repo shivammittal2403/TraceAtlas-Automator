@@ -20,7 +20,9 @@ PREDICATES = frozenset({"resolves_to", "registry_handle", "registered_name", "re
                         "announced_prefix", "filing_accession", "repository_count", "organization_profile",
                         "provider_malicious_detections", "vulnerability_id", "vulnerability_alias",
                         "vulnerability_score", "vulnerability_severity", "exploitation_probability",
-                        "exploitation_percentile", "affected_package", "package_version", "package_license"})
+                        "exploitation_percentile", "cisa_kev_listed", "cisa_kev_added_date",
+                        "cisa_kev_due_date", "cisa_kev_required_action", "cisa_kev_vulnerability_name",
+                        "affected_package", "package_version", "package_license"})
 MAX_DOCUMENT_BYTES = 512 * 1024
 MAX_DOCUMENTS = 8
 

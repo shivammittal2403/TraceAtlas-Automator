@@ -138,6 +138,33 @@ def _live_facts(source, seed, data, stamp):
         record = matches[0]
         at = _provider_time(record.get('lastModified'), stamp)
         add('vulnerability_id', target, at)
+        kev_added = record.get('cisaExploitAdd')
+        if kev_added is not None:
+            if not isinstance(kev_added, str):
+                raise ProviderError('provider_schema_mismatch')
+            try:
+                datetime.strptime(kev_added, '%Y-%m-%d')
+            except ValueError:
+                raise ProviderError('provider_schema_mismatch') from None
+            kev_at = _provider_time(kev_added, at)
+            add('cisa_kev_listed', 'true', kev_at)
+            add('cisa_kev_added_date', kev_added, kev_at)
+            due_date = record.get('cisaActionDue')
+            if due_date is not None:
+                if not isinstance(due_date, str):
+                    raise ProviderError('provider_schema_mismatch')
+                try:
+                    datetime.strptime(due_date, '%Y-%m-%d')
+                except ValueError:
+                    raise ProviderError('provider_schema_mismatch') from None
+                add('cisa_kev_due_date', due_date, at)
+            for field, predicate in (('cisaRequiredAction', 'cisa_kev_required_action'),
+                                     ('cisaVulnerabilityName', 'cisa_kev_vulnerability_name')):
+                value = record.get(field)
+                if value is not None:
+                    if not isinstance(value, str) or len(value) > 500:
+                        raise ProviderError('provider_schema_mismatch')
+                    add(predicate, value, at)
         metrics = record.get('metrics', {})
         if not isinstance(metrics, dict):
             raise ProviderError('provider_schema_mismatch')

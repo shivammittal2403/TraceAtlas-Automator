@@ -51,6 +51,8 @@ FIXTURES = {
         'format': 'NVD_CVE', 'version': '2.0', 'timestamp': '2025-01-02T00:00:00.000Z',
         'vulnerabilities': [{'cve': {'id': 'CVE-2024-12345', 'published': '2025-01-01T00:00:00.000Z',
             'lastModified': '2025-01-02T00:00:00.000Z', 'vulnStatus': 'Analyzed',
+            'cisaExploitAdd': '2025-01-02', 'cisaActionDue': '2025-01-31',
+            'cisaRequiredAction': 'Apply vendor mitigations', 'cisaVulnerabilityName': 'Fixture KEV record',
             'metrics': {'cvssMetricV31': [{'cvssData': {'baseScore': 9.8, 'baseSeverity': 'CRITICAL'}}]}}}]}),
     'epss': ('cve', 'CVE-2024-12345', {'status': 'OK', 'status-code': 200, 'version': '1.0',
         'access': 'public', 'total': 1, 'offset': 0, 'limit': 1,
@@ -135,7 +137,9 @@ class SourceFabricTests(unittest.TestCase):
             return 200, json.dumps(FIXTURES[source][2]).encode()
         product = InvestigationPipeline(self.service, self.root, requester=request).run(task, live=True, authorized=True)
         predicates = {row['statement'].split()[1] for row in product['analysis']['observations']}
-        self.assertTrue({'vulnerability_id', 'vulnerability_score', 'exploitation_probability'}.issubset(predicates))
+        self.assertTrue({'vulnerability_id', 'vulnerability_score', 'exploitation_probability',
+                         'cisa_kev_listed', 'cisa_kev_added_date', 'cisa_kev_due_date',
+                         'cisa_kev_required_action', 'cisa_kev_vulnerability_name'}.issubset(predicates))
         self.assertIn('review-authorized-asset-applicability', product['result']['recommended_next_actions'])
         self.assertNotIn('no-captured-web-search', product['analysis']['information_gaps'])
         self.assertEqual(product['analysis']['graph']['nodes'][0]['node_type'], 'Vulnerability')
