@@ -19,6 +19,38 @@ P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_
 P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
 P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
 QUALIFICATION_GATES = SOURCE_QUALIFICATION_GATES
+STATES = frozenset({
+    "DISCOVERED", "CATALOGUED", "TERMS_REVIEWED", "CONNECTOR_IMPLEMENTED", "CONFIGURED",
+    "LIVE_TESTED", "LIVE_VERIFIED", "PRODUCTION_QUALIFIED", "DEGRADED", "DISABLED", "DEPRECATED",
+})
+LIFECYCLE_TRANSITIONS = {
+    "DISCOVERED": frozenset({"CATALOGUED", "DISABLED", "DEPRECATED"}),
+    "CATALOGUED": frozenset({"TERMS_REVIEWED", "DISABLED", "DEPRECATED"}),
+    "TERMS_REVIEWED": frozenset({"CONNECTOR_IMPLEMENTED", "DISABLED", "DEPRECATED"}),
+    "CONNECTOR_IMPLEMENTED": frozenset({"CONFIGURED", "DISABLED", "DEPRECATED"}),
+    "CONFIGURED": frozenset({"LIVE_TESTED", "DISABLED", "DEPRECATED"}),
+    "LIVE_TESTED": frozenset({"LIVE_VERIFIED", "DEGRADED", "DISABLED", "DEPRECATED"}),
+    "LIVE_VERIFIED": frozenset({"PRODUCTION_QUALIFIED", "DEGRADED", "DISABLED", "DEPRECATED"}),
+    "PRODUCTION_QUALIFIED": frozenset({"DEGRADED", "DISABLED", "DEPRECATED"}),
+    "DEGRADED": frozenset({"CONFIGURED", "LIVE_TESTED", "DISABLED", "DEPRECATED"}),
+    "DISABLED": frozenset({"CONFIGURED", "DEPRECATED"}),
+    "DEPRECATED": frozenset(),
+}
+LIFECYCLE_ORDER = ("DISCOVERED", "CATALOGUED", "TERMS_REVIEWED", "CONNECTOR_IMPLEMENTED",
+                   "CONFIGURED", "LIVE_TESTED", "LIVE_VERIFIED", "PRODUCTION_QUALIFIED")
+P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_manifests.json').read_text())
+P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
+P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
+QUALIFICATION_GATES = frozenset({
+    "documentation", "manifest", "capabilities", "terms_review", "connector", "configuration",
+    "authentication", "live_request", "normalization", "evidence", "provenance", "failure",
+    "rate_limits", "cost", "license", "security", "tests", "canary", "health", "runbook",
+})
+CATALOGUE_GATES = frozenset({"documentation", "manifest", "capabilities"})
+TERMS_GATES = CATALOGUE_GATES | frozenset({"terms_review", "license"})
+CONNECTOR_GATES = TERMS_GATES | frozenset({"connector", "security"})
+CONFIGURATION_GATES = CONNECTOR_GATES | frozenset({"configuration", "authentication"})
+LIVE_VERIFICATION_GATES = QUALIFICATION_GATES - frozenset({"runbook"})
 
 
 @dataclass(frozen=True)
@@ -47,15 +79,18 @@ class SourceManifest:
     privacy_classification: str = "PUBLIC_METADATA"
     upstream_group: str = "UNKNOWN"
     fallback_sources: tuple[str, ...] = ()
-    implementation_status: str = "DISCOVERED"
+    implementation_status: str = "CATALOGUED"
     tool: str | None = None
     documentation_url: str | None = None
     documentation_checked_at: str | None = None
     contract_version: int = 1
+    connector_implemented: bool = False
 
     def __post_init__(self):
         if not re.fullmatch(r"[a-z][a-z0-9_-]{0,99}", self.source_id) or self.implementation_status not in STATES:
             raise ValueError("invalid source manifest identity/state")
+        if type(self.connector_implemented) is not bool:
+            raise ValueError("connector_implemented must be boolean")
         if any(not re.fullmatch(r"[a-z][a-z0-9_.-]{1,99}", c) for c in self.capabilities):
             raise ValueError("invalid capability")
         price = self.estimated_request_cost
@@ -73,6 +108,8 @@ class SourceManifest:
         value["implementation_status"] = normalize_maturity(self.implementation_status)
         value["maturity_state"] = value["implementation_status"]
         value.update(estimated_cost={'amount': self.estimated_request_cost, 'currency': self.currency,
+        value.update(lifecycle_state=self.implementation_status,
+                     estimated_cost={'amount': self.estimated_request_cost, 'currency': self.currency,
                                      'basis': self.pricing_model, 'actual': None},
                      freshness={'max_cache_age_seconds': self.cache_ttl_seconds, 'provider_timestamp': 'preserved-when-supplied'},
                      reliability={'qualification': 'requires-runtime-evidence'},
@@ -98,6 +135,8 @@ def _manifests():
             cache_ttl_seconds=p.get('cache_ttl_seconds', 0), upstream_group=p.get('upstream_group', source_id),
             access_type='API' if implemented else 'APPROVED_EXPORT',
             implementation_status='CONNECTOR_CODED' if implemented else 'CATALOGUED',
+            implementation_status='CATALOGUED',
+            connector_implemented=implemented,
             tool=p.get('tool'), documentation_url=p.get('documentation_url'),
             documentation_checked_at=p.get('documentation_checked_at'), languages=tuple(p.get('languages', ['en'])),
             rate_limit=p.get('rate_limit', 'UNKNOWN'), license=p.get('license', 'UNKNOWN'),
@@ -140,6 +179,17 @@ class SourceRegistry:
             return ipaddress.ip_address(target).version == 4
         return True
 
+    def lifecycle_counts(self):
+        counts = {state: 0 for state in STATES}
+        for item in self._sources.values():
+            counts[item.implementation_status] += 1
+        return counts
+
+    def live_integrations(self):
+        """Only LIVE_VERIFIED and PRODUCTION_QUALIFIED sources count as live."""
+        return tuple(item for item in self.list()
+                     if item.implementation_status in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"})
+
     @staticmethod
     def qualification(gates, *, verified_runtime=False):
         """Evidence-backed ladder; fixtures and configured keys cannot promote."""
@@ -170,3 +220,42 @@ class SourceRegistry:
             state = 'LIVE_TESTED'
         return {'state': state, 'maturity_state': state,
                 'missing_gates': missing, 'runtime_verified': verified_runtime}
+        """Derive the highest lifecycle stage supported by submitted evidence attestations."""
+        if type(verified_runtime) is not bool:
+            raise ValueError("verified_runtime must be boolean")
+        if not isinstance(gates, dict) or set(gates) - QUALIFICATION_GATES:
+            raise ValueError("unknown qualification gates")
+        if not all(isinstance(v, dict) and set(v) == {"passed", "evidence_ref"} and type(v["passed"]) is bool
+                   and isinstance(v["evidence_ref"], str) and 1 <= len(v["evidence_ref"].strip()) <= 512
+                   and not any(ord(ch) < 32 for ch in v["evidence_ref"]) for v in gates.values()):
+            raise ValueError("qualification requires evidence references")
+        passed = {name for name, item in gates.items() if item["passed"]}
+        missing = sorted(QUALIFICATION_GATES - passed)
+        state = "DISCOVERED"
+        if CATALOGUE_GATES.issubset(passed):
+            state = "CATALOGUED"
+        if TERMS_GATES.issubset(passed):
+            state = "TERMS_REVIEWED"
+        if CONNECTOR_GATES.issubset(passed):
+            state = "CONNECTOR_IMPLEMENTED"
+        if CONFIGURATION_GATES.issubset(passed):
+            state = "CONFIGURED"
+        if CONFIGURATION_GATES.issubset(passed) and "live_request" in passed:
+            state = "LIVE_TESTED"
+        if LIVE_VERIFICATION_GATES.issubset(passed) and verified_runtime:
+            state = "LIVE_VERIFIED"
+        if QUALIFICATION_GATES.issubset(passed) and verified_runtime:
+            state = "PRODUCTION_QUALIFIED"
+        return {"state": state, "missing_gates": missing, "runtime_verified": verified_runtime, "persisted": False}
+
+    @classmethod
+    def transition(cls, current, target, gates, *, verified_runtime=False):
+        """Validate a proposed lifecycle transition without persisting a source status."""
+        if current not in STATES or target not in STATES:
+            raise ValueError("unknown source lifecycle state")
+        if target not in LIFECYCLE_TRANSITIONS[current]:
+            raise ValueError("source lifecycle transition is not allowed")
+        qualification = cls.qualification(gates, verified_runtime=verified_runtime)
+        if target in LIFECYCLE_ORDER and LIFECYCLE_ORDER.index(qualification["state"]) < LIFECYCLE_ORDER.index(target):
+            raise ValueError("source lifecycle transition lacks required qualification evidence")
+        return {"from": current, "state": target, "qualification": qualification, "persisted": False}

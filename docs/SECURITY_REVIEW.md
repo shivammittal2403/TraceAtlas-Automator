@@ -57,3 +57,23 @@ plans, reports or failure telemetry. Search URLs are preserved leads and never
 fetched. Actual provider billing remains unknown. Fixture tests and proxy-based
 public reference collection do not qualify the deployed direct transport or a
 real SearXNG/Brave service. No hosted schema, API grant or worker deployment changed.
+
+
+## Enterprise audit follow-up — 2026-10-04
+
+At baseline `d698ed519be078ec72092b33dacda9f92ffdb42c`, confirmed P0:
+`TemporalClaimGraph.add_edge` treated a caller-supplied `ACCEPTED` value as human
+acceptance for `same_as`, `identity_merge` and `caused` relationships. The
+graph has no authorization context or durable review-decision lookup, so that
+check did not prove that a reviewer acted. A related helper could set
+`canonical_merge` from a boolean argument alone. The PR fix closes both paths:
+the graph rejects accepted identity/causation edges, and the helper never changes
+canonical state. Analyst decisions continue through the existing authorized
+`ResolutionService`; this does not create global identity truth. Regression
+coverage checks the sensitive edge types and caller-supplied acceptance.
+
+Review status: code changed, regression tests added, and PR #44 CI and CodeQL
+passed; merge commit is `89069097a66899eabc55897114146cf51f81dc45`. The automated
+code-scanning AI job failed because its monthly quota was exceeded (HTTP 402), so
+it returned no finding. This is a focused code review, not a penetration test,
+and does not qualify the hosted identity or analyst-authentication environment.

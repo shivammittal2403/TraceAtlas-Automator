@@ -17,7 +17,7 @@ from traceatlas.db import CaseDB
 from traceatlas.workforce.contracts import AuthorizationContext
 from traceatlas.workforce.pipeline import InvestigationPipeline
 from traceatlas.workforce.service import WorkforceService
-from traceatlas.workforce.source_registry import SourceRegistry, SourceManifest, P0_IDS
+from traceatlas.workforce.source_registry import SourceRegistry, SourceManifest, P0_IDS, QUALIFICATION_GATES
 from traceatlas.workforce.source_router import ObjectiveSpec, SourceRouter
 from traceatlas.workforce.source_state import SourceState
 from traceatlas.workforce.source_sdk import SourceConnector
@@ -53,6 +53,12 @@ FIXTURES = {
         'cveMetadata': {'cveId': 'CVE-2024-12345', 'state': 'PUBLISHED', 'datePublished': '2025-01-01T00:00:00Z', 'dateUpdated': '2025-01-02T00:00:00Z'},
         'containers': {'cna': {'title': 'Fixture vulnerability record', 'descriptions': [{'lang': 'en', 'value': 'Synthetic CVE Program fixture.'}],
             'affected': [{'vendor': 'Fixture Vendor', 'product': 'Fixture Product'}]}}}),
+    'cisa_kev': ('cve', 'CVE-2024-12345', {'title': 'Known Exploited Vulnerabilities Catalog',
+        'catalogVersion': '2026.10.04', 'dateReleased': '2026-10-04T00:00:00.000Z', 'count': 1,
+        'vulnerabilities': [{'cveID': 'CVE-2024-12345', 'vendorProject': 'Fixture Vendor',
+            'product': 'Fixture Product', 'vulnerabilityName': 'Fixture KEV record',
+            'dateAdded': '2025-01-02', 'shortDescription': 'Synthetic controlled fixture.',
+            'requiredAction': 'Apply vendor mitigations', 'dueDate': '2025-01-31'}]}),
     'nvd': ('cve', 'CVE-2024-12345', {'resultsPerPage': 1, 'startIndex': 0, 'totalResults': 1,
         'format': 'NVD_CVE', 'version': '2.0', 'timestamp': '2025-01-02T00:00:00.000Z',
         'vulnerabilities': [{'cve': {'id': 'CVE-2024-12345', 'published': '2025-01-01T00:00:00.000Z',
@@ -168,6 +174,45 @@ class SourceFabricTests(unittest.TestCase):
         self.assertFalse(structured['limits']['automatic_pivots'])
         self.assertEqual(structured['execution_waves'][0]['wave'], 1)
         self.assertEqual(plan['questions'], [q['question'] for q in structured['questions']])
+    def test_source_lifecycle_requires_staged_evidence_and_runtime_gates(self):
+        all_gates = {name: {"passed": True, "evidence_ref": "receipt:" + name}
+                     for name in QUALIFICATION_GATES}
+        live_only = {"live_request": {"passed": True, "evidence_ref": "request:successful"}}
+        self.assertEqual(SourceRegistry.qualification(live_only, verified_runtime=True)["state"], "DISCOVERED")
+
+        unverified = SourceRegistry.qualification(all_gates, verified_runtime=False)
+        self.assertEqual(unverified["state"], "LIVE_TESTED")
+        self.assertEqual(unverified["missing_gates"], [])
+        self.assertFalse(unverified["persisted"])
+
+        without_runbook = {key: value for key, value in all_gates.items() if key != "runbook"}
+        verified = SourceRegistry.qualification(without_runbook, verified_runtime=True)
+        self.assertEqual(verified["state"], "LIVE_VERIFIED")
+        self.assertEqual(verified["missing_gates"], ["runbook"])
+        self.assertFalse(verified["persisted"])
+        self.assertEqual(SourceRegistry.qualification(all_gates, verified_runtime=True)["state"],
+                         "PRODUCTION_QUALIFIED")
+
+        with self.assertRaisesRegex(ValueError, "lacks required qualification evidence"):
+            SourceRegistry.transition("LIVE_TESTED", "LIVE_VERIFIED", live_only, verified_runtime=True)
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            SourceRegistry.transition("CATALOGUED", "LIVE_TESTED", all_gates, verified_runtime=True)
+
+    def test_only_verified_lifecycle_states_count_as_live_integrations(self):
+        rows = [
+            SourceManifest("catalog-item", "test", "Catalog", "test", ("test.read",), ("domain",)),
+            SourceManifest("coded-item", "test", "Coded", "test", ("test.read",), ("domain",),
+                           connector_implemented=True),
+            SourceManifest("verified-item", "test", "Verified", "test", ("test.read",), ("domain",),
+                           implementation_status="LIVE_VERIFIED", connector_implemented=True),
+            SourceManifest("qualified-item", "test", "Qualified", "test", ("test.read",), ("domain",),
+                           implementation_status="PRODUCTION_QUALIFIED", connector_implemented=True),
+        ]
+        registry = SourceRegistry(rows)
+        self.assertEqual({item.source_id for item in registry.live_integrations()},
+                         {"verified-item", "qualified-item"})
+        self.assertEqual(registry.lifecycle_counts()["CATALOGUED"], 2)
+        self.assertEqual(registry.lifecycle_counts()["LIVE_VERIFIED"], 1)
 
     def context(self, kind, target):
         self.sequence += 1; stamp = datetime.now(timezone.utc)
@@ -186,7 +231,7 @@ class SourceFabricTests(unittest.TestCase):
                              envelope_digest=plan['envelope_digest'], authorized=True)
         return plan['task']['task_id']
 
-    def test_twenty_five_adapters_seventy_five_controlled_capture_failure_and_drift_investigations(self):
+    def test_twenty_six_adapters_seventy_eight_controlled_capture_failure_and_drift_investigations(self):
         self.assertEqual(set(FIXTURES), P0_IDS)
         for source, (kind, target, payload) in FIXTURES.items():
             for scenario in ('success', 'authentication_failure', 'schema_drift'):
@@ -201,7 +246,7 @@ class SourceFabricTests(unittest.TestCase):
                     pipeline = InvestigationPipeline(self.service, self.root, requester=request, search_requester=request)
                     result = pipeline.run(task, live=True, authorized=True)
                     if scenario == 'success':
-                        self.assertGreater(len(result['analysis']['observations']), 0)
+                        self.assertGreater(len(result['analysis']['observations']), 0, json.dumps(result['replay_manifest']['source_outcomes']))
                         self.assertTrue(all(r['status'] == 'captured' for r in result['replay_manifest']['source_outcomes']))
                         self.assertIsNotNone(result['source_results'][0]['raw_evidence_id'])
                     else:
@@ -211,7 +256,7 @@ class SourceFabricTests(unittest.TestCase):
 
     def test_vulnerability_and_package_defaults_route_typed_sources(self):
         cases = (
-            ('cve', 'CVE-2024-12345', {'nvd', 'epss', 'cveorg'}),
+            ('cve', 'CVE-2024-12345', {'nvd', 'epss', 'cveorg', 'cisa_kev'}),
             ('vulnerability', 'GHSA-1234-5678-9ABC', {'osv'}),
             ('package', '@scope/fixture-package', {'npm'}),
         )

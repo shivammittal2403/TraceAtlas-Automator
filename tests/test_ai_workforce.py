@@ -246,14 +246,27 @@ class ToolAndGraphTests(unittest.TestCase):
         for node_id, node_type in (("node-a", "Domain"), ("node-b", "Organization")):
             graph.add_node(GraphNode(node_id, "case-a", node_type, node_id, ("evidence-a",),
                                      ("observation-a",), NOW.isoformat(), None, "webint-infra-specialist"))
-        edge = GraphEdge("edge-a", "case-a", "node-a", "node-b", "same_as", ("evidence-a",),
-                         ("observation-a",), ("lineage-a",), NOW.isoformat(), None,
-                         "single_source", "identity_ambiguous", "webint-infra-specialist")
-        with self.assertRaisesRegex(ValueError, "human acceptance"):
-            graph.add_edge(edge)
+        with self.assertRaisesRegex(ValueError, "authorized human resolution workflow"):
+            GraphEdge("edge-a", "case-a", "node-a", "node-b", "same_as", ("evidence-a",),
+                      ("observation-a",), ("lineage-a",), NOW.isoformat(), None,
+                      "single_source", "identity_ambiguous", "webint-infra-specialist",
+                      decision_state="ACCEPTED")
+        proposed = GraphEdge("edge-proposed", "case-a", "node-a", "node-b", "candidate_match",
+                             ("evidence-a",), ("observation-a",), ("lineage-a",),
+                             NOW.isoformat(), None, "single_source", "identity_ambiguous",
+                             "webint-infra-specialist")
+        graph.add_edge(proposed)
+        for relation in ("same_as", "identity_merge", "caused"):
+            with self.assertRaisesRegex(ValueError, "authorized human resolution workflow"):
+                GraphEdge("edge-" + relation, "case-a", "node-a", "node-b", relation,
+                          ("evidence-a",), ("observation-a",), ("lineage-a",),
+                          NOW.isoformat(), None, "single_source", "review required",
+                          "webint-infra-specialist", decision_state="ACCEPTED")
         candidate = graph.identity_candidate("LIKELY_MATCH", ("shared_domain",))
         self.assertFalse(candidate["canonical_merge"])
         self.assertTrue(candidate["human_review_required"])
+        with self.assertRaisesRegex(ValueError, "ResolutionService"):
+            graph.identity_candidate("MATCH", ("shared_domain",), human_accepted=True)
 
 
 class GoldenInvestigationTests(unittest.TestCase):

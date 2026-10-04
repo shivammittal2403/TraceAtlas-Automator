@@ -642,6 +642,37 @@
     ]
   },
   {
+    "source_id": "cisa_kev",
+    "capabilities": [
+      "vulnerability.known_exploited"
+    ],
+    "entity_types": [
+      "cve"
+    ],
+    "tool": "vulnerability.lookup",
+    "provider": "cisa",
+    "upstream_group": "cisa-kev",
+    "official": true,
+    "primary_source": true,
+    "cache_ttl_seconds": 3600,
+    "pricing_model": "PUBLIC",
+    "documentation_url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+    "countries": [
+      "GLOBAL"
+    ],
+    "languages": [
+      "en"
+    ],
+    "documentation_checked_at": "2026-10-04",
+    "qualification": "CONNECTOR_IMPLEMENTED",
+    "license_review": "operator-review-required",
+    "rate_limit_review": "operator-review-required",
+    "cost_per_request_usd": 0,
+    "provider_concurrency": 1,
+    "rate_limit": "Public catalog feed; operator review required",
+    "license": "CISA catalog license and applicable terms require operator review"
+  },
+  {
     "source_id": "nvd",
     "capabilities": [
       "vulnerability.advisory",

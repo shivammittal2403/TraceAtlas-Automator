@@ -1,7 +1,7 @@
-# Source Fabric 1.11
+# Source Fabric 1.12
 
 Both supplied 200+ and 400+ briefs are implemented as one staged programme.
-This release delivers the Phase A architecture and twenty-four canonical adapters.
+Current main delivers the Phase A architecture and twenty-six canonical adapters, including the exact-CVE CISA KEV feed adapter.
 It does not claim the later targets of 50 production-qualified or 100 live-verified
 sources. The 400 supplied candidate entries become 351 deduplicated review rows,
 including 41 entries flagged as generic categories requiring a specific provider.
@@ -14,7 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 50 source definitions (48 IntelligenceHub entries plus Brave/SearXNG); 25 have the canonical approval-driven workforce adapter. The IntelligenceHub has 34 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 51 source definitions (49 IntelligenceHub entries plus Brave/SearXNG); 26 have the canonical approval-driven workforce adapter. The IntelligenceHub has 35 API implementations. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP, company, CVE,
 vulnerability-advisory or npm-package identifiers.
@@ -107,6 +107,8 @@ products or commercial lookup workflows; use appropriate licensed access.
   qualification gates must be reviewed against the intended runtime. The shared
   23-gate checklist also requires terms, configured credentials, fallback behavior,
   schema-drift monitoring and an operational owner.
+  source to LIVE_VERIFIED or PRODUCTION_QUALIFIED. Twenty evidence-backed
+  qualification gates must be reviewed against the intended runtime.
 
 ## MCP
 
@@ -134,9 +136,9 @@ No direct-runtime production qualification or paid-account entitlement is claime
 Next phases require current official documentation/terms research for the remaining
 candidate queue, real account credentials, sustained canaries and source-specific
 adversarial cases. Native sanctions, beneficial ownership, procurement and
-geospatial workflows are not delivered by these 24 adapters. Package and
+geospatial workflows are not delivered by these 26 adapters. Package and
 vulnerability collection is now part of the bounded canonical workforce surface
-through NVD, CVE Program, EPSS, OSV and npm.
+through NVD, CVE Program, EPSS, CISA KEV, OSV and npm. The CISA KEV integration fetches a fixed public catalog, validates its schema and normalizes facts only from the exact requested CVE row. The bounded raw response is retained for replay; catalog absence is not proof about an investigated asset.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
 planning and the hosted UI-to-worker flow remain separately unqualified.
 
@@ -144,3 +146,31 @@ Parser version is now `structured-fact/4`, workflow `1.3.0`. Old captures remain
 immutable; replay uses its recorded workflow version and fails closed when that
 version is unsupported. Keep the previous release available for historical replay;
 never relabel old captures or silently reparse them as new evidence.
+
+
+## Source lifecycle and qualification gates
+
+Each manifest separates code presence (`connector_implemented`) from its lifecycle
+state. A connector implementation or configured credential does not make a live
+integration. Lifecycle states are:
+
+`DISCOVERED → CATALOGUED → TERMS_REVIEWED → CONNECTOR_IMPLEMENTED → CONFIGURED
+→ LIVE_TESTED → LIVE_VERIFIED → PRODUCTION_QUALIFIED`, with `DEGRADED`,
+`DISABLED` and `DEPRECATED` operational states.
+
+The registry's qualification evaluator requires short printable evidence
+references for each attestation. These are checked for presence, not fetched or
+independently validated; returned lifecycle states are proposals and are not
+persisted or promoted by this evaluator. `LIVE_TESTED` requires the prerequisite terms/configuration stages and
+a successful live-request receipt. `LIVE_VERIFIED` additionally requires the
+non-runbook verification gates and intended-runtime verification. Production
+qualification requires every current gate, including the runbook. A source is
+counted as a live integration only in `LIVE_VERIFIED` or
+`PRODUCTION_QUALIFIED`. Fixtures and code presence cannot satisfy live gates.
+
+On main at audit baseline `641f159326d45afe9797ddf5624a5126640fdd19`, the gate
+evaluator could promote a source to `LIVE_VERIFIED` after only one live-request
+attestation and a runtime boolean. The lifecycle correction adds the missing
+`TERMS_REVIEWED` and `LIVE_TESTED` stages and blocks that shortcut. Lifecycle
+receipts are still not persisted in a durable qualification ledger; promotion
+requires a follow-up persistence and evidence-reference verification capability.

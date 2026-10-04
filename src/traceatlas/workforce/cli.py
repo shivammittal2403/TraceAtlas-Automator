@@ -65,7 +65,7 @@ def add_workforce_parser(sub) -> None:
     report = commands.add_parser("report", help="Return immutable investigation draft")
     report.add_argument("--task", required=True)
     golden = commands.add_parser("golden", help="Execute controlled end-to-end investigations")
-    golden.add_argument("--source-fabric", action="store_true", help="Execute 72 Source Fabric fixture investigations")
+    golden.add_argument("--source-fabric", action="store_true", help="Execute 78 Source Fabric fixture investigations")
     plan = commands.add_parser("plan-domain", help="Create a bounded owned-domain task")
     plan.add_argument("--context", required=True)
     plan.add_argument("--domain", required=True)
@@ -109,6 +109,12 @@ def run_workforce(args, engine) -> dict:
                     "canonical_adapters": len(P0_IDS), "production_qualified": 0,
                     "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
                     "maturity_state_vocabulary": list(MATURITY_STATES),
+            lifecycle_counts = registry.lifecycle_counts()
+            live_count = len(registry.live_integrations())
+            return {"sources": rows, "capabilities": registry.capabilities(), "registered": len(registry.list()),
+                    "canonical_adapters": len(P0_IDS), "lifecycle_counts": lifecycle_counts,
+                    "live_integrations": live_count,
+                    "production_qualified": lifecycle_counts["PRODUCTION_QUALIFIED"],
                     "health": {r['source_id']: state.health(r['source_id']) for r in rows}, "network_requests": 0}
         return {"sources": readiness(), "network_requests": 0, "configuration_is_not_live_validation": True}
     service = WorkforceService(engine.db)

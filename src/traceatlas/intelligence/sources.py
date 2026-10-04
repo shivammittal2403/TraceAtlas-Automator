@@ -206,6 +206,13 @@ SOURCES: dict[str, SourceSpec] = {
         live_connector=True, public_record=True,
         limitation="A published CNA record is a source statement, not proof that a product is installed or affected."
     ),
+    "cisa_kev": _source(
+        "cisa_kev", "CISA Known Exploited Vulnerabilities Catalog", "vulnerability-intelligence",
+        "official-government-feed", "VULNERABILITY_RECORD",
+        "One exact CVE row matched from CISA’s published KEV catalog; the fixed-host feed is filtered before case evidence is stored.",
+        live_connector=True, public_record=True,
+        limitation="Catalog inclusion is a CISA listing observation; it does not prove an investigated asset runs or is exploitable by this CVE."
+    ),
     "nvd": _source(
         "nvd", "NIST National Vulnerability Database", "vulnerability-intelligence",
         "public-government-api", "VULNERABILITY_RECORD",

@@ -34,11 +34,15 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_six_new_live_sources_have_fixed_official_hosts(self):
-        self.assertEqual(len(SOURCES), 48)
-        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 34)
+        self.assertEqual(len(SOURCES), 49)
+        self.assertEqual(sum(item.live_connector for item in SOURCES.values()), 35)
         expected = {"mastodon", "stackexchange", "dockerhub", "npm", "crossref", "orcid"}
         self.assertTrue(expected.issubset(SOURCES))
         hub = IntelligenceHub(self.db, self.workspace)
+        cisa_url, _ = hub._live_request(SOURCES["cisa_kev"], "cve", "CVE-2024-12345")
+        self.assertEqual(cisa_url, "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+        with self.assertRaises(PolicyError):
+            hub._live_request(SOURCES["cisa_kev"], "cve", "CVE-2024-12345 OR 1=1")
         cases = [
             ("stackexchange", "user_id", "22656", "https://api.stackexchange.com/"),
             ("dockerhub", "username", "library", "https://hub.docker.com/"),
@@ -72,6 +76,12 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
             "npm": {"name": "package", "version": "1.0.0"},
             "crossref": {"status": "ok", "message": {"DOI": "10.5555/example"}},
             "orcid": {"path": "0000-0002-1825-0097", "name": None},
+            "cisa_kev": {"title": "Known Exploited Vulnerabilities Catalog", "catalogVersion": "2026.10.04",
+                "dateReleased": "2026-10-04T00:00:00Z", "count": 1, "vulnerabilities": [{
+                    "cveID": "CVE-2024-12345", "vendorProject": "Fixture Vendor", "product": "Fixture Product",
+                    "vulnerabilityName": "Fixture KEV record", "dateAdded": "2025-01-02",
+                    "shortDescription": "Synthetic fixture.", "requiredAction": "Apply vendor mitigations",
+                    "dueDate": "2025-01-31"}]},
         }
         for source, payload in valid.items():
             with self.subTest(source=source):

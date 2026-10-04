@@ -395,6 +395,28 @@
           }
         }
       }
+    ],
+    "cisa_kev": [
+      "cve",
+      "CVE-2024-12345",
+      {
+        "title": "Known Exploited Vulnerabilities Catalog",
+        "catalogVersion": "2026.10.04",
+        "dateReleased": "2026-10-04T00:00:00.000Z",
+        "count": 1,
+        "vulnerabilities": [
+          {
+            "cveID": "CVE-2024-12345",
+            "vendorProject": "Fixture Vendor",
+            "product": "Fixture Product",
+            "vulnerabilityName": "Fixture KEV record",
+            "dateAdded": "2025-01-02",
+            "shortDescription": "Synthetic controlled fixture.",
+            "requiredAction": "Apply vendor mitigations",
+            "dueDate": "2025-01-31"
+          }
+        ]
+      }
     ]
   }
 }

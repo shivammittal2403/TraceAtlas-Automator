@@ -89,7 +89,7 @@ def requirements(kind, target, objective):
         caps = ['code.organization'] if target.startswith('github:') else ['company.registration']
         rules = [('filing', 'company.filings'), ('ownership', 'company.ownership'), ('procure', 'company.procurement')]
     elif kind == 'cve':
-        caps = ['vulnerability.advisory', 'vulnerability.exploitation_probability', 'vulnerability.cve_record']
+        caps = ['vulnerability.advisory', 'vulnerability.exploitation_probability', 'vulnerability.cve_record', 'vulnerability.known_exploited']
         rules = []
     elif kind == 'vulnerability':
         caps = ['vulnerability.advisory', 'vulnerability.affected_packages']
@@ -143,6 +143,7 @@ class SourceRouter:
             if price is None: reasons.append('unpriced_account_source')
             if price is not None and price > budget: reasons.append('cost_boundary')
             if item.implementation_status in {'DISABLED', 'DEPRECATED', 'DISCOVERED', 'CATALOGUED'}: reasons.append('not_implemented')
+            if not item.connector_implemented or item.implementation_status in {'DISABLED', 'DEPRECATED', 'DEGRADED'}: reasons.append('not_implemented')
             factors = {'capability_match': len(matching) * 100, 'official': 8 if item.official else 0,
                        'primary': 5 if item.primary_source else 0, 'free': 3 if price == 0 else 0,
                        'health': 2 if health['state'] == 'HEALTHY' else -3 if health['state'] == 'DEGRADED' else 0,

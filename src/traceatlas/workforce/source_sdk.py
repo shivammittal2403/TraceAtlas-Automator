@@ -96,10 +96,11 @@ class SourceConnector:
     def fetch(self, kind, target, requester, timeout):
         self.validate_input(kind, target)
         captured, documents = {}, []
+        response_limit = 5 * 1024 * 1024 if self.source_id == 'cisa_kev' else 400 * 1024
         bootstrap_attempts = 0
         def receive(url, headers, remaining):
             status, raw = requester(url, headers, remaining)
-            if status == 200 and len(raw) <= 400 * 1024:
+            if status == 200 and len(raw) <= response_limit:
                 # A malicious API echo must not put credentials in evidence.
                 secrets = [v for k, v in headers.items() if k.lower() in {'authorization', 'x-apikey', 'api-key', 'key', 'x-subscription-token'}]
                 secrets.extend(v for k, values in parse_qs(urlsplit(url).query).items()
@@ -110,7 +111,7 @@ class SourceConnector:
                     raise ProviderError('provider_secret_echo')
                 captured[url] = raw
             return status, raw
-        client = ResilientJSONClient(receive, max_body_bytes=400 * 1024, max_attempts=2, retry_rate_limits=False)
+        client = ResilientJSONClient(receive, max_body_bytes=response_limit, max_attempts=2, retry_rate_limits=False)
         url = None
         try:
             if self.source_id == 'rdap':
