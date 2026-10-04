@@ -51,6 +51,12 @@ FIXTURES = {
         'cveMetadata': {'cveId': 'CVE-2024-12345', 'state': 'PUBLISHED', 'datePublished': '2025-01-01T00:00:00Z', 'dateUpdated': '2025-01-02T00:00:00Z'},
         'containers': {'cna': {'title': 'Fixture vulnerability record', 'descriptions': [{'lang': 'en', 'value': 'Synthetic CVE Program fixture.'}],
             'affected': [{'vendor': 'Fixture Vendor', 'product': 'Fixture Product'}]}}}),
+    'cisa_kev': ('cve', 'CVE-2024-12345', {'title': 'Known Exploited Vulnerabilities Catalog',
+        'catalogVersion': '2026.10.04', 'dateReleased': '2026-10-04T00:00:00.000Z', 'count': 1,
+        'vulnerabilities': [{'cveID': 'CVE-2024-12345', 'vendorProject': 'Fixture Vendor',
+            'product': 'Fixture Product', 'vulnerabilityName': 'Fixture KEV record',
+            'dateAdded': '2025-01-02', 'shortDescription': 'Synthetic controlled fixture.',
+            'requiredAction': 'Apply vendor mitigations', 'dueDate': '2025-01-31'}]}),
     'nvd': ('cve', 'CVE-2024-12345', {'resultsPerPage': 1, 'startIndex': 0, 'totalResults': 1,
         'format': 'NVD_CVE', 'version': '2.0', 'timestamp': '2025-01-02T00:00:00.000Z',
         'vulnerabilities': [{'cve': {'id': 'CVE-2024-12345', 'published': '2025-01-01T00:00:00.000Z',
@@ -98,7 +104,7 @@ class SourceFabricTests(unittest.TestCase):
                              envelope_digest=plan['envelope_digest'], authorized=True)
         return plan['task']['task_id']
 
-    def test_twenty_five_adapters_seventy_five_controlled_capture_failure_and_drift_investigations(self):
+    def test_twenty_six_adapters_seventy_eight_controlled_capture_failure_and_drift_investigations(self):
         self.assertEqual(set(FIXTURES), P0_IDS)
         for source, (kind, target, payload) in FIXTURES.items():
             for scenario in ('success', 'authentication_failure', 'schema_drift'):
