@@ -17,7 +17,7 @@ from traceatlas.db import CaseDB
 from traceatlas.workforce.contracts import AuthorizationContext
 from traceatlas.workforce.pipeline import InvestigationPipeline
 from traceatlas.workforce.service import WorkforceService
-from traceatlas.workforce.source_registry import SourceRegistry, SourceManifest, P0_IDS
+from traceatlas.workforce.source_registry import SourceRegistry, SourceManifest, P0_IDS, QUALIFICATION_GATES
 from traceatlas.workforce.source_router import ObjectiveSpec, SourceRouter
 from traceatlas.workforce.source_state import SourceState
 from traceatlas.workforce.source_sdk import SourceConnector
@@ -86,6 +86,46 @@ class SourceFabricTests(unittest.TestCase):
 
     def tearDown(self):
         self.env.stop(); self.db.close(); self.temp.cleanup()
+
+    def test_source_lifecycle_requires_staged_evidence_and_runtime_gates(self):
+        all_gates = {name: {"passed": True, "evidence_ref": "receipt:" + name}
+                     for name in QUALIFICATION_GATES}
+        live_only = {"live_request": {"passed": True, "evidence_ref": "request:successful"}}
+        self.assertEqual(SourceRegistry.qualification(live_only, verified_runtime=True)["state"], "DISCOVERED")
+
+        unverified = SourceRegistry.qualification(all_gates, verified_runtime=False)
+        self.assertEqual(unverified["state"], "LIVE_TESTED")
+        self.assertEqual(unverified["missing_gates"], [])
+        self.assertFalse(unverified["persisted"])
+
+        without_runbook = {key: value for key, value in all_gates.items() if key != "runbook"}
+        verified = SourceRegistry.qualification(without_runbook, verified_runtime=True)
+        self.assertEqual(verified["state"], "LIVE_VERIFIED")
+        self.assertEqual(verified["missing_gates"], ["runbook"])
+        self.assertFalse(verified["persisted"])
+        self.assertEqual(SourceRegistry.qualification(all_gates, verified_runtime=True)["state"],
+                         "PRODUCTION_QUALIFIED")
+
+        with self.assertRaisesRegex(ValueError, "lacks required qualification evidence"):
+            SourceRegistry.transition("LIVE_TESTED", "LIVE_VERIFIED", live_only, verified_runtime=True)
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            SourceRegistry.transition("CATALOGUED", "LIVE_TESTED", all_gates, verified_runtime=True)
+
+    def test_only_verified_lifecycle_states_count_as_live_integrations(self):
+        rows = [
+            SourceManifest("catalog-item", "test", "Catalog", "test", ("test.read",), ("domain",)),
+            SourceManifest("coded-item", "test", "Coded", "test", ("test.read",), ("domain",),
+                           connector_implemented=True),
+            SourceManifest("verified-item", "test", "Verified", "test", ("test.read",), ("domain",),
+                           implementation_status="LIVE_VERIFIED", connector_implemented=True),
+            SourceManifest("qualified-item", "test", "Qualified", "test", ("test.read",), ("domain",),
+                           implementation_status="PRODUCTION_QUALIFIED", connector_implemented=True),
+        ]
+        registry = SourceRegistry(rows)
+        self.assertEqual({item.source_id for item in registry.live_integrations()},
+                         {"verified-item", "qualified-item"})
+        self.assertEqual(registry.lifecycle_counts()["CATALOGUED"], 2)
+        self.assertEqual(registry.lifecycle_counts()["LIVE_VERIFIED"], 1)
 
     def context(self, kind, target):
         self.sequence += 1; stamp = datetime.now(timezone.utc)

@@ -17,3 +17,18 @@ The canonical gateway applies case authority, fixed-host transport, request/time
 ## Priority actions
 
 Maintain per-source status and freshness receipts. For each provider, capture lawful access basis, terms/entitlement, target scope, schema drift handling, direct transport, rate/billing behavior, failure modes and analyst utility. Keep source outputs as observations with citations; do not merge identities from source matches alone. No new credentials or provider account actions are part of this audit.
+
+
+## Lifecycle gate correction — PR pending
+
+The main baseline's `qualification()` could return LIVE_VERIFIED when only
+`live_request` passed and `verified_runtime=True`, even if the other gates were
+missing. It also omitted TERMS_REVIEWED and LIVE_TESTED lifecycle states. The
+current iteration adds ordered stages and requires all non-runbook gates for
+LIVE_VERIFIED, all 20 gates for PRODUCTION_QUALIFIED, and only counts those two
+states as live integrations.
+
+The validator checks evidence-reference presence and gate attestations; it does
+not resolve the referenced artifacts or persist lifecycle transitions. No source
+is promoted by this code change, and the live/production counts remain zero.
+Persisted, independently checked qualification receipts remain open.

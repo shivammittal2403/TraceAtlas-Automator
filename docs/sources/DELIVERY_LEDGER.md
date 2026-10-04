@@ -16,8 +16,8 @@ The earlier AI Employee repair and live-source work remain in the canonical runn
 | Independence and contradictions | Existing lineage components, upstream groups and verification retained | More curated independence/identity evaluation |
 | Schema/health/failure recovery | Quarantine, circuits, telemetry, explicitly approved fresh canary | Sustained intended-runtime canaries and provider reset headers |
 | Stable source MCP tools | Six stdio capabilities; required case/task/authority/trace/scope; real SDK wire test | Hosted authenticated transport is not deployed |
-| Tests/golden cases | 78 controlled source scenarios plus cache, price, scope, parallelism, drift and MCP regressions | These are adapter scenarios, not 72 independent real-world investigations |
-| Qualification status | Eighteen evidence-reference gates; zero production-qualified claims | Commercial terms, credentials and intended-runtime approval |
+| Tests/golden cases | 78 controlled source scenarios plus cache, price, scope, parallelism, drift and MCP regressions | These are adapter scenarios, not 78 independent real-world investigations |
+| Qualification status | Twenty evidence-reference gates; zero production-qualified claims | Commercial terms, credentials and intended-runtime approval |
 | Phase A: twenty-six P0 connectors | CODED and fixture TESTED; selected real-response checks | Direct runtime and keyed services need live acceptance |
 | Phases B–F: 50/100/200/400+, marketplace | Discovery queue and scalable contract established | Not completed; no count inflation or placeholder live adapters |
 | Final company-investigation acceptance | Exact-identifier registry/filing/code-record subset, draft, gaps and replay | Ownership/sanctions/procurement cross-source investigation is incomplete |
