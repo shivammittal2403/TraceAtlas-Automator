@@ -128,7 +128,7 @@ No direct-runtime production qualification or paid-account entitlement is claime
 Next phases require current official documentation/terms research for the remaining
 candidate queue, real account credentials, sustained canaries and source-specific
 adversarial cases. Native sanctions, beneficial ownership, procurement and
-geospatial workflows are not delivered by these 24 adapters. Package and
+geospatial workflows are not delivered by these 26 adapters. Package and
 vulnerability collection is now part of the bounded canonical workforce surface
 through NVD, CVE Program, EPSS, CISA KEV, OSV and npm. The CISA KEV integration fetches a fixed public catalog, validates its schema and normalizes facts only from the exact requested CVE row. The bounded raw response is retained for replay; catalog absence is not proof about an investigated asset.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
