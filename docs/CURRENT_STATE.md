@@ -1,5 +1,16 @@
 # Current implementation state — 2026-10-04 / 1.12.0
 
+The Source Fabric portfolio program adds full governed research fields, atomic
+research imports, all 15 family targets, conservative upstream dataset grouping,
+an explicitly uncalibrated quality score, a non-executing four-wave planner,
+per-source health reporting, and reusable protocol primitives over reviewed
+fixed-host connectors. A successful live request is now only LIVE_TESTED until
+recent source reviews resolve to same-case evidence; the shared qualification
+checklist includes privacy, replay and intended-runtime validation (26 gates).
+See [SOURCE_FABRIC_PROGRAM.md](SOURCE_FABRIC_PROGRAM.md) for commands and remaining
+acceptance work. The 650/600/450/300/200/125 targets remain unmet; protocol
+primitives, candidate rows and parser tests do not establish provider counts.
+
 Source-inventory metrics below were audited against PR #43 baseline
 `d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04
 enterprise audit and bounded graph acceptance fix, merged in PR #44 at

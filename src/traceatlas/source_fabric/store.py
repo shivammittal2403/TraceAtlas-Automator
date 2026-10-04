@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from ..evidence import EvidenceStore
 from ..policy import PolicyError
 from .registry import SOURCES, KNOWN_BROKEN
-from ..source_maturity import SOURCE_QUALIFICATION_GATES, normalize_maturity
+from ..source_maturity import SOURCE_QUALIFICATION_GATES, LIVE_VERIFICATION_GATES, normalize_maturity
 
 QUALIFICATION_CHECKS = SOURCE_QUALIFICATION_GATES
 
@@ -59,27 +59,39 @@ class FabricStore:
         result = {}
         seen = set()
         for r in self.db.conn.execute("SELECT * FROM fabric_executions WHERE mode='live' AND cache_hit=0 AND started_at>? ORDER BY started_at DESC", (cutoff,)):
+            if r['source'] not in SOURCES:
+                continue
             if r["source"] in seen:
                 continue
             seen.add(r["source"])
             if r["status"] == "completed" and not r["drift"]:
-                result[r["source"]] = "LIVE_VERIFIED"
+                checks = self._resolved_checks(r["source"])
+                result[r["source"]] = "LIVE_VERIFIED" if LIVE_VERIFICATION_GATES.issubset(checks) else "LIVE_TESTED"
             elif r["status"] == "failed" or r["drift"]:
                 result[r["source"]] = "DEGRADED"
         for r in self.db.conn.execute("SELECT * FROM fabric_promotions"):
             if r["state"] in {"DISABLED", "BROKEN", "DEGRADED", "DEPRECATED"}:
                 result[r["source"]] = normalize_maturity(r["state"])
             elif r["state"] == "PRODUCTION_QUALIFIED" and result.get(r["source"]) == "LIVE_VERIFIED" and r["at"] > cutoff:
-                review_cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
-                reviewed = {row["check_name"] for row in self.db.conn.execute(
-                    "SELECT DISTINCT check_name FROM fabric_reviews WHERE source=? AND at>?",
-                    (r["source"], review_cutoff))}
+                reviewed = self._resolved_checks(r["source"])
                 # Recheck the current checklist so older promotions cannot survive
                 # a qualification-policy expansion on their previous evidence set.
                 if QUALIFICATION_CHECKS.issubset(reviewed):
                     result[r["source"]] = r["state"]
         result.update({source: "DEGRADED" for source in KNOWN_BROKEN})
         return result
+
+    def _resolved_checks(self, source):
+        """Only recent reviews that resolve to canonical same-case artifacts count."""
+        cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
+        checks, hashes = set(), {}
+        for row in self.db.conn.execute(
+                "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?", (source, cutoff)):
+            if row['case_id'] not in hashes:
+                hashes[row['case_id']] = {item['sha256'] for item in self.db.evidence(row['case_id'])}
+            if row['evidence_hash'] in hashes[row['case_id']]:
+                checks.add(row['check_name'])
+        return checks
 
     def review(self, source, check_name, case_id, evidence_hash, actor, workspace, authorized=False):
         if not authorized or source not in SOURCES or check_name not in QUALIFICATION_CHECKS or not isinstance(actor, str) or len(actor) < 2:
@@ -107,6 +119,8 @@ class FabricStore:
         for r in reviews:
             if not EvidenceStore(workspace, self.db, r["case_id"]).verify_ledger()[0]:
                 raise PolicyError("Qualification review artifact integrity failed")
+            if not any(item['sha256'] == r['evidence_hash'] for item in self.db.evidence(r['case_id'])):
+                raise PolicyError("Qualification review reference does not resolve within its case")
         self.db.conn.execute("INSERT INTO fabric_promotions VALUES(?,?,?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state,actor=excluded.actor,at=excluded.at",
                              (source, "PRODUCTION_QUALIFIED", actor, utc()))
         self.db.conn.commit()

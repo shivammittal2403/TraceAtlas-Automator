@@ -27,11 +27,12 @@ candidates remain separate because their denominators differ. In particular,
 `CATALOGUED` is never counted as an integration, and production qualification is
 never inferred from a connector, configured credential, fixture, or candidate row.
 
-Both qualification paths use one 23-gate evidence checklist: documentation,
+Both qualification paths use one 26-gate evidence checklist: documentation,
 manifest, capabilities, connector, terms, licence, authentication, configured
 credentials, live request, normalization, evidence, provenance, failure handling,
 fallback behavior, rate limits, cost, security, schema-drift monitoring, tests,
-canary, health monitoring, operational owner, and runbook. A missing gate prevents
+canary, health monitoring, operational owner, runbook, privacy, replay, and
+intended runtime. A missing gate prevents
 `PRODUCTION_QUALIFIED`; a live request without all live-verification checks is only
 `LIVE_TESTED`. Qualification remains scoped to the recorded runtime; it does not
 assert that another deployment or jurisdiction is ready.

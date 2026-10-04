@@ -115,7 +115,7 @@ class SourceFabricTests(unittest.TestCase):
     def test_qualification_requires_complete_gate_evidence_on_both_surfaces(self):
         from traceatlas.workforce.source_registry import QUALIFICATION_GATES, SourceRegistry
         from traceatlas.source_fabric.store import QUALIFICATION_CHECKS
-        self.assertEqual(len(SOURCE_QUALIFICATION_GATES), 23)
+        self.assertEqual(len(SOURCE_QUALIFICATION_GATES), 26)
         self.assertEqual(QUALIFICATION_GATES, SOURCE_QUALIFICATION_GATES)
         self.assertEqual(QUALIFICATION_CHECKS, SOURCE_QUALIFICATION_GATES)
         passed = lambda keys: {key: {'passed': True, 'evidence_ref': 'case:evidence-' + key} for key in keys}
@@ -147,9 +147,16 @@ class SourceFabricTests(unittest.TestCase):
             self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
                                  ('dns', gate, 'fabric-case', 'c' * 64, 'analyst', stamp))
         self.db.conn.commit()
+        self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
+        from traceatlas.evidence import EvidenceStore
+        artifact = self.root / 'qualification.json'
+        artifact.write_text('{"synthetic":true}', encoding='utf-8')
+        evidence = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(artifact, 'synthetic qualification test')
+        self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE source='dns'", (evidence['sha256'],))
+        self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
         self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
-                             ('dns', 'operational_owner', 'fabric-case', 'c' * 64, 'analyst', stamp))
+                             ('dns', 'operational_owner', 'fabric-case', evidence['sha256'], 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
 
