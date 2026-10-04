@@ -25,7 +25,7 @@ approved records. Model-free normalization and report generation remain supporte
 | Delivery state | Evidence |
 |---|---|
 | CODED | Capability registry/router, 25-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
-| TESTED locally | 305 Python tests run: 304 passed and one optional MCP-SDK test skipped; PGlite and 25 Node UI/target tests pass; 75/75 controlled source scenarios replay successfully; compilation and secret scan pass |
+| VERIFIED in CI | Python 3.10 and 3.12: 305 tests each, 303 passed and two optional tests skipped; PGlite and 25 Node UI/target tests pass; 75/75 controlled source scenarios replay successfully; compilation, dependency review, supply-chain evidence, worker image and CodeQL pass |
 | Real response parsing/replay | Cloudflare DNS, RIPEstat, GLEIF and GitHub public reference responses through an injected environment-proxy requester; all captured/replayed |
 | Direct transport qualification | All five new canaries fail closed on this environment's direct DNS; crt.sh proxy response quarantined for schema mismatch |
 | DEPLOYED | Private hosted runner/product view and production rollout remain unverified |
