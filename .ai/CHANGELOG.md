@@ -39,3 +39,37 @@
 - Focused evidence/anchor/bundle tests passed 16/16. Full suite: 326 run, 320 passed, 3 skipped, 3 failed (same OpenCTI submodule prerequisite; missing source files and vendor count 72/308). `compileall`, secret scan and `git diff --check` pass.
 - No production key manager, immutable store or remote monotonic anchor was connected. HMAC-file receipts do not prevent old-receipt rollback; EVIDENCE-001 remains open.
 
+# Engineering program changelog
+
+## 2026-10-04 — source maturity repair and persistent program
+
+- Recorded the baseline main SHA and failed CI evidence.
+- Repaired malformed source maturity registry and workforce CLI syntax that
+  broke baseline compilation; consolidated qualification around the shared
+  23-gate contract and normalized the legacy connector state.
+- Added strict evidence-reference bounds and lifecycle regression coverage.
+- Local checks: Python suite 313 run, 310 passed, 3 skipped; source compilation
+  and secret scan passed; graph/target tests 25/25; PGlite database test 1/1;
+  employee UI browser suite passed; source-fabric golden replay 78/78; restore
+  drill passed; benchmark evidence contract 8/8. Optional source SDK test was
+  skipped where dependency was unavailable.
+- OpenCTI submodule checksum verification passed for 8,275 files. The submodule
+  checkout is test support and must not be included in the PR diff.
+- GitHub PR CI and CodeQL are still pending; Docker, hosted staging, and live
+  source qualification were unavailable/not performed.
+- No source has been promoted and no live source was contacted by this run.
+- PR #49 is open at head `bc6f8dab150fd8bc521ca4b5ecfeafb61bce3aa5`, based on
+  main `dd3085b8f0658d28f88171b5c8225c0c46cea9a9`. CI run `37184062835` is
+  queued; CodeQL run `37184062839` is in progress.
+- The first hosted attempt exposed a truncated test-file blob transfer. The
+  UTF-8 source test was re-uploaded in size-verified chunks. Corrected
+  code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI
+  `37184302223` and CodeQL `37184302217`; worker image, both Python versions,
+  locked MCP, dependency review and supply-chain checks all passed.
+- Implemented TA-003 locally: FabricStore now rejects qualification review rows
+  whose evidence hash does not resolve to the same case's immutable EvidenceStore
+  records; it also refuses to report a legacy promotion as production-qualified
+  when a review reference is unresolved. Full suite: 315 tests, 312 passed,
+  3 skipped; focused Source Fabric: 28 tests, 27 passed, 1 skipped; secret scan
+  clean. PR #50 head `d9c7965e98ba3e26e123fe33c266c97be7b591b8` passed CI
+  `37185114010` and CodeQL `37185114003`.

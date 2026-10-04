@@ -121,37 +121,94 @@ class SourceFabricTests(unittest.TestCase):
         passed = lambda keys: {key: {'passed': True, 'evidence_ref': 'case:evidence-' + key} for key in keys}
         self.assertEqual(SourceRegistry.qualification(passed({'documentation', 'manifest'}))['maturity_state'], 'CATALOGUED')
         self.assertEqual(SourceRegistry.qualification(passed({'documentation', 'manifest', 'terms', 'license'}))['maturity_state'], 'TERMS_REVIEWED')
-        coded = passed({'documentation', 'manifest', 'terms', 'license', 'connector'})
+        coded = passed({'documentation', 'manifest', 'capabilities', 'terms', 'license', 'connector'})
         self.assertEqual(SourceRegistry.qualification(coded)['maturity_state'], 'CONNECTOR_CODED')
         configured = {**coded, **passed({'authentication', 'configured'})}
         self.assertEqual(SourceRegistry.qualification(configured)['maturity_state'], 'CONFIGURED')
-        live_test = passed({'documentation', 'manifest', 'terms', 'license', 'connector', 'authentication', 'configured', 'live_request'})
+        live_test = passed({'documentation', 'manifest', 'capabilities', 'terms', 'license', 'connector', 'authentication', 'configured', 'live_request'})
         self.assertEqual(SourceRegistry.qualification(live_test)['maturity_state'], 'LIVE_TESTED')
         verified = passed(SOURCE_QUALIFICATION_GATES - {'operational_owner'})
         result = SourceRegistry.qualification(verified, verified_runtime=True)
         self.assertEqual(result['maturity_state'], 'LIVE_VERIFIED')
         self.assertEqual(result['missing_gates'], ['operational_owner'])
         self.assertEqual(SourceRegistry.qualification(passed(SOURCE_QUALIFICATION_GATES), verified_runtime=True)['maturity_state'], 'PRODUCTION_QUALIFIED')
+        for evidence_ref in ('', 'x' * 513, 'case:evidence\nforged'):
+            with self.subTest(evidence_ref_length=len(evidence_ref)):
+                with self.assertRaisesRegex(ValueError, 'bounded evidence references'):
+                    SourceRegistry.qualification({'documentation': {'passed': True, 'evidence_ref': evidence_ref}})
         with self.assertRaises(ValueError):
             SourceRegistry.qualification({}, verified_runtime='yes')
 
     def test_legacy_promotion_does_not_bypass_new_qualification_gates(self):
+        from traceatlas.evidence import EvidenceStore
         from traceatlas.source_fabric.store import FabricStore
         store = FabricStore(self.db)
         stamp = datetime.now(timezone.utc).isoformat()
+        submitted = self.root / 'qualification-receipt.json'
+        submitted.write_text('{"receipt":"controlled test artifact"}', encoding='utf-8')
+        evidence_hash = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(
+            submitted, 'test:qualification') ['sha256']
         self.db.conn.execute("INSERT INTO fabric_executions(id,source,case_id,request_hash,authority_hash,status,mode,started_at) VALUES(?,?,?,?,?,'completed','live',?)",
                              ('live-canary', 'dns', 'fabric-case', 'a' * 64, 'b' * 64, stamp))
         self.db.conn.execute("INSERT INTO fabric_promotions(source,state,actor,at) VALUES(?,?,?,?)",
                              ('dns', 'PRODUCTION_QUALIFIED', 'analyst', stamp))
         for gate in SOURCE_QUALIFICATION_GATES - {'operational_owner'}:
             self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
-                                 ('dns', gate, 'fabric-case', 'c' * 64, 'analyst', stamp))
+                                 ('dns', gate, 'fabric-case', evidence_hash, 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
         self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
-                             ('dns', 'operational_owner', 'fabric-case', 'c' * 64, 'analyst', stamp))
+                             ('dns', 'operational_owner', 'fabric-case', evidence_hash, 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
+
+    def test_source_review_requires_authorized_case_artifact_hash(self):
+        from traceatlas.evidence import EvidenceStore
+        from traceatlas.policy import PolicyError
+        from traceatlas.source_fabric.store import FabricStore
+        store = FabricStore(self.db)
+        submitted = self.root / 'review-receipt.json'
+        submitted.write_text('{"receipt":"case-local review evidence"}', encoding='utf-8')
+        evidence_hash = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(
+            submitted, 'test:qualification-review')['sha256']
+        with self.assertRaisesRegex(PolicyError, 'Explicit analyst authority'):
+            store.review('dns', 'terms', 'fabric-case', evidence_hash, 'analyst', self.root)
+        with self.assertRaisesRegex(PolicyError, 'cite an artifact'):
+            store.review('dns', 'terms', 'fabric-case', 'f' * 64, 'analyst', self.root, authorized=True)
+        self.db.create_case('other-case', 'Other case', 'Cross-case reference check')
+        other = self.root / 'other-receipt.json'
+        other.write_text('{"receipt":"other case only"}', encoding='utf-8')
+        other_hash = EvidenceStore(self.root, self.db, 'other-case').preserve_file(
+            other, 'test:other-case')['sha256']
+        with self.assertRaisesRegex(PolicyError, 'cite an artifact'):
+            store.review('dns', 'terms', 'fabric-case', other_hash, 'analyst', self.root, authorized=True)
+        store.review('dns', 'terms', 'fabric-case', evidence_hash, 'analyst', self.root, authorized=True)
+        review = self.db.conn.execute('SELECT case_id,evidence_hash FROM fabric_reviews').fetchone()
+        self.assertEqual(review['case_id'], 'fabric-case')
+        self.assertEqual(review['evidence_hash'], evidence_hash)
+
+    def test_promotion_rejects_unresolved_legacy_review_reference(self):
+        from traceatlas.evidence import EvidenceStore
+        from traceatlas.policy import PolicyError
+        from traceatlas.source_fabric.store import FabricStore
+        store = FabricStore(self.db)
+        stamp = datetime.now(timezone.utc).isoformat()
+        submitted = self.root / 'tampered-review-receipt.json'
+        submitted.write_text('{"receipt":"preserved artifact"}', encoding='utf-8')
+        evidence_hash = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(
+            submitted, 'test:qualification-review')['sha256']
+        self.db.conn.execute("INSERT INTO fabric_executions(id,source,case_id,request_hash,authority_hash,status,mode,started_at) VALUES(?,?,?,?,?,'completed','live',?)",
+                             ('live-canary', 'dns', 'fabric-case', 'a' * 64, 'b' * 64, stamp))
+        self.db.conn.execute("INSERT INTO fabric_promotions(source,state,actor,at) VALUES(?,?,?,?)",
+                             ('dns', 'PRODUCTION_QUALIFIED', 'analyst', stamp))
+        for gate in SOURCE_QUALIFICATION_GATES:
+            digest = 'f' * 64 if gate == 'terms' else evidence_hash
+            self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
+                                 ('dns', gate, 'fabric-case', digest, 'analyst', stamp))
+        self.db.conn.commit()
+        self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
+        with self.assertRaisesRegex(PolicyError, 'reference does not resolve within its case'):
+            store.promote('dns', 'analyst', self.root, authorized=True)
 
     def test_planner_emits_target_bound_questions_and_evidence_requirements(self):
         objective = ObjectiveSpec('fabric-case', 'Review domain registration, DNS and history',
@@ -213,6 +270,13 @@ class SourceFabricTests(unittest.TestCase):
                          {"verified-item", "qualified-item"})
         self.assertEqual(registry.lifecycle_counts()["CATALOGUED"], 2)
         self.assertEqual(registry.lifecycle_counts()["LIVE_VERIFIED"], 1)
+
+    def test_legacy_connector_maturity_is_normalized_in_registry_views(self):
+        manifest = SourceManifest("legacy-item", "test", "Legacy", "test", ("test.read",), ("domain",),
+                                  implementation_status="CONNECTOR_IMPLEMENTED", connector_implemented=True)
+        registry = SourceRegistry([manifest])
+        self.assertEqual(manifest.to_dict()["maturity_state"], "CONNECTOR_CODED")
+        self.assertEqual(registry.lifecycle_counts()["CONNECTOR_CODED"], 1)
 
     def context(self, kind, target):
         self.sequence += 1; stamp = datetime.now(timezone.utc)

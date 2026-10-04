@@ -32,6 +32,10 @@ manifest, capabilities, connector, terms, licence, authentication, configured
 credentials, live request, normalization, evidence, provenance, failure handling,
 fallback behavior, rate limits, cost, security, schema-drift monitoring, tests,
 canary, health monitoring, operational owner, and runbook. A missing gate prevents
-`PRODUCTION_QUALIFIED`; a live request without all live-verification checks is only
-`LIVE_TESTED`. Qualification remains scoped to the recorded runtime; it does not
-assert that another deployment or jurisdiction is ready.
+`PRODUCTION_QUALIFIED`. `LIVE_VERIFIED` requires the live-verification subset:
+all gates except operational owner and runbook, plus a verified intended runtime.
+A live request without that full subset is only `LIVE_TESTED`. Qualification
+remains scoped to the recorded runtime; it does not assert that another
+deployment or jurisdiction is ready. Evidence references must be bounded and
+must resolve to authorized case artifacts before an analyst can persist reviews
+or promote a source; a string reference alone is not proof.
