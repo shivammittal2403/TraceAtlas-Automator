@@ -36,27 +36,30 @@ class SourceFabricTests(unittest.TestCase):
 
     def request(self, url, headers, timeout):
         self.calls.append(url)
-        if 'dns.google' in url:
+        parsed = urlparse(url)
+        host = (parsed.hostname or '').lower()
+        path = parsed.path or ''
+        if host == 'dns.google':
             data = {'Status': 0, 'Answer': [{'type': 1, 'data': '1.1.1.1'}]}
-        elif 'data.iana.org/rdap/dns.json' in url:
+        elif host == 'data.iana.org' and path == '/rdap/dns.json':
             data = {'version': '1.0', 'services': [[['org'], ['https://rdap.publicinterestregistry.org/rdap/']]]}
-        elif 'rdap.publicinterestregistry.org' in url:
+        elif host == 'rdap.publicinterestregistry.org':
             data = {'objectClassName': 'domain', 'ldhName': 'EXAMPLE.ORG', 'country': 'US'}
-        elif 'web.archive.org' in url:
+        elif host == 'web.archive.org':
             data = [['timestamp', 'original', 'statuscode'], ['20200101000000', 'https://example.org/', '200']]
-        elif 'rdap.org' in url:
+        elif host == 'rdap.org':
             data = {'objectClassName': 'domain', 'country': 'US'}
-        elif 'api.gleif.org' in url:
+        elif host == 'api.gleif.org':
             data = {'data': {'id': '5493001KJTIIGC8Y1R12', 'attributes': {'entity': {'legalName': {'name': 'Fixture Company'}}}}}
-        elif 'stat.ripe.net' in url:
+        elif host == 'stat.ripe.net':
             data = {'status': 'ok', 'query_id': 'fixture', 'data': {'asns': [13335], 'prefix': '1.1.1.0/24'}}
-        elif 'api.first.org' in url:
+        elif host == 'api.first.org':
             data = {'status': 'OK', 'data': [{'cve': 'CVE-2021-44228', 'epss': '0.8', 'date': '2026-10-03'}]}
-        elif 'api.osv.dev' in url:
+        elif host == 'api.osv.dev':
             data = {'id': 'GHSA-jfh8-c2jp-5v3q', 'modified': '2026-10-03T00:00:00Z', 'affected': []}
-        elif 'api.github.com' in url:
+        elif host == 'api.github.com':
             data = {'login': 'fixture'}
-        elif 'gitlab.com' in url:
+        elif host == 'gitlab.com':
             data = [{'username': 'fixture'}]
         else:
             self.fail('Unexpected source destination')
