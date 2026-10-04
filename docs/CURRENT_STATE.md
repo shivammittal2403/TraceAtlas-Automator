@@ -5,7 +5,7 @@ briefs are reconciled in `docs/sources/DELIVERY_LEDGER.md`; Phase A is implement
 later programme phases and production qualification remain incomplete. Exact-CVE
 NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the approved
 source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
-fixed-host, schema-validated and its facts are restricted to the exact CVE match.
+fixed-host and schema-validated; facts are restricted to the exact CVE match while the bounded raw response is retained for replay.
 
 The canonical local path is typed seed → immutable authority → capability/source
 plan → digest approval → bounded gateway → captured bytes → observations → source
