@@ -21,6 +21,17 @@ Baseline, changed blob IDs and verification metadata are recorded in
 Branch: `codex/repair-qualification-20261004`. Hosted repair CI/CodeQL pending.
 The Enterprise 8/10 objective and representative/live acceptance gates remain open.
 
+# Active work
+
+## Durable execution delivery — 2026-10-04
+
+Branch `codex/durable-workforce-runtime`, baseline `9d025c27a6d9d92294384df85dcbc3f479dae2ec`.
+Canonical leases/fences, cancel/recover, durable request accounting, immutable
+capture reuse and atomic finalization/outbox are implemented and locally tested.
+371 tests run: 370 pass, 1 skip. Browser blocked locally by missing Chromium;
+GitHub CI is a separate gate. See `docs/WORKFORCE_EXECUTION.md` and its receipt.
+Next: review/CI, model reservations, approved outbox consumer and hosted staging
+qualification. Preserve all earlier source/evidence/lineage work below.
 
 ## Completed this session: ER-BENCH-001 and ER-SIGNALS-001
 

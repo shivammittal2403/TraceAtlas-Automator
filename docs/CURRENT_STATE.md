@@ -21,6 +21,17 @@ Baseline, changed blob IDs and verification metadata are recorded in
 Branch: `codex/repair-qualification-20261004`. Hosted repair CI/CodeQL pending.
 The Enterprise 8/10 objective and representative/live acceptance gates remain open.
 
+# Current implementation state — 2026-10-04 / 1.11.0
+
+## Durable local workforce runtime
+
+Attempt fencing, owner cancellation/recovery, persistent request budgets,
+capture checkpoints and atomic result/product/derived-record/outbox completion
+are implemented in the canonical local workforce. Local verification: 371 Python
+tests run, 370 passed, 1 optional skip; 18 runtime negative tests pass. Hosted
+execution, distributed quotas and new live-source qualification remain unverified.
+See [execution contract](WORKFORCE_EXECUTION.md) and
+[test receipt](verification/workforce-runtime-2026-10-04.json).
 
 Source-inventory metrics below were audited against PR #43 baseline
 `d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04

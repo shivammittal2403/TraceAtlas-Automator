@@ -126,6 +126,8 @@ class InvestigationPipeline:
 
         def runner(task, employee):
             nonlocal product
+            token = self.service.execution_token(task.task_id)
+            runtime = self.store.runtime
             started = time.monotonic()
             context = self.store.authorization(task.authorization_context_id)
             plan = plan_sources(task, live=live)
@@ -140,6 +142,7 @@ class InvestigationPipeline:
             def check(tool):
                 try:
                     self.service._check_authority(context, task)
+                    remaining_runtime = runtime.check(task.task_id, token)
                 except ValueError as exc:
                     raise CollectionStopped("collection authority is no longer valid") from exc
                 if not self.service._enabled():
@@ -151,7 +154,14 @@ class InvestigationPipeline:
                 # Reserve bounded time for evidence capture, analysis and the final transaction.
                 reserve = min(5.0, task.budget.runtime_seconds * 0.1)
                 return min(30.0, task.budget.runtime_seconds - reserve - (time.monotonic() - started),
+                           remaining_runtime - reserve,
                            (datetime.fromisoformat(task.deadline) - datetime.now(timezone.utc)).total_seconds())
+            def capture(document):
+                runtime.check(task.task_id, token)
+                item = self.store.capture_document(task, document, self.workspace)
+                runtime.checkpoint(task.task_id, token, 'capture:' + document.source_id,
+                                   {'evidence_id': item.evidence_id, 'content_hash': item.content_hash})
+                return item
             if not live:
                 if supplied and check("evidence.retrieve") <= 0:
                     raise ValueError("collection runtime budget exhausted")
@@ -164,7 +174,7 @@ class InvestigationPipeline:
             else:
                 gateway_plan = capability_plan or {'sources': plan['sources']}
                 gateway_result = SourceGateway(source_state, self.requester, self.search_requester, PARSER_VERSION).collect(
-                    task, employee, gateway_plan, check, capture=lambda doc: self.store.capture_document(task, doc, self.workspace))
+                    task, employee, gateway_plan, check, capture=capture, attempt_token=token)
                 collected.extend(gateway_result['documents'])
                 outcomes.extend(gateway_result['outcomes'])
                 network_attempts = gateway_result['network_attempts']
@@ -178,7 +188,7 @@ class InvestigationPipeline:
                     if outcome.get('started_at'):
                         spans.append(TraceSpan(identifier('span', [task.task_id, outcome['source_id']]), task.trace_id, None,
                             SOURCE_TOOLS[outcome['source_id']], outcome['status'], outcome['started_at'], now(), outcome['latency_ms'], ()))
-            evidence = gateway_result['evidence'] if gateway_result else tuple(self.store.capture_document(task, doc, self.workspace) for doc in collected)
+            evidence = gateway_result['evidence'] if gateway_result else tuple(capture(doc) for doc in collected)
             if gateway_result:
                 for result_row in gateway_result['results']:
                     item = next((e for e in evidence if e.source_id == result_row['source_id']), None)
@@ -192,15 +202,9 @@ class InvestigationPipeline:
                     result_row['observations'] = [o for o in analysis['observations'] if o['evidence_id'] == evidence_id]
                     result_row['candidate_entities'] = [n for n in analysis['graph']['nodes'] if evidence_id in n['evidence_ids']]
                     result_row['candidate_relationships'] = [e for e in analysis['graph']['edges'] if evidence_id in e['evidence_ids']]
-            for observation in analysis["observations"]:
-                self.store.record_observation(task.case_id, Observation.from_dict(observation))
-            for lineage in analysis["source_lineage"]:
-                from .contracts import SourceLineage
-                # Snapshot is canonical; this table is a current derived index.
-                self.store.record_lineage(task.case_id, SourceLineage.from_dict(lineage))
-            for decision in analysis["verification"]:
-                from .contracts import VerificationDecision
-                self.store.record_verification(task.case_id, VerificationDecision.from_dict({**decision, "decided_at": now()}))
+            observation_ids = [o['observation_id'] for o in analysis['observations']]
+            runtime.checkpoint(task.task_id, token, 'analysis-ready:' + digest(observation_ids),
+                               {'observation_ids': observation_ids})
             failed = any(r["status"] not in {"captured", "not_needed"} for r in outcomes)
             stop = "source_exhausted" if not collected else "human_review_required"
             result = ResultEnvelope(
