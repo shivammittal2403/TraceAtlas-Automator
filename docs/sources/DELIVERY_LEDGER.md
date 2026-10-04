@@ -21,6 +21,7 @@ The earlier AI Employee repair and live-source work remain in the canonical runn
 | Phase A: twenty P0 connectors | CODED and fixture TESTED; selected real-response checks | Direct runtime and keyed services need live acceptance |
 | Phases B–F: 50/100/200/400+, marketplace | Discovery queue and scalable contract established | Not completed; no count inflation or placeholder live adapters |
 | Final company-investigation acceptance | Exact-identifier registry/filing/code-record subset, draft, gaps and replay | Ownership/sanctions/procurement cross-source investigation is incomplete |
+| Concurrent-main reconciliation | Split both Source Fabric test suites, repaired provider dispatch, removed duplicate registry keys, restored RDAP bootstrap routing, and aligned 49/47/33/20 inventory counts | CI/CodeQL must pass on the merged commit |
 
 No claim is made that this release fulfills every production objective in either
 master brief. It implements their first executable wave and names the remaining

@@ -14,9 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The registry currently describes 47 sources (45 existing IntelligenceHub entries
-plus Brave/SearXNG); 20 have the shared workforce adapter. The IntelligenceHub has
-31 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 49 source definitions (47 IntelligenceHub entries plus Brave/SearXNG); 20 have the canonical approval-driven workforce adapter. The IntelligenceHub has 33 API implementations. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP or company identifiers.
 It returns questions, candidate scores/rejections, a minimum covering set, approved
@@ -122,8 +120,7 @@ No direct-runtime production qualification or paid-account entitlement is claime
 
 Next phases require current official documentation/terms research for the remaining
 candidate queue, real account credentials, sustained canaries and source-specific
-adversarial cases. Native sanctions, beneficial ownership, procurement, package,
-geospatial and vulnerability workflows are not delivered by these 20 adapters.
+adversarial cases. Native sanctions, beneficial ownership, procurement and geospatial workflows are not delivered by these 20 adapters. Package and vulnerability collection is available through the bounded local autonomous/IntelligenceHub path, but is not yet part of this 20-adapter workforce surface.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
 planning and the hosted UI-to-worker flow remain separately unqualified.
 

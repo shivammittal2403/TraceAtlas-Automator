@@ -1,8 +1,6 @@
-# Current implementation state — 2026-10-03 / 1.11.0
+# Current implementation state — 2026-10-04 / 1.11.0
 
-Source Fabric baseline is merged PR #24, main
-`26dc8b8f41ed901ae65246f5ff91e38aff7fe1b1`. The earlier live-source request is
-included there. Both new source briefs are reconciled in
+The source work from merged PRs #24–#29 is included in current `main`. Both new source briefs are reconciled in
 `docs/sources/DELIVERY_LEDGER.md`; Phase A is implemented, later programme phases
 are explicitly incomplete.
 
@@ -20,14 +18,13 @@ approved records. Model-free normalization and report generation remain supporte
 | Delivery state | Evidence |
 |---|---|
 | CODED | Capability registry/router, 20-adapter SDK, bounded parallel gateway, scoped cache, health/canary recovery, cost limits and six MCP tools |
-| TESTED locally | 271 Python tests run (one optional SDK test skipped in core); 15 tests pass separately with MCP 2.3 including real wire exchange; three Node graph/target/PGlite test files pass; 60/60 controlled source scenarios replay; browser flow and all required CI/CodeQL gates passed on implementation commit c199c799 |
+| TESTED locally | 302 Python tests run: 301 passed and one environment-dependent test skipped; 15 MCP tests passed separately on the Phase A checkpoint; PGlite and 25 Node UI/target tests pass locally; 60/60 controlled source scenarios and the browser flow passed on the recorded implementation checkpoints |
 | Real response parsing/replay | Cloudflare DNS, RIPEstat, GLEIF and GitHub public reference responses through an injected environment-proxy requester; all captured/replayed |
 | Direct transport qualification | All five new canaries fail closed on this environment's direct DNS; crt.sh proxy response quarantined for schema mismatch |
 | DEPLOYED | Private hosted runner/product view and production rollout remain unverified |
 | PRODUCTION_QUALIFIED | Zero source claims; current terms/account entitlement, sustained health and intended-runtime verification outstanding |
 
-Registry counts overlap: 47 metadata entries, 20 shared workforce adapters,
-45 IntelligenceHub entries of which 31 have API implementations. The supplied 400
+Registry counts overlap: 49 workforce metadata entries, 20 canonical approval-driven workforce adapters, and 47 IntelligenceHub entries of which 33 have API implementations. The supplied 400
 candidate rows deduplicate to 351 research rows, 41 flagged as generic categories.
 A candidate, code path or configured key is never counted as a verified integration.
 
@@ -39,8 +36,10 @@ billing measurements. Rate/concurrency ceilings are process-local, not a distrib
 quota guarantee. All fresh collection rechecks authority and the kill switch.
 
 Paid-source credentials, deployed SearXNG and SEC operator contact are not
-established here. Beneficial ownership, sanctions, procurement, public geospatial,
-package and vulnerability company workflows require additional canonical adapters.
+established here. Beneficial ownership, sanctions, procurement and public
+geospatial coverage remain gaps. Package and vulnerability collection exists in
+the local autonomous/IntelligenceHub path; promoting it into the canonical
+20-adapter workforce surface still requires adapter qualification.
 Country packs, calibrated information gain, semantic/multilingual planning,
 marketplace discovery, distributed workers, model-provider qualification and
 hosted operations remain gaps. No contact, active scans, account action, identity
@@ -65,7 +64,9 @@ remain intact. Employee run telemetry/qualification is separate from canonical
 workforce state; do not combine their verification counts. The employee replay
 checks bundle integrity, not canonical semantic recomputation.
 
-CODED: console, employee routing and additional connectors. TESTED: 302 Python tests (299 pass, three environment skips), 25 Node graph/target tests pass; see PR #26
+CODED: console, employee routing and additional connectors. TESTED in this workspace:
+302 Python tests run, 301 passed and one environment-dependent test skipped; 25
+Node graph/target tests and the PGlite database test pass. See PR #26
 verification and docs/SOURCE_FABRIC.md. Three historical direct canaries have
 hash receipts, not blanket post-merge qualification. DEPLOYED: local package only;
 hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones remain
