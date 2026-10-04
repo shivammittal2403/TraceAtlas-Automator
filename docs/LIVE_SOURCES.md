@@ -18,6 +18,7 @@ scan submission, returned-URL fetch or target pivot is implemented here.
 | `brave` | Domain, public IPv4/IPv6 | Configured or explicit | `BRAVE_SEARCH_API_KEY`; at most ten search-result leads |
 | `searxng` | Domain, public IPv4/IPv6 | Configured or explicit | `SEARXNG_URL`; numeric loopback HTTP origin with port; JSON enabled |
 | `nvd` | Exact CVE | Default | NIST CVE API; optional `NVD_API_KEY`; ID, CVSS score and severity |
+| `cveorg` | Exact CVE | Default | CVE Program CNA record; record ID, name and affected-product metadata |
 | `epss` | Exact CVE | Default | FIRST EPSS; dated probability and percentile, not observed exploitation |
 | `osv` | Exact vulnerability ID | Default | OSV advisory ID, aliases and affected package metadata |
 | `npm` | Exact npm package | Default | Current public registry version and declared license metadata |
@@ -78,7 +79,7 @@ if qualified. Select one search provider. To change sources after approval,
 create and approve a new task. Existing approvals without source constraints
 retain their earlier DNS/RDAP/archive or RDAP/InternetDB selection.
 
-For security metadata, authorize and plan `--target-type cve` to bind NVD and
+For security metadata, authorize and plan `--target-type cve` to bind NVD, CVE Program and
 EPSS, `--target-type vulnerability` to bind OSV, or `--target-type package` to
 bind npm. Scoped npm names such as `@scope/package` are accepted. These sources
 do not inspect an asset, install a package, retrieve exploit code, or prove that
@@ -132,7 +133,7 @@ private worker/UI integration and production readiness are not established.
 ## Source Fabric update (1.11)
 
 New plans use the capability router rather than the older fixed default list above.
-The shared runner now has 24 adapters, including exact company registry identifiers,
+The shared runner now has 25 adapters, including exact company registry identifiers,
 NVD, EPSS, OSV and npm.
 See [the Source Fabric runbook](sources/SOURCE_FABRIC.md) for the current catalog,
 price ceilings, cache, health canaries, MCP interface and remaining qualification gates.
