@@ -73,7 +73,6 @@ class FabricStore:
             if r["state"] in {"DISABLED", "BROKEN", "DEGRADED", "DEPRECATED"}:
                 result[r["source"]] = normalize_maturity(r["state"])
             elif r["state"] == "PRODUCTION_QUALIFIED" and result.get(r["source"]) == "LIVE_VERIFIED" and r["at"] > cutoff:
-                reviewed = self._resolved_checks(r["source"])
                 review_cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
                 reviews = list(self.db.conn.execute(
                     "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?",
@@ -123,7 +122,7 @@ class FabricStore:
         if not authorized or not isinstance(actor, str) or len(actor) < 2 or source not in SOURCES:
             raise PolicyError("Explicit local analyst authority is required")
         if self.states().get(source) not in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"}:
-            raise PolicyError("Recent successful non-fixture canary required")
+            raise PolicyError("Recent successful non-fixture canary and resolved live-verification reviews required")
         canary = self.db.conn.execute("SELECT case_id FROM fabric_executions WHERE source=? AND mode='live' AND cache_hit=0 ORDER BY started_at DESC LIMIT 1", (source,)).fetchone()
         if not canary or not EvidenceStore(workspace, self.db, canary["case_id"]).verify_ledger()[0]:
             raise PolicyError("Canary artifact integrity failed")
@@ -134,7 +133,6 @@ class FabricStore:
         for r in reviews:
             if not EvidenceStore(workspace, self.db, r["case_id"]).verify_ledger()[0]:
                 raise PolicyError("Qualification review artifact integrity failed")
-            if not any(item['sha256'] == r['evidence_hash'] for item in self.db.evidence(r['case_id'])):
             if not any(item["sha256"] == r["evidence_hash"] for item in self.db.evidence(r["case_id"])):
                 raise PolicyError("Qualification review reference does not resolve within its case")
         self.db.conn.execute("INSERT INTO fabric_promotions VALUES(?,?,?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state,actor=excluded.actor,at=excluded.at",

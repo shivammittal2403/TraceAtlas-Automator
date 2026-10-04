@@ -38,14 +38,6 @@ CATALOGUE_GATES = frozenset({"documentation", "manifest"})
 TERMS_GATES = CATALOGUE_GATES | frozenset({"terms", "license"})
 CONNECTOR_GATES = TERMS_GATES | frozenset({"capabilities", "connector"})
 CONFIGURATION_GATES = CONNECTOR_GATES | frozenset({"configured", "authentication"})
-P0_DEFINITIONS = json.loads(files('traceatlas.workforce.data').joinpath('source_manifests.json').read_text())
-P0_IDS = frozenset(r['source_id'] for r in P0_DEFINITIONS)
-P0_BY_ID = {r['source_id']: r for r in P0_DEFINITIONS}
-QUALIFICATION_GATES = SOURCE_QUALIFICATION_GATES
-CATALOGUE_GATES = frozenset({"documentation", "manifest"})
-TERMS_GATES = CATALOGUE_GATES | frozenset({"terms", "license"})
-CONNECTOR_GATES = TERMS_GATES | frozenset({"connector", "security"})
-CONFIGURATION_GATES = TERMS_GATES | frozenset({"connector", "authentication", "configured"})
 
 
 @dataclass(frozen=True)
@@ -108,9 +100,6 @@ class SourceManifest:
         value["implementation_status"] = state
         value["maturity_state"] = state
         value.update(lifecycle_state=state,
-        value["implementation_status"] = normalize_maturity(self.implementation_status)
-        value["maturity_state"] = value["implementation_status"]
-        value.update(lifecycle_state=value["implementation_status"],
                      estimated_cost={'amount': self.estimated_request_cost, 'currency': self.currency,
                                      'basis': self.pricing_model, 'actual': None},
                      freshness={'max_cache_age_seconds': self.cache_ttl_seconds, 'provider_timestamp': 'preserved-when-supplied'},
@@ -185,8 +174,6 @@ class SourceRegistry:
         for item in self._sources.values():
             counts[normalize_maturity(item.implementation_status)] += 1
         return counts
-        from ..source_maturity import maturity_counts
-        return maturity_counts(item.implementation_status for item in self._sources.values())
 
     def live_integrations(self):
         """Only LIVE_VERIFIED and PRODUCTION_QUALIFIED sources count as live."""
@@ -198,9 +185,6 @@ class SourceRegistry:
         """Derive a source maturity proposal from bounded evidence attestations."""
         if type(verified_runtime) is not bool:
             raise ValueError("runtime verification must be an explicit boolean")
-        """Derive the highest lifecycle stage supported by submitted evidence attestations."""
-        if type(verified_runtime) is not bool:
-            raise ValueError("verified_runtime must be boolean")
         if not isinstance(gates, dict) or set(gates) - QUALIFICATION_GATES:
             raise ValueError("unknown qualification gates")
         if not all(
@@ -221,7 +205,6 @@ class SourceRegistry:
         if TERMS_GATES.issubset(passed):
             state = "TERMS_REVIEWED"
         if CONNECTOR_GATES.issubset(passed):
-        if TERMS_GATES.union({"connector"}).issubset(passed):
             state = "CONNECTOR_CODED"
         if CONFIGURATION_GATES.issubset(passed):
             state = "CONFIGURED"

@@ -1,5 +1,27 @@
 # Active work
 
+## Current repair checkpoint — 2026-10-04
+
+The previous 329-test pass came from an unsynchronized local checkout and was
+incorrectly attributed to merged commit `e2f39d3`; that attribution is withdrawn.
+PR #54 merged while a repair was underway. Continued from exact main snapshot
+`9d025c27a6d9d92294384df85dcbc3f479dae2ec`: all 678 tracked file contents matched.
+This snapshot had duplicate merge fragments in the source registry, FabricStore,
+qualification policy and source tests. The repair preserves the new 26-gate
+qualification policy, same-case evidence validation and stricter LIVE_TESTED
+versus LIVE_VERIFIED distinction. Negative tests cover missing prerequisites,
+unresolved reviews, and promotion rejection despite a stale state projection.
+
+Fresh result on that snapshot plus the four repair blobs: 354 tests run,
+351 passed, 3 skipped, zero failures; compilation and secret scan pass.
+Grouping remains TP=7/FP=0/TN=5/FN=0 on 12 synthetic pairs; temporal contradiction
+remains TP=3/FP=0/TN=5/FN=0 on 8 synthetic pairs. These do not measure field accuracy.
+Baseline, changed blob IDs and verification metadata are recorded in
+`docs/verification/source-registry-merge-repair-2026-10-04.json`.
+Branch: `codex/repair-qualification-20261004`. Hosted repair CI/CodeQL pending.
+The Enterprise 8/10 objective and representative/live acceptance gates remain open.
+
+
 ## Completed this session: ER-BENCH-001 and ER-SIGNALS-001
 
 - Status: synthetic diagnostic complete; representative identity quality remains OPEN P0.

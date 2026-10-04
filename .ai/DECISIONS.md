@@ -43,3 +43,7 @@ main from this autonomous engineering loop.
 ## Keep OpenCTI gitlink pinned during Windows long-path repair — 2026-10-04
 
 Decision: retain the superproject's existing OpenCTI gitlink at `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`. The 15 deep files are restored from that commit and the tests pass; Git for Windows still reports inaccessible paths. Do not commit submodule churn caused only by local path enumeration.
+
+## Exact-snapshot merge repair — 2026-10-04
+
+Use a new repair branch from main 9d025c after PR #54 merged concurrently. Preserve the 26-gate policy and portfolio additions. Remove duplicate merge fragments; never replace current source with the old local checkout.

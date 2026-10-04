@@ -1,0 +1,50 @@
+{
+  "baseline_commit": "9d025c27a6d9d92294384df85dcbc3f479dae2ec",
+  "baseline_blob_comparison": {
+    "files": 678,
+    "content_mismatches": 0
+  },
+  "baseline_failure": "Duplicate merge fragments break compilation in source_registry.py, source_fabric/store.py and test_source_fabric.py; duplicated LIVE_VERIFICATION_GATES definition",
+  "changed_blob_sha1": {
+    "src/traceatlas/workforce/source_registry.py": "6be005c8e19b336258a1722b4cc49c2e54f26629",
+    "src/traceatlas/source_fabric/store.py": "77e8998d52b9fc6214e19a07e5cc0900eebf014a",
+    "src/traceatlas/source_maturity.py": "da0f08dcc03a970bb1acf9c08c951949dbd4e4c4",
+    "tests/test_source_fabric.py": "3ee179173c9d9dce4de0afd8398ed428726eeb7b"
+  },
+  "python_suite": {
+    "run": 354,
+    "passed": 351,
+    "skipped": 3,
+    "failures": 0,
+    "command": "PYTHONPATH=src python -m unittest discover -s tests -q",
+    "output_sha256": "3b23ec867f5fa42e6e93919af6b519dda62961ee7184fdc8f64d0e241f3374a1"
+  },
+  "compileall": "PASS",
+  "secret_scan": "clean",
+  "lineage": {
+    "cases": 12,
+    "counts": {
+      "tp": 7,
+      "fp": 0,
+      "tn": 5,
+      "fn": 0
+    },
+    "status": "PASS"
+  },
+  "contradictions": {
+    "cases": 8,
+    "counts": {
+      "tp": 3,
+      "fp": 0,
+      "tn": 5,
+      "fn": 0
+    },
+    "status": "PASS"
+  },
+  "limitations": [
+    "Results apply to the exact baseline snapshot plus the four listed changed blobs.",
+    "Earlier 329-test result came from an unsynchronized checkout and was incorrectly attributed to a merged GitHub commit.",
+    "Synthetic lineage and contradiction cases do not measure operational accuracy.",
+    "Hosted CI and CodeQL on this repair must be inspected separately."
+  ]
+}

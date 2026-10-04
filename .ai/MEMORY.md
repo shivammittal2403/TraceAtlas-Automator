@@ -29,3 +29,7 @@
 ## Windows submodule long-path note — 2026-10-04
 
 The pinned `third_party/opencti-connectors` gitlink is `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`. Git for Windows status warns about two deep directories, but the files can be read with the Win32 extended path prefix and are restored from the exact pinned blobs. Do not stage or change the gitlink to address this display limitation.
+
+## Exact-snapshot merge repair — 2026-10-04
+
+Continue from work/repair-current (exact 9d025c snapshot plus repair). Older work/TraceAtlas-Automator differs from merged GitHub code; work/repair is superseded by a concurrent merge. Verify remote parent before publishing. The pinned OpenCTI test checkout is linked by a junction; use git diff --ignore-submodules=all locally.

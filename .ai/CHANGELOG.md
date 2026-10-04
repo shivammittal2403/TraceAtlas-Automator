@@ -79,3 +79,7 @@
 - Revalidated pinned submodule source blobs with Win32 extended paths; focused OpenCTI tests passed 7/7.
 - Full Python suite: 329 run, 326 passed, 3 skipped, 0 failures.
 - No submodule gitlink change; Git for Windows still cannot enumerate the two deep directories.
+
+## Exact-snapshot merge repair — 2026-10-04
+
+Repaired duplicate merge fragments across registry, FabricStore, qualification policy and tests. Preserved all 26 gates. Exact 9d025c snapshot plus patch: 354 run / 351 pass / 3 skip; compile and secrets pass. Corrected the prior 329-test merged-commit attribution.
