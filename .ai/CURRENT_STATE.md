@@ -78,10 +78,10 @@ membership is not semantic support. See `docs/EVIDENCE_ANCHORING.md`.
 ## Remote synchronization
 
 The GitHub branch `codex/source-maturity-taxonomy` contains the evidence
-evaluator commit `d0c21249d813c88cffe8b0316067608866a112bc` and follow-up
-documentation/state commits. These writes and a compare against the previous
-program tip were verified through the GitHub API. The evaluator's code commit
-had no associated workflow runs or commit status checks when queried.
+evaluator commit `d0c21249d813c88cffe8b0316067608866a112bc` and the opt-in HMAC
+anchoring implementation commit `b47c331327ae50679a10b59b870c11df86c6342b`.
+The remote diff and CLI hook were verified through the GitHub API. The latest
+code commit had no associated workflow runs or commit status checks when queried.
 The local checkout still has `HEAD` at
 `52def959113c721ad2ffc5753e8db9c6c36db2ff` and is missing the remote merge
 ancestry. The incomplete OpenCTI submodule working

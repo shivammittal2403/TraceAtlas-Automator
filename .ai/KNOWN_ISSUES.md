@@ -8,8 +8,9 @@
 | ER-QUALITY-001 | OPEN P0 | Entity candidate ranking and false-merge risk lack representative precision/recall measurements. | Synthetic diagnostic exists: 0.80 precision, 1.00 recall on 24 synthetic pairs; one namesake false-positive candidate. Operational accuracy remains unknown until privacy-reviewed adjudicated data exists. |
 | SOURCE-PROD-001 | OPEN P0 | Production-qualified source count is zero. | Current terms, account entitlement, intended-runtime live canary, sustained health and operator ownership evidence are absent. |
 | HOSTED-OPS-001 | OPEN P0 | Hosted tenant/worker operation, production isolation, backup/restore and distributed controls are not proven. | Requires operator-controlled staging infrastructure and review. |
-| GIT-TRANSPORT-001 | PARTIAL | Bundled Git lacks `remote-https`, so native fetch/push cannot synchronize this checkout. Remote writes succeeded through the connected GitHub API. | Remote `codex/source-maturity-taxonomy` includes the pushed evidence-evaluation and state-ledger commits; local `HEAD` remains `52def959113c721ad2ffc5753e8db9c6c36db2ff` and does not contain the remote merge ancestry. Keep remote/local state distinct and do not force-update; restore working Git transport before native synchronization. |
+| GIT-TRANSPORT-001 | PARTIAL | Bundled Git lacks `remote-https`, so native fetch/push cannot synchronize this checkout. Remote writes succeeded through the connected GitHub API. | Remote `codex/source-maturity-taxonomy` includes evidence evaluation and HMAC anchoring commit `b47c331327ae50679a10b59b870c11df86c6342b`; local `HEAD` remains `52def959113c721ad2ffc5753e8db9c6c36db2ff` and does not contain the remote merge ancestry. Keep remote/local state distinct and do not force-update; restore working Git transport before native synchronization. |
 
 No real individual data, live provider credentials or live social sources are
 available for this engineering session. These constraints do not block synthetic
 evaluation or other deterministic local work.
+
