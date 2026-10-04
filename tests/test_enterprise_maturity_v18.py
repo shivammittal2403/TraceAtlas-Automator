@@ -39,6 +39,10 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
         expected = {"mastodon", "stackexchange", "dockerhub", "npm", "crossref", "orcid"}
         self.assertTrue(expected.issubset(SOURCES))
         hub = IntelligenceHub(self.db, self.workspace)
+        cisa_url, _ = hub._live_request(SOURCES["cisa_kev"], "cve", "CVE-2024-12345")
+        self.assertEqual(cisa_url, "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+        with self.assertRaises(PolicyError):
+            hub._live_request(SOURCES["cisa_kev"], "cve", "CVE-2024-12345 OR 1=1")
         cases = [
             ("stackexchange", "user_id", "22656", "https://api.stackexchange.com/"),
             ("dockerhub", "username", "library", "https://hub.docker.com/"),
