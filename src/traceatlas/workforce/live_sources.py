@@ -36,7 +36,7 @@ def search_base():
 def default_sources(kind, target):
     sources = (["dns", "rdap", "urlscan", "wayback"] if kind == "domain"
                else ["rdap", "ipwhois", "internetdb", "urlscan"] if kind == "ip"
-               else ["nvd", "epss", "cveorg"] if kind == "cve"
+               else ["nvd", "epss", "cveorg", "cisa_kev"] if kind == "cve"
                else ["osv"] if kind == "vulnerability"
                else ["npm"] if kind == "package" else [])
     if kind == "ip" and ipaddress.ip_address(target).version == 6:
