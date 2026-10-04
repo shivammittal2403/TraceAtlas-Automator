@@ -191,3 +191,14 @@ connection abort). Curated lineage and contradiction recall remain unmeasured.
 The two loopback-console tests passed on an isolated rerun after the full-suite
 connection-aborted error. It did not reproduce in isolation; root cause remains
 unknown.
+
+
+## 2026-10-04 temporal contradiction update
+
+The pipeline now calls the same extracted contradiction rule measured by the
+synthetic evaluator. Eight pairs produce TP=3, FP=0, TN=5, FN=0. The cases
+include temporal overlap/boundaries and exclude multivalued DNS. This does not
+measure real-world recall. Focused evaluator tests pass 3/3 and pipeline tests
+27/28 (one skip). Full Python suite: 329 run, 323 pass, 3 skip, 3 fail from
+the known incomplete OpenCTI checkout; console tests passed. `LINEAGE-001`
+remains open pending approved representative data.

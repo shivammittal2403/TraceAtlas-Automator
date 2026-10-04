@@ -116,3 +116,15 @@ three known OpenCTI checkout failures and one Windows loopback-console abort.
 The two loopback-console tests passed on an isolated rerun. The single failure
 seen in the full suite did not reproduce; root cause remains unknown and is
 tracked as `ENV-WINLOOPBACK-001`.
+
+
+## Temporal contradiction diagnostic (2026-10-04)
+
+Extracted the pipeline's overlapping-valid-time, different-value, registered
+single-value predicate rule into `workforce/contradictions.py` and reused it in
+the pipeline. The synthetic set has 8 pairs (TP=3, FP=0, TN=5, FN=0). It covers
+historical non-overlap, partial overlap, open-ended ranges, other subjects,
+other predicates and multivalued DNS. This measures the predicate rule only,
+not operational contradiction recall. Focused evaluator 3/3; pipeline 27 pass,
+1 skip; AI workforce 13/13; full suite 329 run, 323 pass, 3 skip, 3 known
+OpenCTI submodule failures. The Windows loopback failure did not recur.

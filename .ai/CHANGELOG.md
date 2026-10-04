@@ -1,5 +1,12 @@
 # Program changelog
 
+## 2026-10-04 — Temporal contradiction diagnostic
+
+- Extracted registered single-value, same-subject, differing-value, overlapping-valid-time logic into `workforce/contradictions.py` and reused it from the investigation pipeline.
+- Added eight synthetic temporal conflict/non-conflict pairs to the source lineage report: TP=3, FP=0, TN=5, FN=0. This is a unit-level diagnostic, not representative recall.
+- Focused evaluator tests pass 3/3; pipeline tests pass 27 with 1 skipped; full suite runs 329 with 323 passing, 3 skipped and 3 OpenCTI submodule failures.
+
+
 ## 2026-10-04 — Source independence diagnostic
 
 - Added a 12-pair synthetic source grouping benchmark and JSON report. The initial hostname heuristic caused a false merge for separate tenants sharing one host.

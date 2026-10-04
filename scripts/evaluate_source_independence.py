@@ -15,5 +15,6 @@ if __name__ == "__main__":
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"status": report["status"], "case_count": report["case_count"],
                       "counts": report["counts"], "metrics": report["metrics"],
+                      "contradiction_evaluation": report["contradiction_evaluation"],
                       "report": str(output)}, indent=2))
     raise SystemExit(0 if report["status"] == "PASS" else 1)

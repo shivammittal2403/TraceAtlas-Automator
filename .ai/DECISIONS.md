@@ -8,3 +8,4 @@
 | 2026-10-04 | Report false-merge rate as undefined when no automatic merge is attempted. | Zero merges means the metric denominator is zero; reporting 0% would imply evidence that does not exist. |
 | 2026-10-04 | Keep Enterprise score uncalculated until category scoring is evidence-backed. | Implementation volume and fixture counts do not establish an 8/10 production capability. |
 | 2026-10-04 | Do not infer source independence from hostname equality alone. | Shared hosting and CDN domains may contain separate tenants; explicit reviewed ownership is required to group distinct pages from one publisher. |
+| 2026-10-04 | Keep temporal contradiction predicate shared between production pipeline and synthetic evaluator. | The diagnostic must exercise the same subject/predicate/value/time-overlap rule; representative real-world contradiction recall remains open. |

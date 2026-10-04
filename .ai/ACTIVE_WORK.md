@@ -28,6 +28,6 @@ tasks, gap register, evaluation results and implementation ledger after changes.
 
 - Added a deterministic 12-pair synthetic evaluator for source-origin grouping, covering declared upstreams, reviewed ownership, copies, canonical URLs and independent sources sharing one hostname.
 - The benchmark exposed that hostname equality could merge separate tenants. Removed hostname-only merging; publisher grouping now requires explicit ownership metadata. Updated the same-publisher regression case to provide reviewed ownership.
-- Focused evaluator: 2/2 passed; report: 12/12 expected pair decisions (TP=7, FP=0, TN=5, FN=0; precision/recall/specificity/F1 all 1.0 on this synthetic set). Pipeline tests 28 run, 27 pass, 1 skip; AI workforce tests 13/13; diff check passes.
-- Full Python suite: 328 run; 321 passed, 3 skipped, 4 failed (3 known OpenCTI checkout failures plus one Windows loopback-console connection abort). Isolated console rerun passed 2/2; the failure did not reproduce in isolation, root cause remains unknown.
-- LINEAGE-005 remains OPEN: synthetic pairs do not establish representative lineage accuracy or contradiction recall. Next: prepare an approved route for curated labels and investigate the non-reproducing full-suite console failure if it recurs.
+- Evaluator tests 3/3; grouping benchmark 12 pairs TP=7/FP=0/TN=5/FN=0; temporal contradiction benchmark 8 pairs TP=3/FP=0/TN=5/FN=0. Pipeline tests 28 run, 27 pass, 1 skip; AI workforce tests 13/13.
+- Full Python suite: 329 run, 323 pass, 3 skip, 3 fail (all known OpenCTI checkout failures); loopback-console tests passed in the full run. Secret scan, compileall and `git diff --check` passed.
+- LINEAGE-005 remains OPEN: synthetic metrics do not estimate representative lineage quality or contradiction recall. Next: obtain approved curated labels and resolve the OpenCTI checkout prerequisite.

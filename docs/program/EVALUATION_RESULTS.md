@@ -1,32 +1,36 @@
 # Evaluation results
 
-## Source independence diagnostic (2026-10-04)
+## Source independence and contradiction diagnostics (2026-10-04)
 
-`source-independence-synthetic-v1` runs 12 deterministic source pairs against
+`lineage-and-contradiction-synthetic-v2` runs 12 deterministic source pairs against
 the production `SourceIndependenceEngine`: TP=7, FP=0, TN=5, FN=0; precision,
 recall, specificity and F1 are 1.0 on this synthetic set. The first run exposed
 a false merge when unrelated tenants shared a hostname. The engine no longer
 uses hostname equality as proof of common origin; reviewed ownership metadata
-still groups distinct pages from one publisher. Focused tests passed 2/2,
-investigation-pipeline tests 27 passed/1 skipped, AI workforce tests 13/13, and
-`git diff --check` passed. The result is a regression diagnostic, not an
-operational estimate. It does not evaluate contradiction recall or temporal
-overlap. Report: [`source-independence-synthetic-2026-10-04.json`](../verification/source-independence-synthetic-2026-10-04.json).
+still groups distinct pages from one publisher.
 
-After the lineage change, the full Python suite ran 328 tests: 321 passed,
-3 skipped and 4 failed. Three failures are the known incomplete OpenCTI
-submodule prerequisite (two missing-source errors and vendor count 72/308).
-One unrelated loopback-console test encountered a Windows connection-aborted
-error. The isolated console test file then passed 2/2; the suite-level failure
-did not reproduce in isolation, and its cause remains unknown.
+The same report includes 8 temporal contradiction pairs evaluated by the
+helper used in the production pipeline: TP=3, FP=0, TN=5, FN=0 (synthetic
+precision, recall, specificity and F1 are 1.0). Cases cover overlapping and
+historical conflicts, partial/open intervals, different subjects/predicates,
+same values and multivalued DNS. Evaluator tests passed 3/3,
+investigation-pipeline tests 27 passed/1 skipped, AI workforce 13/13, and
+`git diff --check` passed. These are unit-level synthetic diagnostics, not
+operational accuracy or contradiction recall.
 
+Report: [`source-independence-synthetic-2026-10-04.json`](../verification/source-independence-synthetic-2026-10-04.json).
+
+After the refactor, the full Python suite ran 329 tests: 323 passed, 3 skipped,
+and 3 failed. All failures are the known incomplete OpenCTI submodule
+prerequisite (two missing-source errors and vendor count 72/308). Console tests
+passed in this full run.
 
 Updated: 2026-10-04. Results below are freshly observed in this checkout unless
 marked historical. Environment failures are not reported as code passes.
 
 | Evaluation | Result | Scope and limitation |
 |---|---|---|
-| Python `unittest discover -s tests -q` | 326 run; 320 passed; 3 skipped; 3 failed (2 errors, 1 failure) | All failures are the OpenCTI submodule prerequisite: pinned source files unavailable and vendor count 72 vs expected 308. The 16 focused evidence/anchor/bundle tests pass. |
+| Python `unittest discover -s tests -q` (latest after lineage/contradiction refactor) | 329 run; 323 passed; 3 skipped; 3 failed (2 errors, 1 failure) | All failures are the OpenCTI submodule prerequisite: pinned source files unavailable and vendor count 72 vs expected 308. Console regression passed in this full run. |
 | Node graph/target suite | 25/25 passed | Set `PYTHON` to the bundled Python executable so Node could spawn Python; tests are local synthetic cases. |
 | PGlite database/RLS | 1/1 passed | Installed exact project dev dependencies with `pnpm install --frozen-lockfile`; local disposable PGlite/Auth-shim gate only. |
 | Python source compilation | Passed | `compileall -q src`. |

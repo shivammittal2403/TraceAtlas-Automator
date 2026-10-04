@@ -1,7 +1,7 @@
 {
-  "suite": "source-independence-synthetic-v1",
+  "suite": "lineage-and-contradiction-synthetic-v2",
   "status": "PASS",
-  "scope": "synthetic pairwise source grouping only",
+  "scope": "synthetic source grouping and temporal contradiction pairs",
   "case_count": 12,
   "counts": {
     "tp": 7,
@@ -17,8 +17,9 @@
   },
   "limitations": [
     "Synthetic cases do not estimate real-world performance.",
-    "Pairwise labels do not measure contradiction detection or recall.",
-    "Contradiction detection is outside this evaluator; reviewed ownership metadata is needed to group separate pages from one publisher."
+    "Pairwise labels do not estimate operational source-lineage accuracy.",
+    "Contradiction cases are synthetic and do not estimate operational recall.",
+    "Reviewed ownership metadata is needed to group separate pages from one publisher."
   ],
   "results": [
     {
@@ -191,5 +192,68 @@
         ]
       ]
     }
-  ]
+  ],
+  "contradiction_evaluation": {
+    "suite": "temporal-contradiction-synthetic-v1",
+    "status": "PASS",
+    "case_count": 8,
+    "counts": {
+      "tp": 3,
+      "fp": 0,
+      "tn": 5,
+      "fn": 0
+    },
+    "metrics": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "specificity": 1.0,
+      "f1": 1.0
+    },
+    "limitations": [
+      "Eight synthetic pairs are a unit-level diagnostic, not operational contradiction recall.",
+      "Predicates outside the registered single-value set are intentionally excluded."
+    ],
+    "results": [
+      {
+        "id": "overlapping-country-conflict",
+        "expected_contradiction": true,
+        "predicted_contradiction": true
+      },
+      {
+        "id": "historical-country-change",
+        "expected_contradiction": false,
+        "predicted_contradiction": false
+      },
+      {
+        "id": "same-value-overlap",
+        "expected_contradiction": false,
+        "predicted_contradiction": false
+      },
+      {
+        "id": "different-subject",
+        "expected_contradiction": false,
+        "predicted_contradiction": false
+      },
+      {
+        "id": "different-predicate",
+        "expected_contradiction": false,
+        "predicted_contradiction": false
+      },
+      {
+        "id": "multivalued-dns-addresses",
+        "expected_contradiction": false,
+        "predicted_contradiction": false
+      },
+      {
+        "id": "partial-interval-overlap",
+        "expected_contradiction": true,
+        "predicted_contradiction": true
+      },
+      {
+        "id": "open-ended-conflict",
+        "expected_contradiction": true,
+        "predicted_contradiction": true
+      }
+    ]
+  }
 }

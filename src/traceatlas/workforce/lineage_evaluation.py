@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+from .contradictions import contradicts
+from .documents import StructuredFact
 from .lineage import SourceIndependenceEngine, SourceRecord
 
 
@@ -60,10 +62,55 @@ def evaluate_source_independence() -> dict:
     recall = counts["tp"] / (counts["tp"] + counts["fn"]) if counts["tp"] + counts["fn"] else 0.0
     specificity = counts["tn"] / (counts["tn"] + counts["fp"]) if counts["tn"] + counts["fp"] else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    return {"suite": "source-independence-synthetic-v1", "status": "PASS" if counts["fp"] == 0 and counts["fn"] == 0 else "FAIL",
-            "scope": "synthetic pairwise source grouping only", "case_count": len(cases),
+    contradictions = evaluate_contradictions()
+    return {"suite": "lineage-and-contradiction-synthetic-v2",
+            "status": "PASS" if counts["fp"] == 0 and counts["fn"] == 0 and contradictions["status"] == "PASS" else "FAIL",
+            "scope": "synthetic source grouping and temporal contradiction pairs", "case_count": len(cases),
             "counts": counts, "metrics": {"precision": precision, "recall": recall, "specificity": specificity, "f1": f1},
             "limitations": ["Synthetic cases do not estimate real-world performance.",
-                            "Pairwise labels do not measure contradiction detection or recall.",
-                            "Contradiction detection is outside this evaluator; reviewed ownership metadata is needed to group separate pages from one publisher."],
+                            "Pairwise labels do not estimate operational source-lineage accuracy.",
+                            "Contradiction cases are synthetic and do not estimate operational recall.",
+                            "Reviewed ownership metadata is needed to group separate pages from one publisher."],
+            "results": results, "contradiction_evaluation": contradictions}
+
+
+def evaluate_contradictions() -> dict:
+    """Evaluate the production temporal contradiction predicate on labeled pairs."""
+    def fact(subject, predicate, value, start, end=None):
+        return StructuredFact(subject, predicate, value, start, end)
+
+    cases = (
+        ("overlapping-country-conflict", fact("domain:example.org", "registered_country", "IN", "2024-01-01T00:00:00Z"), fact("domain:example.org", "registered_country", "GB", "2024-06-01T00:00:00Z"), True),
+        ("historical-country-change", fact("domain:example.org", "registered_country", "IN", "2020-01-01T00:00:00Z", "2021-01-01T00:00:00Z"), fact("domain:example.org", "registered_country", "GB", "2022-01-01T00:00:00Z"), False),
+        ("same-value-overlap", fact("domain:example.org", "registered_country", "IN", "2024-01-01T00:00:00Z"), fact("domain:example.org", "registered_country", "IN", "2024-06-01T00:00:00Z"), False),
+        ("different-subject", fact("domain:alpha.example", "registered_country", "IN", "2024-01-01T00:00:00Z"), fact("domain:beta.example", "registered_country", "GB", "2024-06-01T00:00:00Z"), False),
+        ("different-predicate", fact("domain:example.org", "registered_country", "IN", "2024-01-01T00:00:00Z"), fact("domain:example.org", "registered_name", "Example Ltd", "2024-06-01T00:00:00Z"), False),
+        ("multivalued-dns-addresses", fact("domain:example.org", "resolves_to", "192.0.2.1", "2024-01-01T00:00:00Z"), fact("domain:example.org", "resolves_to", "192.0.2.2", "2024-06-01T00:00:00Z"), False),
+        ("partial-interval-overlap", fact("domain:example.org", "registered_name", "Example Alpha", "2023-01-01T00:00:00Z", "2024-08-01T00:00:00Z"), fact("domain:example.org", "registered_name", "Example Beta", "2024-07-01T00:00:00Z", "2025-01-01T00:00:00Z"), True),
+        ("open-ended-conflict", fact("domain:example.org", "package_license", "MIT", "2024-01-01T00:00:00Z"), fact("domain:example.org", "package_license", "Apache-2.0", "2024-06-01T00:00:00Z"), True),
+    )
+    counts = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    results = []
+    for case_id, left, right, expected in cases:
+        predicted = contradicts(left, right)
+        if predicted and expected:
+            counts["tp"] += 1
+        elif predicted:
+            counts["fp"] += 1
+        elif expected:
+            counts["fn"] += 1
+        else:
+            counts["tn"] += 1
+        results.append({"id": case_id, "expected_contradiction": expected,
+                        "predicted_contradiction": predicted})
+    precision = counts["tp"] / (counts["tp"] + counts["fp"]) if counts["tp"] + counts["fp"] else 0.0
+    recall = counts["tp"] / (counts["tp"] + counts["fn"]) if counts["tp"] + counts["fn"] else 0.0
+    specificity = counts["tn"] / (counts["tn"] + counts["fp"]) if counts["tn"] + counts["fp"] else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {"suite": "temporal-contradiction-synthetic-v1",
+            "status": "PASS" if counts["fp"] == 0 and counts["fn"] == 0 else "FAIL",
+            "case_count": len(cases), "counts": counts,
+            "metrics": {"precision": precision, "recall": recall, "specificity": specificity, "f1": f1},
+            "limitations": ["Eight synthetic pairs are a unit-level diagnostic, not operational contradiction recall.",
+                            "Predicates outside the registered single-value set are intentionally excluded."],
             "results": results}
