@@ -81,7 +81,7 @@ class WorkforceService:
         required_tools = {"evidence.retrieve"} | {SOURCE_TOOLS[source] for source in selected}
         required_actions = {"request_collection", "propose_observation", "propose_claim"}
         if not required_tools.issubset(context.allowed_tools) or not required_actions.issubset(context.allowed_actions):
-            raise ValueError("authorization does not permit the domain vertical slice")
+            raise ValueError("authorization does not permit the typed investigation")
         task = TaskEnvelope(
             schema_version=SCHEMA_VERSION, task_id="task-" + uuid4().hex, case_id=context.case_id,
             parent_task_id=None, trace_id="trace-" + uuid4().hex,

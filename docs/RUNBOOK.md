@@ -18,11 +18,25 @@ export TRACEATLAS_WORKFORCE_ENABLED=1
 
 `source-records.json` is an array of strict SourceDocument objects; see
 `schemas/source-document.schema.json` and the synthetic packaged golden records.
-For actual owned-domain/IP provider collection use `--live` instead of
+For actual domain/IP/CVE/vulnerability/package provider collection use `--live` instead of
 `--documents`. The example domain is a documentation seed, not an ownership
 attestation for a real investigation. Person/company targets are case-local
 public IDs and accept records only. CLI output contains the draft Markdown,
 evidence references, graph/timeline, verification and replay metadata.
+
+Exact security-metadata example:
+
+```bash
+./start.sh workforce authorize --case demo-case --target-type cve --target CVE-2024-12345 \
+  --actor analyst-1 --purpose "Authorized vulnerability review" --jurisdiction IN --authorized
+./start.sh workforce plan --context AUTH_ID --target-type cve --target CVE-2024-12345 \
+  --objective "Review advisory severity and exploitation probability"
+# Approve the returned digest, then run with --live as above.
+```
+
+Use `vulnerability` for an exact OSV/GHSA identifier and `package` for an exact
+npm name, including `@scope/package`. Results require human comparison with
+authorized asset or software inventory.
 
 Set `TRACEATLAS_WORKFORCE_KILL_SWITCH=1` to stop new dispatch. On provider failure
 inspect source_outcomes/gaps; do not interpret missing results as absence. On

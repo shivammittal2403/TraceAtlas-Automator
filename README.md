@@ -20,10 +20,11 @@ citations, graph inspection and evidence/replay ZIP export. Optional Ollama draf
 remain advisory. See [setup](docs/AUTONOMOUS_IMPLEMENTATION.md) and
 [employee source integration](docs/SOURCE_FABRIC.md).
 
-The canonical workforce pipeline and its 20 source adapters remain available through
+The canonical workforce pipeline and its 24 source adapters remain available through
 `workforce investigate`. The employee console is an additional local workflow;
 it does not replace canonical workforce authority or hosted control-plane approval.
-EPSS and OSV extend the shared IntelligenceHub to 47 records / 33 API implementations.
+NVD, EPSS, OSV and npm also run through the canonical workforce evidence path;
+the shared IntelligenceHub remains 47 records / 33 API implementations.
 
 ## What is included
 
@@ -824,7 +825,7 @@ See [FUSION.md](FUSION.md) for the OpenOSINT compatibility and Vercel design.
 ## Integrated evidence-first investigation slice (2026-10-03)
 
 The local workforce now executes approved source records or fixed-host owned
-Domain/IP collection through captured bytes, observations, structured assertions,
+Domain/IP/CVE/vulnerability/package collection through captured bytes, observations, structured assertions,
 transitive source lineage, verification, temporal graph/timeline, draft reporting
 and network-free replay. Person/company use approved records and case-local IDs.
 No semantic text assertion, identity merge or consequential action is silently
@@ -871,10 +872,12 @@ and hosted worker/UI deployment remain unqualified.
 
 ## Source Fabric (1.11.0)
 
-The new capability router chooses a bounded subset from twenty shared workforce
-adapters for domain, IP and exact company-identifier investigations. It adds
+The capability router chooses a bounded subset from 24 shared workforce
+adapters for domain, IP, exact company identifiers, CVEs, vulnerability advisories
+and npm packages. It adds
 Cloudflare DNS, crt.sh, RIPEstat, GLEIF, Companies House, SEC and OpenCorporates,
-and reuses GitHub, Shodan and VirusTotal in the canonical evidence workflow.
+and reuses GitHub, Shodan and VirusTotal in the canonical evidence workflow. NVD,
+EPSS, OSV and npm now produce typed, replayable workforce observations.
 Case-scoped cache, conservative rate/cost limits, two-wave fallback, health
 canaries and six optional MCP tools share existing authority and replay.
 

@@ -15,7 +15,7 @@ from .pipeline import InvestigationPipeline
 from .live_sources import readiness, select_sources, SOURCE_TOOLS
 
 
-TOOLS = ("dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "ip.lookup", "registry.lookup", "evidence.retrieve")
+TOOLS = ("dns.lookup", "rdap.lookup", "archive.lookup", "search.execute", "ip.lookup", "registry.lookup", "vulnerability.lookup", "package.lookup", "evidence.retrieve")
 ACTIONS = ("request_collection", "propose_observation", "propose_claim")
 
 
@@ -37,16 +37,16 @@ def add_workforce_parser(sub) -> None:
     authorize.add_argument("--retention", default="case-standard")
     authorize.add_argument("--hours", type=int, default=24)
     authorize.add_argument("--authorized", action="store_true")
-    auth = commands.add_parser("authorize", help="Register exact authority for domain/IP or approved person/company records")
+    auth = commands.add_parser("authorize", help="Register exact authority for a supported typed investigation seed")
     for option in ("case", "target", "actor", "purpose", "jurisdiction"):
         auth.add_argument("--" + option, required=True)
-    auth.add_argument("--target-type", choices=("domain", "ip", "person", "company"), required=True)
+    auth.add_argument("--target-type", choices=("domain", "ip", "person", "company", "cve", "vulnerability", "package"), required=True)
     auth.add_argument("--retention", default="case-standard")
     auth.add_argument("--hours", type=int, default=24)
     auth.add_argument("--authorized", action="store_true")
     generic = commands.add_parser("plan", help="Plan a bounded typed investigation")
     generic.add_argument("--context", required=True)
-    generic.add_argument("--target-type", choices=("domain", "ip", "person", "company"), required=True)
+    generic.add_argument("--target-type", choices=("domain", "ip", "person", "company", "cve", "vulnerability", "package"), required=True)
     generic.add_argument("--target", required=True)
     generic.add_argument("--objective", required=True)
     generic.add_argument("--sources", nargs="+", help="Bind explicit source IDs into the immutable approved task")
@@ -58,14 +58,14 @@ def add_workforce_parser(sub) -> None:
     collect.add_argument("--task", required=True)
     modes = collect.add_mutually_exclusive_group(required=True)
     modes.add_argument("--documents", type=Path, help="Approved source-document JSON")
-    modes.add_argument("--live", action="store_true", help="Collect the live sources bound into the approved domain/IP task")
+    modes.add_argument("--live", action="store_true", help="Collect live sources bound into the approved typed task")
     collect.add_argument("--authorized", action="store_true")
     replay = commands.add_parser("replay", help="Verify and reanalyse captured bytes without network/model calls")
     replay.add_argument("--task", required=True)
     report = commands.add_parser("report", help="Return immutable investigation draft")
     report.add_argument("--task", required=True)
     golden = commands.add_parser("golden", help="Execute controlled end-to-end investigations")
-    golden.add_argument("--source-fabric", action="store_true", help="Execute 60 Source Fabric fixture investigations")
+    golden.add_argument("--source-fabric", action="store_true", help="Execute 72 Source Fabric fixture investigations")
     plan = commands.add_parser("plan-domain", help="Create a bounded owned-domain task")
     plan.add_argument("--context", required=True)
     plan.add_argument("--domain", required=True)

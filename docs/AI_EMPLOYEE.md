@@ -50,12 +50,13 @@ The Employee also enforces these boundaries:
 | Domain | DNS, RDAP and Internet Archive metadata |
 | IP address | InternetDB, RDAP, IPWHOIS and GreyNoise Community; ipdata is available as an explicit keyed source |
 | File hash | VirusTotal when separately configured |
-| CVE | NIST NVD |
+| CVE | NIST NVD and FIRST EPSS through Source Fabric |
+| Vulnerability advisory | OSV exact-ID metadata through Source Fabric |
 | Username | GitHub, GitLab and Hacker News public endpoints |
 | DOI | Crossref |
 | npm package | npm registry metadata |
 
-These routes use the existing TraceAtlas integration runner, including response
+These routes use the existing TraceAtlas integration runners, including response
 limits, contract validation, failure isolation and provenance. API keys and
 provider readiness remain deployment-specific.
 

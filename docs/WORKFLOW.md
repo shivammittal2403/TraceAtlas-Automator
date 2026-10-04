@@ -76,7 +76,8 @@ Create a local case, register lawful purpose/actor/jurisdiction/retention and ex
 seed scope, then plan and approve the immutable envelope digest. Planner source
 selection uses seed type and implemented connector contracts. Domain chooses
 DNS/RDAP/urlscan/archive; IPv4 chooses RDAP/IPWHOIS/InternetDB/urlscan; IPv6 excludes
-InternetDB. Source IDs are bound into task constraints before digest approval.
+InternetDB; CVE chooses NVD/EPSS; exact vulnerability IDs choose OSV; npm package
+names choose npm registry metadata. Source IDs are bound into task constraints before digest approval.
 Person and company select approved-record ingestion. Configure Brave or numeric
 loopback SearXNG to execute the exact quoted domain/IP search; result URLs remain
 leads with preserved search-response citations and no automatic fetch/pivot.
@@ -103,7 +104,9 @@ time separately.
 
 Information gaps and rule-ranked next checks are explicit. The single collection
 cycle stops at source exhaustion, budget/policy boundary or human review; it does
-not invent unconfigured sources or a calibrated information-gain model. Draft
-report/result/manifest commit together locally. Replay validates all stored
+not invent unconfigured sources or a calibrated information-gain model.
+Security-metadata next actions require human comparison with authorized asset or
+software inventory; advisory data never establishes deployment or exploitation.
+Draft report/result/manifest commit together locally. Replay validates all stored
 digests, custody and captured input bytes, then recomputes substantive analysis
 using the recorded workflow/parser/policy versions with no network/model call.
