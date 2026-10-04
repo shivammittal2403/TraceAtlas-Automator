@@ -34,7 +34,11 @@ def search_base():
 
 
 def default_sources(kind, target):
-    sources = ["dns", "rdap", "urlscan", "wayback"] if kind == "domain" else ["rdap", "ipwhois", "internetdb", "urlscan"] if kind == "ip" else []
+    sources = (["dns", "rdap", "urlscan", "wayback"] if kind == "domain"
+               else ["rdap", "ipwhois", "internetdb", "urlscan"] if kind == "ip"
+               else ["nvd", "epss"] if kind == "cve"
+               else ["osv"] if kind == "vulnerability"
+               else ["npm"] if kind == "package" else [])
     if kind == "ip" and ipaddress.ip_address(target).version == 6:
         sources.remove("internetdb")
     search = os.environ.get("TRACEATLAS_SEARCH_PROVIDER", "").strip().lower()
@@ -82,7 +86,7 @@ def readiness():
     for source, kinds in SOURCE_TYPES.items():
         credentials = (("BRAVE_SEARCH_API_KEY",) if source == "brave" else ("SEARXNG_URL",)
                        if source == "searxng" else source_contract(source).credential_env)
-        optional = source in {"urlscan", "greynoise", "github"}
+        optional = source in {"urlscan", "greynoise", "github", "nvd"}
         missing = [name for name in credentials if not os.environ.get(name, "").strip()]
         state = "configured" if credentials and not missing else "keyless" if not credentials or optional else "not_configured"
         if source == "searxng" and not missing:

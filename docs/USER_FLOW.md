@@ -76,6 +76,9 @@ Connector availability depends on installed tools, credentials, licenses, provid
 | Threat actor | Controlled public-source assertions | Shared backbone fixture | No autonomous attribution |
 | Malware | Inert static-analysis assertions | Shared backbone fixture | No specimen execution |
 | Supply chain | Controlled company dependency assertions | Shared backbone fixture | No native BOM import in this slice |
+| CVE | Exact `CVE-YYYY-NNNN` identifier | NVD + EPSS | Advisory/probability metadata; asset applicability requires review |
+| Vulnerability | Exact OSV/GHSA identifier | OSV | Affected-package metadata is not an installed-package finding |
+| npm package | Exact package or `@scope/package` | npm registry | Current registry metadata; compare with authorized inventory |
 
 Local happy path: create case → register authority → define objective/seed → plan
 → approve exact digest → run → inspect product evidence/graph/timeline/claims →
@@ -88,8 +91,8 @@ this deterministic runner. Expired/mismatched permission fails before dispatch.
 Budget exhaustion skips further requests and preserves unknowns. Detected source
 instructions have no action authority and prevent SUPPORTED promotion.
 
-Pause/cancel/resume of this new workflow are not implemented. The kill switch
-stops new dispatch; transport timeout bounds an in-flight request. Completed-task
-retry returns its immutable product. A failed task needs a new approved task;
-interrupted acquisition can leave captured but unreferenced bytes. Do not call
-that distributed exactly-once execution. See RUNBOOK.md for concrete commands.
+The local employee console supports checkpointed pause, resume and cancellation.
+Canonical `workforce run` uses the kill switch and bounded transport timeouts;
+completed-task retry returns its immutable product, while a failed task needs a
+new approved task. These are distinct execution modes and neither claims
+distributed exactly-once execution. See RUNBOOK.md for concrete commands.

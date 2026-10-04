@@ -1,6 +1,6 @@
 # Entity and assertion semantics
 
-Seeds have domain/IP/person/company types and exact registered scope.
+Seeds have domain/IP/person/company/CVE/vulnerability/package types and exact registered scope.
 Person/company identifiers are local case associations, not global identities.
 The graph supports existing node types plus URL/ASN/certificate/hash/malware/
 vulnerability/TTP/dataset types; adding a node type does not add its collector.

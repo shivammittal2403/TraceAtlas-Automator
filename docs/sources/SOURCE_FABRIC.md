@@ -1,7 +1,7 @@
 # Source Fabric 1.11
 
 Both supplied 200+ and 400+ briefs are implemented as one staged programme.
-This release delivers the Phase A architecture and twenty canonical adapters.
+This release delivers the Phase A architecture and twenty-four canonical adapters.
 It does not claim the later targets of 50 production-qualified or 100 live-verified
 sources. The 400 supplied candidate entries become 351 deduplicated review rows,
 including 41 entries flagged as generic categories requiring a specific provider.
@@ -14,17 +14,20 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 49 source definitions (47 IntelligenceHub entries plus Brave/SearXNG); 20 have the canonical approval-driven workforce adapter. The IntelligenceHub has 33 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 49 source definitions (47 IntelligenceHub entries plus Brave/SearXNG); 24 have the canonical approval-driven workforce adapter. The IntelligenceHub has 33 API implementations. These counts overlap and must never be added together.
 
-The planner derives requirements for typed domain, public IP or company identifiers.
+The planner derives requirements for typed domain, public IP, company, CVE,
+vulnerability-advisory or npm-package identifiers.
 It returns questions, candidate scores/rejections, a minimum covering set, approved
 fallback dependencies, cost ceilings, gaps and stop conditions. Scores are transparent
 heuristics, not calibrated information gain. One exact seed, eight network attempts,
 USD 1 estimated spend and 120 seconds remain the task limits. No autonomous pivot,
 identity merge, contact, scan submission, model call or report release is introduced.
 
-Examples of exact company seeds: `lei:5493001KJTIIGC8Y1R12`, `gb:00000001`,
-`cik:1`, `github:python`. These are identifier syntax examples, not identity matches.
+Examples of exact company and security seeds: `lei:5493001KJTIIGC8Y1R12`,
+`gb:00000001`, `cik:1`, `github:python`, `CVE-2024-12345`,
+`GHSA-1234-5678-9ABC`, `lodash`, or `@scope/package`. These are identifier
+syntax examples, not identity matches or installed-software assertions.
 A company name alone never silently resolves to a registry record. The operator's
 jurisdiction is retained in authority; it is not proof of the entity's jurisdiction.
 Cross-register identifier reconciliation and beneficial ownership remain gaps.
@@ -47,6 +50,10 @@ traceatlas workforce plan --context AUTH_ID --target-type domain --target exampl
   --objective 'Review authorized domain infrastructure and historical exposure'
 traceatlas workforce plan --context AUTH_ID --target-type company --target lei:5493001KJTIIGC8Y1R12 \
   --objective 'Verify the public company registration record'
+traceatlas workforce plan --context AUTH_ID --target-type cve --target CVE-2024-12345 \
+  --objective 'Review advisory severity and exploitation probability'
+traceatlas workforce plan --context AUTH_ID --target-type package --target @scope/package \
+  --objective 'Capture exact public npm package metadata'
 ```
 
 Inspect the returned source plan, then approve its exact envelope digest and use
@@ -120,11 +127,14 @@ No direct-runtime production qualification or paid-account entitlement is claime
 
 Next phases require current official documentation/terms research for the remaining
 candidate queue, real account credentials, sustained canaries and source-specific
-adversarial cases. Native sanctions, beneficial ownership, procurement and geospatial workflows are not delivered by these 20 adapters. Package and vulnerability collection is available through the bounded local autonomous/IntelligenceHub path, but is not yet part of this 20-adapter workforce surface.
+adversarial cases. Native sanctions, beneficial ownership, procurement and
+geospatial workflows are not delivered by these 24 adapters. Package and
+vulnerability collection is now part of the bounded canonical workforce surface
+through NVD, EPSS, OSV and npm.
 Distributed workers/quotas, automatic source discovery, semantic multilingual
 planning and the hosted UI-to-worker flow remain separately unqualified.
 
-Parser version is now `structured-fact/3`, workflow `1.2.0`. Old captures remain
+Parser version is now `structured-fact/4`, workflow `1.3.0`. Old captures remain
 immutable; replay uses its recorded workflow version and fails closed when that
 version is unsupported. Keep the previous release available for historical replay;
 never relabel old captures or silently reparse them as new evidence.

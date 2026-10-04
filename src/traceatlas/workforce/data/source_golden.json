@@ -280,6 +280,90 @@
           }
         }
       }
+    ],
+    "nvd": [
+      "cve",
+      "CVE-2024-12345",
+      {
+        "resultsPerPage": 1,
+        "startIndex": 0,
+        "totalResults": 1,
+        "format": "NVD_CVE",
+        "version": "2.0",
+        "timestamp": "2025-01-02T00:00:00.000Z",
+        "vulnerabilities": [
+          {
+            "cve": {
+              "id": "CVE-2024-12345",
+              "published": "2025-01-01T00:00:00.000Z",
+              "lastModified": "2025-01-02T00:00:00.000Z",
+              "vulnStatus": "Analyzed",
+              "metrics": {
+                "cvssMetricV31": [
+                  {
+                    "cvssData": {
+                      "baseScore": 9.8,
+                      "baseSeverity": "CRITICAL"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "epss": [
+      "cve",
+      "CVE-2024-12345",
+      {
+        "status": "OK",
+        "status-code": 200,
+        "version": "1.0",
+        "access": "public",
+        "total": 1,
+        "offset": 0,
+        "limit": 1,
+        "data": [
+          {
+            "cve": "CVE-2024-12345",
+            "epss": "0.812340000",
+            "percentile": "0.987650000",
+            "date": "2025-01-02"
+          }
+        ]
+      }
+    ],
+    "osv": [
+      "vulnerability",
+      "GHSA-1234-5678-9ABC",
+      {
+        "id": "GHSA-1234-5678-9ABC",
+        "modified": "2025-01-02T00:00:00Z",
+        "aliases": [
+          "CVE-2024-12345"
+        ],
+        "affected": [
+          {
+            "package": {
+              "ecosystem": "npm",
+              "name": "fixture-package"
+            },
+            "versions": [
+              "1.0.0"
+            ]
+          }
+        ]
+      }
+    ],
+    "npm": [
+      "package",
+      "fixture-package",
+      {
+        "name": "fixture-package",
+        "version": "1.2.3",
+        "license": "MIT"
+      }
     ]
   }
 }

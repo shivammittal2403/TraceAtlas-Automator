@@ -129,7 +129,7 @@ See [LIVE_SOURCES.md](LIVE_SOURCES.md) for exact coverage and qualification evid
 
 ## Source Fabric phase A update — 1.11.0
 
-The ten-source runner audited above now uses a twenty-source shared SDK and a
+The ten-source runner audited above now uses a twenty-four-source shared SDK and a
 capability router/gateway. The new scoped cache, concurrency/cost limits, health
 canaries and MCP surface reuse canonical policy and evidence. The deduplicated
 candidate queue is discovery data only. The current implementation and remaining

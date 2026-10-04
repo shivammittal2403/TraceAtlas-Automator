@@ -30,10 +30,10 @@ from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
 from .normalization import live_facts as _live_facts
 
-WORKFLOW_VERSION = "evidence-investigation/1.2.0"
-PARSER_VERSION = "structured-fact/3"
+WORKFLOW_VERSION = "evidence-investigation/1.3.0"
+PARSER_VERSION = "structured-fact/4"
 POLICY_VERSION = "bounded-readonly/1"
-SINGLE_VALUES = frozenset({"registry_handle", "registered_name", "registered_country"})
+SINGLE_VALUES = frozenset({"registry_handle", "registered_name", "registered_country", "package_version", "package_license"})
 
 
 from .source_sdk import CollectionStopped
@@ -253,7 +253,8 @@ class InvestigationPipeline:
         capability_plan = SourceState(self.store).plan(task)
         if capability_plan:
             gaps.update('unavailable-capability-' + cap for cap in capability_plan['information_gaps'])
-        if not any(d.source_id in SEARCH_SOURCES for d in documents):
+        kind = task.target_entities[0].split(":", 1)[0]
+        if kind in {"domain", "ip", "company"} and not any(d.source_id in SEARCH_SOURCES for d in documents):
             gaps.add("no-captured-web-search")
         lineage = SourceIndependenceEngine().group([SourceRecord(d.source_id, d.source_uri, d.content, d.original_source_id, d.ownership_group) for d in documents])
         lineage_index = {r.source_id: r.independence_group for r in lineage}
@@ -281,7 +282,8 @@ class InvestigationPipeline:
         graph = TemporalClaimGraph(task.case_id)
         kind, seed = task.target_entities[0].split(":", 1)
         seed_node = identifier("entity", [task.case_id, task.target_entities[0]])
-        graph.add_node(GraphNode(seed_node, task.case_id, {"domain":"Domain", "ip":"IP", "person":"Person", "company":"Company"}[kind], seed,
+        graph.add_node(GraphNode(seed_node, task.case_id, {"domain":"Domain", "ip":"IP", "person":"Person", "company":"Company",
+                                "cve":"Vulnerability", "vulnerability":"Vulnerability", "package":"Software"}[kind], seed,
                                 tuple(e.evidence_id for e in evidence), tuple(o.observation_id for o in observations), task.created_at, None, "deterministic-planner"))
         for doc, item in zip(documents, evidence):
             refs = tuple(o.observation_id for o in observations if o.evidence_id == item.evidence_id)
@@ -337,7 +339,10 @@ class InvestigationPipeline:
                 conflicts.append({"claim_id": claim.claim_id, "predicate": predicate,
                                   "contrary_observation_ids": [o.observation_id for _, o, _ in contrary]})
             target_id = identifier("entity", [task.case_id, predicate, value])
-            node_type = "IP" if predicate in {"resolves_to", "scan_observed_ip"} else "URL" if predicate in {"archived_url", "indexed_url", "search_result_url"} else "Document"
+            node_type = ("IP" if predicate in {"resolves_to", "scan_observed_ip"}
+                         else "URL" if predicate in {"archived_url", "indexed_url", "search_result_url"}
+                         else "Vulnerability" if predicate in {"vulnerability_id", "vulnerability_alias"}
+                         else "Software" if predicate in {"affected_package", "package_version"} else "Document")
             eids = tuple(dict.fromkeys(o.evidence_id for _, o, _ in rows))
             oids = tuple(o.observation_id for _, o, _ in rows)
             if target_id not in graph.nodes:
@@ -369,7 +374,18 @@ class InvestigationPipeline:
             next_actions.append({"action_id": "review-contradictions", "priority": 1, "basis": "overlapping conflicting single-valued records", "automatic_execution": False})
         if any(r["status"] != "SUPPORTED" for r in decisions):
             next_actions.append({"action_id": "seek-independent-corroboration", "priority": 2, "basis": "verification gaps", "automatic_execution": False})
-        next_actions.append({"action_id": "human-review-draft", "priority": 3, "basis": "material findings require human release", "automatic_execution": False})
+        predicates = {fact.predicate for fact, _, _ in fact_rows}
+        if kind == "cve":
+            if "vulnerability_score" not in predicates:
+                next_actions.append({"action_id": "obtain-vulnerability-severity", "priority": 2, "basis": "no normalized severity score was captured", "automatic_execution": False})
+            if "exploitation_probability" not in predicates:
+                next_actions.append({"action_id": "obtain-exploitation-probability", "priority": 2, "basis": "no dated exploitation probability was captured", "automatic_execution": False})
+            next_actions.append({"action_id": "review-authorized-asset-applicability", "priority": 3, "basis": "a public advisory does not prove an authorized asset is affected", "automatic_execution": False})
+        elif kind == "vulnerability":
+            next_actions.append({"action_id": "review-affected-package-applicability", "priority": 3, "basis": "advisory package metadata requires comparison with authorized inventory", "automatic_execution": False})
+        elif kind == "package":
+            next_actions.append({"action_id": "compare-version-with-authorized-inventory", "priority": 3, "basis": "registry metadata does not establish an installed version", "automatic_execution": False})
+        next_actions.append({"action_id": "human-review-draft", "priority": 4, "basis": "material findings require human release", "automatic_execution": False})
         snapshot = graph.snapshot()
         evidence_sources = {e.evidence_id: e.source_id for e in evidence}
         for edge in snapshot["edges"]:

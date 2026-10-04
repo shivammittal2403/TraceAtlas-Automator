@@ -127,6 +127,74 @@ def _live_facts(source, seed, data, stamp):
         count = stats.get('malicious')
         if type(count) is int and count >= 0:
             add('provider_malicious_detections', count)
+    elif source == 'nvd':
+        rows = data['vulnerabilities']
+        if data['totalResults'] < 1 or not rows:
+            raise ProviderError('provider_record_not_found')
+        matches = [row['cve'] for row in rows if isinstance(row, dict) and isinstance(row.get('cve'), dict)
+                   and row['cve'].get('id') == target]
+        if len(matches) != 1:
+            raise ProviderError('provider_target_mismatch')
+        record = matches[0]
+        at = _provider_time(record.get('lastModified'), stamp)
+        add('vulnerability_id', target, at)
+        metrics = record.get('metrics', {})
+        if not isinstance(metrics, dict):
+            raise ProviderError('provider_schema_mismatch')
+        for metric_name in ('cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'):
+            values = metrics.get(metric_name, [])
+            if values:
+                if not isinstance(values, list) or not isinstance(values[0], dict) or not isinstance(values[0].get('cvssData'), dict):
+                    raise ProviderError('provider_schema_mismatch')
+                cvss = values[0]['cvssData']
+                score = cvss.get('baseScore')
+                if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= float(score) <= 10:
+                    raise ProviderError('provider_schema_mismatch')
+                add('vulnerability_score', str(score), at)
+                severity = cvss.get('baseSeverity') or values[0].get('baseSeverity')
+                if isinstance(severity, str):
+                    add('vulnerability_severity', severity.upper(), at)
+                break
+    elif source == 'epss':
+        rows = data['data']
+        if not rows:
+            raise ProviderError('provider_record_not_found')
+        row = rows[0]
+        if row['cve'] != target:
+            raise ProviderError('provider_target_mismatch')
+        at = _provider_time(row.get('date'), stamp)
+        for predicate, key in (('exploitation_probability', 'epss'), ('exploitation_percentile', 'percentile')):
+            value = row.get(key)
+            try:
+                valid = value is not None and not isinstance(value, bool) and 0 <= float(value) <= 1
+            except (TypeError, ValueError):
+                valid = False
+            if not valid:
+                raise ProviderError('provider_schema_mismatch')
+            add(predicate, str(value), at)
+    elif source == 'osv':
+        aliases = data.get('aliases', [])
+        if data['id'] != target and target not in aliases:
+            raise ProviderError('provider_target_mismatch')
+        at = _provider_time(data.get('modified'), stamp)
+        add('vulnerability_id', data['id'], at)
+        if not isinstance(aliases, list):
+            raise ProviderError('provider_schema_mismatch')
+        for alias in aliases[:20]:
+            if isinstance(alias, str) and alias != target:
+                add('vulnerability_alias', alias, at)
+        for affected in data['affected'][:100]:
+            package = affected.get('package') if isinstance(affected, dict) else None
+            if not isinstance(package, dict) or not isinstance(package.get('ecosystem'), str) or not isinstance(package.get('name'), str):
+                raise ProviderError('provider_schema_mismatch')
+            add('affected_package', package['ecosystem'] + ':' + package['name'], at)
+    elif source == 'npm':
+        if data['name'].casefold() != target.casefold():
+            raise ProviderError('provider_target_mismatch')
+        add('package_version', data['version'])
+        license_value = data.get('license')
+        if isinstance(license_value, str):
+            add('package_license', license_value)
     elif source == "internetdb":
         if ipaddress.ip_address(data["ip"]) != ipaddress.ip_address(target):
             raise ProviderError("provider_target_mismatch")
@@ -202,6 +270,21 @@ def _live_facts(source, seed, data, stamp):
             except (ValueError, TypeError):
                 raise ProviderError("provider_schema_mismatch") from None
     return tuple(facts)
+
+
+def _provider_time(value, fallback):
+    if not isinstance(value, str):
+        return fallback
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise ProviderError('provider_schema_mismatch') from None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
 
 
 def _public_result_url(value):

@@ -15,7 +15,7 @@ from typing import Any, ClassVar, Mapping, TypeVar
 
 
 SCHEMA_VERSION = "1.0"
-IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
+IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 T = TypeVar("T", bound="StrictContract")
 
