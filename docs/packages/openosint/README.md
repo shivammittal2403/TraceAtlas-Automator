@@ -13,7 +13,7 @@ mcp-name: io.github.OpenOSINT/openosint
 [![Release](https://img.shields.io/github/v/release/OpenOSINT/OpenOSINT?style=flat-square)](https://github.com/OpenOSINT/OpenOSINT/releases)
 [![PyPI](https://img.shields.io/pypi/v/openosint?style=flat-square)](https://pypi.org/project/openosint/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/openosint?style=flat-square&label=PyPI%20downloads)](https://pypi.org/project/openosint/)
-[![License MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![License MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](../../../packages/openosint/LICENSE)
 [![MCP](https://img.shields.io/badge/protocol-MCP-blueviolet?style=flat-square)](https://modelcontextprotocol.io/)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-published-blueviolet?style=flat-square)](https://registry.modelcontextprotocol.io/servers/io.github.OpenOSINT/openosint)
 [![Sponsored by IP2Location](https://img.shields.io/badge/sponsored%20by-IP2Location.io-FF6B35?style=flat-square)](https://www.ip2location.io/?utm_source=openosint&utm_medium=readme&utm_campaign=ip2location)
@@ -797,7 +797,7 @@ See [`scripts/record-demo/README.md`](scripts/record-demo/README.md) for full pr
 
 ## License
 
-OpenOSINT is open source under the [MIT License](./LICENSE) — free for any use, including personal, commercial, academic, and closed-source.
+OpenOSINT is open source under the [MIT License](../../../packages/openosint/LICENSE) — free for any use, including personal, commercial, academic, and closed-source.
 
 ---
 

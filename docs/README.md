@@ -3,7 +3,7 @@
 > The repository pins and governs 308 OpenCTI connector packages through a reproducible Git submodule.
 > They remain external-service integrations and are disabled until an operator
 > supplies an OpenCTI deployment, provider credentials and explicit authority.
-> See [OpenCTI Connector Suite](docs/OPENCTI_CONNECTOR_SUITE.md).
+> See [OpenCTI Connector Suite](OPENCTI_CONNECTOR_SUITE.md).
 
 **RedKross TraceAtlas × OpenOSINT Fusion — version 1.11.0**
 
@@ -17,8 +17,8 @@ Run `traceatlas --workspace ./cases employee serve` with
 `TRACEATLAS_WORKFORCE_ENABLED=1`, then open `http://127.0.0.1:8765`.
 The local console provides bounded objective/seed execution, checkpoint recovery,
 citations, graph inspection and evidence/replay ZIP export. Optional Ollama drafts
-remain advisory. See [setup](docs/AUTONOMOUS_IMPLEMENTATION.md) and
-[employee source integration](docs/SOURCE_FABRIC.md).
+remain advisory. See [setup](AUTONOMOUS_IMPLEMENTATION.md) and
+[employee source integration](SOURCE_FABRIC.md).
 
 The canonical workforce pipeline and its 24 source adapters remain available through
 `workforce investigate`. The employee console is an additional local workflow;
@@ -41,7 +41,7 @@ the shared IntelligenceHub remains 47 records / 33 API implementations.
 - Explicit authorization gates for medium/high-risk workflows.
 - SpiderFoot-style typed-event engine with bounded recursive pivots.
 - Entity graph persistence, explainable correlations and JSON/GEXF export.
-- A [graph-analysis JavaScript module](docs/GRAPH_MODEL.md) wired into the
+- A [graph-analysis JavaScript module](GRAPH_MODEL.md) wired into the
   authenticated dashboard for cloud case graphs and browser-only local imports,
   with filtering, bounded paths, layouts and evidence-reference inspection.
 - 34 governed external-tool adapters, including Recon-ng, Amass and the
@@ -160,7 +160,7 @@ See [CAPABILITY_MATRIX.md](CAPABILITY_MATRIX.md), [MEDIA_FUSION.md](MEDIA_FUSION
 [COMPETITIVE_ROADMAP.md](COMPETITIVE_ROADMAP.md) for every engine, capability,
 licence boundary and execution gate. [RESEARCH_ENGINE.md](RESEARCH_ENGINE.md)
 documents the corpus audit, algorithms, commands and limitations. The
-[source-integration status](docs/SOURCE_INTEGRATION_STATUS.md) distinguishes the
+[source-integration status](SOURCE_INTEGRATION_STATUS.md) distinguishes the
 complete supplied catalogue from implemented and deployment-validated sources.
 
 ## Evidence-led AI Employee
@@ -168,7 +168,7 @@ complete supplied catalogue from implemented and deployment-validated sources.
 The Employee is a constrained analyst assistant, not an autonomous attribution
 or exploitation agent. It separates source observations from hypotheses, cites
 evidence IDs, retains contradictions and requires a human decision. See
-[AI_EMPLOYEE.md](docs/AI_EMPLOYEE.md) for the trust boundary and complete command
+[AI_EMPLOYEE.md](AI_EMPLOYEE.md) for the trust boundary and complete command
 workflow.
 
 ```bash
@@ -488,7 +488,7 @@ profiling, leaked credentials, private addresses and arbitrary commands are not
 accepted by the cloud path. Collection runs in the isolated worker, not Vercel.
 
 No production URL is claimed until a dedicated Vercel project is linked to this
-repository and its deployed commit is verified. See [DEPLOYMENT.md](DEPLOYMENT.md)
+repository and its deployed commit is verified. See [DEPLOYMENT.md](project/DEPLOYMENT.md)
 and [PRODUCTION_ARCHITECTURE.md](PRODUCTION_ARCHITECTURE.md).
 
 Run static readiness checks before any deployment:
@@ -503,7 +503,7 @@ Run static readiness checks before any deployment:
 Pull requests and `main` run tests, compilation, launcher/JavaScript checks and
 secret scanning on Python 3.10 and 3.12. CodeQL and Dependabot cover source,
 actions and the worker image. Tagged releases build a wheel, CycloneDX SBOM and
-SHA-256 checksums. See [SECURITY.md](SECURITY.md).
+SHA-256 checksums. See [SECURITY.md](project/SECURITY.md).
 
 ### Manual setup
 
@@ -839,9 +839,9 @@ promoted. Unsupported extraction remains INCONCLUSIVE.
 ```
 
 The feature flag, exact authority and digest approval are still required. For
-setup and all commands see [runbook](docs/RUNBOOK.md). See [current state](CURRENT_STATE.md),
-[gap analysis](docs/GAP_ANALYSIS.md), [workflow](docs/WORKFLOW.md),
-[acceptance gates](docs/ACCEPTANCE_GATES.md) and [implementation report](docs/IMPLEMENTATION_REPORT.md).
+setup and all commands see [runbook](RUNBOOK.md). See [current state](CURRENT_STATE.md),
+[gap analysis](GAP_ANALYSIS.md), [workflow](WORKFLOW.md),
+[acceptance gates](ACCEPTANCE_GATES.md) and [implementation report](IMPLEMENTATION_REPORT.md).
 G01–G12 are controlled backbone tests. No hosted deployment qualification is
 claimed; source-specific qualification is recorded separately below. All requested design/domain/operations documents now
 state their actual executable versus planned boundaries.
@@ -863,7 +863,7 @@ traceatlas workforce run --task TASK_ID --live --authorized
 ```
 
 Register authority and approve the returned task digest before running. See
-[live source setup and qualification](docs/LIVE_SOURCES.md) for search environment
+[live source setup and qualification](LIVE_SOURCES.md) for search environment
 references, coverage and failure behavior. Real public response capture/replay
 passed through this environment's proxy; the shipped direct transport requires
 runtime network qualification. Wayback timed out; keyed search/provider access
@@ -889,5 +889,5 @@ traceatlas workforce golden --source-fabric
 
 The supplied 400 candidates deduplicate to 351 review rows, including generic
 categories; these are **not 400 live integrations**. Production-qualified count
-is zero pending runtime and entitlement evidence. See the [Source Fabric runbook](docs/sources/SOURCE_FABRIC.md)
-and [two-brief delivery ledger](docs/sources/DELIVERY_LEDGER.md).
+is zero pending runtime and entitlement evidence. See the [Source Fabric runbook](sources/SOURCE_FABRIC.md)
+and [two-brief delivery ledger](sources/DELIVERY_LEDGER.md).
