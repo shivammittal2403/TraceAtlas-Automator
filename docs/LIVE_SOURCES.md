@@ -20,7 +20,7 @@ scan submission, returned-URL fetch or target pivot is implemented here.
 
 `workforce sources` prints configuration status and environment reference names.
 It performs no network calls and does not claim provider health. The wider
-`intel sources` catalog has 45 governed entries, including 31 API connectors;
+`intel sources` catalog has 47 governed entries, including 33 API connectors;
 only the table above is bound into this investigation runner. Existing social,
 package, scholarly and CTI connectors retain their separate `intel collect`
 commands and consent/asset/public-record gates. Person/company workforce seeds

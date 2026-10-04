@@ -11,7 +11,7 @@ SOURCE_HOSTS = {
     'gleif': 'api.gleif.org', 'companieshouse': 'api.company-information.service.gov.uk',
     'sec': 'data.sec.gov', 'opencorporates': 'api.opencorporates.com',
     'rdap': 'data.iana.org', 'dns': 'dns.google', 'wayback': 'web.archive.org', 'urlscan': 'urlscan.io',
-    "epss": "api.first.org", "osv": "api.osv.dev",
+    'epss': 'api.first.org', 'osv': 'api.osv.dev',
     'internetdb': 'internetdb.shodan.io', 'ipwhois': 'ipwho.is', 'ipdata': 'api.ipdata.co',
     'greynoise': 'api.greynoise.io', 'bluesky': 'public.api.bsky.app', 'github': 'api.github.com',
     'gitlab': 'gitlab.com', 'hackernews': 'hacker-news.firebaseio.com', 'mastodon': 'mastodon.social',

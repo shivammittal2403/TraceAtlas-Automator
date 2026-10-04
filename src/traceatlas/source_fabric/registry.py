@@ -12,8 +12,11 @@ STATES = frozenset({"DISCOVERED", "CATALOGUED", "DOCUMENTED", "CONNECTOR_IMPLEME
 P0 = ("dns", "rdap", "wayback", "internetdb", "ripestat", "gleif", "github", "gitlab", "npm", "nvd",
       "epss", "osv", "crossref", "ipwhois", "greynoise", "shodan", "censys", "virustotal", "bluesky", "hackernews")
 CAPABILITIES = {
-    "dns": ("dns",), "rdap": ("registration",), "wayback": ("archive",),
+    "dns": ("dns",), "cloudflare_dns": ("dns",), "rdap": ("registration",),
+    "wayback": ("archive",), "urlscan": ("archive",), "crtsh": ("certificate-transparency",),
     "internetdb": ("exposure",), "ripestat": ("routing",), "gleif": ("company-record",),
+    "companieshouse": ("company-record", "filings"), "sec": ("company-record", "filings"),
+    "opencorporates": ("company-record",),
     "ipwhois": ("ip-context",), "ipdata": ("ip-context",), "greynoise": ("threat-context",),
     "shodan": ("exposure",), "censys": ("exposure",), "virustotal": ("threat-context",),
     "github": ("public-profile",), "gitlab": ("public-profile",), "hackernews": ("public-profile",),
@@ -22,9 +25,32 @@ CAPABILITIES = {
     "nvd": ("vulnerability",), "osv": ("vulnerability",), "epss": ("exploitation-probability",),
     "crossref": ("publication",), "youtube": ("media-profile",), "discord": ("community-metadata",),
 }
-DOCS = {'gleif': 'https://www.gleif.org/en/lei-data/gleif-api/', 'ripestat': 'https://stat.ripe.net/docs/data-api/api-endpoints/network-info', 'epss': 'https://api.first.org/epss/', 'osv': 'https://google.github.io/osv.dev/get-v1-vulns/', 'dns': 'https://developers.google.com/speed/public-dns/docs/doh/json', 'rdap': 'https://about.rdap.org/', 'wayback': 'https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server', 'github': 'https://docs.github.com/en/rest/users/users', 'gitlab': 'https://docs.gitlab.com/api/users/', 'hackernews': 'https://github.com/HackerNews/API', 'crossref': 'https://www.crossref.org/documentation/retrieve-metadata/rest-api/', 'ipwhois': 'https://ipwhois.io/documentation', 'shodan': 'https://developer.shodan.io/api', 'virustotal': 'https://docs.virustotal.com/reference/overview', 'censys': 'https://docs.censys.com/docs/platform-api', 'npm': 'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md', 'bluesky': 'https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/actor/getProfile.json', 'greynoise': 'https://docs.greynoise.io/reference/getcommunityip', 'internetdb': 'https://internetdb.shodan.io/'}
-KNOWN_BROKEN = {}  # Main now uses approved IANA bootstrap and registry hosts.
-PRIMARY = frozenset({"gleif", "ripestat", "epss", "github", "gitlab", "npm", "crossref", "nvd"})
+DOCS = {
+    'gleif': 'https://www.gleif.org/en/lei-data/gleif-api/',
+    'ripestat': 'https://stat.ripe.net/docs/data-api/api-endpoints/network-info',
+    'epss': 'https://api.first.org/epss/', 'osv': 'https://google.github.io/osv.dev/get-v1-vulns/',
+    'dns': 'https://developers.google.com/speed/public-dns/docs/doh/json',
+    'cloudflare_dns': 'https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json/',
+    'rdap': 'https://data.iana.org/rdap/', 'crtsh': 'https://crt.sh/',
+    'wayback': 'https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server',
+    'urlscan': 'https://urlscan.io/docs/api/',
+    'companieshouse': 'https://developer.company-information.service.gov.uk/',
+    'sec': 'https://www.sec.gov/search-filings/edgar-application-programming-interfaces',
+    'opencorporates': 'https://api.opencorporates.com/documentation/API-Reference',
+    'github': 'https://docs.github.com/en/rest/users/users', 'gitlab': 'https://docs.gitlab.com/api/users/',
+    'hackernews': 'https://github.com/HackerNews/API',
+    'crossref': 'https://www.crossref.org/documentation/retrieve-metadata/rest-api/',
+    'ipwhois': 'https://ipwhois.io/documentation', 'shodan': 'https://developer.shodan.io/api',
+    'virustotal': 'https://docs.virustotal.com/reference/overview',
+    'censys': 'https://docs.censys.com/docs/platform-api',
+    'npm': 'https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md',
+    'bluesky': 'https://github.com/bluesky-social/atproto/blob/main/lexicons/app/bsky/actor/getProfile.json',
+    'greynoise': 'https://docs.greynoise.io/reference/getcommunityip',
+    'internetdb': 'https://internetdb.shodan.io/',
+}
+KNOWN_BROKEN = {}
+PRIMARY = frozenset({"dns", "wayback", "gleif", "ripestat", "epss", "github", "gitlab", "npm", "crossref", "nvd",
+                     "rdap", "crtsh", "companieshouse", "sec"})
 
 
 def candidates():
@@ -65,7 +91,7 @@ def audit(db=None):
               "p0_implemented": sum(SOURCES[s].live_connector for s in P0),
               "capability_coverage": dict(Counter(c for r in rows for c in r["capabilities"])),
               "jurisdiction_coverage": "not-qualified; no inferred worldwide coverage",
-              "p0_gaps": ["certificate-transparency", "official-filings", "beneficial-ownership", "procurement", "sanctions", "web-search", "geospatial"],
+              "p0_gaps": ["beneficial-ownership", "procurement", "sanctions", "web-search", "geospatial"],
               "counting_note": "400 input slots include aliases and tools; external OpenCTI packages are not live local sources."}
     if db is not None:
         from .store import FabricStore

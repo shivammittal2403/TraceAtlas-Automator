@@ -56,14 +56,12 @@ EPSS and OSV extend the shared IntelligenceHub to 47 records / 33 API implementa
   per-file integrity verification and non-executing deployment plans.
 - Controlled sensitive-workflow automations with hashed targets, explicit
   attestations, redacted evidence and change detection.
-- Governed intelligence hub covering 38 social, code, package, scholarly, video, community,
+- Governed intelligence hub covering 47 social, code, package, scholarly, video, community,
   internet-exposure, business, employee, public-record and threat-intelligence
   sources.
-- Twenty-three live official/public API connectors: GitHub, GitLab, Hacker News,
-  Mastodon, Stack Exchange, Docker Hub, npm, Crossref, ORCID, NIST NVD,
-  YouTube, Discord invite
-  metadata, Shodan, Censys, VirusTotal, RDAP, Google DNS-over-HTTPS, Internet
-  Archive CDX metadata, Shodan InternetDB and Bluesky AppView.
+- Thirty-three live official/public API connectors, including DNS/RDAP/archive,
+  certificate transparency, IP/routing context, company registries and filings,
+  vulnerability/package intelligence, public profiles and threat intelligence.
 - Versioned connector contracts now expose implemented inputs, actions,
   authentication mode, response/page limits and truthful capability state.
   IPWHOIS, ipdata and GreyNoise Community add bounded owned-public-IP context;

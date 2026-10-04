@@ -56,4 +56,4 @@ Official research also established [Bing Search API retirement](https://learn.mi
 
 ## Combined regression checkpoint
 
-After reconciliation with main: 302 Python tests, 299 passed and three environment skips (Bash, Windows symlink privilege, optional MCP SDK). All 25 Node graph/target tests passed. Source compilation and secret scanning passed. Linux CI exercises symlinks and the locked MCP SDK; database/browser gates run there.
+After reconciliation with current main in this workspace: 302 Python tests ran, 301 passed and one environment-dependent test skipped. The PGlite database test and all 25 Node graph/target tests passed. Source compilation and secret scanning passed. The local browser rerun requires a Playwright Chromium binary that is absent here; repository CI runs the browser gate with its installed browser.

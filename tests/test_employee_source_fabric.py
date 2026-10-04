@@ -38,6 +38,10 @@ class SourceFabricTests(unittest.TestCase):
         self.calls.append(url)
         if 'dns.google' in url:
             data = {'Status': 0, 'Answer': [{'type': 1, 'data': '1.1.1.1'}]}
+        elif 'data.iana.org/rdap/dns.json' in url:
+            data = {'version': '1.0', 'services': [[['org'], ['https://rdap.publicinterestregistry.org/rdap/']]]}
+        elif 'rdap.publicinterestregistry.org' in url:
+            data = {'objectClassName': 'domain', 'ldhName': 'EXAMPLE.ORG', 'country': 'US'}
         elif 'web.archive.org' in url:
             data = [['timestamp', 'original', 'statuscode'], ['20200101000000', 'https://example.org/', '200']]
         elif 'rdap.org' in url:
@@ -82,7 +86,8 @@ class SourceFabricTests(unittest.TestCase):
         current = self.create('Review DNS and sanctions exposure')
         plan = current['manifest']['routing_plans'][0]
         self.assertIn('sanctions', plan['uncovered_capabilities'])
-        self.assertEqual([a['source'] for a in plan['actions']], ['dns'])
+        self.assertEqual([a['source'] for a in plan['actions']], ['dns', 'cloudflare_dns'])
+        self.assertEqual([a['wave'] for a in plan['actions']], [1, 2])
         self.assertEqual(self.calls, [])
 
     def test_parallel_transport_serial_custody_and_raw_replay(self):
@@ -109,7 +114,9 @@ class SourceFabricTests(unittest.TestCase):
         count = len(self.calls)
         second = self.run_case(self.create())
         self.assertEqual(len(self.calls), count)
-        self.assertTrue(all(a['outcome']['cache_hit'] for a in second['actions']))
+        self.assertTrue(all(a['outcome']['cache_hit'] for a in second['actions'] if a['state'] == 'completed'))
+        self.assertTrue(all(a['outcome']['reason'] == 'sufficient_capability_coverage'
+                            for a in second['actions'] if a['state'] == 'skipped'))
         self.assertEqual(first['report']['evidence'][0]['content_hash'], second['report']['evidence'][0]['content_hash'])
         self.assertEqual(FabricStore(self.db).metrics()['source_actions'], 0)
 
@@ -136,7 +143,8 @@ class SourceFabricTests(unittest.TestCase):
         self.assertIn('subject_identifier_associations_require_human_review', str(result['report']['unknowns']))
 
     def test_new_connector_contracts_and_target_mismatch(self):
-        samples = [('ripestat', 'ip', '1.1.1.1'), ('gleif', 'company', 'lei:5493001KJTIIGC8Y1R12'),
+        samples = [('rdap', 'domain', 'example.org'), ('ripestat', 'ip', '1.1.1.1'),
+                   ('gleif', 'company', 'lei:5493001KJTIIGC8Y1R12'),
                    ('epss', 'cve', 'CVE-2021-44228'), ('osv', 'vulnerability', 'GHSA-jfh8-c2jp-5v3q')]
         for source, kind, target in samples:
             connector = HubConnector(source, requester=self.request)
@@ -165,6 +173,8 @@ class SourceFabricTests(unittest.TestCase):
         plan = SourceRouter(self.db).plan('Review registration', 'domain', 'example.org', {'owned_asset': True, 'public_record_basis': True})
         self.assertEqual([a['source'] for a in plan['actions']], ['rdap'])
         self.assertNotIn('rdap', audit(self.db)['broken'])
+        ct_plan = SourceRouter(self.db).plan('Review certificate transparency', 'domain', 'example.org', {'owned_asset': True, 'public_record_basis': True})
+        self.assertEqual([a['source'] for a in ct_plan['actions']], ['crtsh'])
 
     def test_shared_workspace_concurrency_leases(self):
         store = FabricStore(self.db)
