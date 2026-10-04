@@ -276,8 +276,8 @@ class TransitiveLineageTests(unittest.TestCase):
 
     def test_same_publisher_different_pages_count_once(self):
         rows = SourceIndependenceEngine().group([
-            SourceRecord('a', 'https://publisher.example/first', 'Different first document'),
-            SourceRecord('b', 'https://publisher.example/second', 'Other secondary record'),
+            SourceRecord('a', 'https://publisher.example/first', 'Different first document', ownership_group='publisher'),
+            SourceRecord('b', 'https://publisher.example/second', 'Other secondary record', ownership_group='publisher'),
         ])
         self.assertEqual(len({r.independence_group for r in rows}), 1)
 

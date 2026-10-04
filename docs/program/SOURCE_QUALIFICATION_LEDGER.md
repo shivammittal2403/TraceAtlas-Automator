@@ -1,0 +1,40 @@
+# Source qualification ledger
+
+Updated: 2026-10-04. This ledger counts source maturity, not catalog volume.
+
+| State | Count | Interpretation |
+|---|---:|---|
+| Coded canonical approval-driven adapters | 25 | Code exists in the canonical workforce. |
+| Production-qualified sources | 0 | None has complete current terms, entitlement and intended-runtime evidence. |
+| Live source qualifications added this session | 0 | No credentialed or direct live source was exercised. |
+| Discovered/candidate catalog | 400 input entries; 351 deduplicated research rows in prior audit | Discovery metadata; not execution-ready sources. |
+
+The 23 evidence gates and state transitions are defined in
+[`docs/SOURCE_MATURITY.md`](../SOURCE_MATURITY.md). Per-source records remain in
+[`docs/sources/SOURCE_AUDIT_MATRIX.csv`](../sources/SOURCE_AUDIT_MATRIX.csv) and
+the source implementation/delivery ledger. Do not infer qualification from a
+connector, fixture, configured key, injected response or historical proxy
+reference response. Review each source's current terms, licence/access, owner,
+runtime credentials, real request, parser, normalized output, captured evidence,
+offline replay, costs, rate limits, timeouts, failures, schema drift, canary,
+health and runbook before advancing its state.
+
+Targets from the program brief: 25 / 50 / 100+ qualified sources. Current state
+is zero; milestone A is not met.
+Qualification is source- and runtime-specific. Keep registered metadata,
+connector code, configuration, live test, live verification and production
+qualification in separate counts.
+
+| Metric | Baseline | Evidence | Rule |
+|---|---:|---|---|
+| Canonical workforce adapters | 26 | `docs/CURRENT_STATE.md` | Coded does not mean live |
+| Production-qualified sources | 0 | `docs/CURRENT_STATE.md` | Remain zero until every qualification gate and runtime receipt passes |
+| Qualification gates | 23 | `src/traceatlas/source_maturity.py` | Shared policy; each attestation must resolve to authorized immutable evidence |
+| Live canaries in this repair | 0 | No live source request made | Never count fixture tests as live |
+
+No credentials or source entitlements were supplied for this task. Resolve
+evidence references against EvidenceStore and authorization before allowing
+promotion; receipt text alone is not evidence. The local TA-003 change now
+checks same-case hash membership while calculating promotion state and again
+at promotion, with ledger integrity rechecked. PR #50 passed CI `37185114010`
+and CodeQL `37185114003`.

@@ -1,0 +1,226 @@
+{
+  "automatic_merge_attempts": 0,
+  "candidate_pairs": 24,
+  "case_results": [
+    {
+      "case_id": "company-alias-01",
+      "expected_candidate_rank": 1,
+      "expected_match_id": "alias",
+      "ranked_candidates": [
+        {
+          "candidate_id": "alias",
+          "expected_match": true,
+          "predicted_candidate": true,
+          "score": 0.9689
+        },
+        {
+          "candidate_id": "namesake",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6757
+        },
+        {
+          "candidate_id": "shared-location",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6362
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.4011
+        }
+      ]
+    },
+    {
+      "case_id": "company-alias-02",
+      "expected_candidate_rank": 1,
+      "expected_match_id": "punctuation-variant",
+      "ranked_candidates": [
+        {
+          "candidate_id": "punctuation-variant",
+          "expected_match": true,
+          "predicted_candidate": true,
+          "score": 0.9776
+        },
+        {
+          "candidate_id": "same-name-other-domain",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.7035
+        },
+        {
+          "candidate_id": "shared-username",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.5646
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.394
+        }
+      ]
+    },
+    {
+      "case_id": "company-namesake-03",
+      "expected_candidate_rank": 1,
+      "expected_match_id": "exact-record",
+      "ranked_candidates": [
+        {
+          "candidate_id": "exact-record",
+          "expected_match": true,
+          "predicted_candidate": true,
+          "score": 1.0
+        },
+        {
+          "candidate_id": "namesake",
+          "expected_match": false,
+          "predicted_candidate": true,
+          "score": 0.7258
+        },
+        {
+          "candidate_id": "shared-domain-word",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6465
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.4526
+        }
+      ]
+    },
+    {
+      "case_id": "company-alias-04",
+      "expected_candidate_rank": 1,
+      "expected_match_id": "legal-suffix-variant",
+      "ranked_candidates": [
+        {
+          "candidate_id": "legal-suffix-variant",
+          "expected_match": true,
+          "predicted_candidate": true,
+          "score": 0.9835
+        },
+        {
+          "candidate_id": "same-location",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6104
+        },
+        {
+          "candidate_id": "shared-username-prefix",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.5007
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.4276
+        }
+      ]
+    },
+    {
+      "case_id": "company-no-match-05",
+      "expected_candidate_rank": null,
+      "expected_match_id": null,
+      "ranked_candidates": [
+        {
+          "candidate_id": "orchid-grid-global",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6944
+        },
+        {
+          "candidate_id": "orchid-energy",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6782
+        },
+        {
+          "candidate_id": "grid-analytics",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.4748
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.3941
+        }
+      ]
+    },
+    {
+      "case_id": "company-shared-username-06",
+      "expected_candidate_rank": null,
+      "expected_match_id": null,
+      "ranked_candidates": [
+        {
+          "candidate_id": "similar-name",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.6899
+        },
+        {
+          "candidate_id": "shared-username",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.5518
+        },
+        {
+          "candidate_id": "same-country",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.5425
+        },
+        {
+          "candidate_id": "unrelated",
+          "expected_match": false,
+          "predicted_candidate": false,
+          "score": 0.4057
+        }
+      ]
+    }
+  ],
+  "cases": 6,
+  "dataset_id": "synthetic-company-labels-2026-10-04",
+  "dataset_kind": "labelled-pair-ranking",
+  "dataset_notice": "All names, organizations, domains, usernames, and locations in this file are synthetic. This diagnostic set is not representative identity ground truth.",
+  "false_automatic_merges": 0,
+  "false_merge_rate": null,
+  "false_merge_rate_status": "NOT_MEASURABLE_ZERO_AUTOMATIC_MERGE_DENOMINATOR",
+  "limitations": [
+    "Candidate similarity scores are ranks, not calibrated identity probabilities.",
+    "Synthetic results do not estimate operational identity precision or recall.",
+    "Ranking recall is conditional on supplied candidates, not candidate-generation recall.",
+    "No automatic merges are attempted; false-merge rate has a zero denominator.",
+    "The evaluator does not adjudicate identity or change analyst-review policy."
+  ],
+  "negative_pairs": 20,
+  "pair_metrics": {
+    "f1": 0.888888888888889,
+    "false_negative": 0,
+    "false_positive": 1,
+    "false_positive_rate": 0.05,
+    "precision": 0.8,
+    "recall": 1.0,
+    "true_negative": 19,
+    "true_positive": 4
+  },
+  "positive_pairs": 4,
+  "ranking_query_count": 4,
+  "ranking_recall": {
+    "recall_at_1": 1.0,
+    "recall_at_3": 1.0
+  },
+  "schema": "traceatlas-entity-resolution-evaluation/v1",
+  "threshold": 0.72,
+  "threshold_provenance": "existing possible_candidate score boundary; not tuned on this dataset"
+}

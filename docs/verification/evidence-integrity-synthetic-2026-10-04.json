@@ -1,0 +1,140 @@
+{
+  "adversarial_rejection_rate": 0.8889,
+  "benchmark": "evidence-integrity-and-citation-guards",
+  "cases": 14,
+  "confusion": {
+    "accepted_expected_invalid": 1,
+    "accepted_expected_valid": 5,
+    "rejected_expected_invalid": 8,
+    "rejected_expected_valid": 0
+  },
+  "corpus_sha256": "859f7b7ade56eae29450e5760132a6ed725d681b5f677aec0253023b7360700d",
+  "limitations": [
+    "All records and mutations are deterministic synthetic fixtures; no operational cases or sources were used.",
+    "Citation checks verify identifier membership and output shape, not whether cited bytes semantically support a claim.",
+    "The legacy unanchored path accepts a full local rewrite; the opt-in HMAC receipt rejects it only while the key and receipt remain outside the attacker's control.",
+    "The file-backed HMAC adapter does not prevent rollback of an older signed receipt and is not an append-only remote anchor or immutable object store.",
+    "The report does not verify a deployed key manager, immutable storage, remote monotonic anchoring, publisher authorship, or hosted replay."
+  ],
+  "passed": 13,
+  "results": [
+    {
+      "accepted": true,
+      "description": "A preserved synthetic file verifies.",
+      "expected_accept": true,
+      "id": "ledger-valid",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "An exported synthetic evidence bundle verifies.",
+      "expected_accept": true,
+      "id": "bundle-valid",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A local attacker rewrites bytes, the SQLite digest, and the unanchored ledger consistently.",
+      "expected_accept": false,
+      "id": "local-rewrite-reanchored",
+      "kind": "ledger",
+      "limitation_demonstrated": true,
+      "pass": false
+    },
+    {
+      "accepted": false,
+      "description": "A custody record byte changed without a matching hash.",
+      "expected_accept": false,
+      "id": "ledger-record-mutated",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "Preserved bytes changed after capture.",
+      "expected_accept": false,
+      "id": "evidence-bytes-mutated",
+      "kind": "ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle evidence member changed while its manifest stayed fixed.",
+      "expected_accept": false,
+      "id": "bundle-evidence-mutated",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle contains an unlisted member.",
+      "expected_accept": false,
+      "id": "bundle-unlisted-member",
+      "kind": "bundle",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A claim cites an evidence identifier in its allowed set.",
+      "expected_accept": true,
+      "id": "citation-known-id",
+      "kind": "citation",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A claim cites an identifier absent from its allowed set.",
+      "expected_accept": false,
+      "id": "citation-unknown-id",
+      "kind": "citation",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "A clean ledger matches its external HMAC checkpoint.",
+      "expected_accept": true,
+      "id": "anchored-ledger-valid",
+      "kind": "anchored-ledger",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "The same local rewrite cannot replace an independent HMAC checkpoint.",
+      "expected_accept": false,
+      "id": "anchored-local-rewrite",
+      "kind": "anchored-ledger",
+      "pass": true
+    },
+    {
+      "accepted": true,
+      "description": "An anchored bundle verifies with the external key provider.",
+      "expected_accept": true,
+      "id": "anchored-bundle-valid",
+      "kind": "anchored-bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A bundle receipt signature was altered.",
+      "expected_accept": false,
+      "id": "anchor-receipt-mutated",
+      "kind": "anchored-bundle",
+      "pass": true
+    },
+    {
+      "accepted": false,
+      "description": "A legacy bundle fails when the verifier requires an anchor.",
+      "expected_accept": false,
+      "id": "required-anchor-missing",
+      "kind": "required-bundle",
+      "pass": true
+    }
+  ],
+  "score": 0.9286,
+  "status": "fail",
+  "threshold": 1.0,
+  "version": "1.0"
+}
+

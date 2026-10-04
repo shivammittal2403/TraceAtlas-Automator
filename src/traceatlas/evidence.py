@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import CaseDB
+from .evidence_anchor import LedgerAnchor, configured_ledger_anchor
 from .models import utc_now
 
 
@@ -21,7 +22,9 @@ def sha256_file(path: Path) -> str:
 
 
 class EvidenceStore:
-    def __init__(self, root: Path, db: CaseDB, case_id: str):
+    def __init__(self, root: Path, db: CaseDB, case_id: str, *,
+                 anchor: LedgerAnchor | None = None, require_anchor: bool = False,
+                 use_environment_anchor: bool = True):
         if not case_id or Path(case_id).name != case_id or case_id in {'.', '..'}:
             raise ValueError('Invalid evidence case identifier')
         self.root = root / "evidence" / case_id
@@ -31,8 +34,20 @@ class EvidenceStore:
         self.db = db
         self.case_id = case_id
         self.ledger = self.root / "ledger.jsonl"
+        if anchor is None and use_environment_anchor:
+            configured, configured_required = configured_ledger_anchor(root)
+            anchor = configured
+            require_anchor = require_anchor or configured_required
+        if require_anchor and anchor is None:
+            raise ValueError("An independent ledger anchor is required")
+        self.anchor = anchor
+        self.require_anchor = require_anchor
+        if self.anchor is not None:
+            self.anchor.assert_external_to(root)
 
     def preserve_file(self, source_path: Path, source: str) -> dict[str, Any]:
+        if self.anchor is not None and not self.verify_ledger()[0]:
+            raise ValueError("Evidence ledger or external anchor verification failed")
         digest = sha256_file(source_path)
         destination = self.root / f"{digest[:16]}_{source_path.name}"
         if not destination.exists():
@@ -48,22 +63,36 @@ class EvidenceStore:
             "action": "preserve", "sha256": digest, "path": str(destination),
             "source": source, "timestamp": utc_now(),
         }
-        self._append_ledger(record)
+        ledger_head, entry_count = self._append_ledger(record)
+        if self.anchor is not None:
+            # If publishing the receipt fails, preserve_file fails closed. The
+            # captured bytes remain available for recovery, but verification
+            # will reject the unanchored ledger until an operator repairs it.
+            try:
+                self.anchor.publish(self.case_id, entry_count, ledger_head)
+            except Exception:
+                raise ValueError("Evidence anchor publication failed; capture needs operator recovery") from None
         return record
 
-    def _append_ledger(self, record: dict[str, Any]) -> None:
+    def _append_ledger(self, record: dict[str, Any]) -> tuple[str, int]:
         previous = "0" * 64
+        count = 0
         if self.ledger.exists():
             lines = self.ledger.read_text(encoding="utf-8").splitlines()
             if lines:
                 previous = json.loads(lines[-1])["entry_hash"]
+                count = len(lines)
         body = {**record, "previous_hash": previous}
         canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
         body["entry_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
         with self.ledger.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(body, sort_keys=True) + "\n")
+        return body["entry_hash"], count + 1
 
     def verify_ledger(self) -> tuple[bool, int]:
+        return self._verify_ledger(check_anchor=True)
+
+    def _verify_ledger(self, *, check_anchor: bool) -> tuple[bool, int]:
         previous = "0" * 64
         count = 0
         if not self.ledger.exists():
@@ -89,7 +118,51 @@ class EvidenceStore:
             return False, count
         if verified_hashes != {row['sha256'] for row in self.db.evidence(self.case_id)}:
             return False, count
+        if check_anchor and self.require_anchor and self.anchor is None:
+            return False, count
+        if check_anchor and self.anchor is not None:
+            try:
+                if not self.anchor.verify(self.case_id, count, previous):
+                    return False, count
+            except Exception:
+                return False, count
         return True, count
+
+    def bootstrap_anchor_after_review(self, review_id: str) -> dict[str, Any]:
+        """Anchor an existing locally verified case after operator review.
+
+        This explicit migration records its review reference in the custody
+        chain. It cannot establish that an already rewritten local history is
+        truthful; reviewers must reconcile the case with their trusted source.
+        """
+        if self.anchor is None:
+            raise ValueError("An external ledger anchor is not configured")
+        if not isinstance(review_id, str) or not review_id.strip() or len(review_id) > 200:
+            raise ValueError("A bounded operator review reference is required")
+        try:
+            if self.anchor.current_receipt(self.case_id) is not None:
+                raise ValueError("This case already has an anchor receipt")
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError("Existing external anchor state could not be checked") from None
+        valid, count = self._verify_ledger(check_anchor=False)
+        if not valid or count == 0:
+            raise ValueError("Existing evidence ledger must verify before reviewed anchoring")
+        ledger_head, entry_count = self._append_ledger({
+            "action": "anchor_bootstrap",
+            "review_id": review_id.strip(),
+            "timestamp": utc_now(),
+        })
+        try:
+            receipt = self.anchor.publish(self.case_id, entry_count, ledger_head)
+            if not self.anchor.verify(self.case_id, entry_count, ledger_head, receipt):
+                raise ValueError("New anchor receipt failed verification")
+        except Exception:
+            raise ValueError("Reviewed anchor bootstrap failed; operator recovery is required") from None
+        if not self.verify_ledger()[0]:
+            raise ValueError("Anchored ledger failed final verification")
+        return receipt
 
     def export_bundle(self, output: Path) -> dict[str, Any]:
         """Portable hash-verified ZIP. Hashes prove integrity, not authorship."""
@@ -119,9 +192,20 @@ class EvidenceStore:
             observations.append({k: entry[k] for k in ('sha256', 'source', 'timestamp')})
         manifest = {'schema': 'traceatlas-evidence-export/v1', 'case_id': self.case_id,
                     'created_at': utc_now(), 'integrity': 'sha256-not-a-digital-signature',
-                    'ledger_head': entries[-1]['entry_hash'], 'observations': observations,
+                    'ledger_head': entries[-1]['entry_hash'], 'ledger_entries': count,
+                    'observations': observations,
                     'files': [{'path': name, 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
                               for name, data in sorted(blobs.items())]}
+        if self.anchor is not None:
+            try:
+                manifest['anchor_receipt'] = self.anchor.current_receipt(self.case_id)
+                receipt_valid = self.anchor.verify(
+                    self.case_id, count, entries[-1]['entry_hash'], manifest['anchor_receipt'],
+                )
+            except Exception:
+                receipt_valid = False
+            if not receipt_valid:
+                raise ValueError('Evidence anchor receipt changed during export')
         encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
         output.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
@@ -132,7 +216,8 @@ class EvidenceStore:
         return {'path': str(output), 'sha256': sha256_file(output), 'files': len(blobs), 'ledger_entries': count}
 
     @staticmethod
-    def verify_bundle(path: Path) -> bool:
+    def verify_bundle(path: Path, *, anchor: LedgerAnchor | None = None,
+                      require_anchor: bool = False) -> bool:
         try:
             with zipfile.ZipFile(path) as archive:
                 names = archive.namelist()
@@ -157,7 +242,23 @@ class EvidenceStore:
                     expected.add(name)
                 if not manifest.get('observations') or any('evidence/' + row['sha256'] not in expected for row in manifest['observations']):
                     return False
+                receipt = manifest.get('anchor_receipt')
+                if require_anchor and receipt is None:
+                    return False
+                if receipt is not None:
+                    entry_count = manifest.get('ledger_entries')
+                    if anchor is None or isinstance(entry_count, bool) or not isinstance(entry_count, int):
+                        return False
+                    try:
+                        valid_receipt = anchor.verify(
+                            manifest['case_id'], entry_count, manifest['ledger_head'], receipt,
+                        )
+                    except Exception:
+                        return False
+                    if not valid_receipt:
+                        return False
                 return set(names) == expected
         except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
             return False
+
 

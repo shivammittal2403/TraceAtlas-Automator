@@ -74,9 +74,24 @@ class FabricStore:
                 result[r["source"]] = normalize_maturity(r["state"])
             elif r["state"] == "PRODUCTION_QUALIFIED" and result.get(r["source"]) == "LIVE_VERIFIED" and r["at"] > cutoff:
                 reviewed = self._resolved_checks(r["source"])
+                review_cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
+                reviews = list(self.db.conn.execute(
+                    "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?",
+                    (r["source"], review_cutoff)))
                 # Recheck the current checklist so older promotions cannot survive
                 # a qualification-policy expansion on their previous evidence set.
-                if QUALIFICATION_CHECKS.issubset(reviewed):
+                # Also fail closed if a legacy/direct database row cites no artifact.
+                reviewed = {row["check_name"] for row in reviews}
+                evidence_by_case = {}
+                refs_resolve = True
+                for row in reviews:
+                    case_id = row["case_id"]
+                    if case_id not in evidence_by_case:
+                        evidence_by_case[case_id] = {item["sha256"] for item in self.db.evidence(case_id)}
+                    if row["evidence_hash"] not in evidence_by_case[case_id]:
+                        refs_resolve = False
+                        break
+                if QUALIFICATION_CHECKS.issubset(reviewed) and refs_resolve:
                     result[r["source"]] = r["state"]
         result.update({source: "DEGRADED" for source in KNOWN_BROKEN})
         return result
@@ -120,6 +135,7 @@ class FabricStore:
             if not EvidenceStore(workspace, self.db, r["case_id"]).verify_ledger()[0]:
                 raise PolicyError("Qualification review artifact integrity failed")
             if not any(item['sha256'] == r['evidence_hash'] for item in self.db.evidence(r['case_id'])):
+            if not any(item["sha256"] == r["evidence_hash"] for item in self.db.evidence(r["case_id"])):
                 raise PolicyError("Qualification review reference does not resolve within its case")
         self.db.conn.execute("INSERT INTO fabric_promotions VALUES(?,?,?,?) ON CONFLICT(source) DO UPDATE SET state=excluded.state,actor=excluded.actor,at=excluded.at",
                              (source, "PRODUCTION_QUALIFIED", actor, utc()))

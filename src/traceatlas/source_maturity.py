@@ -33,6 +33,7 @@ LIVE_VERIFICATION_GATES = frozenset({
     "provenance", "failure", "rate_limits", "cost", "security", "schema_drift",
     "tests", "canary", "health", "privacy", "replay", "intended_runtime",
 })
+LIVE_VERIFICATION_GATES = SOURCE_QUALIFICATION_GATES - frozenset({"operational_owner", "runbook"})
 
 _LEGACY_STATES = {
     "DOCUMENTED": "CATALOGUED",

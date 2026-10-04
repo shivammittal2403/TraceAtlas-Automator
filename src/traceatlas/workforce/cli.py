@@ -109,6 +109,8 @@ def run_workforce(args, engine) -> dict:
             live_count = len(registry.live_integrations())
             return {"sources": rows, "capabilities": registry.capabilities(), "registered": len(registry.list()),
                     "canonical_adapters": len(P0_IDS), "lifecycle_counts": lifecycle_counts,
+                    "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
+                    "maturity_state_vocabulary": list(MATURITY_STATES),
                     "live_integrations": live_count,
                     "production_qualified": lifecycle_counts["PRODUCTION_QUALIFIED"],
                     "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
