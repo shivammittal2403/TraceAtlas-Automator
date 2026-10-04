@@ -14,7 +14,7 @@ Unreviewed candidate URLs, prices, licenses and quotas remain unknown.
 
 The existing SQLite store, five employee definitions, authorization and evidence
 contracts remain canonical. Registry entries do not grant execution permission.
-The workforce registry currently describes 49 source definitions (47 IntelligenceHub entries plus Brave/SearXNG); 24 have the canonical approval-driven workforce adapter. The IntelligenceHub has 33 API implementations. These counts overlap and must never be added together.
+The workforce registry currently describes 50 source definitions (48 IntelligenceHub entries plus Brave/SearXNG); 24 have the canonical approval-driven workforce adapter. The IntelligenceHub has 34 API implementations. These counts overlap and must never be added together.
 
 The planner derives requirements for typed domain, public IP, company, CVE,
 vulnerability-advisory or npm-package identifiers.
