@@ -181,7 +181,7 @@ class IntelligenceHub:
             from .registry_requests import registry_request
             return registry_request(spec.name, target_type, target)
         if spec.name == "cveorg":
-            if target_type != "cve" or not re.fullmatch(r"CVE-\\d{4}-\\d{4,19}", target):
+            if target_type != "cve" or not re.fullmatch(r"CVE-\d{4}-\d{4,19}", target):
                 raise PolicyError("CVE Program requires one exact CVE")
             return "https://cveawg.mitre.org/api/cve/" + quote(target.upper(), safe=""), headers
         if spec.name == "epss":
