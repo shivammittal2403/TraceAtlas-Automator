@@ -1,6 +1,6 @@
 # TraceAtlas Workforce Design
 
-The canonical design is [docs/AI_WORKFORCE_ARCHITECTURE.md](docs/AI_WORKFORCE_ARCHITECTURE.md).
+The canonical design is [docs/AI_WORKFORCE_ARCHITECTURE.md](AI_WORKFORCE_ARCHITECTURE.md).
 
 ## Implemented package map
 

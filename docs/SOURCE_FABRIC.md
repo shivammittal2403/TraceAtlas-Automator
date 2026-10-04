@@ -2,7 +2,7 @@
 
 ## Integration with current main
 
-This delivery was reconciled with main `fe4a07809ceed92b3f5be35baf7441101ce3445e` after PRs #22, #24 and #25 merged during development. Preserve their canonical `workforce/pipeline.py`, 20 workforce source adapters, SourceRegistry, MCP tools, strict registered company identifiers and IANA RDAP bootstrap. See [canonical Source Fabric](sources/SOURCE_FABRIC.md) and [CURRENT_STATE](../CURRENT_STATE.md).
+This delivery was reconciled with main `fe4a07809ceed92b3f5be35baf7441101ce3445e` after PRs #22, #24 and #25 merged during development. Preserve their canonical `workforce/pipeline.py`, 20 workforce source adapters, SourceRegistry, MCP tools, strict registered company identifiers and IANA RDAP bootstrap. See [canonical Source Fabric](sources/SOURCE_FABRIC.md) and [CURRENT_STATE](CURRENT_STATE.md).
 
 The employee console adds a local, single-user objective/seed workflow with checkpoints, cancellation, cited graph/report, optional Ollama draft and evidence ZIP. Its `--source-fabric` adapter path uses shared IntelligenceHub connectors and separate employee run telemetry; it is not a replacement for canonical workforce authorization, semantic replay, health records or hosted approvals. Its replay checks integrity and references, whereas canonical workforce replay reanalyses captured source records. Do not combine the two health databases' verification counts.
 
