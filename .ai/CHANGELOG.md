@@ -25,3 +25,10 @@
   code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI
   `37184302223` and CodeQL `37184302217`; worker image, both Python versions,
   locked MCP, dependency review and supply-chain checks all passed.
+- Implemented TA-003 locally: FabricStore now rejects qualification review rows
+  whose evidence hash does not resolve to the same case's immutable EvidenceStore
+  records; it also refuses to report a legacy promotion as production-qualified
+  when a review reference is unresolved. Full suite: 315 tests, 312 passed,
+  3 skipped; focused Source Fabric: 28 tests, 27 passed, 1 skipped; secret scan
+  clean. PR #50 head `d9c7965e98ba3e26e123fe33c266c97be7b591b8` passed CI
+  `37185114010` and CodeQL `37185114003`.
