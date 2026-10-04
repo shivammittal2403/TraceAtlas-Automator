@@ -11,6 +11,7 @@ from uuid import uuid4
 from . import __version__
 from .engine import Engine
 from .evidence import EvidenceStore
+from .evidence_anchor import configured_ledger_anchor
 from .playbooks import METHODS, get_method
 from .policy import PolicyError, validate_target
 from .report import write_reports
@@ -801,7 +802,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "evidence-export":
             print(json.dumps(EvidenceStore(args.workspace, engine.db, args.case).export_bundle(args.output)))
         elif args.command == "evidence-verify":
-            valid = EvidenceStore.verify_bundle(args.path)
+            anchor, required_anchor = configured_ledger_anchor(args.workspace)
+            valid = EvidenceStore.verify_bundle(
+                args.path, anchor=anchor, require_anchor=required_anchor,
+            )
             print(json.dumps({"valid": valid}))
             return 0 if valid else 2
         elif args.command == "verify":

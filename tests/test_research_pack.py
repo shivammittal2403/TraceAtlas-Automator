@@ -88,6 +88,16 @@ class ResearchPackTests(unittest.TestCase):
         self.assertEqual(result["classification"], "strong_candidate")
         self.assertFalse(result["automatic_merge"])
         self.assertTrue(result["review_required"])
+        self.assertEqual(result["exact_agreement_fields"], ["domain"])
+        self.assertEqual(result["differing_fields"], ["name", "organization"])
+        self.assertFalse(result["attribute_differences_are_identity_proof"])
+        namesake = explainable_entity_match(
+            {"name": "Meridian Systems", "organization": "Meridian India", "domain": "meridian-in.example"},
+            {"name": "Meridian Systems", "organization": "Meridian Americas", "domain": "meridian-us.example"},
+        )
+        self.assertEqual(namesake["exact_agreement_fields"], ["name"])
+        self.assertEqual(namesake["differing_fields"], ["organization", "domain"])
+        self.assertFalse(namesake["automatic_merge"])
         with self.assertRaisesRegex(PolicyError, "sensitive"):
             explainable_entity_match({"email": "a@example.com"}, {"email": "a@example.com"})
 

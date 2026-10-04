@@ -129,6 +129,85 @@ remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its C
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
 
+## Entity-resolution evaluation update — 2026-10-04
+
+Entity comparisons now preserve exact-agreement and differing-field signals in
+the explainable result and analyst review queue. Matching scores and thresholds
+were not changed. A new deterministic synthetic company-label benchmark evaluates
+24 labeled pairs across six queries at the existing 0.72 candidate threshold:
+precision 0.80, recall 1.00, F1 0.889, false-positive rate 0.05, and ranking
+recall@1/3 both 1.00 on the four positive queries. One same-name candidate with
+conflicting organization/domain signals scored 0.7258 and crossed the candidate
+threshold; it remained a review candidate and was not merged. Automated merge
+attempts are zero, so false-merge rate is undefined (zero denominator), not zero
+percent. This small synthetic suite does not estimate operational identity
+accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
+and remaining gates.
+
+
+## Earlier evidence integrity diagnostic — 2026-10-04 (superseded by 14-case run)
+
+The new synthetic nine-case evidence/citation evaluation matches 8/9 expected
+outcomes. Five routine invalid cases are rejected. It reproduces an integrity
+bypass when a local actor rewrites captured bytes, the SQLite digest and the
+unanchored hash-chain entry together. The diagnostic is FAIL (exact-outcome
+score 0.8889; invalid-case rejection 5/6). Citation-ID checks do not establish
+semantic support. See `docs/program/EVALUATION_RESULTS.md` and
+`docs/verification/evidence-integrity-synthetic-2026-10-04.json`. External
+anchoring, immutable storage, semantic citation correctness and deployed replay
+remain unverified; EVIDENCE-001 stays open.
+
+## Opt-in ledger anchoring update
+
+`EvidenceStore` now accepts an operator-provided `LedgerAnchor`; the included
+`HmacFileLedgerAnchor` stores signed checkpoints outside the case workspace and
+requires an injected key provider. Anchored capture and bundle-verification
+paths are opt-in and fail closed without a matching receipt. The expanded
+14-case synthetic benchmark matches 13/14 outcomes (0.9286) and rejects 8/9
+invalid scenarios (0.8889). It confirms the HMAC path rejects the tested
+coordinated local rewrite while the key and receipt are outside the attack
+boundary. The unanchored compatibility path still accepts the rewrite.
+
+The file-backed adapter does not provide rollback-safe freshness, append-only
+remote storage, production key management or deployment evidence. Citation-ID
+membership still does not establish semantic claim support. EVIDENCE-001 stays
+open. See `docs/EVIDENCE_ANCHORING.md`.
+
+
+
+## 2026-10-04 source independence update
+
+The deterministic `SourceIndependenceEngine` no longer treats a shared
+hostname as proof of common origin. This prevents false corroboration when
+separate tenants share hosting. Distinct publisher pages can still be grouped
+using explicit reviewed ownership metadata. The 12-pair synthetic benchmark
+reports TP=7, FP=0, TN=5, FN=0; these synthetic metrics are not operational
+accuracy. Focused lineage tests passed 2/2; investigation pipeline 27 passed,
+1 skipped; AI workforce 13/13. Full suite ran 328: 321 passed, 3 skipped, 4
+failed (three known OpenCTI submodule issues and one Windows loopback-console
+connection abort). Curated lineage and contradiction recall remain unmeasured.
+
+
+The two loopback-console tests passed on an isolated rerun after the full-suite
+connection-aborted error. It did not reproduce in isolation; root cause remains
+unknown.
+
+
+## 2026-10-04 temporal contradiction update
+
+The pipeline now calls the same extracted contradiction rule measured by the
+synthetic evaluator. Eight pairs produce TP=3, FP=0, TN=5, FN=0. The cases
+include temporal overlap/boundaries and exclude multivalued DNS. This does not
+measure real-world recall. Focused evaluator tests pass 3/3 and pipeline tests
+27/28 (one skip). Full Python suite: 329 run, 323 pass, 3 skip, 3 fail from
+the known incomplete OpenCTI checkout; console tests passed. `LINEAGE-001`
+remains open pending approved representative data.
+
+
+The temporal contradiction helper and eight-case diagnostic were pushed in
+code commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity-taxonomy`. The synthetic report
+matches 3/3 labeled conflict cases; representative contradiction recall remains
+unknown.
 
 ## Persistent enterprise 8/10 program — baseline and active repair
 

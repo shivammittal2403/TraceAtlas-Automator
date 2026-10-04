@@ -23,6 +23,7 @@ from ..intelligence.transport import request, request_loopback_search
 from ..intelligence.rdap import lookup as rdap_lookup, validate_response as validate_rdap_response
 from .contracts import Claim, CostRecord, EvidenceObject, Observation, ResultEnvelope, SemanticClass, TraceSpan
 from .documents import DOCUMENT_SCHEMA, MAX_DOCUMENTS, SourceDocument, StructuredFact
+from .contradictions import SINGLE_VALUE_PREDICATES as SINGLE_VALUES, contradicts
 from .graph import GraphEdge, GraphNode, TemporalClaimGraph
 from .lineage import SourceIndependenceEngine, SourceRecord
 from .service import WorkforceService
@@ -33,7 +34,6 @@ from .normalization import live_facts as _live_facts
 WORKFLOW_VERSION = "evidence-investigation/1.3.0"
 PARSER_VERSION = "structured-fact/4"
 POLICY_VERSION = "bounded-readonly/1"
-SINGLE_VALUES = frozenset({"registry_handle", "registered_name", "registered_country", "package_version", "package_license"})
 
 
 from .source_sdk import CollectionStopped
@@ -308,8 +308,8 @@ class InvestigationPipeline:
             subject, predicate, value = key
             claim = Claim(identifier("claim", [task.task_id, key]), f"Sources record {subject} {predicate} {value}", SemanticClass.CLAIM,
                           tuple(o.observation_id for _, o, _ in rows), True, None)
-            contrary = [(f, o, d) for f, o, d in fact_rows if f.subject == subject and f.predicate == predicate
-                        and f.value != value and predicate in SINGLE_VALUES and any(_overlap(f, r[0]) for r in rows)]
+            contrary = [(f, o, d) for f, o, d in fact_rows
+                        if any(contradicts(f, support_fact) for support_fact, _, _ in rows)]
             adversarial = []
             if predicate == "search_result_url":
                 adversarial.append("search_listing_not_content_verification")

@@ -63,10 +63,10 @@ class SourceIndependenceEngine:
                     links.add("common_ownership")
                 if _canonical_uri(row.uri) == _canonical_uri(other.uri):
                     links.add("canonical_uri")
-                host = (urlsplit(row.uri).hostname or "").lower().removeprefix("www.")
-                other_host = (urlsplit(other.uri).hostname or "").lower().removeprefix("www.")
-                if host and host == other_host:
-                    links.add("common_publisher_host")
+                # A shared hostname can be a multi-tenant host or CDN. Treating
+                # it as proof of common origin can collapse independent records.
+                # Publisher relationships must be supplied as reviewed ownership
+                # metadata; host identity alone remains insufficient.
                 if normalized[i] and fingerprints[i] == fingerprints[j]:
                     links.add("exact_content")
                 union = tokens[i] | tokens[j]

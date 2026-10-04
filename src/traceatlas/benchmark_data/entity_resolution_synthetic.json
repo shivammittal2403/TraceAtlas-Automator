@@ -1,0 +1,73 @@
+{
+  "schema": "traceatlas-entity-resolution-benchmark/v1",
+  "dataset_id": "synthetic-company-labels-2026-10-04",
+  "notice": "All names, organizations, domains, usernames, and locations in this file are synthetic. This diagnostic set is not representative identity ground truth.",
+  "cases": [
+    {
+      "case_id": "company-alias-01",
+      "query": {"name": "Aarohan Data Systems", "organization": "Aarohan Data Systems Pvt Ltd", "domain": "aarohan.example", "username": "aarohan-data", "location": "India"},
+      "expected_match_id": "alias",
+      "candidates": [
+        {"candidate_id": "alias", "is_match": true, "record": {"name": "Aarohan Data Systems Private Limited", "organization": "Aarohan Data Systems Pvt Ltd", "domain": "aarohan.example", "username": "aarohan-data", "location": "India"}},
+        {"candidate_id": "namesake", "is_match": false, "record": {"name": "Aarohan Data Systems", "organization": "Aarohan Industrial Group", "domain": "aarohan-group.example", "username": "aarohan-group", "location": "India"}},
+        {"candidate_id": "shared-location", "is_match": false, "record": {"name": "Aarohan Telecom", "organization": "Aarohan Telecom", "domain": "telecom.example", "username": "aarohan-telecom", "location": "India"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Blue Heron Foods", "organization": "Blue Heron Foods", "domain": "blueheron.example", "username": "blue-heron", "location": "United Kingdom"}}
+      ]
+    },
+    {
+      "case_id": "company-alias-02",
+      "query": {"name": "Blue Heron Energy", "organization": "Blue Heron Energy Ltd", "domain": "blueheron-energy.example", "username": "blueheronenergy", "location": "United Kingdom"},
+      "expected_match_id": "punctuation-variant",
+      "candidates": [
+        {"candidate_id": "shared-username", "is_match": false, "record": {"name": "Heron Energy Trading", "organization": "Heron Trading Group", "domain": "herontrading.example", "username": "blueheronenergy", "location": "United Kingdom"}},
+        {"candidate_id": "punctuation-variant", "is_match": true, "record": {"name": "Blue Heron Energy, Limited", "organization": "Blue Heron Energy Ltd", "domain": "blueheron-energy.example", "username": "blueheronenergy", "location": "United Kingdom"}},
+        {"candidate_id": "same-name-other-domain", "is_match": false, "record": {"name": "Blue Heron Energy", "organization": "Blue Heron Holdings", "domain": "blueheron-holdings.example", "username": "blueheronholdings", "location": "Canada"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Cedar Analytics", "organization": "Cedar Analytics", "domain": "cedar.example", "username": "cedaranalytics", "location": "United States"}}
+      ]
+    },
+    {
+      "case_id": "company-namesake-03",
+      "query": {"name": "Meridian Systems", "organization": "Meridian Systems India", "domain": "meridian-in.example", "username": "meridian-in", "location": "India"},
+      "expected_match_id": "exact-record",
+      "candidates": [
+        {"candidate_id": "namesake", "is_match": false, "record": {"name": "Meridian Systems", "organization": "Meridian Systems Americas", "domain": "meridian-us.example", "username": "meridian-us", "location": "United States"}},
+        {"candidate_id": "exact-record", "is_match": true, "record": {"name": "Meridian Systems", "organization": "Meridian Systems India", "domain": "meridian-in.example", "username": "meridian-in", "location": "India"}},
+        {"candidate_id": "shared-domain-word", "is_match": false, "record": {"name": "Meridian Consulting", "organization": "Meridian Consulting", "domain": "meridian-consulting.example", "username": "meridian-consulting", "location": "Singapore"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Orchid Grid", "organization": "Orchid Grid", "domain": "orchidgrid.example", "username": "orchid-grid", "location": "India"}}
+      ]
+    },
+    {
+      "case_id": "company-alias-04",
+      "query": {"name": "Suryodaya Networks Pvt Ltd", "organization": "Suryodaya Networks", "domain": "suryodaya.example", "username": "suryodaya-net", "location": "India"},
+      "expected_match_id": "legal-suffix-variant",
+      "candidates": [
+        {"candidate_id": "legal-suffix-variant", "is_match": true, "record": {"name": "Suryodaya Networks Private Limited", "organization": "Suryodaya Networks", "domain": "suryodaya.example", "username": "suryodaya-net", "location": "India"}},
+        {"candidate_id": "same-location", "is_match": false, "record": {"name": "Suryodaya Logistics", "organization": "Suryodaya Logistics", "domain": "suryologistics.example", "username": "suryodaya-logistics", "location": "India"}},
+        {"candidate_id": "shared-username-prefix", "is_match": false, "record": {"name": "Dawn Network Services", "organization": "Dawn Network Services", "domain": "dawnnet.example", "username": "suryodaya-networks", "location": "India"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Northstar Research", "organization": "Northstar Research", "domain": "northstar.example", "username": "northstar-research", "location": "Australia"}}
+      ]
+    },
+    {
+      "case_id": "company-no-match-05",
+      "query": {"name": "Orchid Grid", "organization": "Orchid Grid Systems", "domain": "orchid-grid.example", "username": "orchidgrid", "location": "Singapore"},
+      "expected_match_id": null,
+      "candidates": [
+        {"candidate_id": "orchid-energy", "is_match": false, "record": {"name": "Orchid Energy", "organization": "Orchid Energy", "domain": "orchidenergy.example", "username": "orchid-energy", "location": "Singapore"}},
+        {"candidate_id": "grid-analytics", "is_match": false, "record": {"name": "Grid Analytics", "organization": "Grid Analytics", "domain": "gridanalytics.example", "username": "grid-analytics", "location": "Singapore"}},
+        {"candidate_id": "orchid-grid-global", "is_match": false, "record": {"name": "Orchid Grid Global", "organization": "Orchid Grid Global", "domain": "orchidglobal.example", "username": "orchid-grid-global", "location": "Singapore"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Blue Harbor Shipping", "organization": "Blue Harbor Shipping", "domain": "blueharbor.example", "username": "blueharbor", "location": "Japan"}}
+      ]
+    },
+    {
+      "case_id": "company-shared-username-06",
+      "query": {"name": "Cedar Materials", "organization": "Cedar Materials Group", "domain": "cedarmaterials.example", "username": "cedar-global", "location": "Canada"},
+      "expected_match_id": null,
+      "candidates": [
+        {"candidate_id": "shared-username", "is_match": false, "record": {"name": "Global Timber", "organization": "Global Timber Supply", "domain": "globaltimber.example", "username": "cedar-global", "location": "Canada"}},
+        {"candidate_id": "similar-name", "is_match": false, "record": {"name": "Cedar Material Services", "organization": "Cedar Material Services", "domain": "cedarmaterial.example", "username": "cedar-materials", "location": "United States"}},
+        {"candidate_id": "same-country", "is_match": false, "record": {"name": "Northern Materials", "organization": "Northern Materials", "domain": "northernmaterials.example", "username": "northern-materials", "location": "Canada"}},
+        {"candidate_id": "unrelated", "is_match": false, "record": {"name": "Sunrise Textiles", "organization": "Sunrise Textiles", "domain": "sunrise-textiles.example", "username": "sunrisetextiles", "location": "India"}}
+      ]
+    }
+  ]
+}
