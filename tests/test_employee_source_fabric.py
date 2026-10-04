@@ -79,7 +79,7 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(summary['candidate_slots'], 400)
         self.assertEqual(summary['duplicate_candidate_slots'], 39)
         self.assertEqual(summary['implemented_api_connectors'], 34)
-        self.assertEqual(summary['source_records'], 47)
+        self.assertEqual(summary['source_records'], 48)
         self.assertEqual(summary['live_verified'], 0)
         self.assertEqual(summary['production_qualified'], 0)
         self.assertEqual(len(candidates()), 400)
