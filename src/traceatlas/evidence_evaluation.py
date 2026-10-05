@@ -21,7 +21,7 @@ from .intelligence.ai import ANALYSIS_CLAIM_FIELDS, ANALYSIS_KEYS, validate_ai_a
 
 
 BENCHMARK_ID = "evidence-integrity-and-citation-guards"
-BENCHMARK_VERSION = "1.0"
+BENCHMARK_VERSION = "1.1"
 
 
 def _fixture(
@@ -76,6 +76,10 @@ def evaluate_evidence_integrity() -> dict[str, Any]:
         ("anchored-bundle-valid", True, "anchored-bundle", "An anchored bundle verifies with the external key provider."),
         ("anchor-receipt-mutated", False, "anchored-bundle", "A bundle receipt signature was altered."),
         ("required-anchor-missing", False, "required-bundle", "A legacy bundle fails when the verifier requires an anchor."),
+        ("anchored-bundle-rewritten", False, "anchored-bundle", "Payload and manifest hashes are rewritten while retaining the signed ledger head."),
+        ("anchored-provenance-rewritten", False, "anchored-bundle", "Observation provenance and manifest checksum are rewritten together."),
+        ("anchored-history-deleted", False, "anchored-ledger", "Local ledger and evidence index are deleted while the external checkpoint survives."),
+        ("anchored-history-rollback", False, "anchored-ledger", "Local history is restored to an older valid state after a newer checkpoint."),
     ]
     rows: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="traceatlas-evidence-eval-") as temporary:
@@ -150,27 +154,39 @@ def evaluate_evidence_integrity() -> dict[str, Any]:
                     observed = EvidenceStore.verify_bundle(mutated)
                 elif case_id == "anchored-ledger-valid":
                     observed = store.verify_ledger()[0]
-                elif case_id == "anchored-local-rewrite":
-                    # Reuse the same full local re-anchoring mutation; the HMAC
-                    # checkpoint is held outside the evidence workspace.
-                    row = db.evidence(case_id)[0]
-                    evidence_path = Path(row["path"])
-                    rewritten = b"attacker-controlled replacement evidence\n"
-                    evidence_path.write_bytes(rewritten)
-                    digest = hashlib.sha256(rewritten).hexdigest()
-                    db.conn.execute(
-                        "UPDATE evidence SET sha256=?, size=? WHERE case_id=? AND sha256=?",
-                        (digest, len(rewritten), case_id, row["sha256"]),
-                    )
+                elif case_id == "anchored-history-deleted":
+                    store.ledger.unlink()
+                    db.conn.execute("DELETE FROM evidence WHERE case_id=?", (case_id,))
                     db.conn.commit()
-                    entry = json.loads(store.ledger.read_text(encoding="utf-8").splitlines()[0])
-                    entry["sha256"] = digest
-                    entry.pop("entry_hash")
-                    entry["entry_hash"] = hashlib.sha256(
-                        json.dumps(entry, sort_keys=True, separators=(",", ":")).encode("utf-8")
-                    ).hexdigest()
-                    store.ledger.write_text(json.dumps(entry, sort_keys=True) + "\n", encoding="utf-8")
                     observed = store.verify_ledger()[0]
+                elif case_id == "anchored-history-rollback":
+                    old_history = store.ledger.read_bytes()
+                    store.preserve_file(Path(db.evidence(case_id)[0]['path']), 'second acquisition')
+                    store.ledger.write_bytes(old_history)
+                    observed = store.verify_ledger()[0]
+                elif case_id in {"anchored-bundle-rewritten", "anchored-provenance-rewritten"}:
+                    mutated = root / ("mutation-" + case_id + ".zip")
+
+                    def rewrite_manifest(original: zipfile.ZipFile, changed: zipfile.ZipFile) -> None:
+                        entries = {name: original.read(name) for name in original.namelist()}
+                        manifest = json.loads(entries['manifest.json'])
+                        if case_id == 'anchored-bundle-rewritten':
+                            data = b'rewritten bundle bytes'
+                            digest = hashlib.sha256(data).hexdigest()
+                            entries.pop(manifest['files'][0]['path'])
+                            entries['evidence/' + digest] = data
+                            manifest['files'][0] = {'path': 'evidence/' + digest, 'sha256': digest, 'bytes': len(data)}
+                            manifest['observations'][0]['sha256'] = digest
+                        else:
+                            manifest['observations'][0]['source'] = 'forged provenance'
+                        encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+                        entries['manifest.json'] = encoded
+                        entries['manifest.sha256'] = hashlib.sha256(encoded).hexdigest().encode()
+                        for name, data in entries.items():
+                            changed.writestr(name, data)
+
+                    _rewrite_zip(bundle, mutated, rewrite_manifest)
+                    observed = EvidenceStore.verify_bundle(mutated, anchor=anchor, require_anchor=True)
                 elif case_id == "anchored-bundle-valid":
                     observed = EvidenceStore.verify_bundle(bundle, anchor=anchor, require_anchor=True)
                 elif case_id == "anchor-receipt-mutated":
