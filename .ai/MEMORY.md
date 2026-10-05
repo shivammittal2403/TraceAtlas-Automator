@@ -115,3 +115,10 @@ Next priorities: qualified monotonic anchoring; prevent engineering checklist
 scores from masquerading as Enterprise 8/10; expand measured public-source
 canaries and failure handling; semantic planning gaps; representative reviewed
 corpora and named staging environment. The full master objective stays OPEN.
+
+
+2026-10-05 SCORE-001: maturity CLI now reports engineering checklist separately
+from unestablished enterprise acceptance. Health/configuration cannot qualify
+live sources. See docs/MATURITY_ASSESSMENT.md and the current verification JSON.
+Next open work: independent anchors, bounded source-runtime verification,
+representative reviewed corpora, semantic coverage and operator staging.

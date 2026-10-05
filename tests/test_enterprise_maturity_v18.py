@@ -160,7 +160,7 @@ class EnterpriseMaturityV18Tests(unittest.TestCase):
         live = {gate["name"]: gate for gate in dimensions["live_source_depth"]["gates"]}
         ai = {gate["name"]: gate for gate in dimensions["ai_media_intelligence"]["gates"]}
         ux = {gate["name"]: gate for gate in dimensions["investigation_ux"]["gates"]}
-        self.assertEqual(live["twenty_live_contracts"]["state"], "pass")
+        self.assertEqual(live["twenty_coded_contracts"]["state"], "pass")
         self.assertEqual(ai["model_guardrail_benchmark"]["state"], "pass")
         self.assertEqual(ux["saved_graph_views"]["state"], "pass")
         self.assertEqual(ux["realtime_collaboration"]["state"], "pass")

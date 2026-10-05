@@ -111,3 +111,16 @@ Next priorities: qualified monotonic anchoring; prevent engineering checklist
 scores from masquerading as Enterprise 8/10; expand measured public-source
 canaries and failure handling; semantic planning gaps; representative reviewed
 corpora and named staging environment. The full master objective stays OPEN.
+
+
+### SCORE-001 / P1 - misleading maturity output
+
+Root cause: generic health rows and static markers were counted as verified live
+operation and a product /10 score. Controlled baseline inflated 6.8 to 8.8 without
+a live request. CODED/locally TESTED repair: checklist v2, null enterprise score,
+canonical integration-receipt revalidation, explicit denominators and hosted gates
+kept unverified. Documentation and consumers/tests migrated. Acceptance: synthetic
+health/config injection must not increase acceptance or local verified counts;
+fixtures/stale implementation receipts excluded. Full evidence and remaining
+limitations: docs/MATURITY_ASSESSMENT.md and verification/maturity-output-2026-10-05.json.
+Not DEPLOYED; representative enterprise acceptance remains OPEN.

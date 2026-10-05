@@ -160,3 +160,17 @@ Next priorities: qualified monotonic anchoring; prevent engineering checklist
 scores from masquerading as Enterprise 8/10; expand measured public-source
 canaries and failure handling; semantic planning gaps; representative reviewed
 corpora and named staging environment. The full master objective stays OPEN.
+
+
+## SCORE-001: engineering checklist is not enterprise acceptance (2026-10-05)
+
+Reproduced baseline ca86a44 assigning 8.8/10 and 51 verified-live sources from
+synthetic health/configuration records alone (clean score 6.8; no live requests).
+Maturity JSON v2 removes numeric enterprise scoring: overall/maximum null;
+enterprise NOT_ESTABLISHED; explicit checklist counts and denominators. Local
+integration counts revalidate canonical receipts; generic health cannot qualify.
+Hosted readiness cannot be granted by a static configuration response.
+Seven new regressions; 24 focused maturity tests pass. Full suite recorded in
+`docs/verification/maturity-output-2026-10-05.json`. Migration and limitations:
+`docs/MATURITY_ASSESSMENT.md`. Parent ca86a44 passed hosted CI 37299462969 and
+CodeQL 37299462901. New-head checks remain separate. No deployment or promotion.

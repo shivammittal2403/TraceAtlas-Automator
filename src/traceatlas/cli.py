@@ -142,7 +142,7 @@ def parser() -> argparse.ArgumentParser:
     readiness = sub.add_parser("readiness", help="Score verified core, production and competitive readiness")
     readiness.add_argument("--production", action="store_true")
     readiness.add_argument("--json", action="store_true")
-    maturity = sub.add_parser("maturity", help="Evaluate explicit 10-point product maturity gates")
+    maturity = sub.add_parser("maturity", help="Inspect engineering checks and outstanding enterprise acceptance evidence")
     maturity.add_argument("--production", action="store_true")
     maturity.add_argument("--json", action="store_true")
     benchmark = sub.add_parser(
@@ -862,9 +862,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
-                print(f"Evidence-gated maturity: {result['overall']}/10")
+                print("Enterprise maturity: NOT ESTABLISHED (target 8/10)")
+                checklist = result["checklist"]
+                print(f"Engineering checks: {checklist['passed_checks']}/{checklist['total_checks']}")
                 for row in result["dimensions"]:
-                    print(f"{row['area']:26} {row['score']}/10")
+                    print(f"{row['area']:26} {row['passed_checks']}/{row['total_checks']} checks")
                     for blocker in row["blocking_gates"]:
                         print(f"  BLOCK {blocker}")
         elif args.command == "benchmark":

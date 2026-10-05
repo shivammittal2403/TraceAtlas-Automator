@@ -1,4 +1,4 @@
-"""Transparent 10-point product maturity acceptance gates."""
+"""Engineering checklist; enterprise maturity requires independent acceptance evidence."""
 
 from __future__ import annotations
 
@@ -9,10 +9,11 @@ from .db import CaseDB
 from .deployment import DeploymentDoctor
 from .intelligence import MediaAnalyzer, SOURCES
 from .benchmark import GuardrailBenchmark
+from .source_fabric.integration import IntegrationReceipts
 
 
 class ProductMaturityScorecard:
-    """Score repository/runtime evidence; never award points for marketing claims."""
+    """Inventory local implementation checks without assigning an enterprise score."""
 
     def __init__(self, db: CaseDB, workspace: Path, root: Path | None = None):
         self.db = db
@@ -27,7 +28,7 @@ class ProductMaturityScorecard:
     def _gate(name: str, passed: bool, evidence: Any, acceptance: str) -> dict[str, Any]:
         return {
             "name": name, "state": "pass" if passed else "fail",
-            "evidence": evidence, "acceptance": acceptance,
+            "evidence": False if evidence is True and not passed else evidence, "acceptance": acceptance,
         }
 
     def run(self, *, production: bool = False) -> dict[str, Any]:
@@ -40,24 +41,26 @@ class ProductMaturityScorecard:
             }
         }
         health = self.db.connector_health()
-        verified_sources = {
-            row["source"] for row in health
-            if row.get("last_success_at") and row.get("consecutive_failures") == 0
-        }
+        # A healthy row has no fixture/runtime/custody/code binding and is not proof.
+        healthy_sources = {row["source"] for row in health
+                           if row.get("last_success_at") and row.get("consecutive_failures") == 0}
+        has_receipts = self.db.conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='fabric_integration_receipts'"
+        ).fetchone()
+        receipts = IntegrationReceipts(self.db, self.workspace).verified() if has_receipts else []
+        verified_sources = {row["source"] for row in receipts}
         verified_social = verified_sources & social_sources
-        integration_health = {
-            row["tool"] for row in self.db.integration_health()
-            if row.get("last_success_at") and row.get("consecutive_failures") == 0
-        }
+        # Generic integration health does not distinguish fixture and real execution.
+        integration_health = set()
         media = MediaAnalyzer.capabilities()
         media_tools = sum(bool(value) for value in media.values())
         source_runs = self.db.source_runs(limit=5000)
         social_runs = sum(
-            row["status"] == "completed" and row["source"] in social_sources
+            row["status"] == "completed" and row["mode"] == "live" and row["source"] in verified_social
             for row in source_runs
         )
         deployment = DeploymentDoctor(self.root).run(production=production)
-        production_ready = bool(deployment.get("production_ready"))
+        production_ready = False  # Static deployment configuration cannot validate hosted operation.
         try:
             benchmark = GuardrailBenchmark().run()
             guardrail_benchmark = benchmark["status"] == "pass"
@@ -67,27 +70,27 @@ class ProductMaturityScorecard:
 
         dimensions: dict[str, list[dict[str, Any]]] = {
             "live_source_depth": [
-                self._gate("fourteen_live_contracts", len(live_sources) >= 14, len(live_sources), ">=14"),
-                self._gate("twenty_live_contracts", len(live_sources) >= 20, len(live_sources), ">=20"),
-                self._gate("four_live_categories", len({SOURCES[x].category for x in live_sources}) >= 4,
+                self._gate("fourteen_coded_contracts", len(live_sources) >= 14, len(live_sources), ">=14"),
+                self._gate("twenty_coded_contracts", len(live_sources) >= 20, len(live_sources), ">=20"),
+                self._gate("four_coded_categories", len({SOURCES[x].category for x in live_sources}) >= 4,
                            len({SOURCES[x].category for x in live_sources}), ">=4"),
                 self._gate("schema_contracts", self._contains("src/traceatlas/intelligence/provider.py", "provider_schema_mismatch"), True, "implemented"),
                 self._gate("bounded_retries", self._contains("src/traceatlas/intelligence/provider.py", "max_attempts"), True, "implemented"),
                 self._gate("circuit_breaker", self._contains("src/traceatlas/intelligence/orchestrator.py", "circuit_open"), True, "implemented"),
                 self._gate("durable_source_runs", self._contains("src/traceatlas/db.py", "CREATE TABLE IF NOT EXISTS source_runs"), True, "implemented"),
-                self._gate("three_live_executions", len(verified_sources) >= 3, len(verified_sources), ">=3 successful providers"),
-                self._gate("ten_live_executions", len(verified_sources) >= 10, len(verified_sources), ">=10 successful providers"),
+                self._gate("three_revalidated_local_integrations", len(verified_sources) >= 3, len(verified_sources), ">=3 successful providers"),
+                self._gate("ten_revalidated_local_integrations", len(verified_sources) >= 10, len(verified_sources), ">=10 successful providers"),
                 self._gate("production_control_plane", production_ready, production_ready, "production_ready=true"),
             ],
             "social_intelligence": [
-                self._gate("six_live_social_contracts", len(social_sources) >= 6, len(social_sources), ">=6"),
-                self._gate("eight_live_social_contracts", len(social_sources) >= 8, len(social_sources), ">=8"),
+                self._gate("six_coded_social_contracts", len(social_sources) >= 6, len(social_sources), ">=6"),
+                self._gate("eight_coded_social_contracts", len(social_sources) >= 8, len(social_sources), ">=8"),
                 self._gate("normalized_profile_contract", (self.root / "src/traceatlas/intelligence/social.py").is_file(), True, "implemented"),
                 self._gate("consent_gate", self._contains("src/traceatlas/intelligence/hub.py", "subject_consent or owned_org"), True, "implemented"),
                 self._gate("exact_identifier_collection", self._contains("src/traceatlas/intelligence/hub.py", "one exact public user ID"), True, "implemented"),
                 self._gate("human_resolution", self._contains("src/traceatlas/resolution.py", "automatic_merge"), True, "implemented"),
-                self._gate("two_verified_social_sources", len(verified_social) >= 2, len(verified_social), ">=2"),
-                self._gate("five_verified_social_sources", len(verified_social) >= 5, len(verified_social), ">=5"),
+                self._gate("two_revalidated_social_integrations", len(verified_social) >= 2, len(verified_social), ">=2"),
+                self._gate("five_revalidated_social_integrations", len(verified_social) >= 5, len(verified_social), ">=5"),
                 self._gate("social_run_history", social_runs >= 1, social_runs, ">=1 completed stored run"),
                 self._gate("production_social_operations", production_ready and len(verified_social) >= 5,
                            {"production": production_ready, "verified": len(verified_social)}, "production plus >=5 verified"),
@@ -100,8 +103,8 @@ class ProductMaturityScorecard:
                 self._gate("content_not_retained", self._contains("src/traceatlas/sensitive/runner.py", "content-not-retained"), True, "implemented"),
                 self._gate("sensitive_audit", self._contains("src/traceatlas/db.py", "sensitive_audit"), True, "implemented"),
                 self._gate("misp_execution_verified", "misp" in integration_health, "misp" in integration_health, "successful approved MISP call"),
-                self._gate("repeat_collection_evidence", sum(row["source"] == "misp" for row in source_runs) >= 2,
-                           sum(row["source"] == "misp" for row in source_runs), ">=2 MISP runs"),
+                self._gate("repeat_collection_evidence", False,
+                           "NOT_VERIFIED: generic run history does not prove approved live MISP execution", ">=2 MISP runs"),
                 self._gate("licensed_corpus_operations", False, False, "licensed corpus plus documented authority/SLA"),
                 self._gate("production_darkweb_operations", production_ready and "misp" in integration_health,
                            {"production": production_ready, "misp": "misp" in integration_health}, "production plus verified MISP"),
@@ -163,20 +166,44 @@ class ProductMaturityScorecard:
         for name, gates in dimensions.items():
             score = sum(gate["state"] == "pass" for gate in gates)
             rows.append({
-                "area": name, "score": score, "maximum": 10, "gates": gates,
+                "area": name, "passed_checks": score, "total_checks": len(gates), "gates": gates,
                 "blocking_gates": [gate["name"] for gate in gates if gate["state"] == "fail"],
             })
-        overall = round(sum(row["score"] for row in rows) / len(rows), 1)
+        passed = sum(row["passed_checks"] for row in rows)
+        total = sum(row["total_checks"] for row in rows)
         return {
-            "overall": overall, "maximum": 10,
-            "ten_of_ten": all(row["score"] == 10 for row in rows),
+            "schema": "traceatlas-engineering-checklist/v2",
+            "assessment_kind": "engineering_checklist",
+            "overall": None, "maximum": None, "ten_of_ten": False,
+            "enterprise_assessment": {
+                "state": "NOT_ESTABLISHED", "score": None, "target": 8,
+                "accepted": False,
+                "reason": "Local implementation checks do not establish enterprise acceptance.",
+                "required_evidence": [
+                    "Representative independently reviewed investigation and entity-resolution evaluations",
+                    "Independent custody anchors and tamper/rollback verification",
+                    "Qualified sources in the intended runtime with current operational evidence",
+                    "Hosted tenant isolation, recovery, identity lifecycle and operational SLO verification",
+                    "Authorized human acceptance of the defined enterprise gates",
+                ],
+            },
+            "checklist": {"passed_checks": passed, "total_checks": total,
+                          "completion_percent": round(100 * passed / total, 1)},
             "dimensions": rows,
             "evidence_context": {
-                "live_contracts": len(live_sources), "verified_live_sources": len(verified_sources),
-                "stored_source_runs": len(source_runs), "production_ready": production_ready,
+                "coded_live_contracts": len(live_sources),
+                "healthy_connector_rows": len(healthy_sources),
+                "revalidated_local_integration_sources": len(verified_sources),
+                "local_integration_sources": sorted(verified_sources),
+                "stored_source_runs": len(source_runs),
+                "production_configuration_ready": bool(deployment.get("production_configuration_ready")),
+                "production_ready": False,
             },
             "limitations": [
-                "A repository score is not a claim of data coverage, accuracy, legality or investigative outcome.",
-                "External provider access, licensed corpora, hosted isolation, hosted recovery, SSO/SCIM and representative model benchmarks need operational evidence.",
+                "Checklist completion counts implementation signals; it is not an enterprise score or field-accuracy measurement.",
+                "File markers are static inventory, not executed tests. Available tools are not validated model performance.",
+                "Revalidated integration receipts prove a bounded local lookup only, not source or production qualification.",
+                "Connector and integration health alone cannot establish live execution or approved operation.",
+                "Legacy overall/maximum are null; consumers must use checklist and enterprise_assessment separately.",
             ],
         }
