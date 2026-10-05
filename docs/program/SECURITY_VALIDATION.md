@@ -62,3 +62,12 @@ used for this repair. Local secret scanning and final diff review passed. PR #49
 code/test head `1767708adc27e9dc05e0384a4682571e3797d6c4` passed CI
 `37184302223` and CodeQL `37184302217`. Independent security review,
 source-reference resolution, deployment, and tenant isolation remain open.
+
+
+## 2026-10-05
+
+Evidence bundle v2 tamper/reset regressions passed (PR #58, CI/CodeQL green).
+ER corpus intake adds 14 focused authorization, cross-case, hash, bounds, schema,
+ordering, CLI and metric tests; all pass. No real individual records were used.
+The EPSS canary read public CVE metadata only and offline replay made zero socket
+calls. Hosted IAM/tenant and independent security review remain unverified.

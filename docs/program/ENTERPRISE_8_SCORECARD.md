@@ -127,3 +127,50 @@ operator-owned staging, source credentials/terms, representative reviewed labels
 No live source was contacted and no source was promoted. Overall 8/10 remains
 NOT ESTABLISHED. Continue next with governed representative-evaluation intake
 and metric denominators, rather than claiming fixture performance as field quality.
+
+
+## ER-EVAL-002 intake implementation and EPSS development evidence — 2026-10-05
+
+Implemented `resolve evaluate` over exact case-preserved corpus/protocol hashes.
+Authorization, same-case authority/privacy/label-review artifacts, custody integrity,
+2 MiB limits, strict schemas, supported public fields and protocol-before-corpus
+capture order are enforced. Reports contain aggregate metrics/denominators and
+are preserved as evidence. Null denominators fail thresholds. Passing a diagnostic
+never grants enterprise qualification; local capture order does not prove
+independent preregistration, reviewer identity or representative sampling.
+
+Focused ER tests: 21/21. Full suite: 392 run, 389 passed, 3 skipped, zero failures
+(105.961s); compilation and secret scan passed. No ranker weights were changed.
+Representative data quality remains externally dependent on approved adjudicated
+records. Input/output contract: `docs/ENTITY_RESOLUTION_EVALUATION.md`.
+
+Also ran the public EPSS connector for CVE-2021-44228 through canonical authority,
+plan, digest approval, live capture, graph/claim draft and offline replay. One
+real request, two observations, cache miss, no source errors. Replay with socket
+connections blocked passes with zero calls. This is local development evidence,
+not production-like staging or live qualification. Zero sources promoted.
+Summary: `docs/verification/epss-development-canary-2026-10-05.json`; raw artifacts
+stay outside the repository in the private development workspace.
+
+Prior evidence repair PR #58 head f434cd7 passed CI 37263783083 and CodeQL
+37263783047; final full suite 378 run/375 passed/3 skipped. Separate AI findings
+review failed and is not counted as completed review.
+
+Next priorities: qualified monotonic anchoring; prevent engineering checklist
+scores from masquerading as Enterprise 8/10; expand measured public-source
+canaries and failure handling; semantic planning gaps; representative reviewed
+corpora and named staging environment. The full master objective stays OPEN.
+
+
+## SCORE-001: engineering checklist is not enterprise acceptance (2026-10-05)
+
+Reproduced baseline ca86a44 assigning 8.8/10 and 51 verified-live sources from
+synthetic health/configuration records alone (clean score 6.8; no live requests).
+Maturity JSON v2 removes numeric enterprise scoring: overall/maximum null;
+enterprise NOT_ESTABLISHED; explicit checklist counts and denominators. Local
+integration counts revalidate canonical receipts; generic health cannot qualify.
+Hosted readiness cannot be granted by a static configuration response.
+Seven new regressions; 24 focused maturity tests pass. Full suite recorded in
+`docs/verification/maturity-output-2026-10-05.json`. Migration and limitations:
+`docs/MATURITY_ASSESSMENT.md`. Parent ca86a44 passed hosted CI 37299462969 and
+CodeQL 37299462901. New-head checks remain separate. No deployment or promotion.

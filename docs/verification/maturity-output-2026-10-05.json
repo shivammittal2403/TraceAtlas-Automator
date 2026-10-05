@@ -1,0 +1,66 @@
+{
+  "schema": "traceatlas-maturity-output-regression/v1",
+  "date": "2026-10-05",
+  "baseline_commit": "ca86a44f52be5ea75e851fa54b8fe1f9ce5f3cdd",
+  "scenario": "Synthetic injection of healthy connector/integration rows and a passing static deployment response; no live request or deployment performed.",
+  "before_repair": {
+    "clean_overall": 6.8,
+    "injected_overall": 8.8,
+    "claimed_verified_live_sources": 51
+  },
+  "after_repair": {
+    "clean_checklist": {
+      "passed_checks": 41,
+      "total_checks": 60,
+      "completion_percent": 68.3
+    },
+    "injected_checklist": {
+      "passed_checks": 41,
+      "total_checks": 60,
+      "completion_percent": 68.3
+    },
+    "overall": null,
+    "enterprise": {
+      "state": "NOT_ESTABLISHED",
+      "score": null,
+      "target": 8,
+      "accepted": false,
+      "reason": "Local implementation checks do not establish enterprise acceptance.",
+      "required_evidence": [
+        "Representative independently reviewed investigation and entity-resolution evaluations",
+        "Independent custody anchors and tamper/rollback verification",
+        "Qualified sources in the intended runtime with current operational evidence",
+        "Hosted tenant isolation, recovery, identity lifecycle and operational SLO verification",
+        "Authorized human acceptance of the defined enterprise gates"
+      ]
+    },
+    "context": {
+      "coded_live_contracts": 37,
+      "healthy_connector_rows": 51,
+      "revalidated_local_integration_sources": 0,
+      "local_integration_sources": [],
+      "stored_source_runs": 0,
+      "production_configuration_ready": true,
+      "production_ready": false
+    }
+  },
+  "focused_tests": {
+    "run": 24,
+    "passed": 24
+  },
+  "enterprise_accepted": false,
+  "full_suite": {
+    "run": 447,
+    "passed": 444,
+    "skipped": 3,
+    "failures": 0,
+    "seconds": 172.468,
+    "log_sha256": "52485dfca8abebbdf2cdf12c9e2437eca354f09a52203068c4a7a21f92e02c26"
+  },
+  "structure_scan": {
+    "files": 209,
+    "errors": 0
+  },
+  "compile": "pass",
+  "secret_scan": "pass"
+}
