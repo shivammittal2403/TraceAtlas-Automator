@@ -537,6 +537,13 @@ def parser() -> argparse.ArgumentParser:
     resolve_decide.add_argument("--reviewer", required=True)
     resolve_decide.add_argument("--rationale", required=True)
     resolve_decide.add_argument("--authorized", action="store_true")
+    resolve_evaluate = resolve_sub.add_parser(
+        "evaluate", help="Evaluate preserved labels under a preserved review protocol"
+    )
+    resolve_evaluate.add_argument("--case", required=True)
+    resolve_evaluate.add_argument("--corpus-sha256", required=True)
+    resolve_evaluate.add_argument("--protocol-sha256", required=True)
+    resolve_evaluate.add_argument("--authorized", action="store_true")
 
     casework = sub.add_parser("casework", help="Manage analyst notes and review context")
     casework_sub = casework.add_subparsers(dest="casework_command", required=True)
@@ -755,12 +762,20 @@ def main(argv: list[str] | None = None) -> int:
             elif args.resolve_command == "queue":
                 result = {"case_id": args.case, "status": args.status,
                           "candidates": resolver.queue(args.case, status=args.status)}
+            elif args.resolve_command == "evaluate":
+                from .resolution_corpus import evaluate_preserved_corpus
+                result = evaluate_preserved_corpus(
+                    EvidenceStore(args.workspace, engine.db, args.case),
+                    args.corpus_sha256, args.protocol_sha256, authorized=args.authorized,
+                )
             else:
                 result = resolver.decide(
                     args.candidate, args.decision, reviewer=args.reviewer,
                     rationale=args.rationale, authorized=args.authorized,
                 )
             print(json.dumps(result, indent=2, ensure_ascii=False))
+            if args.resolve_command == "evaluate" and not result['protocol_thresholds_met']:
+                return 2
         elif args.command == "casework":
             if not engine.db.get_case(args.case):
                 raise PolicyError(f"Unknown case: {args.case}")
