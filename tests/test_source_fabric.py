@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlsplit
+from qualification_fixtures import make_receipt
 
 from traceatlas.db import CaseDB
 from traceatlas.workforce.contracts import AuthorizationContext
@@ -177,11 +178,12 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
         self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE source='dns'", (evidence_hash,))
         self.db.conn.commit()
-        self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
+        self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
         self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
                              ('dns', 'operational_owner', 'fabric-case', evidence_hash, 'analyst', stamp))
         self.db.conn.commit()
-        self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
+        # Preserved generic artifacts still do not establish any review gate.
+        self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
 
     def test_source_review_requires_authorized_case_artifact_hash(self):
         from traceatlas.evidence import EvidenceStore
@@ -203,6 +205,9 @@ class SourceFabricTests(unittest.TestCase):
             other, 'test:other-case')['sha256']
         with self.assertRaisesRegex(PolicyError, 'cite an artifact'):
             store.review('dns', 'terms', 'fabric-case', other_hash, 'analyst', self.root, authorized=True)
+        with self.assertRaisesRegex(PolicyError, 'typed JSON'):
+            store.review('dns', 'terms', 'fabric-case', evidence_hash, 'analyst', self.root, authorized=True)
+        evidence_hash, _ = make_receipt(self.root, self.db, 'dns', 'terms', 'fabric-case')
         store.review('dns', 'terms', 'fabric-case', evidence_hash, 'analyst', self.root, authorized=True)
         review = self.db.conn.execute('SELECT case_id,evidence_hash FROM fabric_reviews').fetchone()
         self.assertEqual(review['case_id'], 'fabric-case')
@@ -235,13 +240,13 @@ class SourceFabricTests(unittest.TestCase):
         self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE check_name='terms'", (evidence_hash,))
         self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE check_name='operational_owner'", ('f' * 64,))
         self.db.conn.commit()
-        self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
-        with self.assertRaisesRegex(PolicyError, 'reference does not resolve within its case'):
+        self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
+        with self.assertRaisesRegex(PolicyError, 'resolved live-verification reviews required'):
             store.promote('dns', 'analyst', self.root, authorized=True)
         # Even if an upstream state projection is stale, promotion checks each
         # review reference again instead of trusting the projected maturity.
         with patch.object(store, 'states', return_value={'dns': 'LIVE_VERIFIED'}):
-            with self.assertRaisesRegex(PolicyError, 'reference does not resolve within its case'):
+            with self.assertRaisesRegex(PolicyError, 'receipts do not resolve within one runtime'):
                 store.promote('dns', 'analyst', self.root, authorized=True)
 
     def test_planner_emits_target_bound_questions_and_evidence_requirements(self):

@@ -239,7 +239,8 @@ class Portfolio:
         # A metadata claim must resolve to the canonical source review and case artifact.
         reviewed = self.db.conn.execute('''SELECT 1 FROM fabric_reviews WHERE source=? AND check_name='documentation'
             AND case_id=? AND evidence_hash=?''', (row['source_id'], ref['case_id'], ref['sha256'])).fetchone()
-        return bool(reviewed and any(e['sha256'] == ref['sha256'] for e in self.db.evidence(ref['case_id'])))
+        return bool(reviewed and any(checks.get('documentation') == ref['sha256']
+                    for checks in self.fabric._review_groups(row['source_id']).values()))
 
     def report(self):
         from .integration import IntegrationReceipts

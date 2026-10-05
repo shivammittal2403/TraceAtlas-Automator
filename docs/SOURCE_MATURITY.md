@@ -45,6 +45,12 @@ deployment or jurisdiction is ready. Evidence references must be bounded and
 must resolve to authorized case artifacts before an analyst can persist reviews
 or promote a source; a string reference alone is not proof.
 
+## Typed review binding — 2026-10-05
+
+Source Fabric now requires source/check/case/reviewer/runtime-bound typed receipts,
+revalidated with support/custody/time/code at projection and promotion. Legacy
+hash-only rows remain historical and confer no qualification. See
+[SOURCE_REVIEW_RECEIPTS.md](SOURCE_REVIEW_RECEIPTS.md) for requirements and limits.
 
 ## QUAL-CUSTODY-001: current custody required for qualification (2026-10-05)
 
