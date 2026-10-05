@@ -122,3 +122,10 @@ from unestablished enterprise acceptance. Health/configuration cannot qualify
 live sources. See docs/MATURITY_ASSESSMENT.md and the current verification JSON.
 Next open work: independent anchors, bounded source-runtime verification,
 representative reviewed corpora, semantic coverage and operator staging.
+
+
+2026-10-05 QUAL-CUSTODY-001: revalidate preserved review/canary custody at each
+source-maturity read; stale qualification after artifact mutation is repaired.
+456 regressions run (453 pass, 3 skip); current verification JSON records scope.
+Independent anchoring, representative labels, live qualification and staging
+remain open. Next highest unblocked work is source-execution/receipt binding.

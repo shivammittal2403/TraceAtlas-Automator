@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 from ..evidence import EvidenceStore
@@ -16,8 +17,9 @@ def utc():
 
 
 class FabricStore:
-    def __init__(self, db):
+    def __init__(self, db, workspace=None):
         self.db = db
+        self.workspace = Path(workspace) if workspace is not None else db.path.parent
         db.conn.executescript("""
         CREATE TABLE IF NOT EXISTS fabric_executions (
           id TEXT PRIMARY KEY, source TEXT NOT NULL, case_id TEXT NOT NULL, request_hash TEXT NOT NULL,
@@ -54,7 +56,9 @@ class FabricStore:
         self.db.conn.execute("DELETE FROM fabric_slots WHERE id=?", (identifier,))
         self.db.conn.commit()
 
-    def states(self):
+    def states(self, *, workspace=None):
+        workspace = Path(workspace) if workspace is not None else self.workspace
+        verified_cases = {}
         cutoff = (datetime.now(timezone.utc)-timedelta(days=7)).isoformat()
         result = {}
         seen = set()
@@ -65,7 +69,10 @@ class FabricStore:
                 continue
             seen.add(r["source"])
             if r["status"] == "completed" and not r["drift"]:
-                checks = self._resolved_checks(r["source"])
+                if self._verified_case_hashes(r["case_id"], workspace, verified_cases) is None:
+                    result[r["source"]] = "DEGRADED"
+                    continue
+                checks = self._resolved_checks(r["source"], workspace, verified_cases)
                 result[r["source"]] = "LIVE_VERIFIED" if LIVE_VERIFICATION_GATES.issubset(checks) else "LIVE_TESTED"
             elif r["status"] == "failed" or r["drift"]:
                 result[r["source"]] = "DEGRADED"
@@ -86,8 +93,8 @@ class FabricStore:
                 for row in reviews:
                     case_id = row["case_id"]
                     if case_id not in evidence_by_case:
-                        evidence_by_case[case_id] = {item["sha256"] for item in self.db.evidence(case_id)}
-                    if row["evidence_hash"] not in evidence_by_case[case_id]:
+                        evidence_by_case[case_id] = self._verified_case_hashes(case_id, workspace, verified_cases)
+                    if evidence_by_case[case_id] is None or row["evidence_hash"] not in evidence_by_case[case_id]:
                         refs_resolve = False
                         break
                 if QUALIFICATION_CHECKS.issubset(reviewed) and refs_resolve:
@@ -95,15 +102,28 @@ class FabricStore:
         result.update({source: "DEGRADED" for source in KNOWN_BROKEN})
         return result
 
-    def _resolved_checks(self, source):
-        """Only recent reviews that resolve to canonical same-case artifacts count."""
+    def _verified_case_hashes(self, case_id, workspace, verified_cases):
+        """Revalidate preserved bytes and configured anchors once per projection."""
+        if case_id not in verified_cases:
+            try:
+                valid, _ = EvidenceStore(workspace, self.db, case_id).verify_ledger()
+                verified_cases[case_id] = ({item['sha256'] for item in self.db.evidence(case_id)}
+                                           if valid else None)
+            except (OSError, ValueError, TypeError):
+                verified_cases[case_id] = None
+        return verified_cases[case_id]
+
+    def _resolved_checks(self, source, workspace=None, verified_cases=None):
+        """Only recent reviews with currently intact same-case custody count."""
+        workspace = Path(workspace) if workspace is not None else self.workspace
+        verified_cases = {} if verified_cases is None else verified_cases
         cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
         checks, hashes = set(), {}
         for row in self.db.conn.execute(
                 "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?", (source, cutoff)):
             if row['case_id'] not in hashes:
-                hashes[row['case_id']] = {item['sha256'] for item in self.db.evidence(row['case_id'])}
-            if row['evidence_hash'] in hashes[row['case_id']]:
+                hashes[row['case_id']] = self._verified_case_hashes(row['case_id'], workspace, verified_cases)
+            if hashes[row['case_id']] is not None and row['evidence_hash'] in hashes[row['case_id']]:
                 checks.add(row['check_name'])
         return checks
 
@@ -121,7 +141,7 @@ class FabricStore:
     def promote(self, source, actor, workspace, authorized=False):
         if not authorized or not isinstance(actor, str) or len(actor) < 2 or source not in SOURCES:
             raise PolicyError("Explicit local analyst authority is required")
-        if self.states().get(source) not in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"}:
+        if self.states(workspace=workspace).get(source) not in {"LIVE_VERIFIED", "PRODUCTION_QUALIFIED"}:
             raise PolicyError("Recent successful non-fixture canary and resolved live-verification reviews required")
         canary = self.db.conn.execute("SELECT case_id FROM fabric_executions WHERE source=? AND mode='live' AND cache_hit=0 ORDER BY started_at DESC LIMIT 1", (source,)).fetchone()
         if not canary or not EvidenceStore(workspace, self.db, canary["case_id"]).verify_ledger()[0]:
