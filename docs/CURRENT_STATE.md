@@ -28,6 +28,22 @@ checkpoints rather than extending their test results to this build.
 
 # Historical implementation checkpoint — 2026-10-04 / 1.11.0
 
+## Source Fabric continuation — 2026-10-05
+
+The canonical gateway now uses the connector factory with request-by-request
+authority, cancellation, expiry and kill-switch checks. Responses received after
+revocation are rejected before evidence promotion. Two exact public metadata
+connectors (PyPI and DataCite) bring registration to 51 sources, 37 coded live
+API adapters and 35 capability mappings. Explicit live integration receipts bind
+current implementation bytes, execution snapshots and same-case preserved
+evidence; fixtures and cache hits do not count. Local Windows public sample
+checks succeeded for both new sources and passed canonical custody verification.
+Their raw responses remain privacy-withheld; replay/production qualification is
+not claimed. The 650/600/450/300/200/125 thresholds and family minima remain open.
+Inherited duplicate qualification branches and malformed test fragments in base
+`5ad16f0` were repaired while preserving canonical prerequisite gates and negative
+same-case evidence/promotion tests.
+
 ## Current repair checkpoint — 2026-10-04
 
 The previous 329-test pass came from an unsynchronized local checkout and was

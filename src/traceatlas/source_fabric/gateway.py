@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -14,7 +17,7 @@ from ..employee.brief import digest
 from ..evidence import EvidenceStore
 from ..intelligence.hub import IntelligenceHub
 from ..policy import PolicyError
-from .sdk import HubConnector
+from .primitives import ConnectorFactory
 from .store import FabricStore, utc
 
 _GLOBAL = threading.BoundedSemaphore(4)
@@ -47,8 +50,33 @@ class SourceGateway:
         self.store = FabricStore(db)
         self.hub = IntelligenceHub(db, workspace)
 
-    def _fetch(self, action, timeout):
-        connector = HubConnector(action["source"], requester=self.requester)
+    def _check_authority(self, case_id, action, attestations, authority_hash):
+        """Read current immutable authority independently on each transport thread."""
+        if os.getenv('TRACEATLAS_WORKFORCE_KILL_SWITCH', '').casefold() in {'1', 'yes', 'true'}:
+            raise PolicyError('Source Fabric kill switch is active')
+        try:
+            # Never share the case writer connection across worker threads.
+            uri = self.db.path.resolve().as_uri() + '?mode=ro'
+            with closing(sqlite3.connect(uri, uri=True)) as conn:
+                row = conn.execute(
+                    'SELECT manifest_json,status,cancel_requested FROM autonomous_investigations '
+                    'WHERE case_id=? AND manifest_hash=?', (case_id, authority_hash)).fetchone()
+            if not row or row[1] != 'running' or row[2]:
+                raise PolicyError('Gateway requires active, uncancelled authorization')
+            scope = json.loads(row[0])
+            if (digest(scope) != authority_hash or scope['attestations'] != attestations or
+                scope.get('case_id') != case_id):
+                raise PolicyError('Gateway immutable authorization changed')
+            if datetime.now(timezone.utc) >= datetime.fromisoformat(scope['expires_at']):
+                raise PolicyError('Gateway authorization expired')
+            if action not in scope['actions']:
+                raise PolicyError('Gateway action is outside immutable authorization')
+        except (sqlite3.Error, ValueError, TypeError, KeyError) as exc:
+            raise PolicyError('Gateway authorization cannot be validated') from exc
+
+    def _fetch(self, action, timeout, authorization_check):
+        connector = ConnectorFactory.create(action["source"], requester=self.requester,
+                                            authorization_check=authorization_check)
         provider = connector.definition["provider"]
         deadline = time.monotonic()+timeout
         def remaining():
@@ -97,7 +125,8 @@ class SourceGateway:
             raise PolicyError("Existing case custody integrity failed")
         ready, completed = [], []
         for action in actions:
-            connector = HubConnector(action["source"], requester=self.requester)
+            self._check_authority(case_id, action, attestations, authority_hash)
+            connector = ConnectorFactory.create(action["source"], requester=self.requester)
             if connector.definition["health"]["state"] == "DEGRADED":
                 raise PolicyError("Known incompatible connector is disabled in Source Fabric")
             # Authorization is checked again on cache hits and every dispatch.
@@ -130,17 +159,23 @@ class SourceGateway:
                                       "outcome": {"source": action["source"], "error_type": "concurrency_budget", "execution_id": execution_id}})
         # Only network/parse work runs in threads. SQLite and custody ledger writes remain on this thread.
         with ThreadPoolExecutor(max_workers=3, thread_name_prefix="traceatlas-source") as pool:
-            futures = {pool.submit(self._fetch, a, timeout): (a, eid, key, time.monotonic()) for a, eid, key in ready}
+            futures = {pool.submit(self._fetch, a, timeout,
+                lambda action=a: self._check_authority(case_id, action, attestations, authority_hash)):
+                (a, eid, key, time.monotonic()) for a, eid, key in ready}
             for future in as_completed(futures):
                 action, execution_id, key, started = futures[future]
                 try:
                     connector, response, records = future.result()
+                    # Revoked responses cannot be promoted after an in-flight request.
+                    self._check_authority(case_id, action, attestations, authority_hash)
                     signature = digest(_shape(response.data))
                     prior = self.db.conn.execute("SELECT schema_fingerprint FROM fabric_executions WHERE source=? AND mode=? AND status='completed' AND schema_fingerprint IS NOT NULL ORDER BY started_at DESC LIMIT 1", (action["source"], "fixture" if connector.fixture else "live")).fetchone()
                     drift = bool(prior and prior["schema_fingerprint"] != signature)
                     outcome = self.hub._store(case_id, connector.spec, records, mode="fabric:"+("fixture" if connector.fixture else "live"), target_fingerprint=key)
                     raw_refs = []
-                    retain = not connector.spec.personal_data and not _secret_fields(response.data)
+                    retain = (not connector.spec.personal_data and
+                              action['source'] not in {'pypi', 'datacite'} and
+                              not _secret_fields(response.data))
                     if retain and response.raw is not None:
                         with tempfile.TemporaryDirectory(prefix="traceatlas-raw-") as temporary:
                             path = Path(temporary)/"source-response.json"

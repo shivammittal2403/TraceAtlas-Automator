@@ -29,6 +29,14 @@ def _source(name: str, title: str, category: str, acquisition: str,
 
 
 SOURCES: dict[str, SourceSpec] = {
+    "pypi": _source("pypi", "Python Package Index", "package-intelligence", "public-registry-api",
+        "PACKAGE_RECORD", "Exact Python project metadata; no package downloads or execution.",
+        live_connector=True, public_record=True,
+        limitation="Publisher-supplied metadata is not package safety, ownership, or license clearance."),
+    "datacite": _source("datacite", "DataCite DOI Metadata", "scholarly-intelligence", "public-metadata-api",
+        "PUBLICATION_RECORD", "Exact registered DOI metadata, excluding author contact information.",
+        live_connector=True, public_record=True,
+        limitation="Metadata attribution does not prove publication truth or rights to the referenced content."),
     "cloudflare_dns": _source("cloudflare_dns", "Cloudflare DNS", "internet-registration", "public-doh",
         "DNS_RECORD", "Public DNS through the Cloudflare JSON resolver.", live_connector=True),
     "crtsh": _source("crtsh", "crt.sh", "certificate-intelligence", "public-index-api",

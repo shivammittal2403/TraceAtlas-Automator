@@ -12,6 +12,7 @@ STATES = frozenset(MATURITY_STATES)
 P0 = ("dns", "rdap", "wayback", "internetdb", "ripestat", "gleif", "github", "gitlab", "npm", "nvd",
       "epss", "osv", "crossref", "ipwhois", "greynoise", "shodan", "censys", "virustotal", "bluesky", "hackernews")
 CAPABILITIES = {
+    "pypi": ("package",), "datacite": ("publication",),
     "dns": ("dns",), "cloudflare_dns": ("dns",), "rdap": ("registration",),
     "wayback": ("archive",), "urlscan": ("archive",), "crtsh": ("certificate-transparency",),
     "internetdb": ("exposure",), "ripestat": ("routing",), "gleif": ("company-record",),
@@ -26,6 +27,8 @@ CAPABILITIES = {
     "crossref": ("publication",), "youtube": ("media-profile",), "discord": ("community-metadata",),
 }
 DOCS = {
+    'pypi': 'https://docs.pypi.org/api/json/',
+    'datacite': 'https://support.datacite.org/docs/api-get-doi',
     'gleif': 'https://www.gleif.org/en/lei-data/gleif-api/',
     'ripestat': 'https://stat.ripe.net/docs/data-api/api-endpoints/network-info',
     'epss': 'https://api.first.org/epss/', 'osv': 'https://google.github.io/osv.dev/get-v1-vulns/',
@@ -50,7 +53,7 @@ DOCS = {
 }
 KNOWN_BROKEN = {}
 PRIMARY = frozenset({"dns", "wayback", "gleif", "ripestat", "epss", "github", "gitlab", "npm", "crossref", "nvd",
-                     "rdap", "crtsh", "companieshouse", "sec"})
+                     "rdap", "crtsh", "companieshouse", "sec", "pypi", "datacite"})
 
 
 def candidates():
