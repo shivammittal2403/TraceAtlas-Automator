@@ -1,6 +1,107 @@
 # Enterprise 8/10 program — current state
 
 ## Current repair checkpoint — 2026-10-04
+# Enterprise 8/10 program â€” current state
+
+## Semantic employee integration — 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+TESTED locally: Python 388 run / 385 passed / 3 skipped (173.397 seconds);
+112/112 contracts, 105 draft replays and seven pre-capture scope rejects;
+Node graph/PGlite 26/26, browser flow, compilation and secret scan PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Semantic employee integration â€” 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+TESTED locally: Python 388 run / 385 passed / 3 skipped (173.397 seconds);
+112/112 contracts, 105 draft replays and seven pre-capture scope rejects;
+Node graph/PGlite 26/26, browser flow, compilation and secret scan PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Semantic employee integration â€” 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+Final integrated Python/benchmark checks are being recorded; Node graph and
+PGlite 26/26 and browser flow PASS; compilation PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Current repair checkpoint â€” 2026-10-04
 
 The previous 329-test pass came from an unsynchronized local checkout and was
 incorrectly attributed to merged commit `e2f39d3`; that attribution is withdrawn.
@@ -125,7 +226,7 @@ Windows loopback-console connection abort). Representative lineage labels and
 contradiction recall remain unknown.
 
 
-## Source independence slice — pushed
+## Source independence slice â€” pushed
 
 Source-origin grouping no longer treats hostname equality as proof of common
 origin. Commit `7fa0431c5229ac14dbb2da8b657de6d8a2734749` adds the synthetic evaluator and preserves publisher
@@ -194,6 +295,7 @@ baseline main SHA as parent and be reviewed in a PR. Never force-push or merge
 without authorization.
 
 ## Latest verification — 2026-10-04
+## Latest verification â€” 2026-10-04
 
 - Earlier unsynchronized local checkout: 329 run, 326 passed, 3 skipped, 0 failures. The previous attribution to merged PR #52 is withdrawn; that revision failed compilation.
 - The pinned OpenCTI submodule is at `55ca0dfa4129050cb607fdaf6b1a7457e0ae3476`, matching the superproject gitlink. Its 15 deeply nested files are present from the pinned blobs; sampled file hashes match. Focused OpenCTI tests passed 7/7. Windows Git status still cannot enumerate these long paths and may display false deletions; no gitlink change is intended.

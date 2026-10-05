@@ -79,15 +79,25 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
         def do_POST(self):
             engine = None
             try:
+                # Consume only a bounded, framed body before rejecting headers.
+                # Closing with unread client bytes can discard the 403 response
+                # on Windows. Parsing and storage still follow origin/CSRF checks.
+                self.connection.settimeout(5)
+                lengths = self.headers.get_all('Content-Length', [])
+                if self.headers.get('Transfer-Encoding') or len(lengths) != 1 or not re.fullmatch(r'[0-9]{1,5}', lengths[0]):
+                    raise ValueError('Invalid request framing')
+                length = int(lengths[0])
+                if not 0 < length <= 16384:
+                    raise ValueError('Invalid body size')
+                raw_body = self.rfile.read(length)
+                if len(raw_body) != length:
+                    raise ValueError('Incomplete request body')
                 self.validate_origin()
                 if not secrets.compare_digest(self.headers.get("X-TraceAtlas-CSRF", ""), token):
                     return self.respond(403, {"error": "Invalid console session"})
                 if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
                     raise ValueError("JSON required")
-                length = int(self.headers.get("Content-Length", "0"))
-                if not 0 < length <= 16384:
-                    raise ValueError("Invalid body size")
-                body = json.loads(self.rfile.read(length))
+                body = json.loads(raw_body)
                 if not isinstance(body, dict):
                     raise ValueError("Object required")
                 engine = Engine(workspace)

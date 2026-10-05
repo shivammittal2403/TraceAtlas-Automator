@@ -1,12 +1,56 @@
 """Deterministic provider normalization shared by the source SDK and offline replay."""
 from __future__ import annotations
 import ipaddress
+import json
+from dataclasses import replace
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from ..intelligence.provider import ProviderError, _validate_shape
 from ..intelligence.rdap import validate_response as validate_rdap_response
 from .documents import StructuredFact
 from .live_sources import SEARCH_SOURCES
+
+NORMALIZER_VERSION = "structured-fact/5"
+
+
+def recompute_document(document, seed, *, quarantined=False):
+    """Re-extract bounded facts from preserved content, outside model control.
+
+    Free-text analyst assertions remain unverified assertions. They are never
+    presented as semantic extraction. Provider failures keep their bytes with
+    zero facts; a successful response must satisfy its deterministic parser.
+    """
+    from .live_sources import SOURCE_TOOLS
+    if document.source_id in SOURCE_TOOLS:
+        try:
+            facts = tuple(live_facts(document.source_id, seed,
+                                     json.loads(document.content), document.retrieved_at))
+        except (ValueError, ProviderError) as exc:
+            if not quarantined:
+                raise ValueError("normalization failed for captured provider response") from exc
+            facts = ()
+        if quarantined:
+            if document.facts:
+                raise ValueError("quarantined response cannot contain facts")
+            facts = ()
+        mode = "provider-json"
+    else:
+        try:
+            payload = json.loads(document.content)
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and payload.get("schema") == "traceatlas-structured-source/v1":
+            rows = payload.get("facts")
+            if not isinstance(rows, list) or len(rows) > 100:
+                raise ValueError("structured source facts exceed their bound")
+            facts = tuple(StructuredFact.from_dict(row) for row in rows)
+            mode = "structured-json"
+        else:
+            facts = document.facts
+            mode = "unverified-analyst-assertions"
+    if any(f.subject != seed for f in facts):
+        raise ValueError("normalized fact subject is out-of-scope")
+    return replace(document, facts=facts), mode
 
 def live_facts(source, seed, data, stamp):
     try:

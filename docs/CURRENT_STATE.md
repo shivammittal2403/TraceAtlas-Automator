@@ -1,4 +1,149 @@
-# Current implementation state — 2026-10-04 / 1.11.0
+# Current implementation state â€” 2026-10-04 / 1.11.0
+
+## Semantic employee integration — 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+TESTED locally: Python 388 run / 385 passed / 3 skipped (173.397 seconds);
+112/112 contracts, 105 draft replays and seven pre-capture scope rejects;
+Node graph/PGlite 26/26, browser flow, compilation and secret scan PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Semantic employee integration â€” 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+TESTED locally: Python 388 run / 385 passed / 3 skipped (173.397 seconds);
+112/112 contracts, 105 draft replays and seven pre-capture scope rejects;
+Node graph/PGlite 26/26, browser flow, compilation and secret scan PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Semantic employee integration â€” 2026-10-05
+
+Base: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`; branch:
+`codex/semantic-employee-integration`. This integration preserves the latest
+source portfolio, 26-gate qualification policy, external HMAC anchor option,
+entity/lineage/contradiction diagnostics and durable workforce execution.
+
+CODED: captured provider/structured fact recomputation; normalized-record
+employee semantic replay; request-level Fabric revocation and kill checks;
+evidence-linked knowledge states and human review priorities; bounded console
+framing; idempotent evidence import; 112 synthetic investigation contracts.
+Durable leases, cumulative reservations, immutable capture recovery and atomic
+completion/outbox are preserved, with semantic replay applied to recovery.
+
+Merged registry/test fragments are repaired without weakening source authority.
+Final integrated Python/benchmark checks are being recorded; Node graph and
+PGlite 26/26 and browser flow PASS; compilation PASS. Proposed-head CI/CodeQL
+remain a separate required gate. See
+`docs/program/SESSION_REPORT_2026-10-04.md` and `docs/REPLAY.md`.
+
+No live provider/model request, source promotion, main merge or deployment was
+performed. Production-qualified sources: 0. Enterprise score: NOT ESTABLISHED.
+Remaining engineering is OPEN: receipt semantics, raw-to-redacted replay,
+representative identity/SOCMINT/multilingual coverage, IAM/retention, distributed
+quotas and observability. Source rights/entitlements, authorized expert labels,
+independent security review and staging access require actual operator inputs.
+The unanchored full-local-rewrite weakness remains open; optional file HMAC
+anchoring is not an independently operated, rollback-safe anchor.
+
+Historical checkpoints below retain their original scope and limitations.
+
+
+## Current repair checkpoint â€” 2026-10-04
+# Current implementation state — 2026-10-05 / 1.11.0
+
+## Main CI and release metadata repair — 2026-10-05
+
+Exact refreshed main `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8` failed compilation
+in the source registry and Source Fabric tests. This tranche removes duplicated
+merge fragments and overwritten prerequisite definitions, restores canonical
+same-case fixture evidence and preserves the 26-gate qualification policy.
+
+Package, Vercel catalog and footer now report 1.11.0. Health/config expose bounded
+Git/repository/deployment metadata, keep absent commit IDs unknown, and mark
+hosted readiness NOT_VERIFIED. Static production configuration checks cannot
+qualify hosted operation; worker deployment is unknown, not asserted from code.
+
+Local verification: 378 Python tests run (377 passed, one optional MCP skip);
+the locked MCP SDK separately passes all 29 Source Fabric tests. Graph/target
+tests 25/25, local PGlite migration/RLS test 1/1, 78/78 controlled source scenarios,
+golden replay and wheel build pass. Exact commands, bundled runtime exclusions,
+browser prerequisites and remaining hosted gates are recorded in
+[the receipt](verification/release-repair-2026-10-05.json). These results apply to
+the receipt's file hashes, not to earlier or concurrently modified main commits.
+
+The inspected Vercel team has no Automator Git project. `trace-atlas-osint` links
+to a different repository. [Deployment](DEPLOYMENT.md) records the concrete
+dedicated-project proposal and required staging evidence. No resource mutation
+or production qualification is claimed. The following sections retain historical
+checkpoints rather than extending their test results to this build.
+
+# Historical implementation checkpoint — 2026-10-04 / 1.11.0
+
+## Source Fabric continuation — 2026-10-05
+
+The canonical gateway now uses the connector factory with request-by-request
+authority, cancellation, expiry and kill-switch checks. Responses received after
+revocation are rejected before evidence promotion. Two exact public metadata
+connectors (PyPI and DataCite) bring registration to 51 sources, 37 coded live
+API adapters and 35 capability mappings. Explicit live integration receipts bind
+current implementation bytes, execution snapshots and same-case preserved
+evidence; fixtures and cache hits do not count. Local Windows public sample
+checks succeeded for both new sources and passed canonical custody verification.
+Their raw responses remain privacy-withheld; replay/production qualification is
+not claimed. The 650/600/450/300/200/125 thresholds and family minima remain open.
+Inherited duplicate qualification branches and malformed test fragments in base
+`5ad16f0` were repaired while preserving canonical prerequisite gates and negative
+same-case evidence/promotion tests.
 
 ## Current repair checkpoint — 2026-10-04
 
@@ -21,7 +166,7 @@ Baseline, changed blob IDs and verification metadata are recorded in
 Branch: `codex/repair-qualification-20261004`. Hosted repair CI/CodeQL pending.
 The Enterprise 8/10 objective and representative/live acceptance gates remain open.
 
-# Current implementation state — 2026-10-04 / 1.11.0
+# Current implementation state â€” 2026-10-04 / 1.11.0
 
 ## Durable local workforce runtime
 
@@ -44,9 +189,9 @@ NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the app
 source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
 fixed-host and schema-validated; facts are restricted to the exact CVE match while the bounded raw response is retained for replay.
 
-The canonical local path is typed seed → immutable authority → capability/source
-plan → digest approval → bounded gateway → captured bytes → observations → source
-lineage → verification → graph/timeline → draft → offline replay. The existing
+The canonical local path is typed seed â†’ immutable authority â†’ capability/source
+plan â†’ digest approval â†’ bounded gateway â†’ captured bytes â†’ observations â†’ source
+lineage â†’ verification â†’ graph/timeline â†’ draft â†’ offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
 Twenty-six shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
@@ -130,7 +275,7 @@ hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones rema
 open in the canonical delivery ledger.
 
 
-## Enterprise audit and graph decision boundary — 2026-10-04
+## Enterprise audit and graph decision boundary â€” 2026-10-04
 
 Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`. Nine scoped reports
 under `docs/audit/` record implementation, test, live and production states
@@ -146,7 +291,7 @@ No social account enumeration, private data access, contact, login or bypass is
 implemented or claimed. Production qualification remains zero.
 
 
-## Source lifecycle normalization — PR #46
+## Source lifecycle normalization â€” PR #46
 
 The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
 qualification gates and could call a source LIVE_VERIFIED with a live-request
@@ -162,7 +307,7 @@ remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its C
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
 
-## Entity-resolution evaluation update — 2026-10-04
+## Entity-resolution evaluation update â€” 2026-10-04
 
 Entity comparisons now preserve exact-agreement and differing-field signals in
 the explainable result and analyst review queue. Matching scores and thresholds
@@ -178,7 +323,7 @@ accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
 and remaining gates.
 
 
-## Earlier evidence integrity diagnostic — 2026-10-04 (superseded by 14-case run)
+## Earlier evidence integrity diagnostic â€” 2026-10-04 (superseded by 14-case run)
 
 The new synthetic nine-case evidence/citation evaluation matches 8/9 expected
 outcomes. Five routine invalid cases are rejected. It reproduces an integrity
@@ -242,7 +387,7 @@ code commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity
 matches 3/3 labeled conflict cases; representative contradiction recall remains
 unknown.
 
-## Persistent enterprise 8/10 program — baseline and active repair
+## Persistent enterprise 8/10 program â€” baseline and active repair
 
 The persistent task checklist and engineering memory now live in `.ai/`; the
 scorecard, gap register, source ledger, golden-case plan, security status and
@@ -275,10 +420,10 @@ the full Python suite (315; 3 skipped) pass locally; hosted checks for this
 follow-up pass in PR #50: CI `37185114010` and CodeQL `37185114003`. No source
 was promoted.
 
-## Latest local verification — 2026-10-04
+## Latest local verification â€” 2026-10-04
 
 On the earlier unsynchronized local checkout, the full Python suite passed (329 run, 326 passed, 3 skipped, no failures); OpenCTI-focused tests passed 7/7. Fifteen deep files under the pinned OpenCTI connector commit were restored from Git blobs and sampled hashes match. Git for Windows still warns that these paths exceed its enumeration limit, so its submodule status output is not authoritative here. Enterprise maturity remains unscored; mandatory release gates remain open.
-# Current implementation state — 2026-10-04 / 1.12.0
+# Current implementation state â€” 2026-10-04 / 1.12.0
 
 The Source Fabric portfolio program adds full governed research fields, atomic
 research imports, all 15 family targets, conservative upstream dataset grouping,
@@ -302,9 +447,9 @@ NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the app
 source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
 fixed-host and schema-validated; facts are restricted to the exact CVE match while the bounded raw response is retained for replay.
 
-The canonical local path is typed seed → immutable authority → capability/source
-plan → digest approval → bounded gateway → captured bytes → observations → source
-lineage → verification → graph/timeline → draft → offline replay. The existing
+The canonical local path is typed seed â†’ immutable authority â†’ capability/source
+plan â†’ digest approval â†’ bounded gateway â†’ captured bytes â†’ observations â†’ source
+lineage â†’ verification â†’ graph/timeline â†’ draft â†’ offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
 Twenty-six shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
@@ -388,7 +533,7 @@ hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones rema
 open in the canonical delivery ledger.
 
 
-## Enterprise audit and graph decision boundary — 2026-10-04
+## Enterprise audit and graph decision boundary â€” 2026-10-04
 
 Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`. Nine scoped reports
 under `docs/audit/` record implementation, test, live and production states
@@ -404,7 +549,7 @@ No social account enumeration, private data access, contact, login or bypass is
 implemented or claimed. Production qualification remains zero.
 
 
-## Source lifecycle normalization — PR #46
+## Source lifecycle normalization â€” PR #46
 
 The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
 qualification gates and could call a source LIVE_VERIFIED with a live-request
@@ -419,7 +564,7 @@ catalog has no evidence-backed lifecycle promotion; production-qualified count
 remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its CI
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
-# Current implementation state — 2026-10-04 / 1.11.0
+# Current implementation state â€” 2026-10-04 / 1.11.0
 
 Source-inventory metrics below were audited against PR #43 baseline
 `d698ed519be078ec72092b33dacda9f92ffdb42c`. Main now includes the 2026-10-04
@@ -432,9 +577,9 @@ NVD, FIRST EPSS, CVE Program, OSV, npm and CISA KEV records flow through the app
 source gateway, evidence, verification, graph and replay path. The CISA KEV feed is
 fixed-host and schema-validated; facts are restricted to the exact CVE match while the bounded raw response is retained for replay.
 
-The canonical local path is typed seed → immutable authority → capability/source
-plan → digest approval → bounded gateway → captured bytes → observations → source
-lineage → verification → graph/timeline → draft → offline replay. The existing
+The canonical local path is typed seed â†’ immutable authority â†’ capability/source
+plan â†’ digest approval â†’ bounded gateway â†’ captured bytes â†’ observations â†’ source
+lineage â†’ verification â†’ graph/timeline â†’ draft â†’ offline replay. The existing
 SQLite/EvidenceStore and five employee roles remain the authorities.
 
 Twenty-six shared workforce adapters cover public DNS, RDAP, CT, passive URL/archive
@@ -518,7 +663,7 @@ hosted rollout unverified. PRODUCTION_QUALIFIED: zero. Programme milestones rema
 open in the canonical delivery ledger.
 
 
-## Enterprise audit and graph decision boundary — 2026-10-04
+## Enterprise audit and graph decision boundary â€” 2026-10-04
 
 Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`. Nine scoped reports
 under `docs/audit/` record implementation, test, live and production states
@@ -534,7 +679,7 @@ No social account enumeration, private data access, contact, login or bypass is
 implemented or claimed. Production qualification remains zero.
 
 
-## Source lifecycle normalization — PR #46
+## Source lifecycle normalization â€” PR #46
 
 The audit baseline `641f159326d45afe9797ddf5624a5126640fdd19` had only 18
 qualification gates and could call a source LIVE_VERIFIED with a live-request
@@ -550,7 +695,7 @@ remains zero. PR #46 merged as `821c387adc1629baed2e13e7c94aff23ae17a609`; its C
 and CodeQL checks passed. The separate automated code-review job could not run
 because the GitHub Copilot monthly quota was exceeded (HTTP 402).
 
-## Entity-resolution evaluation update — 2026-10-04
+## Entity-resolution evaluation update â€” 2026-10-04
 
 Entity comparisons now preserve exact-agreement and differing-field signals in
 the explainable result and analyst review queue. Matching scores and thresholds
@@ -566,7 +711,7 @@ accuracy. See `ENTITY_RESOLUTION.md` and `docs/program/` for persistent state
 and remaining gates.
 
 
-## Earlier evidence integrity diagnostic — 2026-10-04 (superseded by 14-case run)
+## Earlier evidence integrity diagnostic â€” 2026-10-04 (superseded by 14-case run)
 
 The new synthetic nine-case evidence/citation evaluation matches 8/9 expected
 outcomes. Five routine invalid cases are rejected. It reproduces an integrity
@@ -630,7 +775,7 @@ code commit `e9d1745790a2c4f42dedd08ffbf1dc0429690686` on `codex/source-maturity
 matches 3/3 labeled conflict cases; representative contradiction recall remains
 unknown.
 
-## Persistent enterprise 8/10 program — baseline and active repair
+## Persistent enterprise 8/10 program â€” baseline and active repair
 
 The persistent task checklist and engineering memory now live in `.ai/`; the
 scorecard, gap register, source ledger, golden-case plan, security status and

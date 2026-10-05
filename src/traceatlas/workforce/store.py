@@ -264,6 +264,19 @@ class WorkforceStore:
         source_id = "source-" + hashlib.sha256(row["source"].encode()).hexdigest()[:16]
         acquisition_id = "acquisition-" + hashlib.sha256((case_id + sha256 + row["captured_at"]).encode()).hexdigest()[:20]
         evidence_id = "evidence-" + sha256[:24]
+        existing = self.db.conn.execute(
+            "SELECT object_json FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=? AND version=1",
+            (case_id, evidence_id),
+        ).fetchone()
+        if existing:
+            item = EvidenceObject.from_dict(json.loads(existing["object_json"]))
+            if not self.verify_evidence(item):
+                raise ValueError("existing imported evidence failed integrity validation")
+            if ((source_uri is not None and source_uri != item.source_uri)
+                    or (parser, parser_version, extractor, extractor_version) !=
+                    (item.parser, item.parser_version, item.extractor, item.extractor_version)):
+                raise ValueError("import metadata conflicts; append a new evidence version")
+            return item
         self.db.conn.execute(
             "INSERT OR IGNORE INTO acquisitions_v2 VALUES(?,?,?,?,?,?,?)",
             (acquisition_id, case_id, source_id, "v1-compatibility-import", row["captured_at"], "trace-legacy", created),
@@ -337,6 +350,7 @@ class WorkforceStore:
 
     def capture_document(self, task: TaskEnvelope, document, workspace: Path) -> EvidenceObject:
         from ..evidence import EvidenceStore
+        from .normalization import NORMALIZER_VERSION
         prior = self.captured_document(task, document.source_id)
         if prior:
             if prior[0] != document:
@@ -356,7 +370,7 @@ class WorkforceStore:
             acquisition_method="source-document-capture", retrieved_at=document.retrieved_at,
             content_hash=preserved["sha256"], mime_type="application/json",
             raw_artifact_pointer=preserved["path"], parser="source-document", parser_version="1",
-            extractor="structured-fact", extractor_version="1", observation_ids=(),
+            extractor="structured-fact", extractor_version=NORMALIZER_VERSION, observation_ids=(),
             chain_of_custody=("source-capture", "sha256-preserve"), access_policy="case-members",
             retention_policy=self.authorization(task.authorization_context_id).retention_policy,
             classification="untrusted-source", created_at=_now(),

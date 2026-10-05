@@ -1,4 +1,4 @@
-"""Static production-readiness checks; this module never deploys resources."""
+"""Static configuration checks; hosted readiness needs separate observed proof."""
 
 from __future__ import annotations
 
@@ -73,7 +73,9 @@ class DeploymentDoctor:
         warnings = [row for row in checks if row["state"] == "warn"]
         return {
             "version": __version__, "mode": "production" if production else "repository",
-            "ready": not failed, "production_ready": production and not failed and not warnings,
+            "ready": not failed, "configuration_ready": not failed,
+            "production_configuration_ready": production and not failed and not warnings,
+            "production_ready": False, "hosted_verification": "NOT_VERIFIED",
             "summary": {"passed": sum(row["state"] == "pass" for row in checks),
                         "warnings": len(warnings), "failed": len(failed)},
             "checks": checks,
