@@ -33,6 +33,27 @@ class BaseConnector:
         self.adapter = HubConnector(source, requester=guarded_request)
         self.adapter.fixture = requester is not None
 
+    @property
+    def spec(self):
+        return self.adapter.spec
+
+    @property
+    def definition(self):
+        return self.adapter.definition
+
+    @property
+    def fixture(self):
+        return self.adapter.fixture
+
+    def validate_input(self, kind, target):
+        return self.adapter.validate_input(kind, target)
+
+    def evidence_metadata(self, response):
+        return {**self.adapter.evidence_metadata(response), 'primitive': self.protocol}
+
+    def provenance(self):
+        return self.adapter.provenance()
+
     def manifest(self):
         return {**deepcopy(self.adapter.definition), 'primitive': self.protocol}
 
