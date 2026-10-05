@@ -67,6 +67,7 @@ class GatewayAuthorityTests(unittest.TestCase):
         gateway = self.authorize()
         result = self.collect(gateway)[0]
         self.assertEqual(result['state'], 'completed')
+        self.assertEqual(len(self.calls), 1)
         self.assertEqual(result['outcome']['provider']['primitive'], 'DNS_JSON')
         self.assertTrue(result['outcome']['provider']['fixture'])
         self.assertEqual(self.db.conn.execute('SELECT mode FROM fabric_executions').fetchone()[0], 'fixture')
@@ -117,6 +118,22 @@ class GatewayAuthorityTests(unittest.TestCase):
         with self.assertRaises(PolicyError):
             self.collect(gateway)
         self.assertEqual(self.calls, [])
+
+    def test_changed_executable_contract_is_rejected_before_transport(self):
+        gateway = self.authorize()
+        with patch('traceatlas.employee.autonomous.skill_contract_digest', return_value='changed'):
+            with self.assertRaises(PolicyError):
+                self.collect(gateway)
+        self.assertEqual(self.calls, [])
+
+    def test_contract_change_during_request_prevents_evidence_promotion(self):
+        gateway = self.authorize()
+        changed = patch('traceatlas.employee.autonomous.skill_contract_digest', return_value='changed')
+        self.addCleanup(changed.stop)
+        self.response_hook = changed.start
+        self.assertEqual(self.collect(gateway)[0]['state'], 'failed')
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.db.evidence('case-a'), [])
 
 
 if __name__ == '__main__':

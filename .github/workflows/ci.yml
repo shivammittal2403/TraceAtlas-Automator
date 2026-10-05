@@ -31,6 +31,8 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install .
+      - name: Reject duplicate Python definitions and malformed modules
+        run: python scripts/check_python_structure.py
       - name: Compile sources
         run: python -m compileall -q src tests api vercel_control.py scripts
       - name: Run regression suite

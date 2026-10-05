@@ -103,3 +103,59 @@ operator-owned staging, source credentials/terms, representative reviewed labels
 No live source was contacted and no source was promoted. Overall 8/10 remains
 NOT ESTABLISHED. Continue next with governed representative-evaluation intake
 and metric denominators, rather than claiming fixture performance as field quality.
+
+
+## ER-EVAL-002 intake implementation and EPSS development evidence — 2026-10-05
+
+Implemented `resolve evaluate` over exact case-preserved corpus/protocol hashes.
+Authorization, same-case authority/privacy/label-review artifacts, custody integrity,
+2 MiB limits, strict schemas, supported public fields and protocol-before-corpus
+capture order are enforced. Reports contain aggregate metrics/denominators and
+are preserved as evidence. Null denominators fail thresholds. Passing a diagnostic
+never grants enterprise qualification; local capture order does not prove
+independent preregistration, reviewer identity or representative sampling.
+
+Focused ER tests: 21/21. Full suite: 392 run, 389 passed, 3 skipped, zero failures
+(105.961s); compilation and secret scan passed. No ranker weights were changed.
+Representative data quality remains externally dependent on approved adjudicated
+records. Input/output contract: `docs/ENTITY_RESOLUTION_EVALUATION.md`.
+
+Also ran the public EPSS connector for CVE-2021-44228 through canonical authority,
+plan, digest approval, live capture, graph/claim draft and offline replay. One
+real request, two observations, cache miss, no source errors. Replay with socket
+connections blocked passes with zero calls. This is local development evidence,
+not production-like staging or live qualification. Zero sources promoted.
+Summary: `docs/verification/epss-development-canary-2026-10-05.json`; raw artifacts
+stay outside the repository in the private development workspace.
+
+Prior evidence repair PR #58 head f434cd7 passed CI 37263783083 and CodeQL
+37263783047; final full suite 378 run/375 passed/3 skipped. Separate AI findings
+review failed and is not counted as completed review.
+
+Next priorities: qualified monotonic anchoring; prevent engineering checklist
+scores from masquerading as Enterprise 8/10; expand measured public-source
+canaries and failure handling; semantic planning gaps; representative reviewed
+corpora and named staging environment. The full master objective stays OPEN.
+
+
+## MERGE-001: canonical gateway and duplicate-definition CI gate (2026-10-05)
+
+Reconciled ER intake commit 1580244 with main f30ba40a. Preserved incoming
+source/API/CI changes and remote archive uploads. Main d47769a contained three
+concatenated registry/test modules and overlapping gateway implementations.
+Registry compilation failed; later classes/methods hid earlier definitions.
+Retained latest complete definitions and one ConnectorFactory dispatch per action.
+Gateway now consistently rechecks immutable authorization and executable contracts
+on transport/retry/evidence promotion, using separate per-thread database reads.
+Fixture mode remains fixture. Eight targeted gateway tests pass.
+
+New compile/AST CI gate detects all three affected baseline files (five errors).
+The repaired scan passes across 208 files; eight checker regressions were added.
+Initial integration suite: 438 run, 435 passed, 3 skipped. Two further contract
+mutation tests pass; final suite recorded in
+`docs/verification/main-integration-2026-10-05.json`. Compilation/secrets pass.
+PR #62's prior head passed CI 37265075218 and CodeQL 37265075236; separate AI
+review failed. That PR was externally merged into its stacked base. This repair
+targets main and awaits checks on its new commit. No deployment or source promotion.
+Enterprise 8/10 remains NOT ESTABLISHED. Next: maturity-score honesty, bounded
+public-source verification, independent anchoring and representative/staging gates.
