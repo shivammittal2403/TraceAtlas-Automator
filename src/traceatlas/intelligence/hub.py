@@ -356,6 +356,9 @@ class IntelligenceHub:
                     raise ConnectorNotConfigured("NVD_API_KEY is not configured correctly")
                 headers["apiKey"] = key
             return "https://services.nvd.nist.gov/rest/json/cves/2.0?" + urlencode({"cveId": cve_id}), headers
+        if spec.name in {'pypi', 'datacite'}:
+            from .public_metadata import build_request
+            return build_request(spec.name, target_type, target), headers
         if spec.name == "npm":
             package = target.strip()
             if target_type != "package" or not re.fullmatch(
@@ -391,6 +394,9 @@ class IntelligenceHub:
 
     @staticmethod
     def _validated_records(source, target_type, target, data):
+        if source in {'pypi', 'datacite'}:
+            from .public_metadata import normalize
+            return normalize(source, target_type, target, data)
         matches = True
         if source in {"internetdb", "ipwhois", "ipdata", "greynoise"}:
             try:

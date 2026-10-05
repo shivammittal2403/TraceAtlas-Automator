@@ -20,6 +20,12 @@ def add_fabric_parser(sub):
     commands.add_parser("audit")
     commands.add_parser("metrics")
     commands.add_parser("health", help="Observed per-source health, independent of maturity")
+    integration = commands.add_parser("integration-review", help="Preserve a source-specific successful live integration receipt")
+    integration.add_argument("--source", required=True, choices=sorted(SOURCES))
+    integration.add_argument("--execution", required=True)
+    integration.add_argument("--case", required=True)
+    integration.add_argument("--actor", required=True)
+    integration.add_argument("--authorized", action="store_true")
     portfolio = commands.add_parser("portfolio", help="Governed research and 650-source acceptance report")
     portfolio.add_argument("--file", type=Path, help="Import bounded research metadata; grants no execution")
     portfolio.add_argument("--source", help="Inspect every governed metadata field for one source")
@@ -60,6 +66,10 @@ def add_fabric_parser(sub):
 
 def run_fabric(args, engine):
     store = FabricStore(engine.db)
+    if args.fabric_command == "integration-review":
+        from .integration import IntegrationReceipts
+        return IntegrationReceipts(engine.db, engine.workspace).record(
+            args.source, args.execution, args.case, args.actor, authorized=args.authorized)
     if args.fabric_command == "health":
         from .portfolio import Portfolio
         return Portfolio(engine.db).health_report()

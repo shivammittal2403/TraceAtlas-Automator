@@ -4,6 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
+from traceatlas import __version__
 from vercel_app_data import CATALOG, build_plan
 
 
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class VercelAppTests(unittest.TestCase):
     def test_catalog_matches_integrated_platform(self):
-        self.assertEqual(CATALOG["version"], "1.8.0")
+        self.assertEqual(CATALOG["version"], __version__)
         self.assertEqual(CATALOG["metrics"]["governed_modules"], 187)
         self.assertEqual(CATALOG["metrics"]["research_papers"], 4096)
         self.assertEqual(CATALOG["metrics"]["playbooks"], 40)

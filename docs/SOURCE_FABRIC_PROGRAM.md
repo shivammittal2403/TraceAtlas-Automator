@@ -1,5 +1,46 @@
 # Governed source intelligence program
 
+## Runtime expansion — 2026-10-05
+
+SourceGateway now constructs ConnectorFactory primitives. Every transport request,
+including retries and RDAP bootstrap/provider hops, rechecks immutable active
+authority, expiry, cancellation and kill switch through a separate read-only
+SQLite connection. Revoked responses are rejected before evidence promotion.
+Cache access also rechecks authority. Case and custody writes stay serialized.
+
+PyPI and DataCite now expose fixed-origin exact metadata lookups. Python-package
+seeds require `package:pypi:sampleproject`, preventing an npm package with the
+same name from satisfying the Python question. DataCite accepts an exact DOI,
+for example `doi:10.6084/m9.figshare.21545982`. Response identifiers must match
+the authorized target. Files, linked documents and author contacts are not
+fetched. Normalized records exclude contacts and arbitrary descriptions. Raw
+responses are withheld for these two sources pending privacy/retention review;
+raw replay qualification is therefore not claimed.
+
+Request contracts were checked against [PyPI JSON API](https://docs.pypi.org/api/json/)
+and [DataCite DOI retrieval](https://support.datacite.org/docs/api-get-doi).
+Actual canonical Windows runtime requests captured one normalized record for
+each provider and passed custody verification. Sample investigations report
+PARTIAL because semantic verification and qualification remain open. These are
+two bounded public integration checks, not production readiness.
+
+```sh
+traceatlas source-fabric integration-review --source pypi \
+  --case public-metadata-pypi --execution source-execution-IDENTIFIER \
+  --actor maintainer --authorized
+```
+
+This command requires an explicitly authorized operator and an existing completed
+non-cache, non-fixture live execution with measured attempts/bytes and captured
+normalized records. It preserves a same-case evidence receipt bound to the
+execution snapshot, response digest and current connector/transport code.
+Portfolio counts distinct sources with valid receipts rather than requests.
+Receipts expire after 30 days; code, execution or custody changes invalidate them.
+Failures, schema drift, fixtures, cache hits and unresolved references cannot
+establish a receipt. Unknown totals remain null until receipts exist. Recording
+one does not promote LIVE_VERIFIED or PRODUCTION_QUALIFIED. It covers one exact
+observed lookup, not all provider features. Databases/evidence remain outside Git.
+
 The 650/600/450/300/200/125 source targets are acceptance requirements. They are
 not completed integration claims. The implemented portfolio report compares
 observed canonical registry and case-store data against each threshold. The

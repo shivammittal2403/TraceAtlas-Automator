@@ -203,7 +203,10 @@ class Portfolio:
         return [json.loads(row[0]) for row in self.db.conn.execute(
             'SELECT record_json FROM fabric_source_research ORDER BY source_id')]
 
-    def records(self):
+    def records(self, *, integration_sources=None):
+        if integration_sources is None:
+            from .integration import IntegrationReceipts
+            integration_sources = {r['source'] for r in IntegrationReceipts(self.db).verified()}
         research = {r['source_id']: r for r in self.research()}
         states = self.fabric.states()
         rows = []
@@ -218,7 +221,7 @@ class Portfolio:
             row['registered'] = existing is not None
             row['connector_status'] = 'CODED' if existing and existing['execution_path'] else 'NOT_IMPLEMENTED'
             row['qualification_status'] = states.get(sid, existing['maturity_state'] if existing else 'DISCOVERED')
-            row['test_status'] = 'UNKNOWN'  # Never infer per-source integration tests from general unit tests.
+            row['test_status'] = 'INTEGRATION_TESTED' if sid in integration_sources else 'UNKNOWN'
             row['live_status'] = row['qualification_status'] if sid in states else 'UNVERIFIED'
             row['documentation_verified'] = self._documentation_verified(row)
             row['governed'] = bool(existing and row['documentation_verified'] and row.get('source_family') and
@@ -239,14 +242,17 @@ class Portfolio:
         return bool(reviewed and any(e['sha256'] == ref['sha256'] for e in self.db.evidence(ref['case_id'])))
 
     def report(self):
-        rows = self.records()
+        from .integration import IntegrationReceipts
+        receipts = IntegrationReceipts(self.db).verified()
+        has_receipts = self.db.conn.execute('SELECT count(*) FROM fabric_integration_receipts').fetchone()[0] > 0
+        rows = self.records(integration_sources={r['source'] for r in receipts})
         registered = [r for r in rows if r['registered']]
         counts = {'registered': len(registered),
                   'governed': sum(r['governed'] for r in registered),
                   'documented': sum(r['documentation_verified'] for r in registered),
                   'capability_mapped': sum(bool(r['capabilities']) for r in registered),
                   'implemented': sum(r['connector_status'] == 'CODED' for r in registered),
-                  'integration_tested': None,
+                  'integration_tested': len({r['source'] for r in receipts}) if has_receipts else None,
                   'live_tested': len({r[0] for r in self.db.conn.execute("SELECT source FROM fabric_executions WHERE mode='live' AND cache_hit=0") if r[0] in SOURCES}),
                   'live_verified': sum(r['qualification_status'] in {'LIVE_VERIFIED', 'PRODUCTION_QUALIFIED'} for r in registered),
                   'production_qualified': sum(r['qualification_status'] == 'PRODUCTION_QUALIFIED' for r in registered),
@@ -268,7 +274,7 @@ class Portfolio:
                 'independence': independence_graph(rows),
                 'notes': ['Family minima sum to 645; at least five further unique sources are needed for the 650-source portfolio.',
                           'Research imports, aliases, mocks and upstream packages do not increase implementation counts.',
-                          'Integration-tested totals remain unknown until source-specific runtime evidence is recorded.']}
+                          'Integration-tested totals use explicit receipts bound to current code and canonical live evidence; mocks and cache hits are excluded.']}
 
     def health_report(self):
         """Measured operational health is independent of qualification maturity."""

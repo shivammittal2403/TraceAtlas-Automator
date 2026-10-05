@@ -99,6 +99,53 @@ Historical checkpoints below retain their original scope and limitations.
 
 
 ## Current repair checkpoint â€” 2026-10-04
+# Current implementation state — 2026-10-05 / 1.11.0
+
+## Main CI and release metadata repair — 2026-10-05
+
+Exact refreshed main `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8` failed compilation
+in the source registry and Source Fabric tests. This tranche removes duplicated
+merge fragments and overwritten prerequisite definitions, restores canonical
+same-case fixture evidence and preserves the 26-gate qualification policy.
+
+Package, Vercel catalog and footer now report 1.11.0. Health/config expose bounded
+Git/repository/deployment metadata, keep absent commit IDs unknown, and mark
+hosted readiness NOT_VERIFIED. Static production configuration checks cannot
+qualify hosted operation; worker deployment is unknown, not asserted from code.
+
+Local verification: 378 Python tests run (377 passed, one optional MCP skip);
+the locked MCP SDK separately passes all 29 Source Fabric tests. Graph/target
+tests 25/25, local PGlite migration/RLS test 1/1, 78/78 controlled source scenarios,
+golden replay and wheel build pass. Exact commands, bundled runtime exclusions,
+browser prerequisites and remaining hosted gates are recorded in
+[the receipt](verification/release-repair-2026-10-05.json). These results apply to
+the receipt's file hashes, not to earlier or concurrently modified main commits.
+
+The inspected Vercel team has no Automator Git project. `trace-atlas-osint` links
+to a different repository. [Deployment](DEPLOYMENT.md) records the concrete
+dedicated-project proposal and required staging evidence. No resource mutation
+or production qualification is claimed. The following sections retain historical
+checkpoints rather than extending their test results to this build.
+
+# Historical implementation checkpoint — 2026-10-04 / 1.11.0
+
+## Source Fabric continuation — 2026-10-05
+
+The canonical gateway now uses the connector factory with request-by-request
+authority, cancellation, expiry and kill-switch checks. Responses received after
+revocation are rejected before evidence promotion. Two exact public metadata
+connectors (PyPI and DataCite) bring registration to 51 sources, 37 coded live
+API adapters and 35 capability mappings. Explicit live integration receipts bind
+current implementation bytes, execution snapshots and same-case preserved
+evidence; fixtures and cache hits do not count. Local Windows public sample
+checks succeeded for both new sources and passed canonical custody verification.
+Their raw responses remain privacy-withheld; replay/production qualification is
+not claimed. The 650/600/450/300/200/125 thresholds and family minima remain open.
+Inherited duplicate qualification branches and malformed test fragments in base
+`5ad16f0` were repaired while preserving canonical prerequisite gates and negative
+same-case evidence/promotion tests.
+
+## Current repair checkpoint — 2026-10-04
 
 The previous 329-test pass came from an unsynchronized local checkout and was
 incorrectly attributed to merged commit `e2f39d3`; that attribution is withdrawn.
