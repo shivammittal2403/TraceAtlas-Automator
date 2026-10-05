@@ -1,0 +1,52 @@
+{
+  "schema": "traceatlas-qualification-custody-evaluation/v1",
+  "date": "2026-10-05",
+  "baseline_commit": "015ee105789f8a13fa6c2f6dfcabd985b4d3f8d2",
+  "main_parent": "6264b9351bd6480ef0f387f2ddb6dfb52a6b9873",
+  "scenario": "Synthetic DB execution and operator attestations; no network. Change preserved review bytes after qualification. Same case contains canary and reviews.",
+  "intact": {
+    "baseline": "PRODUCTION_QUALIFIED",
+    "repaired": "PRODUCTION_QUALIFIED"
+  },
+  "after_tamper": {
+    "baseline": "PRODUCTION_QUALIFIED",
+    "repaired": "DEGRADED",
+    "ledger_valid": false
+  },
+  "targeted_tests": {
+    "passed": 9,
+    "coverage": [
+      "intact control",
+      "review payload mutation",
+      "missing artifact",
+      "ledger corruption",
+      "canary payload mutation",
+      "per-read invalidation and within-read caching",
+      "anchor failure",
+      "constructor failure",
+      "explicit workspace"
+    ]
+  },
+  "full_suite": {
+    "run": 456,
+    "passed": 453,
+    "skipped": 3,
+    "failures": 0,
+    "seconds": 149.007,
+    "log_sha256": "8064640451fb0339f74cc5c72738cb1ffa7a95513be757f3704f6d38af35d22d"
+  },
+  "structure_scan": {
+    "files": 210,
+    "errors": 0
+  },
+  "compile": "pass",
+  "secret_scan": "pass",
+  "live_sources_tested": 0,
+  "sources_promoted": 0,
+  "enterprise_accepted": false,
+  "limitations": [
+    "Synthetic metadata injection is a state-projection regression, not actual source qualification.",
+    "Local recorded reviews do not establish independent reviewer identity, actual review quality, or provider authenticity.",
+    "Unanchored full local rewrite and external-anchor rollback protection remain separate open issues."
+  ]
+}

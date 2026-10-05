@@ -47,7 +47,7 @@ def _secret_fields(value, depth=0):
 class SourceGateway:
     def __init__(self, db, workspace, *, requester=None):
         self.db, self.workspace, self.requester = db, workspace, requester
-        self.store = FabricStore(db)
+        self.store = FabricStore(db, workspace)
         self.hub = IntelligenceHub(db, workspace)
 
     def _check_authority(self, case_id, action, attestations, authority_hash):

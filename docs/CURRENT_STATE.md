@@ -926,3 +926,25 @@ Seven new regressions; 24 focused maturity tests pass. Full suite recorded in
 `docs/verification/maturity-output-2026-10-05.json`. Migration and limitations:
 `docs/MATURITY_ASSESSMENT.md`. Parent ca86a44 passed hosted CI 37299462969 and
 CodeQL 37299462901. New-head checks remain separate. No deployment or promotion.
+
+
+## QUAL-CUSTODY-001: current custody required for qualification (2026-10-05)
+
+Main parent 6264b935 (tree identical to verified 015ee105). Reproduced a source
+still reporting PRODUCTION_QUALIFIED after preserved review bytes were changed
+and ledger verification failed. Qualification projections now revalidate same-case
+review and canary custody, including any configured anchor, on every read. Checks
+are cached only within that projection. Invalid canary custody yields DEGRADED;
+invalid reviews cannot grant LIVE_VERIFIED or PRODUCTION_QUALIFIED. Gateway and
+promotion propagate the actual workspace instead of assuming the database location.
+
+Measured controlled comparison: intact evidence remains qualified in both versions;
+tampered shared canary/review case changes from falsely qualified to DEGRADED.
+Nine negative/control regressions pass. Full suite: 456 run, 453 passed, 3 skipped,
+zero failures (149.007s). Structure scan 210 files, compilation and secrets pass.
+Evidence: docs/verification/qualification-custody-2026-10-05.json. CODED/TESTED;
+not DEPLOYED; no live request or actual source promotion in this iteration.
+Local attestations still do not prove reviewer identity/review quality; independent
+anchor rollback protection and unanchored full rewrite remain OPEN. Enterprise
+8/10 is NOT ESTABLISHED. Parent CI 37300581400 and CodeQL 37300581482 passed;
+separate AI review failed with confirmed monthly quota/HTTP 402, not a code result.
