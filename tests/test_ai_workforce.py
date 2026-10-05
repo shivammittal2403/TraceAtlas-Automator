@@ -164,6 +164,12 @@ class StoreAndSchedulerTests(unittest.TestCase):
         source.write_text('{"fixture":true}', encoding="utf-8")
         preserved = EvidenceStore(self.root, self.db, "case-a").preserve_file(source, "fixture-source")
         first = self.store.import_v1_evidence("case-a", preserved["sha256"])
+        with patch("traceatlas.workforce.store._now", return_value="2099-01-01T00:00:00+00:00"):
+            repeated = self.store.import_v1_evidence("case-a", preserved["sha256"])
+        self.assertEqual(first.to_dict(), repeated.to_dict())
+        self.assertTrue(self.store.verify_evidence(repeated))
+        with self.assertRaisesRegex(ValueError, "append a new evidence version"):
+            self.store.import_v1_evidence("case-a", preserved["sha256"], parser="changed")
         second = self.store.append_evidence_version(
             first, parser="json", parser_version="2", extractor="domain", extractor_version="1",
             observation_ids=("observation-1",),

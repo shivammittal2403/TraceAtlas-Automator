@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -14,6 +16,7 @@ from traceatlas.employee.autonomous import AutonomousInvestigator, executable_sk
 from traceatlas.employee.autonomous_analysis import verify_replay
 from traceatlas.intelligence.hub import IntelligenceHub
 from traceatlas.policy import PolicyError
+from traceatlas.employee.brief import digest
 
 
 class InvestigationTests(unittest.TestCase):
@@ -82,12 +85,76 @@ class InvestigationTests(unittest.TestCase):
         verified = verify_replay(folder)
         self.assertEqual(verified["network_requests"], 0)
         self.assertFalse(verified["authenticity_verified"])
+        self.assertTrue(verified['semantic_analysis_verified'])
+        self.assertFalse(verified['raw_provider_normalization_verified'])
         artifact = next((folder / "artifacts").iterdir())
         artifact.write_text("tampered")
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             verify_replay(folder)
         self.run_task(current)
         self.assertEqual(len(self.requests), 4)  # Terminal retry does not recollect.
+
+    def rewrite_export(self, folder, mutate):
+        report_path = folder / 'report.json'
+        report = json.loads(report_path.read_text(encoding='utf-8'))
+        mutate(report)
+        report.pop('report_digest')
+        report['report_digest'] = digest(report)
+        report_path.write_text(json.dumps(report), encoding='utf-8')
+        replay_path = folder / 'replay.json'
+        replay = json.loads(replay_path.read_text(encoding='utf-8'))
+        for item in replay['files']:
+            raw = (folder / item['path']).read_bytes()
+            item.update(sha256=hashlib.sha256(raw).hexdigest(), bytes=len(raw))
+        replay_path.write_text(json.dumps(replay), encoding='utf-8')
+        (folder / 'replay.sha256').write_text(hashlib.sha256(replay_path.read_bytes()).hexdigest())
+
+    def test_portable_replay_reextracts_semantics_even_with_valid_rewritten_hashes(self):
+        current = self.run_task(self.create())
+        folder = Path(self.service.export('case-a', current['id'], self.root / 'reports')['directory'])
+        self.rewrite_export(folder, lambda report: report['observations'][0].update(statement='Unsupported altered assertion'))
+        with self.assertRaisesRegex(ValueError, 'semantic analysis'):
+            verify_replay(folder)
+
+    def test_portable_replay_rejects_unsupported_analysis_version(self):
+        current = self.run_task(self.create())
+        folder = Path(self.service.export('case-a', current['id'], self.root / 'reports')['directory'])
+        self.rewrite_export(folder, lambda report: report.update(analysis_version='future/99'))
+        with self.assertRaisesRegex(ValueError, 'version'):
+            verify_replay(folder)
+
+    def test_fabric_revocation_between_rdap_bootstrap_and_provider_blocks_dispatch(self):
+        from traceatlas.source_fabric.gateway import SourceGateway
+        current = self.create()
+        action = next(a for a in current['manifest']['actions'] if a['source'] == 'rdap')
+        self.db.conn.execute("UPDATE autonomous_investigations SET status='running' WHERE id=?", (current['id'],))
+        self.db.conn.commit()
+        calls = []
+        def revoke(url, headers, timeout):
+            calls.append(url)
+            conn = sqlite3.connect(self.db.path)
+            try:
+                conn.execute('UPDATE autonomous_investigations SET cancel_requested=1 WHERE id=?', (current['id'],))
+                conn.commit()
+            finally:
+                conn.close()
+            return 200, b'{"version":"1.0","services":[[["org"],["https://rdap.publicinterestregistry.org/rdap/"]]]}'
+        gateway = SourceGateway(self.db, self.root, requester=revoke)
+        result = gateway.collect_batch('case-a', [action], current['manifest']['attestations'], current['manifest_hash'])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result[0]['state'], 'failed')
+        self.assertFalse(self.db.evidence('case-a'))
+
+    def test_fabric_gateway_checks_kill_switch_on_direct_entry(self):
+        from traceatlas.source_fabric.gateway import SourceGateway
+        current = self.create(source_fabric=True)
+        self.db.conn.execute("UPDATE autonomous_investigations SET status='running' WHERE id=?", (current['id'],))
+        self.db.conn.commit()
+        gateway = SourceGateway(self.db, self.root, requester=self.request)
+        with patch.dict('os.environ', {'TRACEATLAS_WORKFORCE_KILL_SWITCH': '1'}):
+            with self.assertRaisesRegex(PolicyError, 'kill switch'):
+                gateway.collect_batch('case-a', current['manifest']['actions'][:1], current['manifest']['attestations'], current['manifest_hash'])
+        self.assertFalse(self.requests)
 
     def test_missing_authority_person_consent_and_wrong_actor_fail_before_network(self):
         for kwargs in ({"authorized": False}, {"attestations": {}}, {"subject_type": "person"}):

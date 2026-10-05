@@ -50,6 +50,31 @@ class SourceGateway:
         self.store = FabricStore(db)
         self.hub = IntelligenceHub(db, workspace)
 
+    @staticmethod
+    def _check_authority(conn, case_id, attestations, authority_hash, action=None):
+        if os.getenv('TRACEATLAS_WORKFORCE_KILL_SWITCH', '').casefold() in {'1', 'true', 'yes'}:
+            raise PolicyError('Gateway kill switch stopped dispatch')
+        authority = conn.execute("SELECT manifest_json,status,cancel_requested FROM autonomous_investigations WHERE case_id=? AND manifest_hash=?",
+                                 (case_id, authority_hash)).fetchone()
+        if not authority or authority[1] != 'running' or authority[2]:
+            raise PolicyError('Gateway requires an active, uncancelled investigation authorization')
+        scope = json.loads(authority[0])
+        if digest(scope) != authority_hash or scope['attestations'] != attestations or datetime.now(timezone.utc) >= datetime.fromisoformat(scope['expires_at']):
+            raise PolicyError('Gateway authorization is invalid or expired')
+        if action is not None and action not in scope['actions']:
+            raise PolicyError('Gateway action is outside the immutable authorization manifest')
+        from ..employee.autonomous import skill_contract_digest
+        if scope['skills_digest'] != skill_contract_digest(scope.get('source_fabric', False)):
+            raise PolicyError('Gateway executable contracts changed')
+        return scope
+
+    def _fetch(self, action, timeout, case_id, attestations, authority_hash):
+        # A separate read-only connection belongs to this thread. It sees
+        # committed revocation while a request waits on a provider lock and
+        # rechecks before every retry and RDAP bootstrap/provider request.
+        conn = sqlite3.connect(self.db.path.resolve().as_uri() + '?mode=ro', uri=True)
+        check = lambda: self._check_authority(conn, case_id, attestations, authority_hash, action)
+        connector = HubConnector(action["source"], requester=self.requester, authorization_check=check)
     def _check_authority(self, case_id, action, attestations, authority_hash):
         """Read current immutable authority independently on each transport thread."""
         if os.getenv('TRACEATLAS_WORKFORCE_KILL_SWITCH', '').casefold() in {'1', 'yes', 'true'}:
@@ -86,10 +111,11 @@ class SourceGateway:
             return value
         with _LOCK:
             lock = _PROVIDERS.setdefault(provider, threading.Lock())
-        if not _GLOBAL.acquire(timeout=remaining()):
-            raise TimeoutError("global concurrency budget")
-        acquired = False
+        acquired = global_acquired = False
         try:
+            global_acquired = _GLOBAL.acquire(timeout=remaining())
+            if not global_acquired:
+                raise TimeoutError("global concurrency budget")
             acquired = lock.acquire(timeout=remaining())
             if not acquired:
                 raise TimeoutError("provider concurrency budget")
@@ -99,25 +125,23 @@ class SourceGateway:
             if wait:
                 time.sleep(wait)
             _LAST[provider] = time.monotonic()
+            check()
             response = connector.fetch(action["target_type"], action["target"], remaining())
+            check()
             records = connector.normalize(action["target_type"], action["target"], response)
             return connector, response, records
         finally:
             if acquired:
                 lock.release()
-            _GLOBAL.release()
+            if global_acquired:
+                _GLOBAL.release()
             connector.close()
+            conn.close()
 
     def collect_batch(self, case_id, actions, attestations, authority_hash, *, timeout=30):
         if not 1 <= len(actions) <= 3 or not 0 < timeout <= 30:
             raise PolicyError("Gateway allows 1-3 concurrent source actions and at most 30 seconds each")
-        authority = self.db.conn.execute("SELECT manifest_json,status,cancel_requested FROM autonomous_investigations WHERE case_id=? AND manifest_hash=?",
-                                        (case_id, authority_hash)).fetchone()
-        if not authority or authority["status"] != "running" or authority["cancel_requested"]:
-            raise PolicyError("Gateway requires an active, uncancelled investigation authorization")
-        scope = json.loads(authority["manifest_json"])
-        if digest(scope) != authority_hash or scope["attestations"] != attestations or datetime.now(timezone.utc) >= datetime.fromisoformat(scope["expires_at"]):
-            raise PolicyError("Gateway authorization is invalid or expired")
+        scope = self._check_authority(self.db.conn, case_id, attestations, authority_hash)
         if any(action not in scope["actions"] for action in actions):
             raise PolicyError("Gateway action is outside the immutable authorization manifest")
         store = EvidenceStore(self.workspace, self.db, case_id)
@@ -125,6 +149,8 @@ class SourceGateway:
             raise PolicyError("Existing case custody integrity failed")
         ready, completed = [], []
         for action in actions:
+            self._check_authority(self.db.conn, case_id, attestations, authority_hash, action)
+            connector = HubConnector(action["source"], requester=self.requester)
             self._check_authority(case_id, action, attestations, authority_hash)
             connector = ConnectorFactory.create(action["source"], requester=self.requester)
             if connector.definition["health"]["state"] == "DEGRADED":
@@ -159,6 +185,7 @@ class SourceGateway:
                                       "outcome": {"source": action["source"], "error_type": "concurrency_budget", "execution_id": execution_id}})
         # Only network/parse work runs in threads. SQLite and custody ledger writes remain on this thread.
         with ThreadPoolExecutor(max_workers=3, thread_name_prefix="traceatlas-source") as pool:
+            futures = {pool.submit(self._fetch, a, timeout, case_id, attestations, authority_hash): (a, eid, key, time.monotonic()) for a, eid, key in ready}
             futures = {pool.submit(self._fetch, a, timeout,
                 lambda action=a: self._check_authority(case_id, action, attestations, authority_hash)):
                 (a, eid, key, time.monotonic()) for a, eid, key in ready}
@@ -166,6 +193,7 @@ class SourceGateway:
                 action, execution_id, key, started = futures[future]
                 try:
                     connector, response, records = future.result()
+                    self._check_authority(self.db.conn, case_id, attestations, authority_hash, action)
                     # Revoked responses cannot be promoted after an in-flight request.
                     self._check_authority(case_id, action, attestations, authority_hash)
                     signature = digest(_shape(response.data))
