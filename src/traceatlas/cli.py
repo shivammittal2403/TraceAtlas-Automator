@@ -142,7 +142,7 @@ def parser() -> argparse.ArgumentParser:
     readiness = sub.add_parser("readiness", help="Score verified core, production and competitive readiness")
     readiness.add_argument("--production", action="store_true")
     readiness.add_argument("--json", action="store_true")
-    maturity = sub.add_parser("maturity", help="Evaluate explicit 10-point product maturity gates")
+    maturity = sub.add_parser("maturity", help="Inspect engineering checks and outstanding enterprise acceptance evidence")
     maturity.add_argument("--production", action="store_true")
     maturity.add_argument("--json", action="store_true")
     benchmark = sub.add_parser(
@@ -537,6 +537,13 @@ def parser() -> argparse.ArgumentParser:
     resolve_decide.add_argument("--reviewer", required=True)
     resolve_decide.add_argument("--rationale", required=True)
     resolve_decide.add_argument("--authorized", action="store_true")
+    resolve_evaluate = resolve_sub.add_parser(
+        "evaluate", help="Evaluate preserved labels under a preserved review protocol"
+    )
+    resolve_evaluate.add_argument("--case", required=True)
+    resolve_evaluate.add_argument("--corpus-sha256", required=True)
+    resolve_evaluate.add_argument("--protocol-sha256", required=True)
+    resolve_evaluate.add_argument("--authorized", action="store_true")
 
     casework = sub.add_parser("casework", help="Manage analyst notes and review context")
     casework_sub = casework.add_subparsers(dest="casework_command", required=True)
@@ -755,12 +762,20 @@ def main(argv: list[str] | None = None) -> int:
             elif args.resolve_command == "queue":
                 result = {"case_id": args.case, "status": args.status,
                           "candidates": resolver.queue(args.case, status=args.status)}
+            elif args.resolve_command == "evaluate":
+                from .resolution_corpus import evaluate_preserved_corpus
+                result = evaluate_preserved_corpus(
+                    EvidenceStore(args.workspace, engine.db, args.case),
+                    args.corpus_sha256, args.protocol_sha256, authorized=args.authorized,
+                )
             else:
                 result = resolver.decide(
                     args.candidate, args.decision, reviewer=args.reviewer,
                     rationale=args.rationale, authorized=args.authorized,
                 )
             print(json.dumps(result, indent=2, ensure_ascii=False))
+            if args.resolve_command == "evaluate" and not result['protocol_thresholds_met']:
+                return 2
         elif args.command == "casework":
             if not engine.db.get_case(args.case):
                 raise PolicyError(f"Unknown case: {args.case}")
@@ -847,9 +862,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
-                print(f"Evidence-gated maturity: {result['overall']}/10")
+                print("Enterprise maturity: NOT ESTABLISHED (target 8/10)")
+                checklist = result["checklist"]
+                print(f"Engineering checks: {checklist['passed_checks']}/{checklist['total_checks']}")
                 for row in result["dimensions"]:
-                    print(f"{row['area']:26} {row['score']}/10")
+                    print(f"{row['area']:26} {row['passed_checks']}/{row['total_checks']} checks")
                     for blocker in row["blocking_gates"]:
                         print(f"  BLOCK {blocker}")
         elif args.command == "benchmark":

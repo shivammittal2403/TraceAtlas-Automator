@@ -141,7 +141,8 @@ class EnterpriseMaturityV17Tests(unittest.TestCase):
         self.assertEqual(len(result["dimensions"]), 6)
         self.assertTrue(all(len(row["gates"]) == 10 for row in result["dimensions"]))
         self.assertFalse(result["ten_of_ten"])
-        self.assertLess(result["overall"], 10)
+        self.assertIsNone(result["overall"])
+        self.assertFalse(result["enterprise_assessment"]["accepted"])
 
     def test_identity_governance_has_mfa_last_owner_and_concurrency_controls(self):
         sql = (ROOT / "supabase/migrations/20260926000200_identity_governance.sql").read_text()

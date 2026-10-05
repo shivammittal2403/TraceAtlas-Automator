@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-05",
+  "runtime": "local Windows development; not production-like staging",
+  "pipeline_baseline": "f434cd791aac20af63a42c14e70c314083438668",
+  "uncommitted_changes": "ER evaluation CLI/module only; live workforce pipeline unchanged",
+  "official_docs": [
+    "https://api.first.org/epss/",
+    "https://www.first.org/epss/data.html"
+  ],
+  "target": "CVE-2021-44228",
+  "source": "epss",
+  "network_attempts": 1,
+  "source_outcomes": [
+    {
+      "actual_cost": null,
+      "attempts": 1,
+      "cache_hit": false,
+      "estimated_cost": 0.0,
+      "latency_ms": 1015,
+      "mode": "live",
+      "observations": 2,
+      "source_id": "epss",
+      "started_at": "2026-10-05T04:43:03.883550+00:00",
+      "status": "captured"
+    }
+  ],
+  "metrics": {
+    "citation_coverage": 1.0,
+    "claims": 2,
+    "independence_groups": 1,
+    "observations": 2,
+    "released_material_claims": 0,
+    "supported_claims": 0,
+    "unsupported_material_claims_released": 0
+  },
+  "terminal_state": "HUMAN_REVIEW",
+  "source_document_hashes": [
+    "fd0a1427e8346ca8edee7b3975303911b79aa1180029780de6c2684387acfaca"
+  ],
+  "analysis_digest": "13254e1b6e57724152202ae3facae1cc8a415746fa4c7833b85d28d41e1c01df",
+  "offline_replay": {
+    "verified": true,
+    "requires_network": false,
+    "blocked_socket_calls": 0
+  },
+  "saved_run_artifact_sha256": {
+    "plan.json": "ea72b2bcded648258faba0f1962a16ade7bbcb547488e91586343f690f59595e",
+    "approval.json": "55b847f2fd70adc344e512e7b9546261e6fa62436795745b5e296a4da5d65bce",
+    "execution.json": "68bb9dac704439fa65ccfbf40f3c22a169d3ca0e2fb24edfe80e6b4ba07a871a",
+    "report.json": "68bb9dac704439fa65ccfbf40f3c22a169d3ca0e2fb24edfe80e6b4ba07a871a",
+    "offline-replay.json": "90aed39ca75bfcab51ef3d8b11c21d857ba3d901683c675c221f6bdf94d1efc9"
+  },
+  "source_maturity_claim": "one development live test only",
+  "live_verified_count_added": 0,
+  "production_qualified_count_added": 0,
+  "limitations": [
+    "Raw case artifacts remain local and are not committed.",
+    "This is a single request, not a sustained availability or parser-success estimate.",
+    "Provider terms/privacy/security, intended-runtime, health, owner and runbook qualification remain open.",
+    "EPSS is a provider prediction, not observed exploitation or evidence an asset is affected.",
+    "Evidence is unanchored in this development canary; rollback-safe production storage remains open."
+  ]
+}

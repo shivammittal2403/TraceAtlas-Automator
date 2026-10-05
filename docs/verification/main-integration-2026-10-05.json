@@ -1,0 +1,31 @@
+{
+  "schema": "traceatlas-main-integration-verification/v1",
+  "date": "2026-10-05",
+  "main_sha": "f30ba40a6dd51978c2072391081b8d159c16014a",
+  "er_parent": "1580244c12fa52b15471460e0d145c23c7b35ff6",
+  "local_source_baseline": "d47769aeda5697baa418a01b761554ee074a3727",
+  "main_delta": "Only 23 added archive blobs after d47769a; remote base tree preserves them without executing archives.",
+  "full_suite": {
+    "run": 440,
+    "passed": 437,
+    "skipped": 3,
+    "failures": 0,
+    "seconds": 162.413,
+    "log_sha256": "4a0ae163d82c342b310cc6dcd01f9317c779f79619c34d620fae78fbcfcd2c10"
+  },
+  "targeted_gateway": {
+    "passed": 8,
+    "fixture": true
+  },
+  "structure_gate": {
+    "files_checked": 208,
+    "baseline_files_rejected": 3,
+    "baseline_errors": 5,
+    "repaired_errors": 0
+  },
+  "compile": "pass",
+  "secret_scan": "pass",
+  "hosted_checks": "pending_for_new_commit",
+  "deployed": false,
+  "enterprise_eight_of_ten_established": false
+}

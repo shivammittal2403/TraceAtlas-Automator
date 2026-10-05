@@ -101,3 +101,58 @@ operator-owned staging, source credentials/terms, representative reviewed labels
 No live source was contacted and no source was promoted. Overall 8/10 remains
 NOT ESTABLISHED. Continue next with governed representative-evaluation intake
 and metric denominators, rather than claiming fixture performance as field quality.
+
+
+## ER-EVAL-002 intake implementation and EPSS development evidence — 2026-10-05
+
+Implemented `resolve evaluate` over exact case-preserved corpus/protocol hashes.
+Authorization, same-case authority/privacy/label-review artifacts, custody integrity,
+2 MiB limits, strict schemas, supported public fields and protocol-before-corpus
+capture order are enforced. Reports contain aggregate metrics/denominators and
+are preserved as evidence. Null denominators fail thresholds. Passing a diagnostic
+never grants enterprise qualification; local capture order does not prove
+independent preregistration, reviewer identity or representative sampling.
+
+Focused ER tests: 21/21. Full suite: 392 run, 389 passed, 3 skipped, zero failures
+(105.961s); compilation and secret scan passed. No ranker weights were changed.
+Representative data quality remains externally dependent on approved adjudicated
+records. Input/output contract: `docs/ENTITY_RESOLUTION_EVALUATION.md`.
+
+Also ran the public EPSS connector for CVE-2021-44228 through canonical authority,
+plan, digest approval, live capture, graph/claim draft and offline replay. One
+real request, two observations, cache miss, no source errors. Replay with socket
+connections blocked passes with zero calls. This is local development evidence,
+not production-like staging or live qualification. Zero sources promoted.
+Summary: `docs/verification/epss-development-canary-2026-10-05.json`; raw artifacts
+stay outside the repository in the private development workspace.
+
+Prior evidence repair PR #58 head f434cd7 passed CI 37263783083 and CodeQL
+37263783047; final full suite 378 run/375 passed/3 skipped. Separate AI findings
+review failed and is not counted as completed review.
+
+Next priorities: qualified monotonic anchoring; prevent engineering checklist
+scores from masquerading as Enterprise 8/10; expand measured public-source
+canaries and failure handling; semantic planning gaps; representative reviewed
+corpora and named staging environment. The full master objective stays OPEN.
+
+
+## QUAL-CUSTODY-001: current custody required for qualification (2026-10-05)
+
+Main parent 6264b935 (tree identical to verified 015ee105). Reproduced a source
+still reporting PRODUCTION_QUALIFIED after preserved review bytes were changed
+and ledger verification failed. Qualification projections now revalidate same-case
+review and canary custody, including any configured anchor, on every read. Checks
+are cached only within that projection. Invalid canary custody yields DEGRADED;
+invalid reviews cannot grant LIVE_VERIFIED or PRODUCTION_QUALIFIED. Gateway and
+promotion propagate the actual workspace instead of assuming the database location.
+
+Measured controlled comparison: intact evidence remains qualified in both versions;
+tampered shared canary/review case changes from falsely qualified to DEGRADED.
+Nine negative/control regressions pass. Full suite: 456 run, 453 passed, 3 skipped,
+zero failures (149.007s). Structure scan 210 files, compilation and secrets pass.
+Evidence: docs/verification/qualification-custody-2026-10-05.json. CODED/TESTED;
+not DEPLOYED; no live request or actual source promotion in this iteration.
+Local attestations still do not prove reviewer identity/review quality; independent
+anchor rollback protection and unanchored full rewrite remain OPEN. Enterprise
+8/10 is NOT ESTABLISHED. Parent CI 37300581400 and CodeQL 37300581482 passed;
+separate AI review failed with confirmed monthly quota/HTTP 402, not a code result.
