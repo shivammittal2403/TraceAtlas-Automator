@@ -1,0 +1,21 @@
+{
+  "baseline_commit": "f434cd791aac20af63a42c14e70c314083438668",
+  "changed_code_blobs": {
+    "src/traceatlas/resolution_corpus.py": "bf5fba0b6cca684c0e516e87e2fcf13fd8c049d4",
+    "src/traceatlas/cli.py": "48c747d06884af83560af54e30fdfee4161148bc",
+    "tests/test_resolution_corpus.py": "91f1087ca290e42c113a6e5ce42b4f7a315e5529"
+  },
+  "full_suite": {
+    "run": 392,
+    "passed": 389,
+    "skipped": 3,
+    "failures": 0,
+    "duration_seconds": 105.961,
+    "output_sha256": "63885c3d9a81e25f1a4b7eefaf5e2caa2de5264c5eaf2d755897938139dce5bb"
+  },
+  "focused_er_tests": 21,
+  "compileall": "pass",
+  "secret_scan": "clean",
+  "representative_evaluation": "NOT PERFORMED; approved labels not supplied",
+  "enterprise_score": null
+}
