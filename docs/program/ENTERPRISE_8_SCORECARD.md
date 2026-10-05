@@ -100,3 +100,30 @@ score is NOT ESTABLISHED until weighted results exist.
 
 **Weighted overall maturity: NOT ESTABLISHED.** The release threshold remains
 8.0 with no primary workflow below 7.0; no numerical score is claimed yet.
+
+
+## EVIDENCE-005: bundle binding and erased-history rejection — 2026-10-05
+
+Baseline: PR #57 `46cdafdfb3264117edafa2f6df6a38b3f855182b`; its CI and
+CodeQL passed. New master objective read from the 2026-10-05 attachment;
+source-volume targets are targets only.
+
+Three reproduced P0 integrity gaps: payload and provenance could be rewritten
+in an anchored export while reusing its signed head; deleting both local ledger
+and index bypassed the external checkpoint check. Bundle v2 now replays the
+custody chain and binds exact digests/observations to the signed head. Empty
+local histories consult the external anchor and fail closed on outage. Legacy
+unanchored v1 is readable; anchored v1 requires re-export.
+
+Expanded identical 18-case synthetic corpus: baseline 14/18, repair 17/18.
+Invalid-case rejection improves from 9/13 to 12/13. The unanchored full-rewrite
+case still fails, intentionally disclosed; EVIDENCE-001 remains OPEN. Full
+suite before two additional compatibility tests: 376 run, 373 pass, 3 skip;
+compilation and secret scan pass. Final exact-head hosted checks are separate.
+Report: `docs/verification/evidence-integrity-2026-10-05.json`.
+
+Remaining external dependencies: independently protected monotonic anchor,
+operator-owned staging, source credentials/terms, representative reviewed labels.
+No live source was contacted and no source was promoted. Overall 8/10 remains
+NOT ESTABLISHED. Continue next with governed representative-evaluation intake
+and metric denominators, rather than claiming fixture performance as field quality.

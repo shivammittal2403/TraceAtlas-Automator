@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -85,6 +86,83 @@ class EvidenceAnchorTests(unittest.TestCase):
             self.anchor.publish("case-a", 1, "0" * 64)
         with self.assertRaisesRegex(ValueError, "same sequence"):
             self.anchor.publish("case-a", 2, "b" * 64)
+
+    def test_deleted_local_history_cannot_reset_an_anchored_case(self):
+        store = self.store()
+        store.preserve_file(self.source, "fixture")
+        store.ledger.unlink()
+        self.db.conn.execute("DELETE FROM evidence WHERE case_id='case-a'")
+        self.db.conn.commit()
+        self.assertEqual(store.verify_ledger(), (False, 0))
+        with self.assertRaisesRegex(ValueError, 'verification failed'):
+            store.preserve_file(self.source, 'replacement')
+
+    def test_empty_case_fails_closed_when_anchor_is_unavailable(self):
+        store = self.store()
+        with patch.object(self.anchor, 'current_receipt', side_effect=OSError('offline')):
+            self.assertEqual(store.verify_ledger(), (False, 0))
+            with self.assertRaisesRegex(ValueError, 'verification failed'):
+                store.preserve_file(self.source, 'fixture')
+        self.assertEqual(self.db.evidence('case-a'), [])
+
+    def test_signed_bundle_rejects_rewritten_payload_and_provenance(self):
+        store = self.store()
+        store.preserve_file(self.source, 'fixture')
+        original = self.root / 'original.zip'
+        store.export_bundle(original)
+        for mutation in ('payload', 'source', 'timestamp', 'ledger', 'count', 'extra-file', 'v1'):
+            with self.subTest(mutation=mutation):
+                with zipfile.ZipFile(original) as archive:
+                    parts = {name: archive.read(name) for name in archive.namelist()}
+                manifest = json.loads(parts['manifest.json'])
+                if mutation == 'payload':
+                    data = b'consistently rewritten attacker payload'
+                    digest = hashlib.sha256(data).hexdigest()
+                    old = manifest['files'][0]['path']
+                    parts.pop(old)
+                    parts['evidence/' + digest] = data
+                    manifest['files'][0] = {'path': 'evidence/' + digest, 'sha256': digest, 'bytes': len(data)}
+                    manifest['observations'][0]['sha256'] = digest
+                elif mutation in ('source', 'timestamp'):
+                    manifest['observations'][0][mutation] = 'attacker-controlled'
+                elif mutation == 'ledger':
+                    entry = json.loads(parts['ledger.jsonl'])
+                    entry['source'] = 'attacker-controlled'
+                    entry.pop('entry_hash')
+                    head = hashlib.sha256(json.dumps(entry, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                    entry['entry_hash'] = head
+                    parts['ledger.jsonl'] = (json.dumps(entry) + '\n').encode()
+                    manifest['ledger_head'] = head
+                    manifest['observations'][0]['source'] = entry['source']
+                elif mutation == 'count':
+                    manifest['ledger_entries'] = True
+                elif mutation == 'extra-file':
+                    data = b'uncited evidence'
+                    digest = hashlib.sha256(data).hexdigest()
+                    parts['evidence/' + digest] = data
+                    manifest['files'].append({'path': 'evidence/' + digest, 'sha256': digest, 'bytes': len(data)})
+                else:
+                    manifest['schema'] = 'traceatlas-evidence-export/v1'
+                    parts.pop('ledger.jsonl')
+                encoded = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+                parts['manifest.json'] = encoded
+                parts['manifest.sha256'] = hashlib.sha256(encoded).hexdigest().encode()
+                changed = self.root / (mutation + '.zip')
+                with zipfile.ZipFile(changed, 'w') as archive:
+                    for name, data in parts.items():
+                        archive.writestr(name, data)
+                self.assertFalse(EvidenceStore.verify_bundle(changed, anchor=self.anchor, require_anchor=True))
+
+    def test_old_bundle_is_historical_while_current_ledger_must_match_latest(self):
+        store = self.store()
+        store.preserve_file(self.source, 'fixture')
+        original_ledger = store.ledger.read_bytes()
+        bundle = self.root / 'historical.zip'
+        store.export_bundle(bundle)
+        store.preserve_file(self.source, 'second acquisition')
+        self.assertTrue(EvidenceStore.verify_bundle(bundle, anchor=self.anchor, require_anchor=True))
+        store.ledger.write_bytes(original_ledger)
+        self.assertEqual(store.verify_ledger(), (False, 1))
 
     def test_environment_configuration_anchors_application_stores_and_exports(self):
         values = {

@@ -1,0 +1,28 @@
+{
+  "verified_on": "2026-10-05",
+  "baseline_commit": "5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8",
+  "baseline_tree": "ed5a421db97250eadea5e32910c299b871035ac7",
+  "snapshot_commit": "03fdfd84da4a6e05b1e55e27ce4f1110c5860698",
+  "snapshot_tree_equals_baseline": true,
+  "changed_blob_sha1": {
+    "src/traceatlas/workforce/source_registry.py": "6be005c8e19b336258a1722b4cc49c2e54f26629",
+    "tests/test_source_fabric.py": "449b745aa6b0a563b641c97257a5ac8bc5fb447e"
+  },
+  "python_suite": {
+    "run": 372,
+    "passed": 369,
+    "skipped": 3,
+    "failures": 0,
+    "seconds": 88.957,
+    "command": "PYTHONPATH=src python -m unittest discover -s tests -q",
+    "output_sha256": "067f3b2b32cee3f6f5d7249947063bfb43445d6daaae5b44fb7dcbee621c43b0"
+  },
+  "compileall": "PASS",
+  "secret_scan": "clean",
+  "previous_synthetic_evaluation": "source-registry-merge-repair-2026-10-04.json",
+  "limitations": [
+    "Synthetic metrics are not field accuracy.",
+    "Enterprise 8/10 and representative/live acceptance gates remain open.",
+    "Hosted checks must be inspected on the published commit separately."
+  ]
+}

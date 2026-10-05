@@ -51,3 +51,30 @@ Historical checkpoints below retain their original scope and limitations.
 
 Reprioritize only after inspecting current code and tests. Each closure must link
 to commit, checks, artifact and remaining limitations.
+
+
+# Master gap register
+
+The existing [gap register](GAP_REGISTER.md) remains canonical; do not create
+a second set of contradictory statuses. New master objective read 2026-10-05.
+
+## EVIDENCE-005
+
+- Domain/severity: evidence integrity, P0.
+- Maturity: locally tested repair; target is independently verified intended-runtime behavior.
+- Root cause: exported payload not bound to signed custody head; empty-history early return bypassed anchor.
+- User/investigation/security impact: rewritten evidence/provenance or erased history could verify.
+- Fix/files: bundle v2 custody replay and external empty-history check in evidence.py; adversarial evaluator and tests.
+- Acceptance: rewritten payload/provenance, erased history, stale ledger, malformed/extra evidence fail closed; clean/historical bundles and legacy unanchored imports retain documented behavior.
+- Metric/evidence: expanded corpus 14/18 before, 17/18 after; docs/verification/evidence-integrity-2026-10-05.json.
+- Status: local contract verified; commit and hosted checks pending publication.
+- Dependency/limitation: production monotonic anchor, semantic citation labels and independent staging proof remain absent.
+
+## External blockers
+
+| ID | Task / cause / dependency | Impact | Owner / required action | Workaround / what continues |
+|---|---|---|---|---|
+| EXT-STAGING | Tenant/IAM/operations: no named disposable staging project | Intended-runtime security and recovery unverified | Operator supplies staging project and approved access | Local and CI failure tests continue |
+| EXT-LABELS | ER/claims/lineage: no approved adjudicated records | Field quality remains unknown | Data owner supplies licensed, privacy-reviewed corpus and review protocol | Build governed intake and metric validation |
+| EXT-ANCHOR | No independent monotonic checkpoint service | HMAC receipt rollback not prevented | Operator supplies protected anchor/key service | Strengthen local verification and adapters |
+| EXT-SOURCES | Terms/entitlements and sustained runtime canaries absent | Zero production-qualified sources | Source owners provide approved access and runtime | Test contracts without live promotion |
