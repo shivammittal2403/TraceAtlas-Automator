@@ -66,6 +66,8 @@ def add_workforce_parser(sub) -> None:
     report.add_argument("--task", required=True)
     golden = commands.add_parser("golden", help="Execute controlled end-to-end investigations")
     golden.add_argument("--source-fabric", action="store_true", help="Execute 78 Source Fabric fixture investigations")
+    golden.add_argument('--enterprise', action='store_true', help='Execute 112 synthetic evidence-contract cases')
+    golden.add_argument('--revision', help='Record the verified source revision in the benchmark artifact')
     plan = commands.add_parser("plan-domain", help="Create a bounded owned-domain task")
     plan.add_argument("--context", required=True)
     plan.add_argument("--domain", required=True)
@@ -92,6 +94,11 @@ def run_workforce(args, engine) -> dict:
     if args.workforce_command == "registry":
         return {"employees": [item.to_dict() for item in EmployeeRegistry().list()], "count": 5}
     if args.workforce_command == "golden":
+        if args.enterprise and args.source_fabric:
+            raise ValueError('Choose one golden investigation pack')
+        if args.enterprise:
+            from .enterprise_golden import evaluate_enterprise_investigations
+            return evaluate_enterprise_investigations(revision=args.revision)
         if args.source_fabric:
             from .source_golden import evaluate_source_fabric
             return evaluate_source_fabric()
@@ -118,8 +125,6 @@ def run_workforce(args, engine) -> dict:
                     "maturity_state_vocabulary": list(MATURITY_STATES),
                     "live_integrations": live_count,
                     "production_qualified": lifecycle_counts["PRODUCTION_QUALIFIED"],
-                    "maturity_counts": maturity_counts(r.to_dict()["maturity_state"] for r in registry.list()),
-                    "maturity_state_vocabulary": list(MATURITY_STATES),
                     "health": {r['source_id']: state.health(r['source_id']) for r in rows}, "network_requests": 0}
         return {"sources": readiness(), "network_requests": 0, "configuration_is_not_live_validation": True}
     service = WorkforceService(engine.db)

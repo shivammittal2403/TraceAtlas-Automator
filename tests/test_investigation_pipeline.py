@@ -13,7 +13,7 @@ from traceatlas.workforce.contracts import AuthorizationContext, EvidenceObject,
 from traceatlas.workforce.documents import DOCUMENT_SCHEMA, SourceDocument, StructuredFact, load_documents
 from traceatlas.workforce.golden import evaluate_pipeline_investigations
 from traceatlas.workforce.lineage import SourceIndependenceEngine, SourceRecord
-from traceatlas.workforce.pipeline import InvestigationPipeline, digest
+from traceatlas.workforce.pipeline import InvestigationPipeline, canonical, digest
 from traceatlas.workforce.registry import EmployeeRegistry
 from traceatlas.workforce.service import WorkforceService
 from traceatlas.workforce.tools import ToolContract, ToolFacade
@@ -133,6 +133,64 @@ class PipelineTests(unittest.TestCase):
         Path(result['replay_manifest']['evidence'][0]['raw_artifact_pointer']).write_text('tampered')
         with self.assertRaisesRegex(ValueError, 'integrity'):
             self.pipeline.replay(self.task_id)
+
+    def rewrite_product(self, product):
+        self.db.conn.execute('UPDATE workforce_products SET product_json=?, product_digest=? WHERE task_id=?',
+                             (canonical(product), digest(product), self.task_id))
+        self.db.conn.commit()
+
+    def test_provider_import_recomputes_all_facts_from_content(self):
+        doc = replace(self.document('dns'), content=json.dumps({'Status': 0,
+            'Question': [{'name': 'example.org.', 'type': 1}],
+            'Answer': [{'name': 'example.org.', 'type': 1, 'data': '192.0.2.10'}]}), facts=())
+        product = self.run_docs(doc)
+        self.assertEqual(product['analysis']['observations'][0]['statement'],
+                         'domain:example.org resolves_to 192.0.2.10')
+        replay = self.pipeline.replay(self.task_id)
+        self.assertTrue(replay['semantic_normalization_verified'])
+        self.assertFalse(replay['unverified_assertion_sources'])
+
+    def test_structured_import_recovers_omitted_fact(self):
+        doc = self.structured(self.document())
+        product = self.run_docs(replace(doc, facts=()))
+        self.assertEqual(product['analysis']['metrics']['observations'], 1)
+        captured = json.loads(Path(product['replay_manifest']['evidence'][0]['raw_artifact_pointer']).read_text(encoding='utf-8'))
+        self.assertEqual(captured['document']['facts'], [])  # Submitted metadata stays immutable.
+        self.assertTrue(self.pipeline.replay(self.task_id)['verified'])
+
+    def test_recomputed_structured_fact_cannot_expand_scope(self):
+        doc = self.structured(self.document())
+        payload = json.loads(doc.content)
+        payload['facts'][0]['subject'] = 'domain:other.example'
+        with self.assertRaisesRegex(ValueError, 'out-of-scope'):
+            self.run_docs(replace(doc, facts=(), content=json.dumps(payload)))
+        self.assertFalse(self.db.evidence('test-case'))
+
+    def test_replay_rejects_unknown_versions_and_mismatched_semantics(self):
+        original = self.run_docs(self.structured(self.document()))
+        for key, value, error in [('parser_version', 'future/99', 'version'),
+                                  ('connector_versions', {'source-a': 99}, 'connector'),
+                                  ('normalization', {'source-a': {'version': 'future/99'}}, 'normalization'),
+                                  ('source_timestamps', {'source-a': self.context.expires_at}, 'metadata')]:
+            with self.subTest(key=key):
+                product = json.loads(canonical(original))
+                product['replay_manifest'][key] = value
+                self.rewrite_product(product)
+                with self.assertRaisesRegex(ValueError, error):
+                    self.pipeline.replay(self.task_id)
+
+    def test_replay_rejects_modified_draft_even_with_valid_product_hash(self):
+        product = self.run_docs(self.structured(self.document()))
+        product['report_markdown'] += '\nUnsupported conclusion injected after capture.\n'
+        self.rewrite_product(product)
+        with self.assertRaisesRegex(ValueError, 'report derivation'):
+            self.pipeline.replay(self.task_id)
+
+    def test_prose_assertions_have_explicit_replay_limitation(self):
+        self.run_docs()
+        replay = self.pipeline.replay(self.task_id)
+        self.assertEqual(replay['unverified_assertion_sources'], ['source-a'])
+        self.assertFalse(replay['semantic_normalization_verified'])
 
     def test_tampered_product_digest_blocks_replay(self):
         self.run_docs()

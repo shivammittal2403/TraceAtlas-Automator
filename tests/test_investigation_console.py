@@ -50,6 +50,20 @@ class ConsoleTests(unittest.TestCase):
         self.assertEqual(self.request('GET', '/api/session', headers={'Host': 'evil.example'})[0], 400)
         self.assertEqual(self.request('GET', '/api/session', headers={'Origin': 'https://evil.example'})[0], 400)
         self.assertEqual(self.request('POST', '/api/cases', {}, {'X-TraceAtlas-CSRF': 'wrong'})[0], 403)
+        self.assertEqual(self.request('POST', '/api/cases', {}, {'Origin': 'https://evil.example'})[0], 400)
+        self.assertEqual(self.request('GET', '/api/cases')[1]['cases'], [])
+
+    def test_duplicate_or_chunked_request_framing_cannot_write_case(self):
+        for headers in ({'Content-Length': '1,2'}, {'Transfer-Encoding': 'chunked'}):
+            connection = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=5)
+            try:
+                connection.request('POST', '/api/cases', headers={'X-TraceAtlas-CSRF': self.token, **headers})
+                response = connection.getresponse()
+                self.assertEqual(response.status, 400)
+                response.read()
+            finally:
+                connection.close()
+        self.assertEqual(self.request('GET', '/api/cases')[1]['cases'], [])
 
     def test_browser_api_case_to_evidence_zip(self):
         self.assertEqual(self.request('POST', '/api/cases', {'case_id': 'demo', 'title': 'Demo',

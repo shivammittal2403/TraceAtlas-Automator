@@ -26,13 +26,14 @@ from .documents import DOCUMENT_SCHEMA, MAX_DOCUMENTS, SourceDocument, Structure
 from .contradictions import SINGLE_VALUE_PREDICATES as SINGLE_VALUES, contradicts
 from .graph import GraphEdge, GraphNode, TemporalClaimGraph
 from .lineage import SourceIndependenceEngine, SourceRecord
+from .knowledge import knowledge_state, rank_review_actions
 from .service import WorkforceService
 from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
-from .normalization import live_facts as _live_facts
+from .normalization import NORMALIZER_VERSION, recompute_document, live_facts as _live_facts
 
-WORKFLOW_VERSION = "evidence-investigation/1.3.0"
-PARSER_VERSION = "structured-fact/4"
+WORKFLOW_VERSION = "evidence-investigation/1.4.0"
+PARSER_VERSION = NORMALIZER_VERSION
 POLICY_VERSION = "bounded-readonly/1"
 
 
@@ -188,7 +189,14 @@ class InvestigationPipeline:
                     if outcome.get('started_at'):
                         spans.append(TraceSpan(identifier('span', [task.task_id, outcome['source_id']]), task.trace_id, None,
                             SOURCE_TOOLS[outcome['source_id']], outcome['status'], outcome['started_at'], now(), outcome['latency_ms'], ()))
-            evidence = gateway_result['evidence'] if gateway_result else tuple(capture(doc) for doc in collected)
+            # Approved imports cannot omit provider facts or invent extracted
+            # facts. Recompute before capture; live adapters use this same parser.
+            statuses = {o['source_id']: o['status'] for o in outcomes}
+            capture_inputs = tuple(collected)
+            normalized = [recompute_document(d, task.target_entities[0],
+                quarantined=statuses.get(d.source_id) == 'quarantined') for d in collected]
+            collected = [d for d, _ in normalized]
+            evidence = gateway_result['evidence'] if gateway_result else tuple(capture(doc) for doc in capture_inputs)
             if gateway_result:
                 for result_row in gateway_result['results']:
                     item = next((e for e in evidence if e.source_id == result_row['source_id']), None)
@@ -229,6 +237,10 @@ class InvestigationPipeline:
                            "parser_version": PARSER_VERSION, "policy_version": POLICY_VERSION,
                            "worker_version": employee.version, "envelope_digest": row["envelope_digest"],
                            "connector_versions": {d.source_id: 2 if d.source_id == "rdap" else 1 for d in collected},
+                           "normalization": {d.source_id: {"version": NORMALIZER_VERSION, "mode": mode,
+                               "facts_digest": digest([f.to_dict() for f in d.facts]),
+                               "input_facts_digest": digest([f.to_dict() for f in original.facts])}
+                               for (d, mode), original in zip(normalized, capture_inputs)},
                            "source_timestamps": {d.source_id: d.retrieved_at for d in collected},
                            "dataset_versions": {}, "trace_id": task.trace_id,
                            "execution_parameters": {"seed": task.target_entities[0], "budget": task.budget.to_dict()},
@@ -396,12 +408,15 @@ class InvestigationPipeline:
             edge["source_ids"] = sorted({evidence_sources[eid] for eid in edge["evidence_ids"]})
             edge["verification_status"] = edge["uncertainty"]
             edge["confidence"] = None
+        identity_candidates = ([{"seed_id": seed_node, "state": "POSSIBLE_MATCH", "canonical_merge": False,
+            "reason": "case-local seed association does not establish identity"}] if kind in {"person", "company"} else [])
+        knowledge = knowledge_state(claims, decisions, [o.to_dict() for o in observations], gaps=gaps, identity_candidates=identity_candidates)
         return {"observations": [o.to_dict() for o in observations], "claims": claims, "verification": decisions,
                 "source_lineage": [r.to_dict() for r in lineage], "contradictions": conflicts,
                 "timeline": sorted(timeline, key=lambda r:(r["observed_at"], r["observation_id"])),
                 "graph": snapshot, "information_gaps": sorted(gaps), "next_actions": next_actions,
-                "identity_candidates": ([{"seed_id": seed_node, "state": "POSSIBLE_MATCH", "canonical_merge": False,
-                    "reason": "case-local seed association does not establish identity"}] if kind in {"person", "company"} else []),
+                'knowledge_state': knowledge, 'ranked_next_actions': rank_review_actions(next_actions, knowledge),
+                "identity_candidates": identity_candidates,
                 "metrics": {"claims": len(claims), "observations": len(observations),
                     "citation_coverage": 1.0 if claims else None,
                     "supported_claims": sum(r["status"] == "SUPPORTED" for r in decisions),
@@ -415,7 +430,7 @@ class InvestigationPipeline:
     def render_report(product):
         analysis = product["analysis"]
         esc = html.escape
-        lines = ["# TraceAtlas investigation draft", "", "Status: DRAFT — human release required", "",
+        lines = ["# TraceAtlas investigation draft", "", "Status: DRAFT â€” human release required", "",
                  "## Objective", esc(product["objective"]), "", "## Scope and authorization",
                  esc(product["plan"]["seed"]), "Purpose: " + esc(product["authorization"]["lawful_purpose"]), "",
                  "## Methodology", "Bounded capture, typed observations, conservative source lineage, integrity/corroboration review.", "",
@@ -436,6 +451,10 @@ class InvestigationPipeline:
         lines += [f"- {r['observed_at']}: {esc(r['statement'])}; {r['evidence_id']}" for r in analysis["timeline"]]
         lines += ["", "## Contradictions", canonical(analysis["contradictions"]), "", "## Unknowns and information gaps"]
         lines += ["- " + g for g in analysis["information_gaps"]]
+        lines += ['', '## Knowledge state and review priorities',
+                  'Objective completion requires analyst review. Scores are uncalibrated review rules.']
+        lines += ['- ' + esc(a['action_id']) + ': score ' + str(a['score']) + '; evidence: ' + ', '.join(a['evidence_ids'])
+                  for a in analysis['ranked_next_actions']]
         lines += ["", "## Technical appendix and replay", "Workflow: " + WORKFLOW_VERSION,
                   "Analysis SHA-256: " + product["replay_manifest"]["analysis_digest"],
                   "Model: deterministic-no-model; no prompt or model chain-of-thought exists.", "",
@@ -455,15 +474,46 @@ class InvestigationPipeline:
             raise ValueError("replay custody ledger failed integrity validation")
         evidence = tuple(EvidenceObject.from_dict(r) for r in manifest["evidence"])
         documents = []
+        if manifest.get('schema') != 'traceatlas-replay/v1':
+            raise ValueError('replay schema is not supported')
+        if product['task_id'] != task_id or product['case_id'] != task['envelope'].case_id or manifest['trace_id'] != task['envelope'].trace_id:
+            raise ValueError('replay case or trace binding mismatch')
+        if len(evidence) > MAX_DOCUMENTS or len({e.source_id for e in evidence}) != len(evidence):
+            raise ValueError('replay source bounds or uniqueness failed')
+        source_ids = {e.source_id for e in evidence}
+        if any(set(manifest.get(key, {})) != source_ids for key in ('normalization', 'connector_versions', 'source_timestamps')):
+            raise ValueError('replay version/source binding mismatch')
+        statuses = {o['source_id']: o['status'] for o in manifest['source_outcomes']}
         for item in evidence:
             if not self.store.verify_evidence(item):
                 raise ValueError("replay captured evidence failed integrity validation")
             captured = json.loads(Path(item.raw_artifact_pointer).read_text(encoding="utf-8"))
-            if captured["task_id"] != task_id or captured["case_id"] != task["envelope"].case_id or captured["acquisition_id"] != item.acquisition_id:
+            if captured["task_id"] != task_id or captured["case_id"] != task["envelope"].case_id or captured["acquisition_id"] != item.acquisition_id or captured['trace_id'] != manifest['trace_id']:
                 raise ValueError("replay acquisition binding mismatch")
-            documents.append(SourceDocument.from_dict(captured["document"]))
+            if item.parser != 'source-document' or item.parser_version != '1' or item.extractor != 'structured-fact' or item.extractor_version != NORMALIZER_VERSION:
+                raise ValueError('replay evidence parser/extractor version is not supported')
+            version = 2 if item.source_id == 'rdap' else 1
+            if type(manifest['connector_versions'][item.source_id]) is not int or manifest['connector_versions'][item.source_id] != version:
+                raise ValueError('replay connector version is not supported')
+            doc = SourceDocument.from_dict(captured["document"])
+            if doc.source_id != item.source_id or doc.source_uri != item.source_uri or doc.retrieved_at != item.retrieved_at or manifest['source_timestamps'][item.source_id] != item.retrieved_at:
+                raise ValueError('replay source metadata binding mismatch')
+            regenerated, mode = recompute_document(doc, task['envelope'].target_entities[0],
+                quarantined=statuses.get(doc.source_id) == 'quarantined')
+            normalization = manifest['normalization'][doc.source_id]
+            if normalization != {'version': NORMALIZER_VERSION, 'mode': mode,
+                                 'facts_digest': digest([f.to_dict() for f in regenerated.facts]),
+                                 'input_facts_digest': digest([f.to_dict() for f in doc.facts])}:
+                raise ValueError('replay semantic normalization mismatch')
+            documents.append(regenerated)
         analysis = self.analyze(task["envelope"], tuple(documents), evidence, manifest["source_outcomes"])
-        if digest(analysis) != manifest["analysis_digest"]:
+        if digest(analysis) != manifest["analysis_digest"] or digest(analysis) != digest(product['analysis']):
             raise ValueError("replay analysis digest mismatch")
+        if product['report_markdown'] != self.render_report(product):
+            raise ValueError('replay report derivation mismatch')
         return {"task_id": task_id, "verified": True, "requires_network": False,
+                'normalization_contract_verified': True,
+                "semantic_normalization_verified": all(row['mode'] != 'unverified-analyst-assertions' for row in manifest['normalization'].values()),
+                "unverified_assertion_sources": [source for source, row in manifest['normalization'].items()
+                    if row['mode'] == 'unverified-analyst-assertions'],
                 "analysis_digest": digest(analysis), "analysis": analysis}

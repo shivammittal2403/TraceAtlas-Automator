@@ -27,13 +27,18 @@ class Connector(Protocol):
 
 
 class HubConnector:
-    def __init__(self, source, *, requester=None):
+    def __init__(self, source, *, requester=None, authorization_check=None):
         self.source, self.spec = source, SOURCES[source]
         self.definition = manifest(source)
         if not self.definition["execution_path"]:
             raise PolicyError("Candidate has no executable connector")
         self.fixture = requester is not None
-        self.client = ResilientJSONClient(requester or request)
+        transport = requester or request
+        def guarded_request(url, headers, timeout):
+            if authorization_check is not None:
+                authorization_check()
+            return transport(url, headers, timeout)
+        self.client = ResilientJSONClient(guarded_request)
 
     def health(self):
         return {**self.definition["health"], "network_probe": False}

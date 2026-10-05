@@ -161,6 +161,10 @@ class SourceFabricTests(unittest.TestCase):
         from traceatlas.evidence import EvidenceStore
         from traceatlas.source_fabric.store import FabricStore
         store = FabricStore(self.db)
+        submitted = self.root / 'qualification-receipt.json'
+        submitted.write_text('{"receipt":"synthetic case artifact"}', encoding='utf-8')
+        evidence_hash = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(
+            submitted, 'test:qualification')['sha256']
         stamp = datetime.now(timezone.utc).isoformat()
         self.db.conn.execute("INSERT INTO fabric_executions(id,source,case_id,request_hash,authority_hash,status,mode,started_at) VALUES(?,?,?,?,?,'completed','live',?)",
                              ('live-canary', 'dns', 'fabric-case', 'a' * 64, 'b' * 64, stamp))
@@ -169,7 +173,6 @@ class SourceFabricTests(unittest.TestCase):
         for gate in SOURCE_QUALIFICATION_GATES - {'operational_owner'}:
             self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
                                  ('dns', gate, 'fabric-case', 'f' * 64, 'analyst', stamp))
-                                 ('dns', gate, 'fabric-case', 'c' * 64, 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
         self.db.conn.execute("UPDATE fabric_reviews SET evidence_hash=? WHERE source='dns'", (evidence_hash,))
@@ -177,7 +180,6 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(store.states()['dns'], 'LIVE_VERIFIED')
         self.db.conn.execute("INSERT INTO fabric_reviews(source,check_name,case_id,evidence_hash,actor,at) VALUES(?,?,?,?,?,?)",
                              ('dns', 'operational_owner', 'fabric-case', evidence_hash, 'analyst', stamp))
-                             ('dns', 'operational_owner', 'fabric-case', evidence['sha256'], 'analyst', stamp))
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'PRODUCTION_QUALIFIED')
 
@@ -227,7 +229,6 @@ class SourceFabricTests(unittest.TestCase):
         self.db.conn.commit()
         self.assertEqual(store.states()['dns'], 'LIVE_TESTED')
         with self.assertRaisesRegex(PolicyError, 'resolved live-verification reviews required'):
-        with self.assertRaisesRegex(PolicyError, 'canary required'):
             store.promote('dns', 'analyst', self.root, authorized=True)
         # Terms is a live-verification gate; operational_owner is the final
         # production gate. Exercise both rejection boundaries independently.
