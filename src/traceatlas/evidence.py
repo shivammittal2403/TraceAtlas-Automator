@@ -96,11 +96,22 @@ class EvidenceStore:
         previous = "0" * 64
         count = 0
         if not self.ledger.exists():
-            return not bool(self.db.evidence(self.case_id)), 0
+            if self.db.evidence(self.case_id):
+                return False, 0
+            # A missing local case history is not a new case if an independent
+            # checkpoint already exists. Also fail closed on anchor outages.
+            if check_anchor and self.anchor is not None:
+                try:
+                    return self.anchor.current_receipt(self.case_id) is None, 0
+                except Exception:
+                    return False, 0
+            return not (check_anchor and self.require_anchor), 0
         verified_hashes = set()
         try:
             for line in self.ledger.read_text(encoding="utf-8").splitlines():
                 entry = json.loads(line)
+                if not isinstance(entry, dict):
+                    return False, count
                 claimed = entry.pop("entry_hash")
                 if entry.get("previous_hash") != previous:
                     return False, count
@@ -190,7 +201,7 @@ class EvidenceStore:
                 raise ValueError('Evidence changed during export')
             blobs[name] = data
             observations.append({k: entry[k] for k in ('sha256', 'source', 'timestamp')})
-        manifest = {'schema': 'traceatlas-evidence-export/v1', 'case_id': self.case_id,
+        manifest = {'schema': 'traceatlas-evidence-export/v2', 'case_id': self.case_id,
                     'created_at': utc_now(), 'integrity': 'sha256-not-a-digital-signature',
                     'ledger_head': entries[-1]['entry_hash'], 'ledger_entries': count,
                     'observations': observations,
@@ -211,6 +222,10 @@ class EvidenceStore:
         with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr('manifest.json', encoded)
             archive.writestr('manifest.sha256', hashlib.sha256(encoded).hexdigest())
+            # Preserve the exact hashed fields, including original custody paths.
+            # Verifiers treat paths as opaque strings and never access them.
+            archive.writestr('ledger.jsonl', ''.join(
+                json.dumps(entry, sort_keys=True) + '\n' for entry in entries))
             for name, data in blobs.items():
                 archive.writestr(name, data)
         return {'path': str(output), 'sha256': sha256_file(output), 'files': len(blobs), 'ledger_entries': count}
@@ -227,7 +242,9 @@ class EvidenceStore:
                 if hashlib.sha256(encoded).hexdigest() != archive.read('manifest.sha256').decode('ascii'):
                     return False
                 manifest = json.loads(encoded)
-                if manifest['schema'] != 'traceatlas-evidence-export/v1':
+                if not isinstance(manifest, dict) or manifest.get('schema') not in {
+                    'traceatlas-evidence-export/v1', 'traceatlas-evidence-export/v2',
+                }:
                     return False
                 if not isinstance(manifest.get('case_id'), str) or not manifest.get('files'):
                     return False
@@ -243,6 +260,38 @@ class EvidenceStore:
                 if not manifest.get('observations') or any('evidence/' + row['sha256'] not in expected for row in manifest['observations']):
                     return False
                 receipt = manifest.get('anchor_receipt')
+                if manifest['schema'] == 'traceatlas-evidence-export/v2':
+                    expected.add('ledger.jsonl')
+                    previous = '0' * 64
+                    observations = []
+                    lines = archive.read('ledger.jsonl').decode('utf-8').splitlines()
+                    if type(manifest.get('ledger_entries')) is not int or not lines:
+                        return False
+                    for line in lines:
+                        entry = json.loads(line)
+                        if not isinstance(entry, dict):
+                            return False
+                        claimed = entry.pop('entry_hash')
+                        if entry.get('previous_hash') != previous:
+                            return False
+                        canonical = json.dumps(entry, sort_keys=True, separators=(',', ':')).encode()
+                        if hashlib.sha256(canonical).hexdigest() != claimed:
+                            return False
+                        if entry.get('action') == 'preserve':
+                            observations.append({k: entry[k] for k in ('sha256', 'source', 'timestamp')})
+                        elif entry.get('action') != 'anchor_bootstrap':
+                            return False
+                        previous = claimed
+                    if (len(lines) != manifest['ledger_entries']
+                            or previous != manifest.get('ledger_head')
+                            or observations != manifest['observations']
+                            or {row['sha256'] for row in observations}
+                            != {item['sha256'] for item in manifest['files']}):
+                        return False
+                elif receipt is not None or require_anchor:
+                    # V1 exports omitted custody records, so a signed head could
+                    # not authenticate their payload or observation metadata.
+                    return False
                 if require_anchor and receipt is None:
                     return False
                 if receipt is not None:

@@ -88,3 +88,28 @@ semantically supports a claim, or that the source assertion is true. Citation
 quality still requires representative human-labeled evaluation. EVIDENCE-001
 therefore remains OPEN.
 
+
+
+## Bundle v2 and reset protection (2026-10-05)
+
+New exports use `traceatlas-evidence-export/v2` and include `ledger.jsonl`.
+Verification replays every custody hash, checks its final head and entry count,
+compares ordered observation metadata, and requires exact equality between the
+preserved digests and bundled files. Only then is the head checked against the
+anchor receipt. A rewritten payload/manifest checksum cannot reuse the original
+signed head. Original custody paths appear in the bundle as hashed provenance;
+the verifier never opens these paths. Review that metadata before sharing.
+
+V1 unanchored bundles remain readable as legacy checksum-only artifacts. V1
+bundles claiming an anchor are rejected because they lack the custody records
+needed to bind their payload to that receipt. Re-export from the verified
+original case to obtain v2; changing only the schema label is insufficient.
+
+An absent ledger and empty local evidence index count as a new case only when
+the configured external anchor confirms no prior checkpoint. An anchor outage
+or surviving checkpoint causes verification and new capture to fail closed.
+
+A valid older v2 bundle is a historical snapshot, not proof of current state.
+Live case verification checks the latest external receipt. Rolling back both
+the workspace and the external HMAC receipt remains outside this adapter's
+protection and still requires independent monotonic storage.

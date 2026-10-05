@@ -55,6 +55,29 @@ class EvidenceBundleTests(unittest.TestCase):
         self.store.ledger.unlink()
         self.assertEqual(self.store.verify_ledger(), (False, 0))
 
+    def test_legacy_unanchored_bundle_remains_compatible(self):
+        source = self.root / 'source.txt'
+        source.write_bytes(b'fixture')
+        self.store.preserve_file(source, 'fixture')
+        current = self.root / 'current.zip'
+        self.store.export_bundle(current)
+        legacy = self.root / 'legacy.zip'
+        with zipfile.ZipFile(current) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist() if name != 'ledger.jsonl'}
+        manifest = json.loads(parts['manifest.json'])
+        manifest['schema'] = 'traceatlas-evidence-export/v1'
+        parts['manifest.json'] = json.dumps(manifest).encode()
+        parts['manifest.sha256'] = hashlib.sha256(parts['manifest.json']).hexdigest().encode()
+        with zipfile.ZipFile(legacy, 'w') as archive:
+            for name, data in parts.items():
+                archive.writestr(name, data)
+        self.assertTrue(EvidenceStore.verify_bundle(legacy))
+        self.assertFalse(EvidenceStore.verify_bundle(legacy, require_anchor=True))
+
+    def test_non_object_ledger_entries_fail_closed(self):
+        self.store.ledger.write_text('[]\n')
+        self.assertEqual(self.store.verify_ledger(), (False, 0))
+
     def test_wrong_target_never_becomes_evidence(self):
         hub = IntelligenceHub(self.db, self.root, requester=lambda *_: (200, b'{"ip":"1.1.1.1"}'))
         with self.assertRaisesRegex(ProviderError, 'target_mismatch'):
