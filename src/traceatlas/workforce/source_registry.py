@@ -170,10 +170,8 @@ class SourceRegistry:
         return True
 
     def lifecycle_counts(self):
-        counts = {state: 0 for state in STATES}
-        for item in self._sources.values():
-            counts[normalize_maturity(item.implementation_status)] += 1
-        return counts
+        from ..source_maturity import maturity_counts
+        return maturity_counts(item.implementation_status for item in self._sources.values())
 
     def live_integrations(self):
         """Only LIVE_VERIFIED and PRODUCTION_QUALIFIED sources count as live."""

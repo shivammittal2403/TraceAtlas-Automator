@@ -162,10 +162,10 @@ class SourceFabricTests(unittest.TestCase):
         from traceatlas.source_fabric.store import FabricStore
         store = FabricStore(self.db)
         stamp = datetime.now(timezone.utc).isoformat()
-        submitted = self.root / 'qualification-receipt.json'
-        submitted.write_text('{"receipt":"controlled synthetic qualification"}', encoding='utf-8')
+        submitted = self.root / 'legacy-review-receipt.json'
+        submitted.write_text('{"receipt":"synthetic qualification evidence"}', encoding='utf-8')
         evidence_hash = EvidenceStore(self.root, self.db, 'fabric-case').preserve_file(
-            submitted, 'test:qualification')['sha256']
+            submitted, 'test:qualification-review')['sha256']
         self.db.conn.execute("INSERT INTO fabric_executions(id,source,case_id,request_hash,authority_hash,status,mode,started_at) VALUES(?,?,?,?,?,'completed','live',?)",
                              ('live-canary', 'dns', 'fabric-case', 'a' * 64, 'b' * 64, stamp))
         self.db.conn.execute("INSERT INTO fabric_promotions(source,state,actor,at) VALUES(?,?,?,?)",
