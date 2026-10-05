@@ -1,0 +1,86 @@
+{
+  "base_sha": "f30ba40a6dd51978c2072391081b8d159c16014a",
+  "branch": "codex/qualification-receipts-20261005",
+  "browser_fixture_flow": "PASS",
+  "compileall": "PASS",
+  "controlled_packs": {
+    "core": {
+      "passed": 12,
+      "total": 12
+    },
+    "enterprise": {
+      "completed_drafts": 105,
+      "metrics": {
+        "contract_pass_rate": 1.0,
+        "entity_precision_recall": null,
+        "median_duration_ms": 282.0,
+        "model_requests": 0,
+        "network_requests": 0,
+        "p95_duration_ms": 578.0,
+        "real_world_factual_accuracy": null,
+        "replay_success_rate": 1.0,
+        "source_qualification": "not-evaluated"
+      },
+      "passed": 112,
+      "scope_rejections": 7,
+      "total": 112
+    },
+    "source_fabric": {
+      "passed": 78,
+      "total": 78
+    }
+  },
+  "diff_check": "PASS",
+  "enterprise_score": "NOT_ESTABLISHED",
+  "initial_base_sha": "e1be48a8caec8ca5352801355223d1d5da899188",
+  "limitations": [
+    "Trusted local operator attestations; reviewer identity and assertion truth are not independently established.",
+    "Raw-withheld responses cannot pass runtime receipts; safe normalization proof remains open.",
+    "No source rights, live qualification, representative accuracy, staging or production claim.",
+    "Hosted CI/CodeQL on the proposed commit must be checked separately."
+  ],
+  "live_sources_tested": [],
+  "live_verified_sources": 0,
+  "log_sha256": "f6267eca7932d6173bdb3c789f3e7d9ee309420f9998caea49b7ba7f5bac9826",
+  "node_graph_target": {
+    "failed": 0,
+    "passed": 25
+  },
+  "pglite": {
+    "failed": 0,
+    "passed": 1
+  },
+  "production_qualified_sources": 0,
+  "python": {
+    "failed": 0,
+    "passed": 436,
+    "run": 439,
+    "seconds": 151.614,
+    "skipped": 3
+  },
+  "qualification_exploit": {
+    "after_promotion": "REJECTED",
+    "after_unrelated_reviews_accepted": 0,
+    "before_promotion": "PRODUCTION_QUALIFIED",
+    "before_unrelated_reviews_accepted": 26,
+    "synthetic_only": true
+  },
+  "representative_golden_cases": 0,
+  "schema": "traceatlas-qualification-repair-verification/v1",
+  "secret_scan": "PASS",
+  "source_file_sha256": {
+    "src/traceatlas/source_fabric/cli.py": "a733ef93ae51bf5c7f62f272e53e4ac4d48e1666baa42558d05aa53f4b4a1427",
+    "src/traceatlas/source_fabric/gateway.py": "91dbce56383da2b93f2a17b861f348adb45ff1374c098e5d3c88cf14ef918a98",
+    "src/traceatlas/source_fabric/portfolio.py": "b8dbbbae39301ddc78875c4c17fe940e4e034da9b2a0f455a347dd9cc4ec9685",
+    "src/traceatlas/source_fabric/review_receipts.py": "978d96f61887c2ccbe493b0de7f27e73d2a58ae4d14ddf5eb5cdbcc1fed3a717",
+    "src/traceatlas/source_fabric/store.py": "c7e7fd0ba8f000c00efde5f45bc31fde5c759245a4b647a58fabe161055b4227",
+    "src/traceatlas/workforce/source_registry.py": "8b6fdc12ce251d5c46ed0919da91ee23b83182ba46e2d86bdfb77e02a682826e",
+    "tests/qualification_fixtures.py": "98f4306c4ae9aa081b3890bab66a6d7401bace3c1e682da559c7214e48a071d0",
+    "tests/test_employee_source_fabric.py": "71acbfb7c7dfe3957ca3afa1282b0db09bab8a05794e083a43667004f8c0357e",
+    "tests/test_qualification_receipts.py": "5e38f3fe1af16fb070cd3b891bb0f9fe864618c7d727182c33c6149b0b4b230b",
+    "tests/test_repository_contract_integrity.py": "a456b3fee4e98c934bf180df5a25aec51cade92f8573f8c1bb67436b19303242",
+    "tests/test_source_fabric.py": "6904a50c86222cdcbf6d4d9b13f672d7b80280b4ebe16f7df076b456777944c0",
+    "tests/test_source_portfolio.py": "57b53c1d91c7bc906063eb16bd0fc2f4b08bb0798fdccab338718ee477f71633"
+  },
+  "validation_log": "qualification-publish-full.log (retained in session outputs)"
+}

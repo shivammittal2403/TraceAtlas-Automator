@@ -47,13 +47,21 @@ def add_fabric_parser(sub):
     plan.add_argument("--language")
     for key in sorted(ATTESTATIONS):
         plan.add_argument("--"+key.replace("_", "-"), action="store_true")
-    review = commands.add_parser("review", help="Record an analyst check with existing case evidence")
+    review = commands.add_parser("review", help="Record a source-bound qualification receipt")
     review.add_argument("--source", required=True, choices=sorted(SOURCES))
     review.add_argument("--check", required=True, choices=sorted(QUALIFICATION_CHECKS))
     review.add_argument("--case", required=True)
-    review.add_argument("--evidence-hash", required=True)
+    review_input = review.add_mutually_exclusive_group(required=True)
+    review_input.add_argument("--evidence-hash", help="Hash of a receipt already in case custody")
+    review_input.add_argument("--receipt", type=Path, help="Preserve a completed receipt before review")
     review.add_argument("--actor", required=True)
     review.add_argument("--authorized", action="store_true")
+    template = commands.add_parser("review-template", help="Create an incomplete source-bound review form")
+    template.add_argument("--source", required=True, choices=sorted(SOURCES))
+    template.add_argument("--check", required=True, choices=sorted(QUALIFICATION_CHECKS))
+    template.add_argument("--case", required=True)
+    template.add_argument("--actor", required=True)
+    template.add_argument("--runtime-id", required=True)
     promotion = commands.add_parser("promote")
     promotion.add_argument("--source", required=True, choices=sorted(SOURCES))
     promotion.add_argument("--actor", required=True)
@@ -118,8 +126,21 @@ def run_fabric(args, engine):
         return SourceRouter(engine.db).plan(args.objective, kind, target,
             {key: getattr(args, key) for key in ATTESTATIONS}, country=args.country, language=args.language)
     if args.fabric_command == "review":
-        store.review(args.source, args.check, args.case, args.evidence_hash, args.actor, engine.workspace, args.authorized)
-        return {"source": args.source, "review_recorded": args.check, "production_promoted": False}
+        evidence_hash = args.evidence_hash
+        if args.receipt:
+            from ..evidence import EvidenceStore
+            from .review_receipts import MAX_RECEIPT_BYTES
+            if args.authorized is not True:
+                raise PolicyError("Explicit analyst authority is required before preserving a review receipt")
+            if not args.receipt.is_file() or args.receipt.stat().st_size > MAX_RECEIPT_BYTES:
+                raise PolicyError("Review receipt must be a file up to 64 KiB")
+            evidence_hash = EvidenceStore(engine.workspace, engine.db, args.case).preserve_file(
+                args.receipt, "source-qualification:" + args.source + ":" + args.check)["sha256"]
+        store.review(args.source, args.check, args.case, evidence_hash, args.actor, engine.workspace, args.authorized)
+        return {"source": args.source, "review_recorded": args.check, "evidence_hash": evidence_hash, "production_promoted": False}
+    if args.fabric_command == "review-template":
+        from .review_receipts import review_template
+        return review_template(args.source, args.check, args.case, args.actor, args.runtime_id)
     if args.fabric_command == "promote":
         return store.promote(args.source, args.actor, engine.workspace, args.authorized)
     if args.opencti:

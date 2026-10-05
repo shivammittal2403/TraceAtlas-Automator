@@ -117,18 +117,22 @@ class PortfolioTests(unittest.TestCase):
 
     def test_governed_count_and_planning_require_resolved_reviews(self):
         from traceatlas.evidence import EvidenceStore
+        from qualification_fixtures import make_receipt
         self.db.create_case('review-case', 'Synthetic metadata reviews', 'Controlled test')
         artifact = Path(self.tmp.name) / 'review.json'
         artifact.write_text('{"synthetic_metadata_review":true}', encoding='utf-8')
         preserved = EvidenceStore(Path(self.tmp.name), self.db, 'review-case').preserve_file(artifact, 'synthetic review')
+        receipts = {check: make_receipt(Path(self.tmp.name), self.db, 'nvd', check, 'review-case',
+                    actor='fixture reviewer', supporting=[preserved['sha256']])[0]
+                    for check in ('documentation', 'manifest', 'terms', 'license', 'privacy')}
         row = {**candidate('nvd'), 'official_documentation': 'https://nvd.nist.gov/developers/vulnerabilities',
-               'documentation_evidence': {'case_id': 'review-case', 'sha256': preserved['sha256']},
+               'documentation_evidence': {'case_id': 'review-case', 'sha256': receipts['documentation']},
                'unique_value': 'Synthetic unique-value declaration', 'PII_risk': 'LOW',
                'estimated_cost': 0, 'estimated_latency_ms': 50}
         self.portfolio.import_records([row])
         self.assertEqual(self.portfolio.report()['counts']['governed'], 0)
         for check in ('documentation', 'manifest', 'terms', 'license', 'privacy'):
-            self.portfolio.fabric.review('nvd', check, 'review-case', preserved['sha256'],
+            self.portfolio.fabric.review('nvd', check, 'review-case', receipts[check],
                                          'fixture reviewer', Path(self.tmp.name), authorized=True)
         report = self.portfolio.report()
         self.assertEqual(report['counts']['governed'], 1)

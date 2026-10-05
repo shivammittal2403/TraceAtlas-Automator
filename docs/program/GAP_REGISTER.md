@@ -1,5 +1,66 @@
 # Enterprise transformation gap register
 
+## Qualification receipt and merge repair — 2026-10-05
+
+Current checked base: `f30ba40a6dd51978c2072391081b8d159c16014a`; branch `codex/qualification-receipts-20261005`; version `1.11.0`.
+CODED and locally TESTED: typed source/check/case/actor/runtime review receipts,
+supporting-artifact and custody resolution, expiry/code binding, captured dispatch
+code/runtime identity, cache partitioning, failed-review supersession and explicit
+promotion bound to the exact receipt set. Unrelated artifact acceptance: 26/26
+before, 0/26 after; synthetic false production promotion now rejects.
+
+Current main integration had three registry copies, three shadowing source-test
+classes and overlapping gateway authority/fetch code. Consolidated them while
+preserving every distinct test, shared 26-gate policy, ConnectorFactory, request
+revocation/retry/RDAP checks, semantic replay and custody anchoring. Added a
+regression that detects duplicate critical definitions and hidden tests.
+
+Actual final local verification: 439 Python run / 436 pass / 3 optional skips;
+Node graph/target 25/25; PGlite 1/1; browser fixture flow, compileall, secret scan
+and diff checks PASS. Controlled packs: core 12/12, source 78/78, enterprise
+112/112 (105 drafts/replays, seven scope rejects). These are synthetic contracts,
+not representative field accuracy. No live source/model request or source
+promotion; 0 live-verified / 0 production-qualified in this clean audit workspace.
+51 registered metadata sources / 37 coded shared API adapters; neither is a
+qualified integration count. Enterprise category/weighted scores NOT ESTABLISHED.
+Hosted CI/CodeQL on this proposed branch are a separate pending gate.
+
+The full employee/platform objective remains active. Next: raw-to-normalized
+replay; independently governed reviewers/source-specific assertions; IAM and
+retention; representative ER/SOCMINT/multilingual evaluation; official India
+source research and qualification. Staging, entitlements, approved expert labels
+and independent security review need actual operator inputs. Other engineering
+is OPEN, not bulk-blocked. See `docs/SOURCE_REVIEW_RECEIPTS.md`,
+`docs/program/SESSION_REPORT_2026-10-05_RECEIPTS.md` and the hash-bound receipt
+`docs/verification/source-review-receipts-2026-10-05.json`.
+
+Earlier checkpoints below are historical and do not certify the current tree.
+
+## SRC-REVIEW-002 — qualification receipt semantics
+
+- Domain / severity: source integrity and authorization, P0.
+- Current / target maturity: CODED and locally TESTED; independent intended-runtime
+  validation and substantive source qualification remain OPEN.
+- Root cause: a preserved artifact hash established custody membership but did
+  not bind the artifact to the source, gate, reviewer, implementation or runtime.
+- Investigation / security impact: one unrelated artifact could satisfy all 26
+  gates and label a synthetic execution production-qualified.
+- Fix / files: typed receipts in source_fabric/review_receipts.py; revalidation and
+  frozen promotion in store.py; dispatch/cache binding in gateway.py; CLI and
+  portfolio validation. Legacy hash-only rows confer no gate credit.
+- Acceptance: reject unrelated, tampered, expired, superseded, cross-case,
+  cross-source, wrong-runtime and wrong-code receipts; require preserved live
+  execution bytes for runtime checks; require explicit same-runtime promotion.
+- Evidence / metric: tests/test_qualification_receipts.py and
+  docs/verification/source-review-receipts-2026-10-05.json; 26/26 unrelated
+  reviews accepted before, 0/26 after; false promotion rejects; 439 Python tests
+  run, 436 pass and three optional skips on the publish tree.
+- Status / verification: local acceptance PASS; hosted CI/CodeQL and CODEOWNERS
+  review are separate gates. Branch codex/qualification-receipts-20261005.
+- Dependency / limitation: trusted local reviewer identity, attestation truth,
+  sustained canary coverage, entitlements and raw-withheld replay still need
+  substantive proofs. This repair does not qualify any actual source.
+
 Updated: 2026-10-04. Gaps remain open until their acceptance criteria pass.
 
 | ID | Title / domain | Severity | Current state and root cause | Impact | Dependencies | Acceptance criteria / metric | Status |

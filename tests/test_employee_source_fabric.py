@@ -94,6 +94,7 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_parallel_transport_serial_custody_and_raw_replay(self):
+        from traceatlas.source_fabric.review_receipts import implementation_digest, execution_runtime_id
         barrier = threading.Barrier(2)
         original = self.request
         def parallel_request(*args):
@@ -111,6 +112,10 @@ class SourceFabricTests(unittest.TestCase):
         self.assertEqual(verify_replay(Path(exported['directory']))['status'], 'verified')
         self.assertEqual(audit(self.db)['live_verified'], 0)  # Fixture success never counts as live.
         self.assertGreater(result['elapsed'], 0)
+        for action in result['actions']:
+            if action['state'] == 'completed':
+                self.assertEqual(action['outcome']['implementation_sha256'], implementation_digest(action['outcome']['source']))
+                self.assertEqual(action['outcome']['runtime_id'], execution_runtime_id())
 
     def test_same_case_cache_reuses_preserved_evidence(self):
         first = self.run_case(self.create())
@@ -122,6 +127,28 @@ class SourceFabricTests(unittest.TestCase):
                             for a in second['actions'] if a['state'] == 'skipped'))
         self.assertEqual(first['report']['evidence'][0]['content_hash'], second['report']['evidence'][0]['content_hash'])
         self.assertEqual(FabricStore(self.db).metrics()['source_actions'], 0)
+
+    def test_runtime_change_invalidates_cache_and_is_recorded(self):
+        with patch.dict('os.environ', {'TRACEATLAS_RUNTIME_ID': 'synthetic-first'}):
+            self.run_case(self.create('Review DNS'))
+        count = len(self.calls)
+        with patch.dict('os.environ', {'TRACEATLAS_RUNTIME_ID': 'synthetic-second'}):
+            result = self.run_case(self.create('Review DNS'))
+        self.assertGreater(len(self.calls), count)
+        self.assertTrue(all(a['outcome']['runtime_id'] == 'synthetic-second'
+                            for a in result['actions'] if a['state'] == 'completed'))
+
+    def test_runtime_change_during_transport_blocks_evidence_promotion(self):
+        import os
+        def change_runtime(*args):
+            response = self.request(*args)
+            os.environ['TRACEATLAS_RUNTIME_ID'] = 'synthetic-changed'
+            return response
+        self.employee.fabric_requester = change_runtime
+        with patch.dict('os.environ', {'TRACEATLAS_RUNTIME_ID': 'synthetic-start'}):
+            result = self.run_case(self.create('Review DNS', max_actions=1))
+        self.assertEqual(result['actions'][0]['state'], 'failed')
+        self.assertEqual(result['report']['raw_evidence'], [])
 
     def test_fallback_only_after_failure_and_stops_when_gap_is_filled(self):
         original = self.request
