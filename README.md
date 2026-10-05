@@ -1,5 +1,7 @@
 # TraceAtlas Automator
 
+Current package and console version: **1.11.0**.
+
 Evidence-first OSINT investigation workflows with analyst-controlled authorization, bounded public-source collection, immutable evidence capture, cited observations, and offline replay.
 
 TraceAtlas helps investigators organize approved research. It does not turn an AI model into an unrestricted operator: each collection run is scoped to an analyst-approved case and target, and consequential decisions remain with a human.

@@ -17,7 +17,7 @@ The earlier AI Employee repair and live-source work remain in the canonical runn
 | Schema/health/failure recovery | Quarantine, circuits, telemetry, explicitly approved fresh canary | Sustained intended-runtime canaries and provider reset headers |
 | Stable source MCP tools | Six stdio capabilities; required case/task/authority/trace/scope; real SDK wire test | Hosted authenticated transport is not deployed |
 | Tests/golden cases | 78 controlled source scenarios plus cache, price, scope, parallelism, drift and MCP regressions | These are adapter scenarios, not 78 independent real-world investigations |
-| Qualification status | Twenty evidence-reference gates; zero production-qualified claims | Commercial terms, credentials and intended-runtime approval |
+| Qualification status | Twenty-six evidence-reference gates; zero production-qualified claims | Commercial terms, credentials and intended-runtime approval |
 | Phase A: twenty-six P0 connectors | CODED and fixture TESTED; selected real-response checks | Direct runtime and keyed services need live acceptance |
 | Phases B–F: 50/100/200/400+, marketplace | Discovery queue and scalable contract established | Not completed; no count inflation or placeholder live adapters |
 | Final company-investigation acceptance | Exact-identifier registry/filing/code-record subset, draft, gaps and replay | Ownership/sanctions/procurement cross-source investigation is incomplete |
@@ -26,3 +26,19 @@ The earlier AI Employee repair and live-source work remain in the canonical runn
 No claim is made that this release fulfills every production objective in either
 master brief. It implements their first executable wave and names the remaining
 runtime, entitlement, coverage and quality gates explicitly.
+
+## Main CI and release repair — 2026-10-05
+
+Baseline main: `5ad16f01d4e3916dc6f40591c8fcbef2c14c88b8`.
+Receipt: [release-repair-2026-10-05.json](../verification/release-repair-2026-10-05.json).
+
+| Problem | Implementation | Test state | Live/hosted state | Blocker / next action |
+|---|---|---|---|---|
+| CI-01: duplicated source qualification merge fragments | Repaired syntax, overwritten prerequisites and synthetic artifact setup; all 26 final gates retained | FIXTURE_VERIFIED, including missing-capability/authentication and unresolved/stale review rejection | No new source qualification | Verify CI/CodeQL on the published commit |
+| BUILD-01: package 1.11.0 vs Vercel API/footer 1.8.0 | Version aligned; bounded commit/repository/deployment metadata added | Six new negative/identity/readiness tests pass | Hosted build identity NOT_VERIFIED | Inspect health and deployment API after authorized staging |
+| READINESS-01: static checks/worker requirement presented as hosted proof | Separate configuration fields; worker unknown; production qualification false | FIXTURE_VERIFIED | Hosted Auth/JWT/worker/recovery NOT_VERIFIED | Execute approved staging harness with isolated resources |
+| DEPLOY-01: no Automator Vercel repository link | Dedicated release proposal documented | Read-only team/Git inventory checked | BLOCKED; no matching project | Resolve staging authority/resources and team plan limits; preserve other repository's project |
+
+This repair does not close the broader source, enterprise or competitive outcome
+gates. No provider collection, hosted database write, promotion or deployment is
+performed. The receipt distinguishes local skips/blocked checks from remote CI.

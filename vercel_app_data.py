@@ -6,10 +6,40 @@ browser fills locally after validating the operator's input.
 
 from __future__ import annotations
 
+import os
+import re
 from typing import Any
 
 
-VERSION = "1.8.0"
+VERSION = "1.11.0"
+CANONICAL_REPOSITORY = "shivammittal2403/TraceAtlas-Automator"
+
+
+def build_identity() -> dict[str, Any]:
+    """Report bounded Vercel metadata; absent values stay unknown, never main."""
+    sha = os.environ.get("VERCEL_GIT_COMMIT_SHA", "")
+    owner = os.environ.get("VERCEL_GIT_REPO_OWNER", "")
+    repo = os.environ.get("VERCEL_GIT_REPO_SLUG", "")
+    observed_repository = None
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,100}", owner) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", repo):
+        observed_repository = f"{owner}/{repo}"
+    commit_sha = sha.lower() if re.fullmatch(r"[a-fA-F0-9]{40}", sha) else None
+    deployment_id = os.environ.get("VERCEL_DEPLOYMENT_ID", "")
+    environment = os.environ.get("VERCEL_ENV", "")
+    link_state = "NOT_VERIFIED"
+    if observed_repository:
+        link_state = "MATCH" if observed_repository.casefold() == CANONICAL_REPOSITORY.casefold() else "MISMATCH"
+    return {
+        "schema": "traceatlas.build/v1", "version": VERSION,
+        "expected_repository": CANONICAL_REPOSITORY,
+        "observed_repository": observed_repository, "repository_link": link_state,
+        "commit_sha": commit_sha,
+        "deployment_id": deployment_id if re.fullmatch(r"dpl_[A-Za-z0-9]{1,100}", deployment_id) else None,
+        "environment": environment if environment in {"production", "preview", "development"} else "UNKNOWN",
+        "metadata_source": "vercel_system_environment" if commit_sha else "NOT_AVAILABLE",
+    }
+
+
 TARGET_TYPES = ("domain", "ip", "url", "email", "username", "hash")
 ENGINES = ("fusion", "traceatlas", "openosint")
 
