@@ -1,0 +1,99 @@
+{
+  "base_sha": "5dda70b6b95741227dfc55f51fe1b63fee6c1398",
+  "branch": "codex/qualification-custody-integration-20261006",
+  "browser_fixture_flow": "PASS",
+  "clean_audit_counts": {
+    "implemented_api_connectors": 37,
+    "live_verified": 0,
+    "production_qualified": 0,
+    "source_records": 51
+  },
+  "compileall": "PASS",
+  "controlled_packs": {
+    "core": {
+      "passed": 12,
+      "total": 12
+    },
+    "enterprise": {
+      "completed_drafts": 105,
+      "expected_rejections": 7,
+      "metrics": {
+        "contract_pass_rate": 1.0,
+        "entity_precision_recall": null,
+        "median_duration_ms": 203.0,
+        "model_requests": 0,
+        "network_requests": 0,
+        "p95_duration_ms": 250.0,
+        "real_world_factual_accuracy": null,
+        "replay_success_rate": 1.0,
+        "source_qualification": "not-evaluated"
+      },
+      "passed": 112,
+      "total": 112
+    },
+    "source": {
+      "passed": 78,
+      "total": 78
+    }
+  },
+  "enterprise_score": "NOT_ESTABLISHED",
+  "limitations": [
+    "Local trusted operator assertions do not authenticate reviewer identity or assertion truth.",
+    "No intended-runtime staging, independent security review or production qualification.",
+    "New proposed-head hosted CI and CodeQL are separate gates.",
+    "Actual raw privacy-withheld replay remains OPEN."
+  ],
+  "live_sources_tested": [],
+  "live_verified": 0,
+  "log_sha256": "b57cf82d08388ab3e9b252b51d01801ca5617cb63feef025e102c370e6080407",
+  "node_graph_target_database": {
+    "failed": 0,
+    "passed": 26,
+    "run": 26
+  },
+  "previous_pr": {
+    "ci": "FAIL",
+    "ci_run": 37341272437,
+    "codeql": "PASS",
+    "codeql_run": 37341272586,
+    "externally_integrated_head": "ccd91a7db29a245ad0b23b40817edf6677c69b84",
+    "merged_sha": "5dda70b6b95741227dfc55f51fe1b63fee6c1398",
+    "number": 65,
+    "tested_original_head": "f4a8bce75e341a82d0be4945eaa031e0af6e1042"
+  },
+  "production_qualified": 0,
+  "python": {
+    "failed": 0,
+    "passed": 476,
+    "run": 479,
+    "seconds": 238.108,
+    "skipped": 3
+  },
+  "python_structure": {
+    "files": 214,
+    "result": "PASS"
+  },
+  "representative_golden_cases": 0,
+  "reproduced_main_errors": [
+    "gateway.py:217: misplaced future import in concatenated module",
+    "store.py:96: incomplete promotion conditional plus shadowed custody helper"
+  ],
+  "schema": "traceatlas-qualification-integration-verification/v1",
+  "secret_scan": "PASS",
+  "source_file_sha256": {
+    "scripts/check_python_structure.py": "309a1da3a3125dc1916735e872415fd32c6183f244ea634801b77db636643d7f",
+    "src/traceatlas/cli.py": "aa237147dd74b4284f4c77576711374cc2e2188ccd792a9d5c649b2a4f712748",
+    "src/traceatlas/maturity.py": "7579e84ea73b928eda470956c989afdb4c02c26a61d174892357ec4f7bc328ee",
+    "src/traceatlas/source_fabric/cli.py": "a733ef93ae51bf5c7f62f272e53e4ac4d48e1666baa42558d05aa53f4b4a1427",
+    "src/traceatlas/source_fabric/gateway.py": "1d3325b83e8921ef963a79f7764eac9d44222253b433ec308123a62820b35a9d",
+    "src/traceatlas/source_fabric/portfolio.py": "b8dbbbae39301ddc78875c4c17fe940e4e034da9b2a0f455a347dd9cc4ec9685",
+    "src/traceatlas/source_fabric/review_receipts.py": "ebc7978a7dfbaeab2ad96c4b722c698bf0c3c711bbec8f7f1c9b49f4f745eff0",
+    "src/traceatlas/source_fabric/store.py": "afb5822923e20d536c67e8dc8414f36630088b8d5648f89bc01f1984be5d584a",
+    "src/traceatlas/workforce/source_registry.py": "8b6fdc12ce251d5c46ed0919da91ee23b83182ba46e2d86bdfb77e02a682826e",
+    "tests/test_fabric_gateway_authority.py": "b0595246c2396152fda9e4f0a8b2cafa02a4efab168d5aa9a87ef8fd33754b99",
+    "tests/test_qualification_custody.py": "415fdc851390052576d4ac25b25d81b4aad8057eb7e961c87ff3e3bb39a00f22",
+    "tests/test_qualification_receipts.py": "5e38f3fe1af16fb070cd3b891bb0f9fe864618c7d727182c33c6149b0b4b230b",
+    "tests/test_repository_contract_integrity.py": "a456b3fee4e98c934bf180df5a25aec51cade92f8573f8c1bb67436b19303242",
+    "tests/test_source_fabric.py": "6904a50c86222cdcbf6d4d9b13f672d7b80280b4ebe16f7df076b456777944c0"
+  }
+}

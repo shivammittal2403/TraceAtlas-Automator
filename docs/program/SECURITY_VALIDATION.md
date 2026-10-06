@@ -1,5 +1,33 @@
 # Security validation ledger
 
+## Receipt/custody integration repair — 2026-10-06
+
+Base: `5dda70b6b95741227dfc55f51fe1b63fee6c1398`; branch
+`codex/qualification-custody-integration-20261006`. PR #65 was integrated and
+merged externally as `5dda70b`; its CI failed with a concatenated gateway module
+and malformed store promotion branch. Its CodeQL pass does not establish runtime health.
+
+The combined repair retains typed 26-gate receipts, code/runtime/cache binding,
+frozen explicit promotion and current canary/review custody revalidation.
+Custody is checked once per case within each projection and rechecked on the
+next read. Latest invalid/FAIL/expired reviews never fall back to older passes.
+Canonical factory, transport revocation, ER evaluation intake and honest maturity
+outputs remain. Generic artifacts in custody tests are replaced with typed
+synthetic receipts; no actual source is thereby qualified.
+
+Local verification: 479 Python run, 476 pass, three optional skips (238.108s);
+Node graph/target/database 26 pass; browser fixture flow, compilation, secret
+scan and 214-file Python structure checks PASS. No live provider/model request,
+source promotion or deployment by this session. Zero actual LIVE_VERIFIED and
+PRODUCTION_QUALIFIED in the clean audit workspace; representative golden cases
+0; Enterprise 8/10 score NOT ESTABLISHED. Proposed-head hosted checks are pending.
+See `docs/verification/qualification-custody-integration-2026-10-06.json`.
+
+The full employee objective remains active. Next: raw-to-normalized source
+replay, governed reviewer IAM, representative evaluation, retention/tenant
+isolation and official India source coverage. Earlier records below are
+historical and do not certify this tree.
+
 ## Qualification receipt and merge repair — 2026-10-05
 
 Current checked base: `f30ba40a6dd51978c2072391081b8d159c16014a`; branch `codex/qualification-receipts-20261005`; version `1.11.0`.
