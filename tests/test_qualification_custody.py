@@ -9,6 +9,7 @@ from traceatlas.evidence import EvidenceStore
 from traceatlas.policy import PolicyError
 from traceatlas.source_fabric.store import FabricStore, utc
 from traceatlas.source_maturity import SOURCE_QUALIFICATION_GATES
+from qualification_fixtures import make_receipt
 
 
 class QualificationCustodyTests(unittest.TestCase):
@@ -28,9 +29,17 @@ class QualificationCustodyTests(unittest.TestCase):
             "(id,source,case_id,request_hash,authority_hash,status,mode,started_at) "
             "VALUES('synthetic','dns','canary','a','b','completed','live',?)", (utc(),))
         self.db.conn.commit()
-        for gate in SOURCE_QUALIFICATION_GATES:
-            self.store.review('dns', gate, 'review', self.review['sha256'],
+        for gate in sorted(SOURCE_QUALIFICATION_GATES):
+            evidence_hash, _ = make_receipt(self.root, self.db, 'dns', gate, 'review',
+                actor='test-operator', supporting=[self.review['sha256']]) if gate not in {
+                    'live_request', 'canary', 'intended_runtime'} else make_receipt(
+                        self.root, self.db, 'dns', gate, 'review', actor='test-operator')
+            self.store.review('dns', gate, 'review', evidence_hash,
                               'test-operator', self.root, authorized=True)
+        # The latest canary is a distinct case from the reviewed execution;
+        # corruption in either trust boundary must revoke the projection.
+        self.db.conn.execute("UPDATE fabric_executions SET started_at=? WHERE id='synthetic'", (utc(),))
+        self.db.conn.commit()
         self.store.promote('dns', 'test-operator', self.root, authorized=True)
 
     def preserve(self, case):

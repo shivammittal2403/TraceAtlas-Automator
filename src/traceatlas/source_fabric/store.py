@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import hashlib
-from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -77,14 +76,12 @@ class FabricStore:
                 continue
             seen.add(r["source"])
             if r["status"] == "completed" and not r["drift"]:
-                groups[r["source"]] = self._review_groups(r["source"])
-                result[r["source"]] = "LIVE_VERIFIED" if any(
-                    LIVE_VERIFICATION_GATES.issubset(checks) for checks in groups[r["source"]].values()) else "LIVE_TESTED"
                 if self._verified_case_hashes(r["case_id"], workspace, verified_cases) is None:
                     result[r["source"]] = "DEGRADED"
                     continue
-                checks = self._resolved_checks(r["source"], workspace, verified_cases)
-                result[r["source"]] = "LIVE_VERIFIED" if LIVE_VERIFICATION_GATES.issubset(checks) else "LIVE_TESTED"
+                groups[r["source"]] = self._review_groups(r["source"], workspace, verified_cases)
+                result[r["source"]] = "LIVE_VERIFIED" if any(
+                    LIVE_VERIFICATION_GATES.issubset(checks) for checks in groups[r["source"]].values()) else "LIVE_TESTED"
             elif r["status"] == "failed" or r["drift"]:
                 result[r["source"]] = "DEGRADED"
         for r in self.db.conn.execute("SELECT * FROM fabric_promotions"):
@@ -93,24 +90,6 @@ class FabricStore:
             elif r["state"] == "PRODUCTION_QUALIFIED" and result.get(r["source"]) == "LIVE_VERIFIED" and r["at"] > cutoff:
                 checks = groups[r["source"]].get(r["runtime_id"], {})
                 if QUALIFICATION_CHECKS.issubset(checks) and self._review_digest(checks) == r["review_digest"]:
-                review_cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
-                reviews = list(self.db.conn.execute(
-                    "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?",
-                    (r["source"], review_cutoff)))
-                # Recheck the current checklist so older promotions cannot survive
-                # a qualification-policy expansion on their previous evidence set.
-                # Also fail closed if a legacy/direct database row cites no artifact.
-                reviewed = {row["check_name"] for row in reviews}
-                evidence_by_case = {}
-                refs_resolve = True
-                for row in reviews:
-                    case_id = row["case_id"]
-                    if case_id not in evidence_by_case:
-                        evidence_by_case[case_id] = self._verified_case_hashes(case_id, workspace, verified_cases)
-                    if evidence_by_case[case_id] is None or row["evidence_hash"] not in evidence_by_case[case_id]:
-                        refs_resolve = False
-                        break
-                if QUALIFICATION_CHECKS.issubset(reviewed) and refs_resolve:
                     result[r["source"]] = r["state"]
         result.update({source: "DEGRADED" for source in KNOWN_BROKEN})
         return result
@@ -119,31 +98,6 @@ class FabricStore:
     def _review_digest(checks):
         return hashlib.sha256(json.dumps(checks, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
-    def _review_groups(self, source, workspace=None):
-        """Revalidate latest review per check; no fallback to superseded passes."""
-        workspace = Path(workspace) if workspace is not None else self.db.path.parent
-        now = datetime.now(timezone.utc)
-        groups, seen = {}, set()
-        code_digest = implementation_digest(source)
-        for row in self.db.conn.execute(
-                "SELECT * FROM fabric_reviews WHERE source=? ORDER BY id DESC", (source,)):
-            if row['check_name'] in seen:
-                continue
-            seen.add(row['check_name'])
-            try:
-                receipt = validate_review(self.db, workspace, source, row['check_name'], row['case_id'],
-                    row['evidence_hash'], row['actor'], now=now, code_digest=code_digest)
-                recorded = datetime.fromisoformat(row['at'].replace('Z', '+00:00'))
-                if recorded.tzinfo is None or not now - timedelta(days=30) <= recorded <= now:
-                    continue
-            except (PolicyError, OSError, ValueError, TypeError, KeyError):
-                continue
-            groups.setdefault(receipt['runtime_id'], {})[row['check_name']] = row['evidence_hash']
-        return groups
-
-    def _resolved_checks(self, source):
-        groups = self._review_groups(source)
-        return set(max(groups.values(), key=len, default={}))
     def _verified_case_hashes(self, case_id, workspace, verified_cases):
         """Revalidate preserved bytes and configured anchors once per projection."""
         if case_id not in verified_cases:
@@ -155,19 +109,35 @@ class FabricStore:
                 verified_cases[case_id] = None
         return verified_cases[case_id]
 
-    def _resolved_checks(self, source, workspace=None, verified_cases=None):
-        """Only recent reviews with currently intact same-case custody count."""
+    def _review_groups(self, source, workspace=None, verified_cases=None):
+        """Revalidate latest review per check; no fallback to superseded passes."""
         workspace = Path(workspace) if workspace is not None else self.workspace
         verified_cases = {} if verified_cases is None else verified_cases
-        cutoff = (datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
-        checks, hashes = set(), {}
+        now = datetime.now(timezone.utc)
+        groups, seen = {}, set()
+        code_digest = implementation_digest(source)
         for row in self.db.conn.execute(
-                "SELECT check_name,case_id,evidence_hash FROM fabric_reviews WHERE source=? AND at>?", (source, cutoff)):
-            if row['case_id'] not in hashes:
-                hashes[row['case_id']] = self._verified_case_hashes(row['case_id'], workspace, verified_cases)
-            if hashes[row['case_id']] is not None and row['evidence_hash'] in hashes[row['case_id']]:
-                checks.add(row['check_name'])
-        return checks
+                "SELECT * FROM fabric_reviews WHERE source=? ORDER BY id DESC", (source,)):
+            if row['check_name'] in seen:
+                continue
+            seen.add(row['check_name'])
+            try:
+                if self._verified_case_hashes(row['case_id'], workspace, verified_cases) is None:
+                    continue
+                receipt = validate_review(self.db, workspace, source, row['check_name'], row['case_id'],
+                    row['evidence_hash'], row['actor'], now=now, code_digest=code_digest,
+                    _verified_cases=verified_cases)
+                recorded = datetime.fromisoformat(row['at'].replace('Z', '+00:00'))
+                if recorded.tzinfo is None or not now - timedelta(days=30) <= recorded <= now:
+                    continue
+            except (PolicyError, OSError, ValueError, TypeError, KeyError):
+                continue
+            groups.setdefault(receipt['runtime_id'], {})[row['check_name']] = row['evidence_hash']
+        return groups
+
+    def _resolved_checks(self, source, workspace=None, verified_cases=None):
+        groups = self._review_groups(source, workspace, verified_cases)
+        return set(max(groups.values(), key=len, default={}))
 
     def review(self, source, check_name, case_id, evidence_hash, actor, workspace, authorized=False):
         if authorized is not True or source not in SOURCES or check_name not in QUALIFICATION_CHECKS or not isinstance(actor, str) or len(actor.strip()) < 2:

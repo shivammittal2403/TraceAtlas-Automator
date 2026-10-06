@@ -112,10 +112,16 @@ def _artifact(db, workspace, case_id, digest):
     return path
 
 
-def validate_review(db, workspace, source, check_name, case_id, evidence_hash, actor, *, now=None, code_digest=None, require_pass=True):
+def validate_review(db, workspace, source, check_name, case_id, evidence_hash, actor, *, now=None, code_digest=None, require_pass=True, _verified_cases=None):
     """Resolve receipt and supporting bytes every time a gate is reported/used."""
     now = now or datetime.now(timezone.utc)
-    if not EvidenceStore(Path(workspace), db, case_id).verify_ledger()[0]:
+    # Only the store's current projection shares this cache. Review submission
+    # always performs a fresh check, and artifact bytes are resolved below.
+    verified_cases = {} if _verified_cases is None else _verified_cases
+    if case_id not in verified_cases:
+        valid = EvidenceStore(Path(workspace), db, case_id).verify_ledger()[0]
+        verified_cases[case_id] = {r['sha256'] for r in db.evidence(case_id)} if valid else None
+    if verified_cases[case_id] is None:
         raise PolicyError("Review evidence integrity failed")
     path = _artifact(db, workspace, case_id, _hash(evidence_hash))
     if path.stat().st_size > MAX_RECEIPT_BYTES:
