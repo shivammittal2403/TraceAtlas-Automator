@@ -17,6 +17,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+
+from traceatlas.filesystem import checked_local_path
 from typing import Callable, Optional
 
 from traceatlas.addons.cute_v1.core.enums import (EntityKind, RelationshipKind, TaskKind,
@@ -68,7 +70,7 @@ class InvestigationEngine:
         self.graph = graph
         self.connectors = connectors          # slug -> BaseConnector
         self.cfg = config or EngineConfig()
-        self.checkpoint_path = Path(checkpoint_path) if checkpoint_path else None
+        self.checkpoint_path = checked_local_path(Path(checkpoint_path)) if checkpoint_path else None
         self.observations: list[Observation] = observations_out or []
         self.results: dict[str, TaskResult] = {}
         self.cancelled = False

@@ -20,6 +20,14 @@ of these mappings. It proves byte preservation, not source quality or truth.
 Excluded files are Python caches, installed `node_modules`, and the OSINT
 archive's sample runtime checkpoint; the uploaded ZIPs remain the original input.
 
+Executable reference files now have a `.source` suffix (1,433 files). Their
+bytes and original-path hashes are unchanged. These unreviewed duplicate API,
+UI and store implementations are reference material, not an importable or
+servable second application. Namespaced runtime Python and the owned public UI
+retain ordinary filenames and remain under the normal CodeQL/CI gates. No
+scanner query, exclusion or protection is disabled. Secret scanning still
+includes all reference bytes. The manifest verifier enforces this boundary.
+
 Both original Python trees use the `traceatlas` name. Runtime imports are
 mechanically relocated to `traceatlas.addons.osint_v1` and
 `traceatlas.addons.cute_v1`. No `sys.modules` alias, path precedence trick,
@@ -147,6 +155,36 @@ proof is not hosted authentication or production qualification.
 No provider collection, database migration, resource/secret change or deployment
 is authorized/performed by this integration. User-authorized GitHub publication
 is a separate branch/PR/main verification step.
+
+## Security follow-up from merged main
+
+PR #68 merged externally as `5cea4fab540ea97271a9b45352f5d4e48d059054`.
+Its repaired CI passed all six jobs, including the locked MCP wire and actual
+Chromium Academy/directory flow. The PR's CodeQL aggregate reported 50 new
+alerts (48 high, two medium). Analysis job success alone did not close them.
+
+The follow-up confines archive case IDs, rejects separator/control/Windows
+device-name aliases and symlinked case/artifact paths, binds archive blob reads
+to their digest-derived storage key, verifies blob bytes, and checks report
+input/output children. A rehashed canonical report cannot export a foreign or
+other-case path: each blob must match this case's verified EvidenceStore
+registry before any output is created. Export remains local, explicitly chosen,
+bounded to 20 MiB per blob/128 MiB total, and integrity-only.
+
+The loopback console admits only supported public identifier seed kinds; local
+file/path seeds remain a legacy CLI capability. The Academy serves the owned
+`academy.js`; nine unused legacy JavaScript files are removed from `public`,
+with their exact originals retained as inert reference source. The optional DDG
+wrapper parser now compares the exact HTTPS hostname and rejects userinfo;
+these fixtures do not graduate or execute its external client. The language
+tokenizer excludes multiplication/division symbols from its Latin ranges.
+
+Twelve added core security regressions and two separately run optional parser
+fixtures cover these boundaries. There is no hosted alternate-API authorization
+claim, no protection against a hostile operating-system user racing filesystem
+replacement, and no assertion that the whole repository is vulnerability-free.
+Scanner dispositions and exact tests are tracked in
+`verification/archive-security-followup-2026-10-07.json`.
 
 ## Attribution
 

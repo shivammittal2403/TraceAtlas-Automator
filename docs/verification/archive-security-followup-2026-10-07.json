@@ -1,0 +1,161 @@
+{
+  "schema": "traceatlas.archive.security-followup.v1",
+  "observed_at": "2026-10-07T07:01:13.908700+00:00",
+  "baseline_sha": "5cea4fab540ea97271a9b45352f5d4e48d059054",
+  "branch": "codex/archive-security-review-20261007",
+  "scope": "User-supplied archive integration; isolated local synthetic fixtures; GitHub publication authorized. No provider collection or deployment.",
+  "package_version": "1.11.0",
+  "bridge_version": "traceatlas.archive.analysis.v1",
+  "migrations": "NONE",
+  "preservation": {
+    "original_files": 1863,
+    "inert_reference_files": 1433,
+    "namespaced_python_mappings": 1268,
+    "unchanged_original_sha256": true,
+    "manifest_sha256": "74d1cab156b57d7a7745b27aecf4cdcf9f2dad7e38955c376ab9fb8a38696ab4"
+  },
+  "prior_remote_proof": {
+    "commit": "d015823109bcb547b345f27e8946b6c78d10348a",
+    "CI": "PASS",
+    "jobs": 6,
+    "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37581945481",
+    "browser": {
+      "passed": true,
+      "directory_records": 92,
+      "training_modules": 19,
+      "resource_references": 207,
+      "external_requests": 0,
+      "browser_errors": 0,
+      "csp": "unchanged",
+      "injection": "rejected",
+      "mobile_overflow": false
+    },
+    "CodeQL_PR_aggregate": {
+      "new_alerts": 50,
+      "high": 48,
+      "medium": 2,
+      "state": "FAILED on prior commit",
+      "url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37581945492"
+    }
+  },
+  "repairs": [
+    "Reject path/separator/control/Windows aliases in case and investigation identifiers; reject symlinked child paths.",
+    "Archive EvidenceStore validates digest-derived storage key and hashes bytes on read; check graph/checkpoint/report local storage paths.",
+    "Canonical export binds all cited blobs to verified same-case custody and validates hash/size before creating output.",
+    "Console seeds admit only supported public identifiers; explicit local CLI file/path behavior retained.",
+    "Original executable references retained byte-identically as .source data; active source/UI remain scanned. Nine unused public legacy JS files removed.",
+    "Optional DDG wrapper parser compares exact HTTPS host/userinfo; Latin tokenizer excludes symbols."
+  ],
+  "tests": [
+    {
+      "command": "PYTHONPATH=src python -m unittest discover -s tests -v",
+      "environment": "Python 3.12.14, stdlib core environment",
+      "state": "PASS",
+      "run": 512,
+      "passed": 511,
+      "skipped": 1,
+      "seconds": 31.871,
+      "skip_reason": "Optional MCP SDK wire test; executed without a skip in the locked SDK run."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /workspace/scratch/2c4b2cd792de/archive-sdk-venv/bin/python -m unittest discover -s tests -v",
+      "environment": "Python 3.12.14 / uv locked OpenOSINT dependencies / MCP 2.3.0",
+      "state": "PASS",
+      "run": 512,
+      "passed": 512,
+      "skipped": 0,
+      "seconds": 31.844,
+      "log_sha256": "b1e83dd8d4c7cb566704178081b4ecd46e08110ab2fab5e620a739be6875be81"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <locked-sdk-python> -m unittest discover -s tests/optional -v",
+      "state": "PASS",
+      "run": 2,
+      "passed": 2,
+      "skipped": 0,
+      "external_calls": 0
+    },
+    {
+      "command": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs tests/test_database.mjs",
+      "state": "PASS",
+      "run": 26,
+      "passed": 26,
+      "skipped": 0,
+      "log_sha256": "c3fb00e7d8d5123da35cc3ff6300f039120554d344d1b45787c9c54a86c5029b"
+    },
+    {
+      "command": "python scripts/verify_archive_merge.py",
+      "state": "PASS",
+      "preserved_files": 1863,
+      "namespaced_python": 1268,
+      "errors": []
+    },
+    {
+      "command": "python scripts/check_python_structure.py",
+      "state": "PASS",
+      "python_files": 1504
+    },
+    {
+      "command": "python -m compileall -q src tests api vercel_control.py scripts",
+      "state": "PASS"
+    },
+    {
+      "command": "python scripts/check_secrets.py",
+      "state": "PASS",
+      "scope": "Includes all inert reference bytes; pinned third-party submodule governed separately."
+    },
+    {
+      "command": "bash -n setup.sh start.sh set.sh; node --check on existing app/legacy/graph/employee and owned Academy/directory scripts",
+      "state": "PASS"
+    },
+    {
+      "command": "python -m pip wheel --no-deps . -w <scratch-wheel-directory>",
+      "state": "PASS",
+      "wheel_sha256": "4b4a5edf276b21a7427ac690f7b47fb71b728adc6d02bc372355aab55515d693"
+    },
+    {
+      "command": "node tests/test_archive_ui.cjs",
+      "state": "BLOCKED_LOCAL",
+      "reason": "Missing Chromium executable; attempted pinned browser installation returned invalid/truncated CDN ZIP. Required CI browser gate remains enabled."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <refreshed-locked-sdk-python> -m unittest discover -s tests -v",
+      "environment": "Python 3.12.14 / locked dependencies from main 8c2e9a2 / MCP 2.3.0",
+      "state": "PASS",
+      "run": 514,
+      "passed": 514,
+      "skipped": 0,
+      "seconds": 32.565,
+      "log_sha256": "df74bd6662581b10f8fcc95ad620e1b1fbe8aea3e4447d8d4614834f5a8c8cf9",
+      "scope": "Combined latest main including the TypeScript snapshot and all archive security changes"
+    }
+  ],
+  "harness_sha256": {
+    "tests/test_archive_security.py": "9f8eeb7e7e3fa0987d58a861243f4293546ada97d27b1d6c79efb79c9df84c9b",
+    "tests/test_autonomous_investigation.py": "500596b8b50cd1c1b6024b05c6f98947663bdb0a3f5e979e10583f0a135fafb1",
+    "tests/test_investigation_console.py": "b9168f6b1375325c9ddf10eee5bb1694931e1001429eae87c08fe34a227e3d9b",
+    "tests/optional/test_archive_provider_parsers.py": "69d5a6b1a5ffb728158e00604c90a84dd94fe4acb221c597e619fa5fac74feba",
+    "tests/test_archive_ui.cjs": "beb7924d80b9f1a0ae24fc3883c44a40299b76b57009db4b42d7892033a6b5f8",
+    "scripts/verify_archive_merge.py": "67ee353ec30878690cbdb17d263a83ebb708eadaa9d51ee9c4ec314eb8dae376"
+  },
+  "gates": {
+    "local_fixture": "PASS",
+    "followup_remote_CI": "PENDING",
+    "followup_CodeQL": "PENDING",
+    "hosted": "NOT_VERIFIED",
+    "live_sources": "NOT_VERIFIED",
+    "enterprise_qualification": "NOT_ACHIEVED"
+  },
+  "external_blockers": [
+    "Optional GitHub AI security review quota was exhausted; no quota/subscription/security-setting modification is authorized.",
+    "Hosted authentication, deployment, live source entitlement/operation and independent analyst/vendor outcomes are outside this archive integration.",
+    "Inherited Dependabot job on main 8c2e9a2 failed with security_update_not_possible for transitive JavaScript dependencies; dependency advisory remediation needs separate review of the preserved snapshot and upstream constraints."
+  ],
+  "reviewer": "Coding agent, reproducible fixture checks; independent security/analyst acceptance not performed.",
+  "refreshed_main_sha": "8c2e9a2bfb94a559d43254fa08532d757e40fd37",
+  "parallel_changes_preserved": [
+    "TypeScript integration snapshot and its manifest/test/documentation from main",
+    "Dependabot multidict locked-dependency update"
+  ],
+  "merge_conflicts": []
+}

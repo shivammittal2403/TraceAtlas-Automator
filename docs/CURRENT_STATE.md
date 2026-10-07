@@ -1,3 +1,31 @@
+# Archive security follow-up — 2026-10-07
+
+PR #68 is merged on main as `5cea4fab540ea97271a9b45352f5d4e48d059054`.
+Its six repaired CI jobs passed, including the locked MCP runtime and Chromium
+flow (92 directory records, 19 lessons, 207 resource references, zero external
+requests/browser errors; CSP and injection checks passed). This is CI fixture
+proof, not deployment or live-source qualification.
+
+The follow-up preserves all 1,863 original file hashes, makes 1,433 executable
+references inert (`.source`), keeps all 1,268 namespaced Python mappings, and
+removes nine unused legacy scripts from the public Academy. Active code is still
+scanned. Case IDs/artifact paths are confined; archive blobs are digest-bound;
+canonical export checks same-case custody even when a report digest is rehashed.
+Twelve core negative regressions and two optional parser fixtures are added.
+No migrations or existing worker/auth/frontend ownership are replaced.
+Refreshed main `8c2e9a2` adds a TypeScript snapshot and locked dependency update;
+both are retained. The combined locked SDK suite passes 514/514 with zero skips.
+An inherited Dependabot update failed on unresolved transitive advisories; this
+is separate from CI/browser and CodeQL qualification, and remains recorded.
+
+Current local tests and remote scanner dispositions are recorded in
+[the security receipt](verification/archive-security-followup-2026-10-07.json).
+The original 50-alert PR result remains historical evidence until re-scanned;
+optional GitHub AI review was blocked by provider quota. No security settings,
+subscriptions, secrets, provider collection or deployment are changed.
+
+Earlier checkpoints below describe their tested versions, not the newest tree.
+
 # Remote CI repair checkpoint — 2026-10-07
 
 PR #68 contains the complete hash-verified archive integration. The first remote

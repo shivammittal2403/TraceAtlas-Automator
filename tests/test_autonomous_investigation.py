@@ -224,6 +224,45 @@ class InvestigationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "integrity"):
             self.service.export("case-a", current["id"], self.root / "reports")
 
+    def save_report(self, current):
+        report = current['report']
+        report['report_digest'] = digest({k: v for k, v in report.items() if k != 'report_digest'})
+        self.db.conn.execute('UPDATE autonomous_investigations SET report_json=? WHERE id=?',
+                             (json.dumps(report), current['id']))
+        self.db.conn.commit()
+
+    def test_rehashed_report_cannot_export_file_outside_custody(self):
+        current = self.run_task(self.create())
+        evidence = current['report']['evidence'][0]
+        foreign = self.root / 'foreign.json'
+        foreign.write_bytes(Path(evidence['raw_artifact_pointer']).read_bytes())
+        evidence['raw_artifact_pointer'] = str(foreign)
+        self.save_report(current)
+        output = self.root / 'reports'
+        with self.assertRaisesRegex(ValueError, 'custody'):
+            self.service.export('case-a', current['id'], output)
+        self.assertFalse(output.exists())
+
+    def test_rehashed_report_cannot_export_other_case_evidence(self):
+        current = self.run_task(self.create())
+        self.db.create_case('case-b', 'Other', 'Other synthetic investigation')
+        evidence = current['report']['evidence'][0]
+        other = EvidenceStore(self.root, self.db, 'case-b').preserve_file(
+            Path(evidence['raw_artifact_pointer']), 'fixture:other-case')
+        evidence['raw_artifact_pointer'] = other['path']
+        self.save_report(current)
+        with self.assertRaisesRegex(ValueError, 'custody'):
+            self.service.export('case-a', current['id'], self.root / 'reports')
+        self.assertFalse((self.root / 'reports').exists())
+
+    def test_rehashed_report_cannot_turn_a_digest_into_a_path(self):
+        current = self.run_task(self.create())
+        current['report']['evidence'][0]['content_hash'] = '../../outside'
+        self.save_report(current)
+        with self.assertRaisesRegex(ValueError, 'content hash'):
+            self.service.export('case-a', current['id'], self.root / 'reports')
+        self.assertFalse((self.root / 'reports').exists())
+
     def test_no_implicit_identity_merge_and_injected_text_not_sent_to_model(self):
         current = self.create(seeds=[{"type": "username", "value": "fixture"}], subject_type="person",
                               attestations={"subject_consent": True}, model="fixture-model")

@@ -65,6 +65,18 @@ class ConsoleTests(unittest.TestCase):
                 connection.close()
         self.assertEqual(self.request('GET', '/api/cases')[1]['cases'], [])
 
+    def test_console_rejects_filesystem_seeds_before_planning_or_probing(self):
+        self.assertEqual(self.request('POST', '/api/cases', {'case_id': 'demo', 'title': 'Demo',
+                            'purpose': 'Authorized fixture investigation'})[0], 201)
+        body = {'case_id': 'demo', 'objective': 'Review submitted evidence', 'actor': 'analyst-1',
+                'authorized': True, 'attestations': {'owned_asset': True}}
+        with patch('traceatlas.employee.autonomous.AutonomousInvestigator.create') as create:
+            for kind in ('file', 'path', 'unsupported'):
+                status, result = self.request('POST', '/api/investigate',
+                    {**body, 'seeds': [{'type': kind, 'value': '/etc/passwd'}]})
+                self.assertEqual(status, 400)
+            create.assert_not_called()
+
     def test_browser_api_case_to_evidence_zip(self):
         self.assertEqual(self.request('POST', '/api/cases', {'case_id': 'demo', 'title': 'Demo',
                             'purpose': 'Authorized fixture investigation'})[0], 201)

@@ -25,6 +25,10 @@ def main():
                     continue
                 if hashlib.sha256(path.read_bytes()).hexdigest() != row[hash_key]:
                     errors.append(row[key] + ': hash mismatch')
+                if key == 'preserved_path' and Path(row['path']).suffix in {
+                        '.py', '.pyw', '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx',
+                        '.html', '.sh', '.ps1', '.bat', '.cmd'} and path.suffix != '.source':
+                    errors.append(row[key] + ': executable snapshot must be inert')
             if row.get('runtime_path'):
                 counts['namespaced_python'] += 1
     print(json.dumps({'schema': 'traceatlas.archive.integrity.v1', 'passed': not errors,

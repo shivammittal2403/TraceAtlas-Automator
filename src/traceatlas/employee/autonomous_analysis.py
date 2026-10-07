@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import ipaddress
 import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+
+from ..filesystem import child_path, path_component
 
 from ..evidence import EvidenceStore, sha256_file
 from ..intelligence.ai import detect_instruction_injection
@@ -242,23 +245,43 @@ def export_report(db, workspace, current, output):
         raise ValueError('Export requires a report built by the supported analysis version')
     if digest({k: v for k, v in report.items() if k != "report_digest"}) != report["report_digest"]:
         raise ValueError("Stored report digest failed")
-    if not EvidenceStore(workspace, db, current["case_id"]).verify_ledger()[0]:
+    case_id = path_component(current["case_id"])
+    identifier = path_component(current["id"])
+    custody = EvidenceStore(workspace, db, case_id)
+    if not custody.verify_ledger()[0]:
         raise ValueError("Evidence custody integrity failed")
+    # A recomputed report digest is not authority to read an arbitrary file.
+    # Resolve each cited blob against this case's verified custody registry and
+    # check every byte before creating any export output.
+    owned = {row["sha256"]: row for row in db.evidence(case_id)}
+    blobs, total = {}, 0
+    for evidence in report["evidence"] + report.get("raw_evidence", []):
+        sha, pointer = evidence["content_hash"], evidence["raw_artifact_pointer"]
+        if not isinstance(sha, str) or not re.fullmatch(r"[a-f0-9]{64}", sha):
+            raise ValueError("Invalid evidence content hash")
+        if not isinstance(pointer, str) or sha not in owned:
+            raise ValueError("Export requires preserved evidence from this case")
+        path = child_path(custody.root, os.path.basename(pointer))
+        if path.absolute() != Path(pointer).absolute() or Path(owned[sha]["path"]).absolute() != path.absolute():
+            raise ValueError("Evidence pointer is outside this case's custody")
+        if sha in blobs:
+            continue
+        if not path.is_file() or path.stat().st_size > 20 * 1024 * 1024:
+            raise ValueError("Evidence exceeds export file budget")
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != sha:
+            raise ValueError("Evidence changed during export")
+        total += len(raw)
+        if total > 128 * 1024 * 1024:
+            raise ValueError("Evidence exceeds export total byte budget")
+        blobs[path_component(sha)] = raw
     # Each export is a new directory: previous artifacts remain immutable.
     from uuid import uuid4
-    target = output / (current["id"] + "-" + uuid4().hex[:8])
+    target = child_path(output, identifier + "-" + uuid4().hex[:8])
     target.mkdir(parents=True, exist_ok=False)
     (target / "artifacts").mkdir()
     files = []
-    seen = set()
-    for evidence in report["evidence"] + report.get("raw_evidence", []):
-        sha = evidence["content_hash"]
-        if sha in seen:
-            continue
-        seen.add(sha)
-        raw = Path(evidence["raw_artifact_pointer"]).read_bytes()
-        if hashlib.sha256(raw).hexdigest() != sha:
-            raise ValueError("Evidence changed during export")
+    for sha, raw in blobs.items():
         relative = "artifacts/" + sha + ".json"
         (target / relative).write_bytes(raw)
         files.append({"path": relative, "sha256": sha, "bytes": len(raw)})

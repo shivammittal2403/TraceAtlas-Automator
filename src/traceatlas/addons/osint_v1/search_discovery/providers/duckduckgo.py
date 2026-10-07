@@ -37,7 +37,8 @@ def _decode_href(href: str) -> str:
     if href.startswith("//"):
         href = "https:" + href
     q = urlparse(href)
-    if "duckduckgo.com" in q.netloc and "/l/" in q.path:
+    if (q.scheme == "https" and q.hostname in {"duckduckgo.com", "html.duckduckgo.com"}
+            and q.username is None and q.password is None and q.path == "/l/"):
         target = parse_qs(q.query).get("uddg", [""])
         if target:
             return unquote(target[0])

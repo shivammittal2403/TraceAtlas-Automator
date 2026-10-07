@@ -148,6 +148,11 @@ jobs:
           PYTHONPATH: src
         run: .openosint-test-venv/bin/python -m unittest discover -s tests -p test_source_fabric.py -v
 
+      - name: Verify optional archive provider parsers with locked dependencies
+        env:
+          PYTHONPATH: src
+        run: .openosint-test-venv/bin/python -m unittest discover -s tests/optional -v
+
   worker-image:
     name: Private worker image
     runs-on: ubuntu-latest

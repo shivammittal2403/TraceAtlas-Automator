@@ -11,7 +11,8 @@ TraceAtlas helps investigators organize approved research. It does not turn an A
 - Compatible integration of the supplied TraceAtlas-OSINT and cute snapshots:
   seven case-bound offline analysis actions, an OSINT directory, and a 19-module
   Academy. All source/configuration/test/document files are preserved with
-  provenance; imported scaffolds are not counted as working integrations.
+  provenance; original executable references use inert `.source` filenames.
+  Imported scaffolds are not counted as working integrations.
   See [Archive integration](docs/ARCHIVE_INTEGRATION.md).
 - Compatible preservation of the supplied `OSINT_Tool-main(2).zip` TypeScript
   workspace under `integrations/osint-tool-typescript/`, with a per-file
@@ -39,7 +40,7 @@ List the archive actions with `traceatlas archive actions`. Run an approved
 submitted file with `traceatlas --workspace ./cases archive analyze --case CASE
 --action objective --input objective.json --authorized`; outputs use the existing
 case/evidence/report pipeline. Educational pages are at `/directory/` and
-`/academy/` in the hosted static frontend, with no provider collection.
+`/academy/` in the static frontend, with no provider collection.
 
 ```powershell
 python -m pip install .

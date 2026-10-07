@@ -12,6 +12,8 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from traceatlas.filesystem import child_path
+
 from traceatlas.addons.cute_v1.core.case import Case
 from traceatlas.addons.cute_v1.core.enums import TaskStatus
 from traceatlas.addons.cute_v1.core.observation import Observation
@@ -28,7 +30,7 @@ class CaseWorkspace:
     """Filesystem workspace per case (production target: Postgres + S3)."""
 
     def __init__(self, root: str | Path, case_id: str):
-        self.root = Path(root) / case_id
+        self.root = child_path(Path(root), case_id)
         self.root.mkdir(parents=True, exist_ok=True)
         self.evidence = EvidenceStore(self.root / "evidence")
         self.graph = KnowledgeGraph(self.root / "graph.jsonl")

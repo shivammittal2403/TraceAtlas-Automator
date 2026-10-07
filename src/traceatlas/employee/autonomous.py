@@ -18,6 +18,7 @@ from ..intelligence.contracts import source_contract
 from ..intelligence.hub import IntelligenceHub
 from ..intelligence.sources import SOURCES
 from ..policy import PolicyError
+from ..filesystem import path_component
 from ..workforce.service import workforce_enabled
 from .brief import clean, digest
 from .service import ATTESTATIONS, COLLECTION, plan_collection
@@ -162,10 +163,13 @@ class AutonomousInvestigator:
         return self.get(case_id, identifier)
 
     def get(self, case_id, investigation_id):
+        case_id, investigation_id = path_component(case_id), path_component(investigation_id)
         row = self.db.conn.execute("SELECT * FROM autonomous_investigations WHERE id=? AND case_id=?", (investigation_id, case_id)).fetchone()
         if row is None:
             raise PolicyError("Investigation not found in this case")
         result = dict(row)
+        result["id"] = path_component(result["id"])
+        result["case_id"] = path_component(result["case_id"])
         result["manifest"] = json.loads(result.pop("manifest_json"))
         if digest(result["manifest"]) != result["manifest_hash"]:
             raise PolicyError("Investigation authorization manifest changed")

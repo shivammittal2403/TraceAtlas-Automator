@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_WORD = re.compile(r"[a-zA-Zà-ÿÀ-ſ]+")
+_WORD = re.compile(r"[A-Za-zÀ-ÖØ-öø-ſ]+")
 
 _STOPLISTS: dict[str, frozenset[str]] = {
     "en": frozenset("the of and to in is you that it he was for on are as with do this".split()),

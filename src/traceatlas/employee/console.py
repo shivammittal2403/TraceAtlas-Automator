@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from ..engine import Engine
 from ..policy import PolicyError
+from ..filesystem import path_component
 from ..workforce.service import workforce_enabled
 from .autonomous import AutonomousInvestigator
 
@@ -102,7 +103,7 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                     raise ValueError("Object required")
                 engine = Engine(workspace)
                 service = AutonomousInvestigator(engine.db, workspace, enabled=enabled)
-                case = body.get("case_id", "")
+                case = path_component(body.get("case_id", ""))
                 if self.path == "/api/cases":
                     if not isinstance(case, str) or not re.fullmatch(r"[A-Za-z0-9_-]{2,64}", case):
                         raise ValueError("Invalid case identifier")
@@ -116,7 +117,18 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                         if active:
                             return self.respond(409, {"error": "One investigation is already running in this console"})
                         if self.path == "/api/investigate":
-                            current = service.create(case, body.get("objective"), body.get("seeds"),
+                            # HTTP input never supplies a local filesystem seed.
+                            # The legacy local CLI retains explicit file/path use.
+                            seeds = body.get("seeds")
+                            kinds = {k: k for k in ("domain", "ip", "username", "hash", "cve", "doi", "package")}
+                            if not isinstance(seeds, list) or not 1 <= len(seeds) <= 8:
+                                raise PolicyError("One to eight supported public identifiers are required")
+                            normalized = []
+                            for seed in seeds:
+                                if not isinstance(seed, dict) or seed.get("type") not in kinds:
+                                    raise PolicyError("Local filesystem seeds are not accepted by the console")
+                                normalized.append({"type": kinds[seed["type"]], "value": seed.get("value")})
+                            current = service.create(case, body.get("objective"), normalized,
                                 actor=body.get("actor"), authorized=body.get("authorized") is True,
                                 attestations=body.get("attestations"), subject_type=body.get("subject_type", "asset"),
                                 subject_label=body.get("subject_label", ""), max_actions=body.get("max_actions", 8),

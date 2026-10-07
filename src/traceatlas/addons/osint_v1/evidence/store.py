@@ -8,6 +8,9 @@ planned (storage/) and not implemented.
 from __future__ import annotations
 
 from pathlib import Path
+import re
+
+from traceatlas.filesystem import child_path
 
 from traceatlas.addons.osint_v1.exceptions import EvidenceError
 from traceatlas.addons.osint_v1.evidence.hashing import sha256_hex
@@ -22,7 +25,7 @@ class EvidenceStore:
 
     def put(self, case_id: str, data: bytes) -> str:
         digest = sha256_hex(data)
-        path = self.root / case_id / digest
+        path = child_path(child_path(self.root, case_id), digest)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_bytes(data)
@@ -30,7 +33,9 @@ class EvidenceStore:
         return digest
 
     def get(self, case_id: str, digest: str) -> bytes:
-        path = self.root / case_id / digest
+        if not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise EvidenceError("Invalid evidence digest")
+        path = child_path(child_path(self.root, case_id), digest)
         if not path.is_file():
             raise EvidenceError(f"evidence blob missing: {digest}")
         data = path.read_bytes()
@@ -39,4 +44,6 @@ class EvidenceStore:
         return data
 
     def exists(self, case_id: str, digest: str) -> bool:
-        return (self.root / case_id / digest).is_file()
+        if not re.fullmatch(r"[a-f0-9]{64}", digest):
+            raise EvidenceError("Invalid evidence digest")
+        return child_path(child_path(self.root, case_id), digest).is_file()
