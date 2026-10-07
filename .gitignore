@@ -1,15 +1,7 @@
-# Python wheel packages
-*.whl
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
-node_modules
-build/
-*.egg-info/
-.venv/
-.openosint-test-venv/
-cases/
-reports/
-.traceatlas/
-.env
-.env.*
-!.env.example
+*$py.class
+
+# Testing frameworks
+.pytest_cache/
