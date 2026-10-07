@@ -91,23 +91,54 @@ class SourceCapabilities:
             db.close()
 
 
+def _mcp_wire_types():
+    # The MCP SDK bundles its wire models as `mcp.types`; standalone installs of
+    # the `mcp-types` package expose the identical schema as top-level
+    # `mcp_types`. Prefer whichever matches the installed SDK so tool results
+    # validate against the SDK's own pydantic models instead of a shadow class.
+    import mcp.types as sdk_types
+    try:
+        import mcp_types  # noqa: F401
+    except ImportError:
+        return sdk_types
+    sample = sdk_types.Tool(name='probe', inputSchema={'type': 'object'})
+    if type(sample).__name__ == 'Tool' and 'inputSchema' in sample.model_dump(by_alias=True):
+        return sdk_types
+    import mcp_types as standalone
+    if {f.alias or n for n, f in standalone.Tool.model_fields.items()} == \
+            {f.alias or n for n, f in sdk_types.Tool.model_fields.items()}:
+        # Identical wire schema: the SDK's own classes remain authoritative.
+        return sdk_types
+    return standalone
+
+
 def build_server(facade):
     # Optional transport dependency; the source gateway and CLI remain stdlib-only.
     from mcp.server import Server
-    from mcp_types import Tool, ListToolsResult, CallToolResult, TextContent
+    types = _mcp_wire_types()
     dispatch_lock = asyncio.Lock()
-    async def list_tools(_context, _params):
-        return ListToolsResult(tools=[Tool(name=name, description=description, input_schema=INPUT_SCHEMA)
-                                    for name, description in OPERATIONS.items()])
-    async def call_tool(_context, params):
+
+    server = Server('traceatlas-sources')
+
+    @server.list_tools()
+    async def list_tools():
+        return [types.Tool(name=name, description=description, input_schema=INPUT_SCHEMA)
+                for name, description in OPERATIONS.items()]
+
+    @server.call_tool(validate_input=False)
+    async def call_tool(name, arguments):
+        if name not in OPERATIONS:
+            raise ValueError('Unknown source capability')
         try:
             async with dispatch_lock:
-                result = await asyncio.to_thread(facade.call_in_worker, params.name, params.arguments or {})
-            return CallToolResult(content=[TextContent(type='text', text=json.dumps(result))])
+                result = await asyncio.to_thread(facade.call_in_worker, name, arguments or {})
+            return [types.TextContent(type='text', text=json.dumps(result))]
         except (ValueError, TypeError, KeyError):
-            return CallToolResult(content=[TextContent(type='text', text='Source capability request rejected')], is_error=True)
-    return Server('traceatlas-sources', on_list_tools=list_tools, on_call_tool=call_tool,
-                  get_tool_input_schema=lambda name: INPUT_SCHEMA if name in OPERATIONS else None)
+            # Rejections travel as protocol-level errors, never as fake success.
+            return types.CallToolResult(
+                content=[types.TextContent(type='text', text='Source capability request rejected')],
+                is_error=True)
+    return server
 
 
 def main():
