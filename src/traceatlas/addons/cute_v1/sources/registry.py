@@ -52,10 +52,6 @@ class SourceRegistry:
         records: list[SourceRecord] = []
         if root and root.exists() and yaml is not None:
             for path in sorted(root.glob("*.yaml")):
-                # YAML catalogs are optional. Importing offline workspaces or
-                # using built-in records must not require a vendor parser.
-                import yaml
-
                 try:
                     data = yaml.safe_load(path.read_text()) or {}
                 except yaml.YAMLError:

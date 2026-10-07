@@ -119,22 +119,236 @@
       "command": "Locked SDK and optional parser fixtures",
       "state": "NOT_RUN_LOCALLY_ON_THIS_TRANCHE",
       "reason": "Separate pinned GitHub CI job required before main verification."
+    },
+    {
+      "command": "Installed core traceatlas CLI: init, all seven archive actions, verify",
+      "state": "PASS",
+      "commands": 9,
+      "actions": 7,
+      "external_calls": 0,
+      "environment": "Installed wheel; PYTHONPATH removed; isolated synthetic fixture case",
+      "artifact_sha256": "56442831f485eadcca29f71ceb3bf640f6ea241aba6c6976ec23e8d532df0d2a"
     }
   ],
   "gate_status": {
     "local_fixture": "FIXTURE_VERIFIED",
-    "remote_CI": "PENDING",
-    "CodeQL_rescan": "PENDING",
+    "remote_CI": "FIXTURE_VERIFIED on 56c263af5509de4c3831dbc62f097822afd351ab / six jobs PASS",
+    "CodeQL_rescan": "PASS gate; archive path findings 20 to 0; existing repository findings remain",
     "hosted": "NOT_VERIFIED",
     "live_sources": "NOT_VERIFIED",
     "operated": "NOT_VERIFIED",
     "outcome_validated": "NOT_VERIFIED",
-    "enterprise_qualification": "NOT_ACHIEVED"
+    "enterprise_qualification": "NOT_ACHIEVED",
+    "final_main": "PENDING at documentation commit creation; exact tested runtime SHA/tree recorded above",
+    "optional_AI_review": "BLOCKED_EXTERNAL: monthly quota exhausted"
   },
   "external_blockers": [
     "GitHub AI review quota failure remains external; no subscription/settings changes.",
     "Inherited transitive dependency advisories and existing repository CodeQL findings remain separate open review items; a successful analysis job is not zero-alert proof.",
     "Live source/model entitlement, hosted authorization/recovery, operations and independent analyst/vendor outcome gates have not been performed."
   ],
-  "reviewer": "Coding agent; independent security/analyst review not performed."
+  "reviewer": "Coding agent; independent security/analyst review not performed.",
+  "remote_fixture_proof": {
+    "sha": "56c263af5509de4c3831dbc62f097822afd351ab",
+    "tree": "99c8adbfc4fe9d68e14e3b47c1ac1643fab5d98d",
+    "CI": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37596500724",
+    "CodeQL": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37596500655",
+    "checks": [
+      {
+        "id": 112710705912,
+        "name": "CodeQL",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710350196,
+        "name": "github-advanced-security",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 112710330641,
+        "name": "Bundled OpenOSINT runtime",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330587,
+        "name": "Core / Python 3.12",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330537,
+        "name": "Supply chain evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330536,
+        "name": "Private worker image",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330448,
+        "name": "Core / Python 3.10",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330175,
+        "name": "dependency-review",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710329911,
+        "name": "analyze (javascript-typescript)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710329609,
+        "name": "analyze (python)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "browser": {
+      "passed": true,
+      "directory_records": 92,
+      "training_modules": 19,
+      "resource_references": 207,
+      "external_requests": 0,
+      "browser_errors": 0,
+      "csp": "unchanged",
+      "injection": "rejected",
+      "mobile_overflow": false
+    },
+    "core": [
+      {
+        "python": "3.10",
+        "run": 515,
+        "passed": 513,
+        "skipped": 2,
+        "seconds": 48.025
+      },
+      {
+        "python": "3.12",
+        "run": 515,
+        "passed": 513,
+        "skipped": 2,
+        "seconds": 49.027
+      }
+    ],
+    "locked_runtime": {
+      "passed": 629,
+      "skipped": 28,
+      "seconds": 10.91,
+      "source_fabric_run": 29,
+      "source_fabric_passed": 29,
+      "optional_archive_parser_run": 2,
+      "optional_archive_parser_passed": 2
+    },
+    "scanner": {
+      "python_baseline": 76,
+      "python_current": 22,
+      "archive_path_baseline": 20,
+      "archive_path_current": 0,
+      "core_path_current": 0,
+      "other_remaining": {
+        "insecure_protocol": 4,
+        "incomplete_url_substring": 18
+      },
+      "query_exclusions_changed": false,
+      "javascript_typescript_current": 1,
+      "javascript_typescript_rules": {
+        "js/incomplete-url-substring-sanitization": 1
+      },
+      "javascript_sarif_artifact_id": 11471000955,
+      "python_sarif_artifact_id": 11471040738
+    },
+    "quota_issue": "Monthly Copilot AI review quota exhausted; not a code-test failure; remains BLOCKED_EXTERNAL.",
+    "observed_at": "2026-10-07T08:56:08.265280+00:00",
+    "environment": "GitHub Actions Ubuntu; submitted fixtures only; real Chromium; pinned OpenCTI and locked SDK.",
+    "authorization": "GitHub code publication and synthetic CI/local fixtures only; no live collection/deployment.",
+    "reviewer": "Coding agent with remote job/artifact inspection; independent analyst/security review not performed."
+  },
+  "combined_main_refresh": {
+    "observed_at": "2026-10-07T09:05:48.847236+00:00",
+    "main_sha": "deaeafbedc91ad8c51e9368404321cf734a5da66",
+    "main_tree": "19aadbe1ee9ecbcb382584e7dc9d74da7b0b8b54",
+    "parallel_change": "PR73 optional PyYAML guards, explicit unavailable YAML parser error and dependency-isolation tests; preserve unrelated tracked/cache/ignore changes.",
+    "detected_failures": [
+      "CI archive mapping verifier failed for two parallel adapted runtime files.",
+      "Combined -S regression caught UnboundLocalError: inner import shadowed the parallel module-level optional YAML guard."
+    ],
+    "repair": "Remove the redundant nested import while preserving the optional module guard and explicit parser error. Update only two adapted runtime SHA256 mappings; original references and source SHA256 values unchanged.",
+    "runtime_sha256": {
+      "src/traceatlas/addons/cute_v1/sources/registry.py": "1a67caf49d64665dfefd2c507b8d9808f929f01a888c4f33620724e70b0e4cd4",
+      "src/traceatlas/addons/cute_v1/ingestion/parsers/generic_structured.py": "d4f3a6e9d0ecfc36dfbbfcc68fe9e3da7e21d198e89c48a84f830e6a49b439fa",
+      "src/traceatlas/filesystem.py": "7d8508c2f249910db54188a5d8ec7fa7c3d4fbd0508f5e076e2d262edb07e29f",
+      "src/traceatlas/employee/autonomous_analysis.py": "66f539493a2958971659ee8a0c3c70eb2f592afaa26f49684a43a79044c8d12f"
+    },
+    "manifest_sha256": "90976a128017d04ee59cad204a62ee697893a95ee12daff8f427be6b87d2599e",
+    "harness_sha256": {
+      "tests/test_archive_security.py": "8c143ed5ea82263f463b253d0d94332954a7c1b4a16c7c51e0eac3346959cb22",
+      "tests/test_addon_dependency_isolation.py": "c2142ee33df7ece7a17a6b7373a9fdf70a54fa85bc0a3a0896117ee63c297d33",
+      "tests/optional/test_archive_provider_parsers.py": "e456e9dfad9bae074d3dfb22b58e60a55105e3a0f9394a3b46f0862cf64a13b4"
+    },
+    "tests": [
+      {
+        "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <clean-core-venv>/bin/python -m unittest discover -s tests -v",
+        "environment": "Python 3.12.14, unchanged clean core venv; optional packages remain absent",
+        "state": "PASS",
+        "run": 517,
+        "passed": 515,
+        "skipped": 2,
+        "seconds": 35.022,
+        "log_sha256": "ad2056a11b8ddaf724b8b2657487dfc583c9aee9826cf4aad78a82e098fb6f9e"
+      },
+      {
+        "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -S -m unittest discover -s tests -p test_archive_security.py -q",
+        "state": "PASS",
+        "run": 9,
+        "passed": 9
+      },
+      {
+        "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <optional-parser-venv>/bin/python -m unittest discover -s tests/optional -v",
+        "environment": "Separate venv with httpx 0.28.1 and PyYAML 6.0.3, versions taken from existing lock",
+        "state": "PASS",
+        "run": 4,
+        "passed": 4,
+        "skipped": 0,
+        "seconds": 0.027,
+        "external_calls": 0,
+        "log_sha256": "783e0ddda9e593460fc27e06504edb97747109c1831b1ad7113e3937c2bd9075"
+      },
+      {
+        "command": "python scripts/verify_archive_merge.py",
+        "state": "PASS",
+        "original_files": 1863,
+        "runtime_mappings": 1268
+      },
+      {
+        "command": "python scripts/check_python_structure.py",
+        "state": "PASS",
+        "python_files": 1505
+      },
+      {
+        "command": "python -m compileall -q src tests api vercel_control.py scripts; python scripts/check_secrets.py",
+        "state": "PASS"
+      }
+    ],
+    "known_failed_local_attempts": [
+      "517-test combined run initially failed the -S import-shadow regression; fixed without changing its assertions.",
+      "Global environment could not import optional DDG parser fixtures because httpx was absent; ran the complete four-fixture suite in a separate pinned-dependency venv."
+    ],
+    "remote_combined_checks": "PENDING at commit creation; earlier 56c263a scanner/browser/SDK proofs apply to their recorded version only.",
+    "deployment": "NOT_PERFORMED",
+    "migration": "NONE",
+    "live_collection": 0,
+    "model_calls": 0
+  }
 }

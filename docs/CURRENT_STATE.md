@@ -1,3 +1,46 @@
+# Combined-main compatibility checkpoint — 2026-10-07
+
+Main advanced to `deaeafbedc91ad8c51e9368404321cf734a5da66` through parallel PR #73
+while PR #72 was merged externally. Preserve its optional YAML availability
+guard, explicit parser-unavailable error, isolation tests and unrelated changes.
+Two adapted runtime hashes became stale, and the combined existing `-S` test
+caught import-variable shadowing. Remove only the redundant nested YAML import
+and update the two runtime mappings; original reference bytes/hashes stay intact.
+No regression assertions or scanner/security gates are weakened.
+
+Combined clean core: 517 tests run, 515 pass, two explicit optional skips
+(35.022s). Separate optional-parser environment: four actual YAML/DDG fixtures
+pass with zero external calls. The 1,863 originals and 1,268 runtime mappings
+verify; 1,505 Python files pass structure checks; compilation and secrets pass.
+New combined PR/main checks remain PENDING at commit creation. Earlier remote
+proof on 56c263a below remains version-specific; it is not reused as a pass for
+this newly combined runtime. See the compatibility receipt's
+`combined_main_refresh` for harness, source/build, failure and proof identities.
+Live/hosted/operated/outcome qualification remains NOT_VERIFIED.
+
+# Archive remote verification checkpoint — 2026-10-07
+
+Code head `56c263af5509de4c3831dbc62f097822afd351ab` fixes the clean-install
+archive failure. All six PR CI jobs and the CodeQL gate PASS. Python 3.10 and
+3.12 each run 515 tests (513 pass/two explicit optional skips). Locked runtime:
+629 pass/28 skips; source-fabric wire 29/29 and optional archive parser 2/2 pass.
+Both real Chromium fixture flows pass: 92 directory records, 19 lessons, 207
+resource references, zero external requests/errors, CSP/injection/mobile checks.
+Installed core-wheel smoke executes all seven archive actions and custody verify.
+
+Fresh Python SARIF records 22 existing protocol/URL-check findings, compared to
+76 baseline findings; all 20 archive path findings are absent. This is recorded
+scanner evidence, not a vulnerability-free claim. JavaScript/TypeScript findings
+and inherited advisories still require review. Optional Copilot AI review is
+BLOCKED_EXTERNAL by exhausted monthly quota; no settings/subscription changes.
+
+This documentation update preserves the verified runtime identity. Final main
+checks are pending at commit creation; hosted/live operation, independent
+outcome/enterprise qualification and deployment remain NOT_VERIFIED. Exact job,
+artifact, build and harness identities are in
+[the compatibility receipt](verification/archive-compatibility-2026-10-07.json).
+Earlier checkpoints below refer to the versions they tested.
+
 # Archive compatibility checkpoint — 2026-10-07
 
 Current baseline `2f662cccbda772ad6264be439e6bc390b6e079db` includes both supplied

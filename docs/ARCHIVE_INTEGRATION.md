@@ -200,8 +200,27 @@ The child-path helper normalizes and checks a separator-bound root prefix before
 I/O, rejects symlinks, and returns the checked resolved path. Canonical export
 uses the same helper for artifacts and report/replay children. This does not
 claim protection against hostile operating-system races or scanner closure;
-fresh remote CodeQL results are required. Current tests and pending gates are
-in `verification/archive-compatibility-2026-10-07.json`.
+fresh remote CodeQL results are required. On code head `56c263a`, all six CI
+jobs and the CodeQL gate pass; the 20 archive path findings are absent, while
+22 other Python findings and JavaScript/TypeScript findings remain. Both real
+Chromium fixture flows and the locked SDK/parser gates pass. Final-main checks
+are separate from this tested code head. Exact proof is recorded in
+`verification/archive-compatibility-2026-10-07.json`.
+
+## Parallel-main merge compatibility
+
+Parallel PR #73 adds module-level optional YAML availability and an explicit
+unavailable-parser result. Keep those repairs. Combining them with the previous
+nested import caused Python variable shadowing; the existing no-site-packages
+regression caught it. The redundant nested import is removed, and only the two
+adapted runtime hash mappings are refreshed. Original references stay byte-exact.
+Missing YAML leaves catalog files unavailable; built-in records do not thereby
+become live-verified or authorize collection. Valid/malformed YAML and catalog
+fixtures are tested separately with pinned optional dependencies.
+
+The combined clean core runs 517 tests (515 pass/two optional skips), and four
+optional parser fixtures pass. Fresh remote checks of the combined tree are
+required independently of the earlier 56c263a proof.
 
 ## Attribution
 
