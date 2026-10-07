@@ -101,8 +101,13 @@ class YamlParser(BaseParser):
 
     def parse(self, stream: BinaryIO, *, artifact_id: str,
               limits: IngestionLimits) -> ParserResult:
-        import yaml   # declared dependency; safe_load ONLY
         res = empty_result(artifact_id, self)
+        try:
+            import yaml   # optional add-on dependency; safe_load ONLY
+        except ModuleNotFoundError:
+            res.errors.append(Issue(ErrorCode.PARSER_ERROR, Severity.ERROR,
+                                    "PyYAML is not installed; YAML parsing is unavailable"))
+            return res
         data = self.read_all_limited(stream, limits.max_file_bytes)
         try:
             docs = list(yaml.safe_load_all(text_of(data)))
