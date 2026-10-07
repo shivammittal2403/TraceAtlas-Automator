@@ -1,3 +1,43 @@
+# Remote CI repair checkpoint — 2026-10-07
+
+PR #68 contains the complete hash-verified archive integration. The first remote
+attempt exposed an existing MCP SDK 2.x handler mismatch and a browser harness
+expectation that incorrectly discarded the distinct SpiderFoot HX listing.
+The SDK callbacks/result models and wire rejection coverage are repaired; the
+exact locked SDK environment passed 500/500 Python tests with zero skips locally.
+
+CodeQL reported 50 alerts (48 high, two medium); their locations and dispositions
+remain OPEN until scanner-backed review. SARIF reporting/artifacts are added
+without changing scanner queries, exclusions or gates. The separate GitHub AI
+security review exhausted its monthly quota and is BLOCKED_EXTERNAL. No quota,
+subscription or security setting is changed. Main merge and hosted qualification
+are not certified by a branch push. See verification/archive-ci-repair-2026-10-07.json.
+
+# Archive integration checkpoint — 2026-10-07
+
+Base `b56101237b248922316dc049528e0c83b0f2c774`, branch
+`codex/merge-osint-cute-20261007`. CODED/FIXTURE_VERIFIED: two complete
+source snapshots, versioned runtime namespaces, seven case-bound offline actions,
+CSP-compatible directory/Academy pages, nineteen actual training modules and
+207 external resource references. Existing SQLite/EvidenceStore/workforce, CLI,
+source qualification, auth and hosted migrations remain canonical.
+
+Actual local regressions: 500 Python run, 499 pass, one optional skip (30.525s);
+21 added archive regressions pass; Node graph/target/PGlite 26/26; compilation,
+1,500-file structure check, source secret scan, source preservation checks,
+launchers/JS syntax and wheel build pass. Controlled workforce source 78/78 and
+enterprise 112/112 (105 drafts) pass; these are synthetic contracts.
+Local browser verification is BLOCKED by absent Chromium/corrupt CDN downloads;
+the required new browser flow is wired into GitHub CI, whose outcome is separate.
+No local browser pass, live source collection, model execution, provider
+qualification, hosted rollout, migration, identity merge or enterprise score is
+claimed. Raw scaffolds/source namespaces are not working integration counts.
+
+Details: [Archive integration](ARCHIVE_INTEGRATION.md),
+[hash-bound file mapping](archive_merge_manifest.json),
+[verification receipt](verification/archive-merge-2026-10-07.json).
+Earlier checkpoints below are historical and do not certify this new tree.
+
 # Current implementation state â€” 2026-10-04 / 1.11.0
 
 ## Receipt/custody integration repair — 2026-10-06

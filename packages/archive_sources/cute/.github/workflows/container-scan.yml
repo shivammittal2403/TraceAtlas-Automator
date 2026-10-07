@@ -1,0 +1,12 @@
+name: container-scan
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+jobs:
+  container_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with: { image-ref: ghcr.io/traceatlas/backend:latest, format: table, exit-code: '1' }

@@ -1,0 +1,304 @@
+[
+  {
+    "title": "Advanced Digital Forensics for OSINT",
+    "description": "Master professional-grade digital forensics techniques for extracting, analyzing, and verifying intelligence from digital artifacts using methods employed by leading agencies and security firms.",
+    "difficulty": "Advanced",
+    "duration": 240,
+    "tags": [
+      "digital forensics",
+      "advanced",
+      "technical",
+      "metadata",
+      "network",
+      "device",
+      "intelligence",
+      "professional",
+      "verification"
+    ],
+    "id": "advanced-digital-forensics-osint",
+    "source_module_id": "advanced-digital-forensics-osint"
+  },
+  {
+    "title": "Advanced Network Infrastructure Analysis",
+    "description": "Master professional-grade techniques for analyzing network infrastructure to map digital assets, identify vulnerabilities, and attribute activities using methodologies employed by intelligence agencies and security teams.",
+    "difficulty": "Advanced",
+    "duration": 210,
+    "tags": [
+      "network",
+      "infrastructure",
+      "advanced",
+      "technical",
+      "dns",
+      "certificates",
+      "ip",
+      "attribution",
+      "intelligence",
+      "professional"
+    ],
+    "id": "advanced-network-infrastructure-osint",
+    "source_module_id": "advanced-network-infrastructure-osint"
+  },
+  {
+    "title": "Search Operators for OSINT Investigations",
+    "description": "Master sophisticated search query techniques using advanced operators across multiple search engines to conduct precise OSINT investigations and uncover hidden information.",
+    "difficulty": "Intermediate",
+    "duration": 90,
+    "tags": [
+      "search",
+      "google",
+      "operators",
+      "techniques",
+      "osint",
+      "investigation",
+      "advanced",
+      "query-building",
+      "information-retrieval",
+      "search-engine-optimization"
+    ],
+    "id": "advanced-search-operators",
+    "source_module_id": "advanced-search-operators"
+  },
+  {
+    "title": "Advanced Social Media Intelligence: Professional OSINT Techniques for Network Analysis and Attribution",
+    "description": "Master advanced methodologies used by intelligence agencies to conduct sophisticated social media investigations, including network analysis, behavioral profiling, influence operation detection, and cross-platform attribution.",
+    "difficulty": "Advanced",
+    "duration": 320,
+    "tags": [
+      "social media",
+      "network analysis",
+      "attribution",
+      "behavioral analysis",
+      "influence operations",
+      "intelligence",
+      "advanced",
+      "OSINT",
+      "profiling",
+      "data collection"
+    ],
+    "id": "advanced-social-media-intelligence",
+    "source_module_id": "advanced-social-media-intelligence-osint"
+  },
+  {
+    "title": "Celestial Navigation for OSINT: Professional Intelligence Techniques",
+    "description": "Master professional-grade geolocation techniques using celestial bodies like stars, sun, and moon to determine locations in images and videos with precision comparable to intelligence agency standards.",
+    "difficulty": "Advanced",
+    "duration": 240,
+    "tags": [
+      "geolocation",
+      "advanced",
+      "astronomy",
+      "shadows",
+      "celestial",
+      "sun",
+      "stars",
+      "moon",
+      "intelligence",
+      "professional",
+      "precision"
+    ],
+    "id": "celestial-navigation-osint",
+    "source_module_id": "celestial-navigation-osint"
+  },
+  {
+    "title": "Cryptocurrency Investigation Techniques",
+    "description": "Master professional-grade techniques for investigating cryptocurrency transactions, tracing funds across blockchains, and attributing wallet activity using methodologies employed by financial intelligence units and specialized investigators.",
+    "difficulty": "Advanced",
+    "duration": 210,
+    "tags": [
+      "cryptocurrency",
+      "blockchain",
+      "financial",
+      "advanced",
+      "technical",
+      "bitcoin",
+      "ethereum",
+      "tracing",
+      "attribution",
+      "professional"
+    ],
+    "id": "cryptocurrency-investigation-osint",
+    "source_module_id": "cryptocurrency-investigation-osint"
+  },
+  {
+    "title": "Dark Web Intelligence Operations",
+    "description": "Master professional-grade techniques for conducting secure, effective intelligence operations on dark web networks using methodologies employed by intelligence agencies and specialized security teams.",
+    "difficulty": "Advanced",
+    "duration": 240,
+    "tags": [
+      "dark web",
+      "advanced",
+      "technical",
+      "tor",
+      "cryptocurrency",
+      "marketplaces",
+      "forums",
+      "intelligence",
+      "professional",
+      "opsec"
+    ],
+    "id": "dark-web-intelligence-osint",
+    "source_module_id": "dark-web-intelligence-osint"
+  },
+  {
+    "title": "Advanced Digital Footprint Analysis: OSINT Techniques for Comprehensive Online Investigation",
+    "description": "Master advanced techniques for analyzing digital footprints to gather intelligence about individuals and organizations, including username correlation, email analysis, social media investigation, and ethical considerations.",
+    "difficulty": "Intermediate",
+    "duration": 180,
+    "tags": [
+      "digital footprint",
+      "username analysis",
+      "email investigation",
+      "social media",
+      "reverse image search",
+      "data correlation",
+      "privacy",
+      "ethics",
+      "OSINT"
+    ],
+    "id": "digital-footprint",
+    "source_module_id": "digital-footprint-analysis-osint"
+  },
+  {
+    "title": "Environmental Analysis in OSINT",
+    "description": "Learn advanced techniques for using flora, fauna, terrain, and climate indicators to determine locations and verify information in OSINT investigations.",
+    "difficulty": "Advanced",
+    "duration": 110,
+    "tags": [
+      "geolocation",
+      "advanced",
+      "environment",
+      "flora",
+      "fauna",
+      "terrain",
+      "climate",
+      "ecology"
+    ],
+    "id": "environmental-analysis-osint",
+    "source_module_id": "environmental-analysis-osint"
+  },
+  {
+    "title": "Geolocation Techniques",
+    "description": "Master the art of determining locations from images, videos, and other online content using OSINT methods.",
+    "difficulty": "Intermediate",
+    "duration": 75,
+    "id": "geolocation-techniques",
+    "source_module_id": "geolocation-techniques"
+  },
+  {
+    "title": "GIS Techniques for OSINT Investigations",
+    "description": "Learn how to leverage Geographic Information Systems (GIS) to enhance your OSINT investigations with spatial analysis and mapping techniques.",
+    "difficulty": "Intermediate",
+    "duration": 90,
+    "id": "gis-for-osint",
+    "source_module_id": "gis-for-osint"
+  },
+  {
+    "title": "Introduction to OSINT",
+    "description": "Learn the fundamentals of Open Source Intelligence, including key concepts, tools, and methodologies for effective information gathering and analysis.",
+    "difficulty": "Beginner",
+    "duration": 45,
+    "tags": [
+      "basics",
+      "introduction",
+      "fundamentals",
+      "intelligence"
+    ],
+    "id": "intro-to-osint",
+    "source_module_id": "intro-to-osint"
+  },
+  {
+    "title": "Malware and Technical Threat Intelligence",
+    "description": "Master professional-grade techniques for analyzing malware, tracking campaigns, and developing comprehensive threat intelligence using OSINT methodologies employed by leading security teams.",
+    "difficulty": "Advanced",
+    "duration": 240,
+    "tags": [
+      "malware",
+      "threat intelligence",
+      "advanced",
+      "technical",
+      "campaigns",
+      "attribution",
+      "indicators",
+      "professional"
+    ],
+    "id": "malware-threat-intelligence-osint",
+    "source_module_id": "malware-threat-intelligence-osint"
+  },
+  {
+    "title": "Ethics in OSINT Investigations",
+    "description": "Explore the ethical dimensions of Open Source Intelligence gathering and learn how to conduct responsible investigations that respect privacy, legal boundaries, and human dignity.",
+    "difficulty": "Intermediate",
+    "duration": 60,
+    "id": "osint-ethics",
+    "source_module_id": "osint-ethics"
+  },
+  {
+    "title": "OSINT Tools Overview",
+    "description": "Explore a variety of tools designed specifically for OSINT investigations and learn when to use each one.",
+    "difficulty": "Beginner",
+    "duration": 60,
+    "tags": [
+      "tools",
+      "software",
+      "resources",
+      "beginner"
+    ],
+    "id": "osint-tools-overview",
+    "source_module_id": "osint-tools-overview"
+  },
+  {
+    "title": "Phishing Investigation Techniques",
+    "description": "Learn how to investigate phishing campaigns using OSINT techniques to identify threat actors, infrastructure, and tactics.",
+    "difficulty": "Intermediate",
+    "duration": 85,
+    "id": "phishing-investigation",
+    "source_module_id": "phishing-investigation"
+  },
+  {
+    "title": "Social Engineering Detection and Counter-OSINT Techniques",
+    "description": "Learn to identify, analyze, and defend against social engineering attacks while mastering counter-OSINT techniques to protect personal and organizational digital footprints from malicious actors.",
+    "difficulty": "Intermediate",
+    "duration": 180,
+    "tags": [
+      "social engineering",
+      "counter-osint",
+      "security awareness",
+      "phishing",
+      "pretexting",
+      "vishing",
+      "smishing",
+      "defense",
+      "detection",
+      "awareness",
+      "protection"
+    ],
+    "id": "social-engineering-detection",
+    "source_module_id": "social-engineering-detection"
+  },
+  {
+    "title": "Social Media Investigation",
+    "description": "Discover techniques for gathering intelligence from various social media platforms while respecting privacy and terms of service.",
+    "difficulty": "Intermediate",
+    "duration": 60,
+    "id": "social-media-investigation",
+    "source_module_id": "social-media-investigation"
+  },
+  {
+    "title": "Urban Elements in OSINT",
+    "description": "Master advanced techniques for using urban features like signage, road patterns, architecture, and infrastructure to precisely geolocate images and verify information.",
+    "difficulty": "Advanced",
+    "duration": 115,
+    "tags": [
+      "geolocation",
+      "advanced",
+      "urban",
+      "architecture",
+      "infrastructure",
+      "signs",
+      "roads",
+      "cultural indicators"
+    ],
+    "id": "urban-elements-osint",
+    "source_module_id": "urban-elements-osint"
+  }
+]

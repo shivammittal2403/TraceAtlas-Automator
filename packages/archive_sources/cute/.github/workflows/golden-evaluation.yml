@@ -1,0 +1,14 @@
+name: golden-evaluation
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+jobs:
+  golden_evaluation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v3
+      - run: uv run python scripts/run_golden.py

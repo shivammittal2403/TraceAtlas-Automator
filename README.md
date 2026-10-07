@@ -8,6 +8,12 @@ TraceAtlas helps investigators organize approved research. It does not turn an A
 
 ## Current capabilities
 
+- Compatible integration of the supplied TraceAtlas-OSINT and cute snapshots:
+  seven case-bound offline analysis actions, an OSINT directory, and a 19-module
+  Academy. All source/configuration/test/document files are preserved with
+  provenance; imported scaffolds are not counted as working integrations.
+  See [Archive integration](docs/ARCHIVE_INTEGRATION.md).
+
 - Canonical workforce pipeline with typed targets, capability-based source planning, approval digests, bounded collection, evidence custody, verification, graph/timeline analysis, and replay.
 - 26 approval-driven source adapters, including public DNS/RDAP, certificate transparency, passive URL and archive indexes, public IP context, company registries, NVD, CVE Program, FIRST EPSS, the exact-CVE CISA KEV catalog adapter, OSV, and npm metadata. CISA KEV facts are normalized only from the exact requested CVE match; the bounded raw feed is retained as source evidence for replay.
 - Deterministic employee console with checkpointed local workflows and evidence/replay exports.
@@ -24,6 +30,12 @@ representative workflows have reproducible evaluation evidence.
 ## Quick start
 
 Requires Python 3.10 or newer.
+
+List the archive actions with `traceatlas archive actions`. Run an approved
+submitted file with `traceatlas --workspace ./cases archive analyze --case CASE
+--action objective --input objective.json --authorized`; outputs use the existing
+case/evidence/report pipeline. Educational pages are at `/directory/` and
+`/academy/` in the hosted static frontend, with no provider collection.
 
 ```powershell
 python -m pip install .

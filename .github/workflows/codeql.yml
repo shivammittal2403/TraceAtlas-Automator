@@ -28,3 +28,31 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+          output: artifacts/codeql
+      - name: Summarize scanner findings without executing source content
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in sorted(Path('artifacts/codeql').glob('*.sarif')):
+              data = json.loads(path.read_text())
+              for run in data.get('runs', []):
+                  for result in run.get('results', []):
+                      locations = []
+                      for item in result.get('locations', []):
+                          physical = item.get('physicalLocation', {})
+                          locations.append({'path': physical.get('artifactLocation', {}).get('uri'),
+                                            'line': physical.get('region', {}).get('startLine')})
+                      print(json.dumps({'scanner_finding': True, 'rule': result.get('ruleId'),
+                                        'level': result.get('level'), 'locations': locations,
+                                        'message': result.get('message', {}).get('text', '')[:1500]}))
+          PY
+      - name: Preserve scanner findings for bounded review and remediation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: codeql-findings-${{ matrix.language }}
+          path: artifacts/codeql/*.sarif
+          if-no-files-found: warn
+          retention-days: 14

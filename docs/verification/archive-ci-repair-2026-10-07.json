@@ -1,0 +1,41 @@
+{
+  "schema": "traceatlas.ci.repair.v1",
+  "parent_sha": "e724dde27b4737eeeeda3fef6cb284c104e3a150",
+  "pr": 68,
+  "first_attempt": {
+    "CI": "FAILED",
+    "mcp": "SDK 2.3.0 lacks the v1 handler decorators",
+    "browser": "Search correctly returns SpiderFoot and SpiderFoot HX; harness incorrectly expected one listing",
+    "CodeQL": {
+      "state": "FAILED",
+      "reported_alerts": 50,
+      "high": 48,
+      "medium": 2,
+      "locations": "PENDING SARIF review"
+    },
+    "optional_ai_security_review": {
+      "state": "BLOCKED_EXTERNAL",
+      "reason": "GitHub Copilot monthly quota exhausted; no purchasing/settings change authorized"
+    }
+  },
+  "repairs": {
+    "MCP": "Use SDK 2.x constructor callbacks/full wire results; keep canonical field/authority checks and thread-owned store",
+    "negative_tests": "Wire scope/case/URL/required fields/kill-switch rejection strengthened",
+    "browser": "Assert exact two distinct preserved listings rather than an incorrect count",
+    "CodeQL": "Persist/summarize SARIF; no exclusions, check disable, or false pass"
+  },
+  "local_observation": {
+    "environment": "isolated Python 3.12.14 / uv locked OpenOSINT dependencies / MCP 2.3.0",
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <isolated-python> -m unittest discover -s tests -q",
+    "result": "PASS",
+    "run": 500,
+    "passed": 500,
+    "skipped": 0,
+    "seconds": 32.66,
+    "artifact": "Observed command result before the execution workspace disconnected; subsequent remote CI required"
+  },
+  "remote_state": "PENDING checks on repair commit",
+  "hosted": "NOT_VERIFIED",
+  "deployment": "NONE",
+  "qualification": "No enterprise/vendor superiority claim"
+}
