@@ -3,7 +3,13 @@
   "framework": null,
   "rewrites": [
     { "source": "/", "destination": "/public/index.html" },
-    { "source": "/legacy", "destination": "/public/legacy.html" }
+    { "source": "/legacy", "destination": "/public/legacy.html" },
+    { "source": "/directory", "destination": "/public/directory/index.html" },
+    { "source": "/directory/", "destination": "/public/directory/index.html" },
+    { "source": "/directory/:path*", "destination": "/public/directory/:path*" },
+    { "source": "/academy", "destination": "/public/academy/index.html" },
+    { "source": "/academy/", "destination": "/public/academy/index.html" },
+    { "source": "/academy/:path*", "destination": "/public/academy/:path*" }
   ],
   "headers": [
     {

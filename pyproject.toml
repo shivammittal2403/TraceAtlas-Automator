@@ -30,6 +30,8 @@ where = ["src"]
 "traceatlas.employee.data" = ["*.json"]
 "traceatlas.data" = ["*.json"]
 "traceatlas.workforce.data" = ["*.json"]
+"traceatlas.addons.cute_v1" = ["LICENSE"]
+"traceatlas.addons.osint_v1" = ["NOTICE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

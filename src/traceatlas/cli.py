@@ -45,6 +45,7 @@ from .operations import SQLiteRestoreDrill
 from .employee.cli import add_employee_parser, run_employee
 from .workforce.cli import add_workforce_parser, run_workforce
 from .source_fabric.cli import add_fabric_parser, run_fabric
+from .workforce.archive_bridge import add_archive_parser, run_archive
 
 
 CASE_ID = re.compile(r"^[a-zA-Z0-9_-]{2,64}$")
@@ -58,6 +59,7 @@ def parser() -> argparse.ArgumentParser:
     add_employee_parser(sub)
     add_workforce_parser(sub)
     add_fabric_parser(sub)
+    add_archive_parser(sub)
 
     methods = sub.add_parser("methods", help="List or inspect the 40 playbooks")
     methods.add_argument("method", nargs="?")
@@ -729,6 +731,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(run_workforce(args, engine), indent=2, ensure_ascii=False))
         elif args.command == "source-fabric":
             print(json.dumps(run_fabric(args, engine), indent=2, ensure_ascii=False))
+        elif args.command == "archive":
+            print(json.dumps(run_archive(args, engine), indent=2, ensure_ascii=False))
         elif args.command == "init":
             if not CASE_ID.fullmatch(args.case_id):
                 raise PolicyError("Case ID must be 2-64 letters, digits, underscores or hyphens")

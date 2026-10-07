@@ -1,5 +1,10 @@
 # External Tool Integrations
 
+The two supplied TraceAtlas source archives are a separate, versioned offline
+compatibility integration. Seven graduated analysis actions share the canonical
+case/evidence store; source/scaffold presence does not qualify a connector.
+Their complete code and provenance are documented in [ARCHIVE_INTEGRATION.md](ARCHIVE_INTEGRATION.md).
+
 ## Operating model
 
 TraceAtlas integrates tools as governed subprocess adapters. An adapter defines

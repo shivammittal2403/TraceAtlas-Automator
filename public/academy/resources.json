@@ -1,0 +1,830 @@
+[
+  {
+    "url": "https://www.google.com/advanced_search",
+    "title": "Google Advanced Search"
+  },
+  {
+    "url": "https://duckduckgo.com/",
+    "title": "DuckDuckGo"
+  },
+  {
+    "url": "https://www.shodan.io/",
+    "title": "Shodan"
+  },
+  {
+    "url": "https://archive.org/web/",
+    "title": "Wayback Machine"
+  },
+  {
+    "url": "https://www.startpage.com/",
+    "title": "Startpage"
+  },
+  {
+    "url": "https://www.bing.com/search",
+    "title": "Bing"
+  },
+  {
+    "url": "https://yandex.com/",
+    "title": "Yandex"
+  },
+  {
+    "url": "https://www.baidu.com/",
+    "title": "Baidu"
+  },
+  {
+    "url": "https://searx.org/",
+    "title": "SearX"
+  },
+  {
+    "url": "https://www.qwant.com/",
+    "title": "Qwant"
+  },
+  {
+    "url": "https://www.wolframalpha.com/",
+    "title": "WolframAlpha (Geography)"
+  },
+  {
+    "url": "https://scholar.google.com/",
+    "title": "Google Scholar"
+  },
+  {
+    "url": "https://www.pipl.com/",
+    "title": "Pipl"
+  },
+  {
+    "url": "https://www.spokeo.com/",
+    "title": "Spokeo"
+  },
+  {
+    "url": "https://www.whitepages.com/",
+    "title": "Whitepages"
+  },
+  {
+    "url": "https://www.freebase.com/",
+    "title": "Freebase"
+  },
+  {
+    "url": "https://www.deepdyve.com/",
+    "title": "DeepDyve"
+  },
+  {
+    "url": "https://www.base-search.net/",
+    "title": "BASE"
+  },
+  {
+    "url": "https://www.refseek.com/",
+    "title": "RefSeek"
+  },
+  {
+    "url": "https://www.semanticscholar.org/",
+    "title": "Semantic Scholar"
+  },
+  {
+    "url": "https://www.darkwebreport.com/",
+    "title": "Dark Web Report"
+  },
+  {
+    "url": "https://www.flare.systems/",
+    "title": "Flare Systems"
+  },
+  {
+    "url": "https://www.sixgill.com/",
+    "title": "Sixgill"
+  },
+  {
+    "url": "https://www.recordedfuture.com/",
+    "title": "Recorded Future"
+  },
+  {
+    "url": "https://www.darktrace.com/",
+    "title": "Darktrace"
+  },
+  {
+    "url": "https://haveibeenpwned.com/",
+    "title": "Have I Been Pwned"
+  },
+  {
+    "url": "https://www.dehashed.com/",
+    "title": "Dehashed"
+  },
+  {
+    "url": "https://leakcheck.io/",
+    "title": "LeakCheck"
+  },
+  {
+    "url": "https://www.intelx.io/",
+    "title": "Intelligence X"
+  },
+  {
+    "url": "https://ghostproject.fr/",
+    "title": "GhostProject"
+  },
+  {
+    "url": "https://www.scribd.com/",
+    "title": "Scribd"
+  },
+  {
+    "url": "https://docplayer.net/",
+    "title": "DocPlayer"
+  },
+  {
+    "url": "https://www.slideshare.net/",
+    "title": "SlideShare"
+  },
+  {
+    "url": "https://www.4shared.com/",
+    "title": "4shared"
+  },
+  {
+    "url": "https://www.box.com/",
+    "title": "Box"
+  },
+  {
+    "url": "https://github.com/search",
+    "title": "GitHub Search"
+  },
+  {
+    "url": "https://gitlab.com/explore",
+    "title": "GitLab"
+  },
+  {
+    "url": "https://bitbucket.org/",
+    "title": "Bitbucket"
+  },
+  {
+    "url": "https://searchcode.com/",
+    "title": "SearchCode"
+  },
+  {
+    "url": "https://grep.app/",
+    "title": "Grep.app"
+  },
+  {
+    "url": "https://archive.today/",
+    "title": "Archive.today"
+  },
+  {
+    "url": "https://www.loc.gov/",
+    "title": "Library of Congress"
+  },
+  {
+    "url": "https://www.europeana.eu/",
+    "title": "Europeana"
+  },
+  {
+    "url": "https://www.memento-web.org/",
+    "title": "Memento Web"
+  },
+  {
+    "url": "https://otx.alienvault.com/",
+    "title": "AlienVault OTX"
+  },
+  {
+    "url": "https://www.misp-project.org/",
+    "title": "MISP"
+  },
+  {
+    "url": "https://www.threatconnect.com/",
+    "title": "ThreatConnect"
+  },
+  {
+    "url": "https://github.com/twintproject/twint",
+    "title": "Twint"
+  },
+  {
+    "url": "https://github.com/sherlock-project/sherlock",
+    "title": "Sherlock"
+  },
+  {
+    "url": "https://www.social-searcher.com/",
+    "title": "Social Searcher"
+  },
+  {
+    "url": "https://github.com/Datalux/Osintgram",
+    "title": "Osintgram"
+  },
+  {
+    "url": "https://namechk.com/",
+    "title": "NameChk"
+  },
+  {
+    "url": "https://knowem.com/",
+    "title": "KnowEm"
+  },
+  {
+    "url": "https://checkusernames.com/",
+    "title": "CheckUsernames"
+  },
+  {
+    "url": "https://instantusername.com/",
+    "title": "Instant Username"
+  },
+  {
+    "url": "https://usersearch.org/",
+    "title": "UserSearch"
+  },
+  {
+    "url": "https://whatsmyname.app/",
+    "title": "WhatsMyName"
+  },
+  {
+    "url": "https://tweetdeck.twitter.com/",
+    "title": "TweetDeck"
+  },
+  {
+    "url": "https://www.hootsuite.com/",
+    "title": "Hootsuite"
+  },
+  {
+    "url": "https://mention.com/",
+    "title": "Mention"
+  },
+  {
+    "url": "https://brandwatch.com/",
+    "title": "Brandwatch"
+  },
+  {
+    "url": "https://www.socialmention.com/",
+    "title": "Social Mention"
+  },
+  {
+    "url": "https://foller.me/",
+    "title": "Foller.me"
+  },
+  {
+    "url": "https://tweettunnel.com/",
+    "title": "Tweet Tunnel"
+  },
+  {
+    "url": "https://www.twitonomy.com/",
+    "title": "Twitonomy"
+  },
+  {
+    "url": "https://tinfoleak.com/",
+    "title": "Tinfoleak"
+  },
+  {
+    "url": "https://birdpan.com/",
+    "title": "Birdpan"
+  },
+  {
+    "url": "https://lookup-id.com/",
+    "title": "Facebook ID Lookup"
+  },
+  {
+    "url": "https://whopostedwhat.com/",
+    "title": "Who Posted What"
+  },
+  {
+    "url": "https://stalkscan.com/",
+    "title": "StalkScan"
+  },
+  {
+    "url": "https://www.picuki.com/",
+    "title": "Picuki"
+  },
+  {
+    "url": "https://imginn.com/",
+    "title": "Imginn"
+  },
+  {
+    "url": "https://github.com/instaloader/instaloader",
+    "title": "Instaloader"
+  },
+  {
+    "url": "https://www.skrapp.io/",
+    "title": "Skrapp"
+  },
+  {
+    "url": "https://www.hunter.io/",
+    "title": "Hunter.io"
+  },
+  {
+    "url": "https://www.linkedin.com/sales/ssi",
+    "title": "LinkedIn Sales Navigator"
+  },
+  {
+    "url": "https://osintframework.com/",
+    "title": "Visit Website"
+  },
+  {
+    "url": "https://github.com/laramies/theHarvester",
+    "title": "theHarvester"
+  },
+  {
+    "url": "https://github.com/jivoi/awesome-osint",
+    "title": "Awesome OSINT"
+  },
+  {
+    "url": "https://www.pimeyes.com/",
+    "title": "PimEyes"
+  },
+  {
+    "url": "https://github.com/WebBreacher/WhatsMyName",
+    "title": "WhatsMyName Web"
+  },
+  {
+    "url": "https://searchmy.bio/",
+    "title": "SearchMyBio"
+  },
+  {
+    "url": "https://www.tgstat.com/",
+    "title": "TGStat (Telegram)"
+  },
+  {
+    "url": "https://lullar.com/",
+    "title": "Lullar"
+  },
+  {
+    "url": "https://trends.google.com/",
+    "title": "Google Trends"
+  },
+  {
+    "url": "https://hashtagify.me/",
+    "title": "Hashtagify"
+  },
+  {
+    "url": "https://trendsmap.com/",
+    "title": "Trendsmap"
+  },
+  {
+    "url": "https://www.google.com/maps",
+    "title": "Google Maps"
+  },
+  {
+    "url": "https://earth.google.com/web/",
+    "title": "Google Earth"
+  },
+  {
+    "url": "https://www.geoguessr.com/",
+    "title": "GeoGuessr"
+  },
+  {
+    "url": "https://suncalc.org/",
+    "title": "SunCalc"
+  },
+  {
+    "url": "https://www.wikimapia.org/",
+    "title": "Wikimapia"
+  },
+  {
+    "url": "https://www.openstreetmap.org/",
+    "title": "OpenStreetMap"
+  },
+  {
+    "url": "https://www.windy.com/",
+    "title": "Windy"
+  },
+  {
+    "url": "https://www.flightradar24.com/",
+    "title": "Flightradar24"
+  },
+  {
+    "url": "https://www.marinetraffic.com/",
+    "title": "MarineTraffic"
+  },
+  {
+    "url": "https://www.timeanddate.com/worldclock/",
+    "title": "World Clock"
+  },
+  {
+    "url": "https://www.geocaching.com/",
+    "title": "Geocaching"
+  },
+  {
+    "url": "https://what3words.com/",
+    "title": "What3Words"
+  },
+  {
+    "url": "https://www.mapquest.com/",
+    "title": "MapQuest"
+  },
+  {
+    "url": "https://www.gps-coordinates.net/",
+    "title": "GPS Coordinates"
+  },
+  {
+    "url": "https://www.distance.to/",
+    "title": "Distance Calculator"
+  },
+  {
+    "url": "https://www.coordtrans.com/",
+    "title": "Coordinate Converter"
+  },
+  {
+    "url": "https://www.freemaptools.com/",
+    "title": "Free Map Tools"
+  },
+  {
+    "url": "https://www.earthdata.nasa.gov/worldview",
+    "title": "NASA Worldview"
+  },
+  {
+    "url": "https://www.arcgis.com/apps/webappviewer/index.html",
+    "title": "ArcGIS Online"
+  },
+  {
+    "url": "https://whois.domaintools.com/",
+    "title": "WHOIS Lookup"
+  },
+  {
+    "url": "https://dnsdumpster.com/",
+    "title": "DNSDumpster"
+  },
+  {
+    "url": "https://www.virustotal.com/",
+    "title": "VirusTotal"
+  },
+  {
+    "url": "https://censys.io/",
+    "title": "Censys"
+  },
+  {
+    "url": "https://securitytrails.com/",
+    "title": "SecurityTrails"
+  },
+  {
+    "url": "https://www.robtex.com/",
+    "title": "Robtex"
+  },
+  {
+    "url": "https://viewdns.info/",
+    "title": "ViewDNS"
+  },
+  {
+    "url": "https://mxtoolbox.com/",
+    "title": "MXToolbox"
+  },
+  {
+    "url": "https://dnschecker.org/",
+    "title": "DNS Checker"
+  },
+  {
+    "url": "https://www.whatsmydns.net/",
+    "title": "What's My DNS"
+  },
+  {
+    "url": "https://www.abuseipdb.com/",
+    "title": "AbuseIPDB"
+  },
+  {
+    "url": "https://ipinfo.io/",
+    "title": "IPinfo"
+  },
+  {
+    "url": "https://www.maxmind.com/en/geoip-demo",
+    "title": "MaxMind GeoIP"
+  },
+  {
+    "url": "https://www.ipvoid.com/",
+    "title": "IPVoid"
+  },
+  {
+    "url": "https://www.urlvoid.com/",
+    "title": "URLVoid"
+  },
+  {
+    "url": "https://www.hybrid-analysis.com/",
+    "title": "Hybrid Analysis"
+  },
+  {
+    "url": "https://www.threatcrowd.org/",
+    "title": "ThreatCrowd"
+  },
+  {
+    "url": "https://www.pulsedive.com/",
+    "title": "Pulsedive"
+  },
+  {
+    "url": "https://crt.sh/",
+    "title": "crt.sh"
+  },
+  {
+    "url": "https://www.netcraft.com/",
+    "title": "Netcraft"
+  },
+  {
+    "url": "https://subdomainfinder.c99.nl/",
+    "title": "Subdomain Finder"
+  },
+  {
+    "url": "https://spyse.com/",
+    "title": "Spyse"
+  },
+  {
+    "url": "https://web.archive.org/",
+    "title": "Wayback Machine"
+  },
+  {
+    "url": "https://dnshistory.org/",
+    "title": "DNS History"
+  },
+  {
+    "url": "https://whoisology.com/",
+    "title": "Whoisology"
+  },
+  {
+    "url": "https://hackertarget.com/",
+    "title": "HackerTarget"
+  },
+  {
+    "url": "https://nmap.online/",
+    "title": "Nmap Online"
+  },
+  {
+    "url": "https://pentest-tools.com/",
+    "title": "Pentest Tools"
+  },
+  {
+    "url": "https://builtwith.com/",
+    "title": "BuiltWith"
+  },
+  {
+    "url": "https://www.wappalyzer.com/",
+    "title": "Wappalyzer"
+  },
+  {
+    "url": "https://bgp.he.net/",
+    "title": "Hurricane Electric BGP"
+  },
+  {
+    "url": "https://images.google.com/",
+    "title": "Google Images"
+  },
+  {
+    "url": "https://tineye.com/",
+    "title": "TinEye"
+  },
+  {
+    "url": "https://yandex.com/images/",
+    "title": "Yandex Images"
+  },
+  {
+    "url": "https://github.com/exiftool/exiftool",
+    "title": "ExifTool"
+  },
+  {
+    "url": "https://fotoforensics.com/",
+    "title": "FotoForensics"
+  },
+  {
+    "url": "https://lenso.ai/en",
+    "title": "Lenso.AI"
+  },
+  {
+    "url": "https://www.ghiro.org/",
+    "title": "Ghiro"
+  },
+  {
+    "url": "https://29a.ch/photo-forensics/",
+    "title": "Photo Forensics"
+  },
+  {
+    "url": "https://www.imageforensic.org/",
+    "title": "Image Forensic"
+  },
+  {
+    "url": "https://imageedited.com/",
+    "title": "ImageEdited"
+  },
+  {
+    "url": "https://www.izitru.com/",
+    "title": "Izitru"
+  },
+  {
+    "url": "https://www.verexif.com/",
+    "title": "Verexif"
+  },
+  {
+    "url": "https://exifdata.com/",
+    "title": "ExifData"
+  },
+  {
+    "url": "https://www.pic2map.com/",
+    "title": "Pic2Map"
+  },
+  {
+    "url": "https://jimpl.com/",
+    "title": "JIMPL"
+  },
+  {
+    "url": "https://aiornot.com/",
+    "title": "AI or Not"
+  },
+  {
+    "url": "https://hivemoderation.com/ai-generated-content-detection",
+    "title": "Hive AI Detection"
+  },
+  {
+    "url": "https://contentdetector.ai/",
+    "title": "Content Detector AI"
+  },
+  {
+    "url": "https://www.bing.com/visualsearch",
+    "title": "Bing Visual Search"
+  },
+  {
+    "url": "https://lens.google.com/",
+    "title": "Google Lens"
+  },
+  {
+    "url": "https://www.labnol.org/reverse/",
+    "title": "Reverse Image Search"
+  },
+  {
+    "url": "https://www.stolencamerafinder.com/",
+    "title": "Stolen Camera Finder"
+  },
+  {
+    "url": "https://www.imageraider.com/",
+    "title": "Image Raider"
+  },
+  {
+    "url": "https://duplichecker.com/reverse-image-search.php",
+    "title": "DupliChecker"
+  },
+  {
+    "url": "https://www.maltego.com/",
+    "title": "Maltego"
+  },
+  {
+    "url": "https://gephi.org/",
+    "title": "Gephi"
+  },
+  {
+    "url": "https://www.paterva.com/buy/maltego-clients/maltego-ce.php",
+    "title": "Maltego CE"
+  },
+  {
+    "url": "https://www.spiderfoot.net/",
+    "title": "SpiderFoot"
+  },
+  {
+    "url": "https://www.palantir.com/platforms/gotham/",
+    "title": "Palantir Gotham"
+  },
+  {
+    "url": "https://cytoscape.org/",
+    "title": "Cytoscape"
+  },
+  {
+    "url": "https://www.yworks.com/products/yed",
+    "title": "yEd Graph Editor"
+  },
+  {
+    "url": "https://graphcommons.com/",
+    "title": "Graph Commons"
+  },
+  {
+    "url": "https://www.linkurious.com/",
+    "title": "Linkurious"
+  },
+  {
+    "url": "https://cambridge-intelligence.com/keylines/",
+    "title": "KeyLines"
+  },
+  {
+    "url": "https://public.tableau.com/",
+    "title": "Tableau Public"
+  },
+  {
+    "url": "https://app.powerbi.com/",
+    "title": "Power BI"
+  },
+  {
+    "url": "https://observablehq.com/",
+    "title": "Observable"
+  },
+  {
+    "url": "https://www.flourish.studio/",
+    "title": "Flourish"
+  },
+  {
+    "url": "https://www.datawrapper.de/",
+    "title": "Datawrapper"
+  },
+  {
+    "url": "https://timeline.knightlab.com/",
+    "title": "TimelineJS"
+  },
+  {
+    "url": "https://www.tiki-toki.com/",
+    "title": "Tiki-Toki"
+  },
+  {
+    "url": "https://www.timetoast.com/",
+    "title": "Timetoast"
+  },
+  {
+    "url": "https://www.lucidchart.com/",
+    "title": "Lucidchart"
+  },
+  {
+    "url": "https://www.draw.io/",
+    "title": "Draw.io"
+  },
+  {
+    "url": "https://kumu.io/",
+    "title": "Kumu"
+  },
+  {
+    "url": "https://www.mindmeister.com/",
+    "title": "MindMeister"
+  },
+  {
+    "url": "https://neo4j.com/product/bloom/",
+    "title": "Neo4j Bloom"
+  },
+  {
+    "url": "https://www.anaconda.com/products/individual",
+    "title": "Anaconda (Python)"
+  },
+  {
+    "url": "https://www.r-project.org/",
+    "title": "R Statistical Software"
+  },
+  {
+    "url": "https://www.graphistry.com/",
+    "title": "Graphistry"
+  },
+  {
+    "url": "https://rawgraphs.io/",
+    "title": "RAWGraphs"
+  },
+  {
+    "url": "https://www.chartjs.org/",
+    "title": "Chart.js"
+  },
+  {
+    "url": "https://d3js.org/",
+    "title": "D3.js"
+  },
+  {
+    "url": "https://inteltechniques.com/book1.html",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://inteltechniques.com/book7.html",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.oreilly.com/library/view/intelligence-driven-incident-response/9781491935187/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.oxfordscholarship.com/view/10.1093/oso/9780198836070.001.0001/oso-9780198836070",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.i-intelligence.eu/osint-handbook/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.penguinrandomhouse.com/books/209897/the-art-of-intelligence-by-henry-a-crumpton/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.wiley.com/en-us/Social+Engineering%3A+The+Science+of+Human+Hacking%2C+2nd+Edition-p-9781119433385",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.wiley.com/en-us/Cyber+Threat+Intelligence-p-9781119739074",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.packtpub.com/product/digital-forensics-and-incident-response-second-edition/9781803238678",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.cqpress.com/cq_products/display.php?txtProductID=3715",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.penguinrandomhouse.com/books/90228/the-cuckoos-egg-by-cliff-stoll/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.bloomsbury.com/us/we-are-bellingcat-9781635576061/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.oreilly.com/library/view/privacy-engineering/9781491904206/",
+    "title": "Learn More"
+  },
+  {
+    "url": "https://www.reddit.com/r/OSINT/",
+    "title": "Visit Subreddit"
+  },
+  {
+    "url": "https://osintcurio.us/",
+    "title": "Visit Website"
+  },
+  {
+    "url": "https://www.bellingcat.com/",
+    "title": "Visit Website"
+  },
+  {
+    "url": "https://github.com/shivammittal2403/TraceAtlas-OSINT",
+    "title": "View on GitHub"
+  }
+]

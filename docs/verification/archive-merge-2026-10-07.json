@@ -1,0 +1,169 @@
+{
+  "schema": "traceatlas.delivery.verification.v1",
+  "date_utc": "2026-10-07T06:08:48.815812+00:00",
+  "base_sha": "b56101237b248922316dc049528e0c83b0f2c774",
+  "branch": "codex/merge-osint-cute-20261007",
+  "environment": {
+    "kind": "isolated_local_worktree",
+    "python": "3.12.14",
+    "node": "v24.19.0"
+  },
+  "authority_scope": "User-supplied archive integration, isolated local tests and authorized GitHub publication; no external collection or hosted writes.",
+  "build_versions": {
+    "package": "1.11.0",
+    "archive_adapter": "1.0",
+    "result_schema": "traceatlas.archive.analysis.v1",
+    "manifest_schema": "traceatlas.archive.merge.v1"
+  },
+  "migrations": {
+    "local": "NONE",
+    "hosted": "NONE"
+  },
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m unittest discover -s tests -q",
+      "state": "PASS",
+      "run": 500,
+      "passed": 499,
+      "skipped": 1,
+      "duration_seconds": 30.525,
+      "log_sha256": "384c4259d29b1bc61189f68af513f1e105d5460ab5037fc9c0ff98ffdcbbf16d"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m unittest discover -s tests -p test_archive_bridge.py -q",
+      "state": "PASS",
+      "run": 21,
+      "passed": 21,
+      "skipped": 0,
+      "duration_seconds": 0.141
+    },
+    {
+      "command": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs tests/test_database.mjs",
+      "state": "PASS",
+      "run": 26,
+      "passed": 26,
+      "log_sha256": "2a0317b787fd8ece9e195fa751086676bf19b0dfe93795df1818682ce565b85f"
+    },
+    {
+      "command": "python -m compileall -q src tests api vercel_control.py scripts",
+      "state": "PASS"
+    },
+    {
+      "command": "python scripts/check_python_structure.py",
+      "state": "PASS",
+      "files": 1500
+    },
+    {
+      "command": "python scripts/verify_archive_merge.py",
+      "state": "PASS",
+      "preserved_files": 1863,
+      "original_python_modules_adapted": 1268,
+      "excluded_generated_or_runtime": 2394
+    },
+    {
+      "command": "python scripts/check_secrets.py",
+      "state": "PASS",
+      "scope": "Current source scan; not a full history audit"
+    },
+    {
+      "command": "bash -n setup.sh start.sh set.sh",
+      "state": "PASS"
+    },
+    {
+      "command": "node --check public/directory/directory.js && node --check public/academy/academy.js",
+      "state": "PASS"
+    },
+    {
+      "command": "python -m pip wheel --no-deps --no-build-isolation . -w <scratch>",
+      "state": "PASS",
+      "wheel_sha256": "6f41ff1f590691a5b04a305d84055a1fe0fe54a31b597255a8cf2db1eb16df19"
+    },
+    {
+      "command": "node tests/test_archive_ui.cjs",
+      "state": "BLOCKED_LOCAL_ENVIRONMENT",
+      "reason": "Pinned Chromium absent; repeated CDN downloads returned an empty/corrupt ZIP. Required real browser gate added to GitHub CI; no local browser pass claimed."
+    },
+    {
+      "command": "node tests/test_employee_ui.cjs",
+      "state": "NOT_RUN_LOCAL",
+      "reason": "Same absent Chromium; existing required CI gate preserved."
+    },
+    {
+      "command": "Original standalone archive test suites/Makefile check",
+      "state": "NOT_RUN",
+      "reason": "Original imports/frameworks/scaffold dependencies are not the canonical runtime; versioned canonical bridge and package were tested."
+    },
+    {
+      "command": "PYTHONPATH=src python -m traceatlas workforce golden --source-fabric",
+      "state": "PASS",
+      "summary": {
+        "passed": 78,
+        "total": 78
+      },
+      "artifact_sha256": "265352243f18db0817f84406ac834ce30fa296891fb22d30c2318a77d69c6174",
+      "data_class": "SYNTHETIC_OFFLINE_CONTRACTS"
+    },
+    {
+      "command": "PYTHONPATH=src python -m traceatlas workforce golden --enterprise",
+      "state": "PASS",
+      "summary": {
+        "passed": 112,
+        "total": 112,
+        "completed_drafts": 105
+      },
+      "artifact_sha256": "56334b1f1a52698597f4d96b7f16f52d2e0bd05633b42fe9b9c3b27aa8163a42",
+      "data_class": "SYNTHETIC_OFFLINE_CONTRACTS"
+    },
+    {
+      "command": "PYTHONPATH=src python -m traceatlas workforce golden",
+      "state": "PASS",
+      "summary": {
+        "passed": true
+      },
+      "artifact_sha256": "4d2fe6bf8e6069a9da54cdd32893eb5e6c35bb1a62b59d0dc29d75844a9afb73",
+      "data_class": "SYNTHETIC_OFFLINE_CONTRACTS"
+    },
+    {
+      "command": "Install built wheel --no-deps into isolated scratch target; run archive actions, create isolated case, run geo analysis",
+      "state": "PASS",
+      "schema": "traceatlas.archive.analysis.v1",
+      "network_calls": 0,
+      "model_calls": 0
+    },
+    {
+      "command": "Apply scripts/check_secrets.py credential patterns to every retained archive path, including dist references",
+      "state": "PASS",
+      "files": 1863,
+      "scope": "Retained input bytes; binary files excluded; not a full history audit"
+    },
+    {
+      "command": "git diff --cached --check -- . ':!packages/archive_sources'",
+      "state": "PASS",
+      "scope": "Active adaptations; originals retain their supplied bytes/whitespace by contract"
+    },
+    {
+      "command": "git cat-file --batch over every hash-bound manifest path in the index",
+      "state": "PASS",
+      "files": 3131
+    }
+  ],
+  "qualification": {
+    "implementation": "IMPLEMENTED",
+    "fixture_proof": "FIXTURE_VERIFIED for seven named actions",
+    "live": "NOT_VERIFIED; no source/model calls",
+    "hosted": "NOT_VERIFIED; no deployment",
+    "operated": "NOT_VERIFIED",
+    "outcome_validated": "NOT_VERIFIED",
+    "enterprise_or_vendor_parity": "NOT_ESTABLISHED"
+  },
+  "reviewer": "Codex local integration review; not independent security assessment",
+  "artifacts": {
+    "archive_manifest_sha256": "b5e678ca06fe0d37d82c2b12451acbd013e60406035cea83b960c4bc22056454",
+    "harness_sha256": "5a4b07e71978220071d829819abd5da0bb68ba9b58398fb3c29a3e08167c252c",
+    "browser_harness_sha256": "e8a54e3754f60c31614433b9a30ec8c731c4153ba7736c0d784e1b8efb8d47d2"
+  },
+  "remote_checks": "PENDING publication and GitHub observation; local proof does not grant hosted readiness",
+  "execution_notes": [
+    "A separate test invocation omitted PYTHONPATH and failed before test import. Re-running the repository command with PYTHONPATH=src passed all 21 archive tests."
+  ]
+}
