@@ -207,6 +207,21 @@ Chromium fixture flows and the locked SDK/parser gates pass. Final-main checks
 are separate from this tested code head. Exact proof is recorded in
 `verification/archive-compatibility-2026-10-07.json`.
 
+## Parallel-main merge compatibility
+
+Parallel PR #73 adds module-level optional YAML availability and an explicit
+unavailable-parser result. Keep those repairs. Combining them with the previous
+nested import caused Python variable shadowing; the existing no-site-packages
+regression caught it. The redundant nested import is removed, and only the two
+adapted runtime hash mappings are refreshed. Original references stay byte-exact.
+Missing YAML leaves catalog files unavailable; built-in records do not thereby
+become live-verified or authorize collection. Valid/malformed YAML and catalog
+fixtures are tested separately with pinned optional dependencies.
+
+The combined clean core runs 517 tests (515 pass/two optional skips), and four
+optional parser fixtures pass. Fresh remote checks of the combined tree are
+required independently of the earlier 56c263a proof.
+
 ## Attribution
 
 The cute snapshot includes its MIT LICENSE (2026 TraceAtlas Contributors),

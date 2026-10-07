@@ -18503,7 +18503,7 @@
           "bytes": 13282,
           "state": "PRESERVED_INERT_REFERENCE",
           "runtime_path": "src/traceatlas/addons/cute_v1/ingestion/parsers/generic_structured.py",
-          "runtime_sha256": "47470e90d0c027a7aa5cd147f6f49043ec1361574b09c8270206aea7130335ed",
+          "runtime_sha256": "d4f3a6e9d0ecfc36dfbbfcc68fe9e3da7e21d198e89c48a84f830e6a49b439fa",
           "scaffold_candidate": false
         },
         {
@@ -20195,7 +20195,7 @@
           "bytes": 11702,
           "state": "PRESERVED_INERT_REFERENCE",
           "runtime_path": "src/traceatlas/addons/cute_v1/sources/registry.py",
-          "runtime_sha256": "b488bc9665d2bcbaa4466a4d1e91443ead9cf51545cf872888fdee8ad3f4194d",
+          "runtime_sha256": "1a67caf49d64665dfefd2c507b8d9808f929f01a888c4f33620724e70b0e4cd4",
           "scaffold_candidate": false
         },
         {

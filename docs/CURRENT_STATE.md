@@ -1,3 +1,23 @@
+# Combined-main compatibility checkpoint — 2026-10-07
+
+Main advanced to `deaeafbedc91ad8c51e9368404321cf734a5da66` through parallel PR #73
+while PR #72 was merged externally. Preserve its optional YAML availability
+guard, explicit parser-unavailable error, isolation tests and unrelated changes.
+Two adapted runtime hashes became stale, and the combined existing `-S` test
+caught import-variable shadowing. Remove only the redundant nested YAML import
+and update the two runtime mappings; original reference bytes/hashes stay intact.
+No regression assertions or scanner/security gates are weakened.
+
+Combined clean core: 517 tests run, 515 pass, two explicit optional skips
+(35.022s). Separate optional-parser environment: four actual YAML/DDG fixtures
+pass with zero external calls. The 1,863 originals and 1,268 runtime mappings
+verify; 1,505 Python files pass structure checks; compilation and secrets pass.
+New combined PR/main checks remain PENDING at commit creation. Earlier remote
+proof on 56c263a below remains version-specific; it is not reused as a pass for
+this newly combined runtime. See the compatibility receipt's
+`combined_main_refresh` for harness, source/build, failure and proof identities.
+Live/hosted/operated/outcome qualification remains NOT_VERIFIED.
+
 # Archive remote verification checkpoint — 2026-10-07
 
 Code head `56c263af5509de4c3831dbc62f097822afd351ab` fixes the clean-install

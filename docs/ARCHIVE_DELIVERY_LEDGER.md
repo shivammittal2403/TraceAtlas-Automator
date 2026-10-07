@@ -18,6 +18,8 @@ No retrospective rating increase or qualification promotion is derived from this
 
 | AM11 | Clean-install workspace/capture, normalized checked child paths and restored operator-data ignore rules | IMPLEMENTED / FIXTURE_VERIFIED | Fresh installed core 515 run/513 pass/2 optional skips; Python -S regression; Node/PGlite 26 pass | CI six jobs and CodeQL PASS on 56c263a; actual Chromium fixture flow PASS; not hosted/live proof | Verify final main checks; 22 Python findings, inherited advisories and blocked optional AI review remain separate open items |
 
+| AM12 | Preserve parallel YAML guards, repair semantic import conflict and refresh only adapted runtime hashes | IMPLEMENTED / FIXTURE_VERIFIED | Combined clean core 517 run/515 pass/2 skips; four actual optional parser fixtures; original bytes unchanged | New combined CI/main PENDING at commit creation; previous 56c263a proof remains version-specific | Verify combined current head; retain source/hosted/outcome and existing security blockers |
+
 Known source defects repaired in runtime adapters are enumerated in
 [ARCHIVE_INTEGRATION.md](ARCHIVE_INTEGRATION.md); originals remain byte-preserved.
 The isolated local verification receipt records exact commands and limitations.
