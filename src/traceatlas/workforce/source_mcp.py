@@ -118,27 +118,30 @@ def build_server(facade):
     types = _mcp_wire_types()
     dispatch_lock = asyncio.Lock()
 
-    server = Server('traceatlas-sources')
+    # Supported SDK 2.x registers low-level handlers at construction and requires
+    # complete result models. It does not perform tool-schema validation: the
+    # canonical facade still validates every field and reloads worker authority.
+    async def list_tools(context, params):
+        return types.ListToolsResult(tools=[
+            types.Tool(name=name, description=description, input_schema=INPUT_SCHEMA)
+            for name, description in OPERATIONS.items()])
 
-    @server.list_tools()
-    async def list_tools():
-        return [types.Tool(name=name, description=description, input_schema=INPUT_SCHEMA)
-                for name, description in OPERATIONS.items()]
-
-    @server.call_tool(validate_input=False)
-    async def call_tool(name, arguments):
-        if name not in OPERATIONS:
-            raise ValueError('Unknown source capability')
+    async def call_tool(context, params):
         try:
+            name, arguments = params.name, params.arguments
+            if name not in OPERATIONS:
+                raise ValueError('Unknown source capability')
             async with dispatch_lock:
                 result = await asyncio.to_thread(facade.call_in_worker, name, arguments or {})
-            return [types.TextContent(type='text', text=json.dumps(result))]
+            return types.CallToolResult(
+                content=[types.TextContent(type='text', text=json.dumps(result))],
+                is_error=False)
         except (ValueError, TypeError, KeyError):
             # Rejections travel as protocol-level errors, never as fake success.
             return types.CallToolResult(
                 content=[types.TextContent(type='text', text='Source capability request rejected')],
                 is_error=True)
-    return server
+    return Server('traceatlas-sources', on_list_tools=list_tools, on_call_tool=call_tool)
 
 
 def main():

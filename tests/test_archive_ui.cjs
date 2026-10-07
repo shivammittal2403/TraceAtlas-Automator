@@ -41,7 +41,8 @@ const csp = config.headers[0].headers.find(h => h.key === 'Content-Security-Poli
     const toolCount = await page.locator('#toolGrid .tool-card').count();
     assert(toolCount >= 90, 'Preserved directory records rendered');
     await page.locator('#toolSearch').fill('SpiderFoot');
-    assert.equal(await page.locator('#toolGrid .tool-card').count(), 1);
+    assert.deepEqual((await page.locator('#toolGrid .tool-card h3').allTextContents()).sort(),
+                     ['SpiderFoot', 'SpiderFoot HX']);
     await page.goto(base + '/directory/#/finder');
     for (let step = 0; step < 3; step++) await page.locator('[data-finder-action="choose"]').first().click();
     await page.waitForSelector('[data-finder-action="reset"]');

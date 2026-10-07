@@ -553,10 +553,21 @@ class SourceFabricTests(unittest.TestCase):
                         await client.initialize()
                         listing = await client.list_tools()
                         self.assertEqual({t.name for t in listing.tools}, set(OPERATIONS))
+                        for tool in listing.tools:
+                            self.assertFalse(tool.input_schema['additionalProperties'])
+                            self.assertIn('authorization_context_id', tool.input_schema['required'])
                         value = await client.call_tool('sources.estimate_cost', arguments)
                         self.assertFalse(value.is_error)
                         self.assertEqual(json.loads(value.content[0].text)['task_id'], task)
                         rejected = await client.call_tool('sources.search', {**arguments, 'scope': ['domain:other.example']})
+                        self.assertTrue(rejected.is_error)
+                        for bad in ({**arguments, 'url': 'https://other.example/'},
+                                    {**arguments, 'case_id': 'other-case'}, {}):
+                            rejected = await client.call_tool('sources.fetch', bad)
+                            self.assertTrue(rejected.is_error)
+                            self.assertEqual(rejected.content[0].text, 'Source capability request rejected')
+                        self.service.enabled = False
+                        rejected = await client.call_tool('sources.estimate_cost', arguments)
                         self.assertTrue(rejected.is_error)
                     group.cancel_scope.cancel()
         asyncio.run(exercise())

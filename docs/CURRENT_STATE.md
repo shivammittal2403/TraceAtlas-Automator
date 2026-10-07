@@ -1,3 +1,18 @@
+# Remote CI repair checkpoint — 2026-10-07
+
+PR #68 contains the complete hash-verified archive integration. The first remote
+attempt exposed an existing MCP SDK 2.x handler mismatch and a browser harness
+expectation that incorrectly discarded the distinct SpiderFoot HX listing.
+The SDK callbacks/result models and wire rejection coverage are repaired; the
+exact locked SDK environment passed 500/500 Python tests with zero skips locally.
+
+CodeQL reported 50 alerts (48 high, two medium); their locations and dispositions
+remain OPEN until scanner-backed review. SARIF reporting/artifacts are added
+without changing scanner queries, exclusions or gates. The separate GitHub AI
+security review exhausted its monthly quota and is BLOCKED_EXTERNAL. No quota,
+subscription or security setting is changed. Main merge and hosted qualification
+are not certified by a branch push. See verification/archive-ci-repair-2026-10-07.json.
+
 # Archive integration checkpoint — 2026-10-07
 
 Base `b56101237b248922316dc049528e0c83b0f2c774`, branch
