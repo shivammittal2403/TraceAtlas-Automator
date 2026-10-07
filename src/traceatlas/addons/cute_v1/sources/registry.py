@@ -10,6 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+try:  # optional add-on dependency; the stdlib core must import without PyYAML
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - exercised by the isolation test
+    yaml = None
+
 QUALIFICATION_ORDER = ["conceptual", "documented", "integration_tested",
                        "live_verified", "production_qualified"]
 
@@ -45,7 +50,7 @@ class SourceRegistry:
     def load_default(cls, catalog_dir: str | Path | None = None) -> "SourceRegistry":
         root = Path(catalog_dir) if catalog_dir else _default_catalog_dir()
         records: list[SourceRecord] = []
-        if root and root.exists():
+        if root and root.exists() and yaml is not None:
             for path in sorted(root.glob("*.yaml")):
                 # YAML catalogs are optional. Importing offline workspaces or
                 # using built-in records must not require a vendor parser.
