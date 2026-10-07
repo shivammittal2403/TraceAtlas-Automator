@@ -157,5 +157,9 @@
     "TypeScript integration snapshot and its manifest/test/documentation from main",
     "Dependabot multidict locked-dependency update"
   ],
-  "merge_conflicts": []
+  "merge_conflicts": [],
+  "historical_correction": {
+    "observed_failure_sha": "2f662cccbda772ad6264be439e6bc390b6e079db",
+    "note": "The earlier stdlib environment label was inaccurate: PyYAML was preinstalled. Core CI failed on eager optional import. See archive-compatibility-2026-10-07.json for a fresh installed core and Python -S regression; earlier test passes remain historical only."
+  }
 }

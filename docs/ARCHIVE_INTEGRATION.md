@@ -179,12 +179,29 @@ wrapper parser now compares the exact HTTPS hostname and rejects userinfo;
 these fixtures do not graduate or execute its external client. The language
 tokenizer excludes multiplication/division symbols from its Latin ranges.
 
-Twelve added core security regressions and two separately run optional parser
+Thirteen added core security regressions and two separately run optional parser
 fixtures cover these boundaries. There is no hosted alternate-API authorization
 claim, no protection against a hostile operating-system user racing filesystem
 replacement, and no assertion that the whole repository is vulnerability-free.
 Scanner dispositions and exact tests are tracked in
 `verification/archive-security-followup-2026-10-07.json`.
+
+## Clean-install compatibility repair
+
+Main `2f662cc` still fails core CI because importing the offline workspace eagerly
+imports optional PyYAML. The parser import is now deferred until an actual YAML
+catalog file is read. A subprocess using `python -S` proves the workspace can
+capture/read synthetic evidence and use built-in registry records without any
+optional site package. An existing YAML file still requires its parser; there is
+no silent source/model fallback. Original reference bytes remain unchanged and
+only the adapted registry's runtime hash is updated.
+
+The child-path helper normalizes and checks a separator-bound root prefix before
+I/O, rejects symlinks, and returns the checked resolved path. Canonical export
+uses the same helper for artifacts and report/replay children. This does not
+claim protection against hostile operating-system races or scanner closure;
+fresh remote CodeQL results are required. Current tests and pending gates are
+in `verification/archive-compatibility-2026-10-07.json`.
 
 ## Attribution
 

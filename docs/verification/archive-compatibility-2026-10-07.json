@@ -1,0 +1,140 @@
+{
+  "schema": "traceatlas.archive.compatibility.v1",
+  "observed_at": "2026-10-07T08:48:32.180064+00:00",
+  "baseline_sha": "2f662cccbda772ad6264be439e6bc390b6e079db",
+  "baseline_tree": "011321000062408c8ea032dc11c725acd272fe3a",
+  "branch": "codex/archive-compat-final-20261007",
+  "package_version": "1.11.0",
+  "bridge_version": "traceatlas.archive.analysis.v1",
+  "schema_changes": "NONE",
+  "model_calls": 0,
+  "external_collection": 0,
+  "deployment": "NOT_AUTHORIZED / NOT_PERFORMED",
+  "scope": "Two supplied archives, compatible offline/runtime/UI integration; isolated synthetic local fixtures. GitHub push and main merge authorized.",
+  "runtime_sha256": {
+    "src/traceatlas/filesystem.py": "7d8508c2f249910db54188a5d8ec7fa7c3d4fbd0508f5e076e2d262edb07e29f",
+    "src/traceatlas/addons/cute_v1/sources/registry.py": "b488bc9665d2bcbaa4466a4d1e91443ead9cf51545cf872888fdee8ad3f4194d",
+    "src/traceatlas/employee/autonomous_analysis.py": "66f539493a2958971659ee8a0c3c70eb2f592afaa26f49684a43a79044c8d12f"
+  },
+  "harness_sha256": {
+    "tests/test_archive_security.py": "8c143ed5ea82263f463b253d0d94332954a7c1b4a16c7c51e0eac3346959cb22",
+    "tests/test_autonomous_investigation.py": "500596b8b50cd1c1b6024b05c6f98947663bdb0a3f5e979e10583f0a135fafb1",
+    "tests/test_archive_ui.cjs": "beb7924d80b9f1a0ae24fc3883c44a40299b76b57009db4b42d7892033a6b5f8",
+    "scripts/verify_archive_merge.py": "67ee353ec30878690cbdb17d263a83ebb708eadaa9d51ee9c4ec314eb8dae376"
+  },
+  "preservation": {
+    "original_files": 1863,
+    "tracked_original_files": 1863,
+    "namespaced_python_mappings": 1268,
+    "original_bytes_changed": false,
+    "manifest_sha256": "6dc8d60789f7fb83e7fce765dcee5d703c4a362e9851b908adef9163c3664735"
+  },
+  "observed_failure": {
+    "sha": "2f662cccbda772ad6264be439e6bc390b6e079db",
+    "CI_url": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37591974410",
+    "state": "FAILED",
+    "reason": "Optional PyYAML was imported eagerly through CaseWorkspace; core package intentionally has no dependencies."
+  },
+  "repairs": [
+    "Defer optional YAML import until an actual catalog file is parsed; no silent entitlement/network fallback.",
+    "Prove offline workspace creation and capture/read in Python -S with no optional site packages.",
+    "Normalize child paths and validate a separator-bound root prefix before filesystem I/O; return the checked resolved child.",
+    "Use the same confined child-path boundary for canonical exported artifacts/report/replay files.",
+    "Restore operator-secret, case-data and build/node dependency ignore rules removed by PR71; retain bytecode/test-cache ignores."
+  ],
+  "tests": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src <clean-core-venv>/bin/python -m unittest discover -s tests -v",
+      "environment": "Python 3.12.14, fresh venv with only installed traceatlas-automator core package",
+      "state": "PASS",
+      "run": 515,
+      "passed": 513,
+      "skipped": 2,
+      "seconds": 33.537,
+      "skip_reasons": [
+        "Optional Pillow perceptual hash",
+        "Optional MCP SDK wire; separate locked CI job"
+      ],
+      "log_sha256": "04e29f6d5afca649513927c590c7ab89d0f9ddb2319bb0bd173ffbe04e1a3d59"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -S -m unittest discover -s tests -p test_archive_security.py -v",
+      "state": "PASS",
+      "run": 9,
+      "passed": 9,
+      "skipped": 0
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -S -m unittest discover -s tests -p test_autonomous_investigation.py -q",
+      "state": "PASS",
+      "run": 22,
+      "passed": 22,
+      "skipped": 0
+    },
+    {
+      "command": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs tests/test_database.mjs",
+      "state": "PASS",
+      "run": 26,
+      "passed": 26,
+      "skipped": 0,
+      "log_sha256": "abb3dbe279d161b1bda1441397c162ab0aaf001fcaf5cd73042939230d89f949"
+    },
+    {
+      "command": "python scripts/verify_archive_merge.py; git ls-files compared to all preserved mappings",
+      "state": "PASS",
+      "preserved_files": 1863,
+      "tracked_files": 1863,
+      "namespaced_python": 1268
+    },
+    {
+      "command": "python scripts/check_python_structure.py",
+      "state": "PASS",
+      "python_files": 1504
+    },
+    {
+      "command": "python -m compileall -q src tests api vercel_control.py scripts",
+      "state": "PASS"
+    },
+    {
+      "command": "python scripts/check_secrets.py",
+      "state": "PASS",
+      "scope": "Includes inert reference bytes; pinned OpenCTI separately governed"
+    },
+    {
+      "command": "bash -n setup.sh start.sh set.sh; node --check six existing/owned UI scripts; git check-ignore operator files",
+      "state": "PASS"
+    },
+    {
+      "command": "<clean-core-venv>/bin/python -m pip install .",
+      "state": "PASS",
+      "wheel_sha256": "b0dab4c018ae36e2e29689d79c87d2611b516b5b72470fd781d44e43520823d4",
+      "package_dependencies": []
+    },
+    {
+      "command": "node tests/test_employee_ui.cjs; node tests/test_archive_ui.cjs",
+      "state": "NOT_RUN_LOCALLY",
+      "reason": "Chromium is not installed locally. The required real Chromium CI gate remains enabled."
+    },
+    {
+      "command": "Locked SDK and optional parser fixtures",
+      "state": "NOT_RUN_LOCALLY_ON_THIS_TRANCHE",
+      "reason": "Separate pinned GitHub CI job required before main verification."
+    }
+  ],
+  "gate_status": {
+    "local_fixture": "FIXTURE_VERIFIED",
+    "remote_CI": "PENDING",
+    "CodeQL_rescan": "PENDING",
+    "hosted": "NOT_VERIFIED",
+    "live_sources": "NOT_VERIFIED",
+    "operated": "NOT_VERIFIED",
+    "outcome_validated": "NOT_VERIFIED",
+    "enterprise_qualification": "NOT_ACHIEVED"
+  },
+  "external_blockers": [
+    "GitHub AI review quota failure remains external; no subscription/settings changes.",
+    "Inherited transitive dependency advisories and existing repository CodeQL findings remain separate open review items; a successful analysis job is not zero-alert proof.",
+    "Live source/model entitlement, hosted authorization/recovery, operations and independent analyst/vendor outcome gates have not been performed."
+  ],
+  "reviewer": "Coding agent; independent security/analyst review not performed."
+}

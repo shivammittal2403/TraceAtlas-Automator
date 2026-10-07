@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 QUALIFICATION_ORDER = ["conceptual", "documented", "integration_tested",
                        "live_verified", "production_qualified"]
 
@@ -49,6 +47,10 @@ class SourceRegistry:
         records: list[SourceRecord] = []
         if root and root.exists():
             for path in sorted(root.glob("*.yaml")):
+                # YAML catalogs are optional. Importing offline workspaces or
+                # using built-in records must not require a vendor parser.
+                import yaml
+
                 try:
                     data = yaml.safe_load(path.read_text()) or {}
                 except yaml.YAMLError:

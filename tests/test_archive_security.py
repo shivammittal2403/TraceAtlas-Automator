@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -20,6 +23,28 @@ class ArchiveFilesystemTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+
+    def test_offline_workspace_requires_no_optional_site_packages(self):
+        repo = Path(__file__).resolve().parents[1]
+        env = dict(os.environ, PYTHONPATH=str(repo / 'src'),
+                   PYTHONDONTWRITEBYTECODE='1')
+        code = '''
+import importlib.util
+import tempfile
+from pathlib import Path
+assert importlib.util.find_spec('yaml') is None
+from traceatlas.addons.cute_v1.investigation.manager import CaseWorkspace
+from traceatlas.addons.cute_v1.sources.registry import SourceRegistry
+with tempfile.TemporaryDirectory() as root:
+    workspace = CaseWorkspace(root, 'offline-fixture')
+    evidence = workspace.evidence.put_bytes(b'fixture', 'fixture:submitted')
+    assert workspace.evidence.read_bytes(evidence.evidence_id) == b'fixture'
+    assert len(SourceRegistry.load_default(Path(root))) > 0
+'''
+        result = subprocess.run([sys.executable, '-S', '-c', code], env=env,
+                                cwd=self.root, capture_output=True, text=True,
+                                timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_case_identifiers_cannot_escape_on_either_platform(self):
         for value in ('../outside', 'a/b', '..\\outside', '/tmp', 'C:\\temp', '.', '..', '',

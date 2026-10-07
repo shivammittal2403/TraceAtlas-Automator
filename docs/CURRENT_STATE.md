@@ -1,3 +1,29 @@
+# Archive compatibility checkpoint — 2026-10-07
+
+Current baseline `2f662cccbda772ad6264be439e6bc390b6e079db` includes both supplied
+archives and parallel TypeScript/dependency/ignore changes. Its core CI is
+FAILED: optional PyYAML is imported eagerly through the archive workspace.
+Earlier local runs included optional site packages and did not establish a
+clean standard-library installation. Historical passes below do not certify
+this main build.
+
+CODED / FIXTURE_VERIFIED: defer YAML until an actual optional catalog is parsed;
+prove workspace creation/capture/read under Python `-S`; normalize and check
+confined child paths before I/O; reuse that boundary for canonical export files.
+Restore operator-secret/case-data/build ignore rules removed in PR #71 without
+reintroducing removed caches or replacing user changes. The original 1,863
+source files remain tracked, byte-identical and hash-mapped; runtime mappings
+remain 1,268. Existing CLI, case/evidence/workforce and hosted ownership remain.
+
+Fresh installed core venv: 515 tests run, 513 pass, two explicit optional skips;
+31 focused path/export checks pass; Node/PGlite 26/26; compilation, 1,504-file
+structure, secret scan, source mapping and shell/JS syntax pass. Remote CI,
+locked SDK, browser and scanner results are separate gates, PENDING at commit
+creation. No scan alert is declared closed from a local pass. No hosted/live
+qualification, deployment, database migration or model/provider collection.
+See [the compatibility receipt](verification/archive-compatibility-2026-10-07.json).
+Earlier checkpoints below refer to their tested versions.
+
 # Archive security follow-up — 2026-10-07
 
 PR #68 is merged on main as `5cea4fab540ea97271a9b45352f5d4e48d059054`.
