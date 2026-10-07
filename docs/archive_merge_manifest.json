@@ -20195,7 +20195,7 @@
           "bytes": 11702,
           "state": "PRESERVED_INERT_REFERENCE",
           "runtime_path": "src/traceatlas/addons/cute_v1/sources/registry.py",
-          "runtime_sha256": "eeee012622987c220167e4b9012e381cfb78cfaff9889dbf0b6ef09d98a7b220",
+          "runtime_sha256": "b488bc9665d2bcbaa4466a4d1e91443ead9cf51545cf872888fdee8ad3f4194d",
           "scaffold_candidate": false
         },
         {

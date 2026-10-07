@@ -279,11 +279,12 @@ def export_report(db, workspace, current, output):
     from uuid import uuid4
     target = child_path(output, identifier + "-" + uuid4().hex[:8])
     target.mkdir(parents=True, exist_ok=False)
-    (target / "artifacts").mkdir()
+    artifacts = child_path(target, "artifacts")
+    artifacts.mkdir()
     files = []
     for sha, raw in blobs.items():
         relative = "artifacts/" + sha + ".json"
-        (target / relative).write_bytes(raw)
+        child_path(artifacts, sha + ".json").write_bytes(raw)
         files.append({"path": relative, "sha256": sha, "bytes": len(raw)})
     # Portable report does not disclose machine-specific filesystem locations.
     portable = json.loads(json.dumps(report))
@@ -308,13 +309,14 @@ def export_report(db, workspace, current, output):
                 "graph.json": json.dumps(portable["graph"], indent=2), "report.md": "\n".join(lines) + "\n"}
     for name, content in contents.items():
         raw = content.encode("utf-8")
-        (target / name).write_bytes(raw)
+        child_path(target, name).write_bytes(raw)
         files.append({"path": name, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)})
     replay = {"schema": "traceatlas.autonomous.replay.v2", "analysis_version": ANALYSIS_VERSION, "manifest": current["manifest"],
               "manifest_hash": current["manifest_hash"], "actions": current["actions"], "files": files,
               "limitations": "Offline re-extraction from normalized preserved records; not source authenticity or raw-to-redacted provider normalization verification."}
-    (target / "replay.json").write_text(json.dumps(replay, indent=2), encoding="utf-8")
-    (target / "replay.sha256").write_text(sha256_file(target / "replay.json"), encoding="ascii")
+    replay_path = child_path(target, "replay.json")
+    replay_path.write_text(json.dumps(replay, indent=2), encoding="utf-8")
+    child_path(target, "replay.sha256").write_text(sha256_file(replay_path), encoding="ascii")
     return {"directory": str(target), "report": str(target / "report.md"), "replay": str(target / "replay.json")}
 
 
