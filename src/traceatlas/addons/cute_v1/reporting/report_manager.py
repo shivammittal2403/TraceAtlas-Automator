@@ -13,6 +13,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from traceatlas.filesystem import checked_local_path, child_path
+
 from traceatlas.addons.cute_v1.core.enums import TaskStatus
 from traceatlas.addons.cute_v1.core.observation import Observation
 from traceatlas.addons.cute_v1.evidence.store import EvidenceStore
@@ -85,12 +87,12 @@ class ReportManager:
     # Workspace rendering (persisted case directories)
     # ------------------------------------------------------------------
     def build(self, case_dir: str | Path) -> str:
-        case_dir = Path(case_dir)
-        state = json.loads((case_dir / "case_state.json").read_text()) \
-            if (case_dir / "case_state.json").exists() else {}
-        store = EvidenceStore(case_dir / "evidence")
-        graph = KnowledgeGraph(case_dir / "graph.jsonl")
-        observations = self._load_observations(case_dir / "observations.jsonl")
+        case_dir = checked_local_path(Path(case_dir))
+        state_path = child_path(case_dir, "case_state.json")
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        store = EvidenceStore(child_path(case_dir, "evidence"))
+        graph = KnowledgeGraph(child_path(case_dir, "graph.jsonl"))
+        observations = self._load_observations(child_path(case_dir, "observations.jsonl"))
 
         # independence over per-(subject,predicate) evidence docs
         eng = IndependenceEngine()
@@ -182,7 +184,7 @@ class ReportManager:
         add("- PARTIALLY_SUPPORTED claims rest on a single independent source.")
         add("- Source qualification is integration-tested/live-tested; none claimed production-qualified.")
         report = "\n".join(lines)
-        (case_dir / "report.md").write_text(report, encoding="utf-8")
+        child_path(case_dir, "report.md").write_text(report, encoding="utf-8")
         return report
 
     @staticmethod

@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Optional
 
 from traceatlas.addons.cute_v1.core.evidence import Evidence
+from traceatlas.filesystem import checked_local_path, child_path
 
 
 class EvidenceStore:
     def __init__(self, root: str | Path):
-        self.root = Path(root)
+        self.root = checked_local_path(Path(root))
         self.blobs_dir = self.root / "blobs"
         self.registry_path = self.root / "evidence_registry.jsonl"
         os.makedirs(self.blobs_dir, exist_ok=True)
@@ -33,7 +35,7 @@ class EvidenceStore:
         ev = Evidence.from_bytes(data, source_uri=source_uri,
                                  media_type=media_type, case_id=case_id)
         storage_key = f"blobs/{ev.sha256[:2]}/{ev.sha256}"
-        blob_path = self.root / storage_key
+        blob_path = child_path(child_path(self.blobs_dir, ev.sha256[:2]), ev.sha256)
         blob_path.parent.mkdir(parents=True, exist_ok=True)
         if not blob_path.exists():
             tmp = blob_path.with_suffix(".tmp")
@@ -60,7 +62,15 @@ class EvidenceStore:
 
     def read_bytes(self, evidence_id: str) -> bytes:
         ev = self._index[evidence_id]
-        return (self.root / ev.storage_key).read_bytes()
+        if not re.fullmatch(r"[a-f0-9]{64}", ev.sha256):
+            raise ValueError("Invalid evidence digest")
+        if ev.storage_key != f"blobs/{ev.sha256[:2]}/{ev.sha256}":
+            raise ValueError("Evidence storage key does not match its digest")
+        path = child_path(child_path(self.blobs_dir, ev.sha256[:2]), ev.sha256)
+        data = path.read_bytes()
+        if not ev.verify_integrity(data):
+            raise ValueError("Evidence integrity failed")
+        return data
 
     def verify(self, evidence_id: str) -> bool:
         ev = self._index[evidence_id]

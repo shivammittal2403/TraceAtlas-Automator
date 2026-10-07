@@ -12,6 +12,8 @@ from collections import defaultdict, deque
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+
+from traceatlas.filesystem import checked_local_path
 from typing import Optional
 
 from traceatlas.addons.cute_v1.core.entity import Entity
@@ -24,7 +26,7 @@ class KnowledgeGraph:
         self.relationships: dict[str, Relationship] = {}
         self._adj: dict[str, set[str]] = defaultdict(set)      # undirected adjacency
         self._out: dict[str, list[str]] = defaultdict(list)    # edge ids by src
-        self.persist_path = Path(persist_path) if persist_path else None
+        self.persist_path = checked_local_path(Path(persist_path)) if persist_path else None
         if self.persist_path and self.persist_path.exists():
             self._load()
 

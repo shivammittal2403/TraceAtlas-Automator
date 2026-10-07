@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .db import CaseDB
+from .filesystem import child_path, path_component
 from .evidence_anchor import LedgerAnchor, configured_ledger_anchor
 from .models import utc_now
 
@@ -25,15 +26,14 @@ class EvidenceStore:
     def __init__(self, root: Path, db: CaseDB, case_id: str, *,
                  anchor: LedgerAnchor | None = None, require_anchor: bool = False,
                  use_environment_anchor: bool = True):
-        if not case_id or Path(case_id).name != case_id or case_id in {'.', '..'}:
-            raise ValueError('Invalid evidence case identifier')
-        self.root = root / "evidence" / case_id
+        case_id = path_component(case_id)
+        self.root = child_path(root / "evidence", case_id)
         if not db.get_case(case_id) or not self.root.resolve().is_relative_to((root / "evidence").resolve()):
             raise ValueError("Evidence requires an existing case within the workspace")
         self.root.mkdir(parents=True, exist_ok=True)
         self.db = db
         self.case_id = case_id
-        self.ledger = self.root / "ledger.jsonl"
+        self.ledger = child_path(self.root, "ledger.jsonl")
         if anchor is None and use_environment_anchor:
             configured, configured_required = configured_ledger_anchor(root)
             anchor = configured
@@ -49,7 +49,7 @@ class EvidenceStore:
         if self.anchor is not None and not self.verify_ledger()[0]:
             raise ValueError("Evidence ledger or external anchor verification failed")
         digest = sha256_file(source_path)
-        destination = self.root / f"{digest[:16]}_{source_path.name}"
+        destination = child_path(self.root, f"{digest[:16]}_{source_path.name}")
         if not destination.exists():
             shutil.copy2(source_path, destination)
         if sha256_file(destination) != digest:
