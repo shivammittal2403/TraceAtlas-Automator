@@ -26,10 +26,20 @@ def path_component(value: str) -> str:
 def child_path(root: Path, name: str) -> Path:
     """One child, with symlink escape rejected before reading or writing."""
     root = Path(root)
-    child = root / path_component(name)
-    if child.is_symlink() or child.resolve().parent != root.resolve():
+    parent = root.resolve()
+    normalized = os.path.abspath(parent / path_component(name))
+    # Check the normalized path with a separator-bound prefix before any I/O;
+    # checking a different path and then returning the unchecked one is unsafe.
+    prefix = str(parent).rstrip(os.sep) + os.sep
+    if not normalized.startswith(prefix):
         raise ValueError("Unsafe workspace child")
-    return child
+    child = Path(normalized)
+    if child.is_symlink():
+        raise ValueError("Unsafe workspace child")
+    resolved = child.resolve()
+    if resolved.parent != parent:
+        raise ValueError("Unsafe workspace child")
+    return resolved
 
 
 def checked_local_path(path: Path) -> Path:

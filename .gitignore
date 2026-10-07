@@ -5,3 +5,18 @@ __pycache__/
 
 # Testing frameworks
 .pytest_cache/
+
+# Local packages, verification tools, operator secrets and case data
+*.whl
+node_modules
+build/
+dist/
+*.egg-info/
+.venv/
+.openosint-test-venv/
+cases/
+reports/
+.traceatlas/
+.env
+.env.*
+!.env.example
