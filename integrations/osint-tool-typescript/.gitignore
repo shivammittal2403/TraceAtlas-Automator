@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Ollama models (don't commit large model files)
+*.gguf
+
+# Prisma
+# NOTE: migration_lock.toml must be committed (it is not a secret) so that
+# `prisma migrate deploy` works in CI/production. Do not ignore it.
+
+# Temporary
+tmp/
+temp/
+*.tmp

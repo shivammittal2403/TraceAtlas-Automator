@@ -13,6 +13,10 @@ TraceAtlas helps investigators organize approved research. It does not turn an A
   Academy. All source/configuration/test/document files are preserved with
   provenance; imported scaffolds are not counted as working integrations.
   See [Archive integration](docs/ARCHIVE_INTEGRATION.md).
+- Compatible preservation of the supplied `OSINT_Tool-main(2).zip` TypeScript
+  workspace under `integrations/osint-tool-typescript/`, with a per-file
+  manifest and a documented graduation path. It is intentionally not promoted
+  as a production runtime until TraceAtlas-specific gates pass.
 
 - Canonical workforce pipeline with typed targets, capability-based source planning, approval digests, bounded collection, evidence custody, verification, graph/timeline analysis, and replay.
 - 26 approval-driven source adapters, including public DNS/RDAP, certificate transparency, passive URL and archive indexes, public IP context, company registries, NVD, CVE Program, FIRST EPSS, the exact-CVE CISA KEV catalog adapter, OSV, and npm metadata. CISA KEV facts are normalized only from the exact requested CVE match; the bounded raw feed is retained as source evidence for replay.

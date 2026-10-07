@@ -4,6 +4,9 @@ The supplied TraceAtlas-OSINT/cute source snapshots are preserved and integrated
 through seven case-bound offline actions and linked educational pages. See
 [Archive integration](ARCHIVE_INTEGRATION.md), [delivery ledger](ARCHIVE_DELIVERY_LEDGER.md)
 and the [per-file preservation mapping](archive_merge_manifest.json).
+The supplied `OSINT_Tool-main(2).zip` TypeScript workspace is preserved as a
+bounded reference integration under `integrations/osint-tool-typescript/`; see
+[OSINT Tool TypeScript Integration](OSINT_TOOL_TYPESCRIPT_INTEGRATION.md).
 
 > The repository pins and governs 308 OpenCTI connector packages through a reproducible Git submodule.
 > They remain external-service integrations and are disabled until an operator
