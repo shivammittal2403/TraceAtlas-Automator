@@ -1,3 +1,26 @@
+# Archive remote verification checkpoint — 2026-10-07
+
+Code head `56c263af5509de4c3831dbc62f097822afd351ab` fixes the clean-install
+archive failure. All six PR CI jobs and the CodeQL gate PASS. Python 3.10 and
+3.12 each run 515 tests (513 pass/two explicit optional skips). Locked runtime:
+629 pass/28 skips; source-fabric wire 29/29 and optional archive parser 2/2 pass.
+Both real Chromium fixture flows pass: 92 directory records, 19 lessons, 207
+resource references, zero external requests/errors, CSP/injection/mobile checks.
+Installed core-wheel smoke executes all seven archive actions and custody verify.
+
+Fresh Python SARIF records 22 existing protocol/URL-check findings, compared to
+76 baseline findings; all 20 archive path findings are absent. This is recorded
+scanner evidence, not a vulnerability-free claim. JavaScript/TypeScript findings
+and inherited advisories still require review. Optional Copilot AI review is
+BLOCKED_EXTERNAL by exhausted monthly quota; no settings/subscription changes.
+
+This documentation update preserves the verified runtime identity. Final main
+checks are pending at commit creation; hosted/live operation, independent
+outcome/enterprise qualification and deployment remain NOT_VERIFIED. Exact job,
+artifact, build and harness identities are in
+[the compatibility receipt](verification/archive-compatibility-2026-10-07.json).
+Earlier checkpoints below refer to the versions they tested.
+
 # Archive compatibility checkpoint — 2026-10-07
 
 Current baseline `2f662cccbda772ad6264be439e6bc390b6e079db` includes both supplied

@@ -119,22 +119,160 @@
       "command": "Locked SDK and optional parser fixtures",
       "state": "NOT_RUN_LOCALLY_ON_THIS_TRANCHE",
       "reason": "Separate pinned GitHub CI job required before main verification."
+    },
+    {
+      "command": "Installed core traceatlas CLI: init, all seven archive actions, verify",
+      "state": "PASS",
+      "commands": 9,
+      "actions": 7,
+      "external_calls": 0,
+      "environment": "Installed wheel; PYTHONPATH removed; isolated synthetic fixture case",
+      "artifact_sha256": "56442831f485eadcca29f71ceb3bf640f6ea241aba6c6976ec23e8d532df0d2a"
     }
   ],
   "gate_status": {
     "local_fixture": "FIXTURE_VERIFIED",
-    "remote_CI": "PENDING",
-    "CodeQL_rescan": "PENDING",
+    "remote_CI": "FIXTURE_VERIFIED on 56c263af5509de4c3831dbc62f097822afd351ab / six jobs PASS",
+    "CodeQL_rescan": "PASS gate; archive path findings 20 to 0; existing repository findings remain",
     "hosted": "NOT_VERIFIED",
     "live_sources": "NOT_VERIFIED",
     "operated": "NOT_VERIFIED",
     "outcome_validated": "NOT_VERIFIED",
-    "enterprise_qualification": "NOT_ACHIEVED"
+    "enterprise_qualification": "NOT_ACHIEVED",
+    "final_main": "PENDING at documentation commit creation; exact tested runtime SHA/tree recorded above",
+    "optional_AI_review": "BLOCKED_EXTERNAL: monthly quota exhausted"
   },
   "external_blockers": [
     "GitHub AI review quota failure remains external; no subscription/settings changes.",
     "Inherited transitive dependency advisories and existing repository CodeQL findings remain separate open review items; a successful analysis job is not zero-alert proof.",
     "Live source/model entitlement, hosted authorization/recovery, operations and independent analyst/vendor outcome gates have not been performed."
   ],
-  "reviewer": "Coding agent; independent security/analyst review not performed."
+  "reviewer": "Coding agent; independent security/analyst review not performed.",
+  "remote_fixture_proof": {
+    "sha": "56c263af5509de4c3831dbc62f097822afd351ab",
+    "tree": "99c8adbfc4fe9d68e14e3b47c1ac1643fab5d98d",
+    "CI": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37596500724",
+    "CodeQL": "https://github.com/shivammittal2403/TraceAtlas-Automator/actions/runs/37596500655",
+    "checks": [
+      {
+        "id": 112710705912,
+        "name": "CodeQL",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710350196,
+        "name": "github-advanced-security",
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      {
+        "id": 112710330641,
+        "name": "Bundled OpenOSINT runtime",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330587,
+        "name": "Core / Python 3.12",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330537,
+        "name": "Supply chain evidence",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330536,
+        "name": "Private worker image",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330448,
+        "name": "Core / Python 3.10",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710330175,
+        "name": "dependency-review",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710329911,
+        "name": "analyze (javascript-typescript)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 112710329609,
+        "name": "analyze (python)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "browser": {
+      "passed": true,
+      "directory_records": 92,
+      "training_modules": 19,
+      "resource_references": 207,
+      "external_requests": 0,
+      "browser_errors": 0,
+      "csp": "unchanged",
+      "injection": "rejected",
+      "mobile_overflow": false
+    },
+    "core": [
+      {
+        "python": "3.10",
+        "run": 515,
+        "passed": 513,
+        "skipped": 2,
+        "seconds": 48.025
+      },
+      {
+        "python": "3.12",
+        "run": 515,
+        "passed": 513,
+        "skipped": 2,
+        "seconds": 49.027
+      }
+    ],
+    "locked_runtime": {
+      "passed": 629,
+      "skipped": 28,
+      "seconds": 10.91,
+      "source_fabric_run": 29,
+      "source_fabric_passed": 29,
+      "optional_archive_parser_run": 2,
+      "optional_archive_parser_passed": 2
+    },
+    "scanner": {
+      "python_baseline": 76,
+      "python_current": 22,
+      "archive_path_baseline": 20,
+      "archive_path_current": 0,
+      "core_path_current": 0,
+      "other_remaining": {
+        "insecure_protocol": 4,
+        "incomplete_url_substring": 18
+      },
+      "query_exclusions_changed": false,
+      "javascript_typescript_current": 1,
+      "javascript_typescript_rules": {
+        "js/incomplete-url-substring-sanitization": 1
+      },
+      "javascript_sarif_artifact_id": 11471000955,
+      "python_sarif_artifact_id": 11471040738
+    },
+    "quota_issue": "Monthly Copilot AI review quota exhausted; not a code-test failure; remains BLOCKED_EXTERNAL.",
+    "observed_at": "2026-10-07T08:56:08.265280+00:00",
+    "environment": "GitHub Actions Ubuntu; submitted fixtures only; real Chromium; pinned OpenCTI and locked SDK.",
+    "authorization": "GitHub code publication and synthetic CI/local fixtures only; no live collection/deployment.",
+    "reviewer": "Coding agent with remote job/artifact inspection; independent analyst/security review not performed."
+  }
 }
