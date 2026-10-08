@@ -10,9 +10,15 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "noEmit": false
   },
-  "files": [],
   "references": [
-    { "path": "../../packages/entities" },
-    { "path": "../../packages/schemas" }
+    {
+      "path": "../../packages/entities"
+    },
+    {
+      "path": "../../packages/schemas"
+    }
+  ],
+  "include": [
+    "src/**/*.ts"
   ]
 }

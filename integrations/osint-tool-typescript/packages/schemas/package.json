@@ -22,7 +22,7 @@
     "build": "tsc --build tsconfig.json && tsc --project tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\"",
     "dev": "tsc --build tsconfig.json --watch",
     "lint": "eslint . --no-error-on-unmatched-pattern",
-    "test": "node --import tsx --test __tests__/**/*.test.ts",
+    "test": "node --import tsx --test \"__tests__/**/*.test.ts\"",
     "typecheck": "tsc --build tsconfig.json --pretty false"
   },
   "dependencies": {

@@ -82,7 +82,12 @@ async def _discover_emails(
             for commit in commits:
                 author = commit.get("commit", {}).get("author", {})
                 email = author.get("email", "")
-                if email and not email.endswith("noreply.github.com"):
+                if not isinstance(email, str):
+                    continue
+                local, separator, domain = email.rpartition("@")
+                if separator and local and domain and domain.casefold() not in {
+                    "noreply.github.com", "users.noreply.github.com"
+                }:
                     emails.add(email)
         except Exception:
             pass

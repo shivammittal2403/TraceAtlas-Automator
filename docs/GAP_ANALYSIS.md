@@ -1,5 +1,13 @@
 # Repository Gap Analysis
 
+## Imported workspace verification gap — 2026-10-08
+
+Canonical main CI passes, but the imported TypeScript workspace had no active
+root build/test gate and failed four transitive security updates. A draft
+follow-up adds narrow candidate overrides and an isolated root verification
+workflow. Its generated lockfile, Prisma compatibility, full build/test/audit
+and frozen-install proof are pending; no deployment or parity claim is made.
+
 ## Investigation quality follow-up — 2026-10-08
 
 The radial graph viewport and standalone planning panels have targeted fixes
