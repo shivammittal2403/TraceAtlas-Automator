@@ -1,0 +1,57 @@
+{
+  "schema": "traceatlas.quality-receipt/1",
+  "date": "2026-10-08",
+  "first_repair": {
+    "pull_request": 75,
+    "code_head": "7d6fd7f2e75779cdd5fe14f4ce782027bade8282",
+    "merged_main": "967d87953088446168e7aee25c10ee169cd660f3",
+    "main_ci": 37768297254,
+    "main_codeql": 37768297195,
+    "result": "SUCCESS",
+    "python_tests_per_version": 525,
+    "explicit_skips_per_version": 2,
+    "node_tests": 27,
+    "graph_browser_nodes": [
+      20,
+      250
+    ]
+  },
+  "followup": {
+    "pull_request": 76,
+    "probe_head": "a8bfb5ae5ffecfc799ab4dbd498707d31829bdae",
+    "probe_run": 37770118914,
+    "probe_job": 113287353384,
+    "candidate_lock": {
+      "bytes": 74173,
+      "path": "integrations/osint-tool-typescript/pnpm-lock.yaml",
+      "sha256": "99a6b2e6eb23af03af83899c5bf05a1645db844db9381b20cd7a2df14f773830",
+      "source_commit": "a8bfb5ae5ffecfc799ab4dbd498707d31829bdae"
+    },
+    "probe_gates": {
+      "prisma": "PASS",
+      "fixture_migrations": 2,
+      "build": "PASS",
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "unit_tests": 348,
+      "integration_tests": 16,
+      "dependency_audit": "No known vulnerabilities found",
+      "final_diff": "EXPECTED_FAIL_UNCOMMITTED_CANDIDATE"
+    },
+    "permanent_gate": "frozen install; no lifecycle scripts; no lock rewrite; fixture PostgreSQL only",
+    "final_head_ci": "PENDING_AT_COMMIT_CREATION",
+    "scaffold_zero_test_packages": 6
+  },
+  "unavailable_inputs": {
+    "allint52_zip": "NOT_READ_LOCAL_PROCESS_STARTUP_FAILED",
+    "pasted_attachments": "NOT_READ_LOCAL_PROCESS_STARTUP_FAILED",
+    "error": "setup refresh had errors"
+  },
+  "qualification": {
+    "native_tk": "NOT_VERIFIED",
+    "live_collection": "NOT_VERIFIED",
+    "deployment": "NOT_VERIFIED",
+    "complete_zip_integration": "NOT_VERIFIED",
+    "vulnerability_free_claim": false
+  }
+}
