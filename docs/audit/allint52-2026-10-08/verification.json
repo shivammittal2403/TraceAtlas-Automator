@@ -1,0 +1,72 @@
+{
+  "scope": "Uploaded allint52 snapshot only; no core application or live-source certification",
+  "network_requests": 0,
+  "checks": [
+    {
+      "check": "source_compile",
+      "outcome": "PASS",
+      "detail": "53/53 Python files compile; 46 are empty"
+    },
+    {
+      "check": "headless_import",
+      "outcome": "PASS",
+      "detail": "7/7 nonempty modules import without starting a GUI"
+    },
+    {
+      "check": "unsafe_url_controls",
+      "outcome": "PASS",
+      "detail": "loopback, metadata IP, local scheme and localhost rejected"
+    },
+    {
+      "check": "malformed_port",
+      "outcome": "DEFECT_REPRODUCED",
+      "detail": "ValueError escapes validation instead of a structured failure"
+    },
+    {
+      "check": "ipv6_normalization",
+      "outcome": "DEFECT_REPRODUCED",
+      "detail": "validated IPv6 literal loses required URL brackets"
+    },
+    {
+      "check": "mocked_domain_scope",
+      "outcome": "PASS",
+      "detail": "allowed domain accepted, different public domain rejected; zero network requests"
+    },
+    {
+      "check": "json_redaction",
+      "outcome": "DEFECT_REPRODUCED",
+      "detail": "quoted JSON password value is retained by light redaction"
+    },
+    {
+      "check": "geographic_helpers",
+      "outcome": "PASS",
+      "detail": "out-of-range coordinates rejected; identical-point distance is zero"
+    },
+    {
+      "check": "media_missing_file",
+      "outcome": "PASS",
+      "detail": "image, audio and video analysis return structured missing-file failures"
+    },
+    {
+      "check": "socmint_export_freshness",
+      "outcome": "DEFECT_REPRODUCED",
+      "detail": "cached result is exported after current payload changes"
+    },
+    {
+      "check": "default_authorization",
+      "outcome": "DEFECT_REPRODUCED",
+      "detail": "OSINT and SOCMINT defaults assert customer authorization without operator evidence"
+    }
+  ],
+  "secret_scan": "PASS: repository scripts/check_secrets.py applied to extracted source snapshot",
+  "archive_sha256": "6741c330f33f464be54bd322f2795b64b7567b1b82f5e417b8afa0c4fdecd3ea",
+  "original_bytes_verified": 53,
+  "native_gui": "NOT_TESTED",
+  "core_test_suite": "NOT_RUN: additive source snapshot; no canonical runtime files changed",
+  "live_collection": "NOT_TESTED",
+  "deployment": "NOT_PERFORMED",
+  "ci": "PENDING at snapshot commit creation",
+  "initial_read_baseline": "184c0f6a7cb31f587cf56cea31402b9f7faa58b4",
+  "push_parent": "5bda9a009017e5621322f6491836af2640e1f530",
+  "refreshed_tree_collision_check": "PASS: 57 new paths, no existing path overwritten"
+}
