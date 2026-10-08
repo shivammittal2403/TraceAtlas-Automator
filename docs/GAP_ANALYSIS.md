@@ -5,8 +5,11 @@
 Canonical main CI passes, but the imported TypeScript workspace had no active
 root build/test gate and failed four transitive security updates. A draft
 follow-up adds narrow candidate overrides and an isolated root verification
-workflow. Its generated lockfile, Prisma compatibility, full build/test/audit
-and frozen-install proof are pending; no deployment or parity claim is made.
+workflow. The initial runner probe passed Prisma compatibility, build/lint,
+348 unit and 16 fixture integration tests, and reported no known dependency
+vulnerabilities. Its generated lockfile is now committed and its temporary
+probe removed; final frozen-install proof remains pending at commit creation.
+Six scaffold packages still have zero tests; no deployment or parity claim is made.
 
 ## Investigation quality follow-up — 2026-10-08
 
