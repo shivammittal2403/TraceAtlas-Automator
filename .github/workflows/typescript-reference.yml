@@ -44,24 +44,6 @@ jobs:
         with:
           version: 9.15.0
           run_install: false
-      - name: Resolve candidate lockfile for review
-        run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
-      - name: Print public candidate lockfile and provenance
-        run: |
-          python - <<'PY'
-          import base64
-          import hashlib
-          import json
-          from pathlib import Path
-          import subprocess
-          lock_bytes = Path('pnpm-lock.yaml').read_bytes()
-          source_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          print('LOCKFILE_METADATA ' + json.dumps({'path': 'integrations/osint-tool-typescript/pnpm-lock.yaml', 'source_commit': source_commit, 'bytes': len(lock_bytes), 'sha256': hashlib.sha256(lock_bytes).hexdigest()}, sort_keys=True))
-          lock_b64 = base64.b64encode(lock_bytes).decode('ascii')
-          for offset in range(0, len(lock_b64), 160):
-              print('LOCKFILE_B64 ' + lock_b64[offset:offset + 160])
-          print('LOCKFILE_END')
-          PY
       - name: Install locked dependencies without lifecycle scripts
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Validate Prisma schema
