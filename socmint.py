@@ -483,43 +483,14 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
                 indent=2,
             ),
         )
-        self.set_widget_value(
-            "authorization",
-            json.dumps(
-                {
-                    "authorized_by": "SOCMINT Manager",
-                    "authorization_basis": "customer-authorized public/authorized SOCMINT engagement",
-                    "permitted_actions": [
-                        "public profile search",
-                        "public post search",
-                        "public channel search",
-                        "public hashtag search",
-                        "authorized API search",
-                        "authorized export analysis",
-                        "public archive review where permitted",
-                    ],
-                    "prohibited_actions": [
-                        "private account access",
-                        "credential use",
-                        "session reuse",
-                        "social engineering",
-                        "subject contact",
-                        "impersonation",
-                        "deceptive account creation",
-                        "covert tracking",
-                        "active platform abuse",
-                    ],
-                },
-                indent=2,
-            ),
-        )
+        self.set_widget_value("authorization", "{}")
         self.set_widget_value("source_limits", "")
         self.set_widget_value("budget", "")
         self.set_widget_value("deadline", "")
         self.set_widget_value("available_evidence", "")
         self.set_widget_value(
             "configured_connectors",
-            "None configured. Output is planning-only unless safe public/authorized connectors are added.",
+            "",
         )
 
     def get_widget_value(self, key: str) -> str:
@@ -640,7 +611,7 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
             }
 
         return {
-            "status": "ALLOWED_PUBLIC_OR_AUTHORIZED",
+            "status": "NOT_VERIFIED_PLANNING_ONLY",
             "reasons": [],
             "explanation": (
                 "No obvious policy violation detected in objective/questions/target. "
@@ -933,7 +904,7 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
                     "purpose": "preserve reproducibility and avoid excessive query generation",
                     "priority": 0,
                     "expected_information_value": "CONTROL",
-                    "authorization_status": "ALLOWED",
+                    "authorization_status": "NOT_VERIFIED_PLANNING_ONLY",
                     "estimated_cost": "ZERO",
                     "estimated_latency": "ZERO",
                     "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
@@ -963,7 +934,7 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
                                 "purpose": self._purpose_for_search_type(search_type),
                                 "priority": priority,
                                 "expected_information_value": self._expected_information_value(search_type, identifier.get("type", "")),
-                                "authorization_status": "ALLOWED_PUBLIC_OR_AUTHORIZED",
+                                "authorization_status": "NOT_VERIFIED_PLANNING_ONLY",
                                 "estimated_cost": self._estimated_cost(platform, search_type),
                                 "estimated_latency": self._estimated_latency(platform),
                                 "policy_risk": "LOW_IF_PASSIVE_PUBLIC",
@@ -985,7 +956,7 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
                                     "purpose": "prevent unbounded planning output",
                                     "priority": priority,
                                     "expected_information_value": "CONTROL",
-                                    "authorization_status": "ALLOWED",
+                                    "authorization_status": "NOT_VERIFIED_PLANNING_ONLY",
                                     "estimated_cost": "ZERO",
                                     "estimated_latency": "ZERO",
                                     "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
@@ -1891,10 +1862,8 @@ class TraceAtlasSOCMINTPanel(tk.Tk):
         }
 
     def export_json(self) -> None:
-        if not self.last_result:
-            self.generate_plan()
-
-        data = self.last_result or self.collect_payload()
+        self.generate_plan()
+        data = self.last_result
 
         path = filedialog.asksaveasfilename(
             defaultextension=".json",

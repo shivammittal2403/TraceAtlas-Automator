@@ -4,7 +4,7 @@
   "scripts": {
     "test:database": "node --test tests/test_database.mjs",
     "test:ui": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs",
-    "test:browser": "node tests/test_employee_ui.cjs && node tests/test_archive_ui.cjs",
+    "test:browser": "node tests/test_employee_ui.cjs && node tests/test_archive_ui.cjs && node tests/test_graph_ui.cjs",
     "test:archives": "node tests/test_archive_ui.cjs"
   },
   "devDependencies": {

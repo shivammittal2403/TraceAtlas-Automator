@@ -1,5 +1,14 @@
 # Repository Gap Analysis
 
+## Investigation quality follow-up — 2026-10-08
+
+The radial graph viewport and standalone planning panels have targeted fixes
+and regression gates in this change. New-head CI is pending at commit creation;
+native Tk, live collection and deployed operation remain unverified. Root panel
+presence does not establish integrated SOCMINT or investigation parity.
+The unavailable `allint52.zip` remains an open input/completeness gap; the remote
+baseline tree alone cannot establish that its files are present or repaired.
+
 ## Audit basis
 
 This is a documentation-level audit of the repository's default branch and visible source tree. The project is an existing, active implementation rather than an empty scaffold. The repository contains a Python CLI and SQLite engine, case/evidence/report modules, typed Spider events, adapter registries, CTI and intelligence modules, workforce/verification components, a browser console, API handlers, Supabase schema, and an isolated worker. The README describes a broad set of playbooks, adapters, and test commands. Those declarations are not equivalent to every optional connector being installed, healthy, licensed, or execution-verified.

@@ -168,6 +168,21 @@
     }
     return result;
   }
+  // Include negative layout coordinates and measured SVG text, with breathing room.
+  function viewport(positions, painted = null) {
+    let left = 0, top = 0, right = 800, bottom = 420;
+    for (const p of positions.values()) {
+      left = Math.min(left, p.x - 180); top = Math.min(top, p.y - 100);
+      right = Math.max(right, p.x + 180); bottom = Math.max(bottom, p.y + 100);
+    }
+    if (painted) {
+      left = Math.min(left, painted.x - 24); top = Math.min(top, painted.y - 24);
+      right = Math.max(right, painted.x + painted.width + 24);
+      bottom = Math.max(bottom, painted.y + painted.height + 24);
+    }
+    left = Math.floor(left); top = Math.floor(top);
+    return { x: left, y: top, width: Math.ceil(right) - left, height: Math.ceil(bottom) - top };
+  }
   function identity(graph) {
     // Bind views to normalized evidence as well as topology; not an authenticity signature.
     const ordered = (rows) => rows.sort((a, b) => a[0].localeCompare(b[0]));
@@ -185,5 +200,5 @@
     for (const p of rows(value.positions, "Positions", LIMITS.nodes, true)) { if (!ids.has(p.id) || positions.has(p.id) || !Number.isFinite(p.x) || !Number.isFinite(p.y) || Math.abs(p.x) > 1e6 || Math.abs(p.y) > 1e6) throw new Error("Invalid saved positions."); positions.set(p.id, { x: p.x, y: p.y }); }
     return { filters, positions, selected: ids.has(value.selected) ? value.selected : null };
   }
-  return Object.freeze({ SCHEMA, LIMITS, CLASSES, normalize, parseJSON, filterGraph, shortestPath, neighborhood, layout, identity, validateView });
+  return Object.freeze({ SCHEMA, LIMITS, CLASSES, normalize, parseJSON, filterGraph, shortestPath, neighborhood, layout, viewport, identity, validateView });
 });

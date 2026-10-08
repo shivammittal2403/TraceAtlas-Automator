@@ -47,7 +47,7 @@ def check_source(source: str, filename: str = '<source>') -> list[str]:
 
 
 def main() -> int:
-    paths = [ROOT / 'vercel_control.py']
+    paths = sorted(path for path in ROOT.glob('*.py') if path.is_file())
     for folder in ('src', 'tests', 'api', 'scripts'):
         paths.extend(sorted((ROOT / folder).rglob('*.py')))
     errors = []

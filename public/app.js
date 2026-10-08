@@ -376,9 +376,9 @@ function renderGraph() {
   const edges = visible.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)).slice(0, model.LIMITS.drawEdges);
   const drawn = { nodes, edges };
   const positions = model.layout(drawn, $("#graph-layout").value);
-  const width = Math.max(800, ...[...positions.values()].map((p) => p.x + 180));
-  const height = Math.max(420, ...[...positions.values()].map((p) => p.y + 100));
-  canvas.setAttribute("viewBox", `0 0 ${Math.ceil(width)} ${Math.ceil(height)}`);
+  let bounds = model.viewport(positions);
+  const setViewport = () => canvas.setAttribute("viewBox", `${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`);
+  setViewport();
   empty.hidden = nodes.length > 0;
   empty.textContent = "No entities match these filters.";
   const warnings = activeGraph.warnings.slice(0, 3).join(" ");
@@ -404,6 +404,16 @@ function renderGraph() {
     group.addEventListener("keydown", (event) => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); graphDetails(node); } });
     canvas.append(group);
   }
+  if (nodes.length) {
+    try {
+      const painted = canvas.getBBox();
+      if ([painted.x, painted.y, painted.width, painted.height].every(Number.isFinite) &&
+          painted.width >= 0 && painted.height >= 0) bounds = model.viewport(positions, painted);
+    } catch {
+      // Coordinate bounds remain available if this SVG is not currently rendered.
+    }
+  }
+  setViewport();
   for (const selector of ["#graph-from", "#graph-to"]) {
     const select = $(selector), current = select.value;
     select.replaceChildren(option("", "Select entity"));

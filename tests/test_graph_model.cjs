@@ -190,6 +190,33 @@ test("all layouts place every node, including disconnected nodes, deterministica
   }
 });
 
+
+test("viewports enclose node glyphs at both extremes in every layout", () => {
+  for (const count of [1, 20, G.LIMITS.drawNodes]) {
+    const g = { nodes: Array.from({ length: count }, (_, i) => ({ id: `n-${i}` })), edges: [] };
+    for (const mode of ["grid", "radial", "layered"]) {
+      const positions = G.layout(g, mode), box = G.viewport(positions);
+      assert.ok(box.width >= 800 && box.height >= 420);
+      for (const p of positions.values()) {
+        assert.ok(p.x - 18 >= box.x && p.x + 18 <= box.x + box.width);
+        assert.ok(p.y - 18 >= box.y && p.y + 48 <= box.y + box.height);
+      }
+      if (mode === "radial" && count >= 20) assert.ok(box.y < 0);
+      if (mode === "radial" && count === G.LIMITS.drawNodes) assert.ok(box.x < 0);
+      assert.deepEqual(box, G.viewport(positions));
+    }
+  }
+  assert.deepEqual(G.viewport(new Map()), { x: 0, y: 0, width: 800, height: 420 });
+});
+
+test("measured label bounds expand the viewport beyond coordinate padding", () => {
+  const painted = { x: -900.5, y: -300.5, width: 2800.25, height: 1500.25 };
+  const box = G.viewport(new Map([["label", { x: 0, y: 0 }]]), painted);
+  assert.ok(box.x <= painted.x - 24 && box.y <= painted.y - 24);
+  assert.ok(box.x + box.width >= painted.x + painted.width + 24);
+  assert.ok(box.y + box.height >= painted.y + painted.height + 24);
+});
+
 test("saved views reject changes to graph evidence, source or record details", () => {
   const original = graph(), saved = view(original);
   for (const mutate of [
