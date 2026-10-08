@@ -1,0 +1,86 @@
+name: TypeScript reference workspace
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: typescript-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  reference-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: integrations/osint-tool-typescript
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://traceatlas_fixture:fixture_only@127.0.0.1:5432/traceatlas_reference_test?schema=public
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: traceatlas_fixture
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: traceatlas_reference_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U traceatlas_fixture -d traceatlas_reference_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 9.15.0
+          run_install: false
+      - name: Resolve candidate lockfile for review
+        run: pnpm install --lockfile-only --no-frozen-lockfile --ignore-scripts
+      - name: Print public candidate lockfile and provenance
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import json
+          from pathlib import Path
+          import subprocess
+          lock_bytes = Path('pnpm-lock.yaml').read_bytes()
+          source_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          print('LOCKFILE_METADATA ' + json.dumps({'path': 'integrations/osint-tool-typescript/pnpm-lock.yaml', 'source_commit': source_commit, 'bytes': len(lock_bytes), 'sha256': hashlib.sha256(lock_bytes).hexdigest()}, sort_keys=True))
+          lock_b64 = base64.b64encode(lock_bytes).decode('ascii')
+          for offset in range(0, len(lock_b64), 160):
+              print('LOCKFILE_B64 ' + lock_b64[offset:offset + 160])
+          print('LOCKFILE_END')
+          PY
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Validate Prisma schema
+        run: pnpm -C services/core db:validate
+      - name: Generate Prisma client
+        run: pnpm -C services/core db:generate
+      - name: Apply migrations to ephemeral fixture database
+        run: pnpm -C services/core exec prisma migrate deploy --schema prisma/schema.prisma
+      - name: Build workspace exports before tests
+        run: pnpm build
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Unit tests
+        run: pnpm test
+      - name: Integration tests against fixture database
+        run: pnpm test:integration
+      - name: Dependency security audit
+        run: pnpm audit --audit-level high
+      - name: Check that validation did not rewrite the lockfile
+        run: git diff --exit-code -- pnpm-lock.yaml

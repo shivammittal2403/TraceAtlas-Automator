@@ -1,3 +1,29 @@
+# Imported workspace quality follow-up — 2026-10-08
+
+The merged investigation fixes at `967d87953088446168e7aee25c10ee169cd660f3`
+passed main CI and CodeQL. A separate Dependabot security-update run failed for
+the imported TypeScript reference workspace, which the canonical CI did not
+build or test.
+
+This follow-up is CODED with new-head CI PENDING at commit creation:
+- Compare complete GitHub commit-email domains case-insensitively, retain
+  lookalike domains, and skip malformed/non-string rows without losing later
+  valid commits. Fourteen mocked async collector fixtures cover the bug.
+- Resolve narrow candidate dependency overrides in the imported workspace,
+  including both brace-expansion branches and Prisma's deepmerge-ts dependency.
+  The regenerated lockfile and Prisma compatibility require runner proof.
+- Add a root workflow for that standalone workspace: schema validation/client
+  generation, build, actual intelligence typechecking, lint, unit tests, a
+  disposable PostgreSQL integration fixture and dependency audit.
+- The initial draft includes a temporary read-only lockfile-generation probe.
+  Its generated lockfile must be retrieved, reviewed and committed; remove that
+  probe and pass frozen-install checks before merging.
+
+This imported workspace remains a reference implementation. No canonical
+dispatcher, hosted database, worker or live provider is replaced. Fixture database
+credentials are confined to the CI runner's disposable PostgreSQL service.
+Local ZIP/attachment access and native Tk/live investigation remain unverified.
+
 # Investigation quality checkpoint — 2026-10-08
 
 Baseline: `17ff1e9998fb417af86e83191b25d9e94272ad43`. Its existing CI and CodeQL

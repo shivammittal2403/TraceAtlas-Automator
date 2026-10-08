@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:integration": "node --import tsx --test --test-concurrency=1 integration/**/*.test.ts"
+    "test:integration": "node --import tsx --test --test-concurrency=1 \"integration/**/*.test.ts\""
   },
   "dependencies": {
     "@osint-tool/schemas": "workspace:*",

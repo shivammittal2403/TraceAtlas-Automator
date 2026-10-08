@@ -7,7 +7,7 @@
     "build": "tsc --build tsconfig.json",
     "dev": "tsc --build tsconfig.json --watch",
     "lint": "eslint . --no-error-on-unmatched-pattern",
-    "test": "node --import tsx --test src/**/*.test.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --build tsconfig.json --pretty false",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:validate": "prisma validate --schema prisma/schema.prisma",
