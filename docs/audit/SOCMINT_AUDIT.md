@@ -1,3 +1,10 @@
+> 2026-10-08 source follow-up: root `socmint.py` is a standalone, planning-only
+> Tk prototype. Its current-form export and authorization labels are repaired
+> with headless regression coverage in this change; new-head CI is pending at
+> commit creation. It is outside the installed canonical CLI/dispatcher and
+> supplies no live social collector. The integrated-workflow status below
+> remains NOT_IMPLEMENTED. Native GUI and live-source behavior are NOT_VERIFIED.
+
 # SOCMINT capability audit
 
 Audit baseline: `d698ed519be078ec72092b33dacda9f92ffdb42c`, 2026-10-04.

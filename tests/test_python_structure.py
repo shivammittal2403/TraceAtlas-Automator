@@ -1,5 +1,9 @@
 """Prevent concatenated modules and silently overridden regression tests."""
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import importlib.util
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 import unittest
 
@@ -10,6 +14,18 @@ spec.loader.exec_module(checker)
 
 
 class PythonStructureTests(unittest.TestCase):
+    def test_root_python_modules_are_included_in_repository_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'vercel_control.py').write_text('pass\n', encoding='utf-8')
+            (root / 'new_launcher.py').write_text(
+                'def duplicate(): pass\ndef duplicate(): pass\n', encoding='utf-8')
+            stderr = StringIO()
+            with patch.object(checker, 'ROOT', root), redirect_stderr(stderr), redirect_stdout(StringIO()):
+                result = checker.main()
+            self.assertEqual(result, 1)
+            self.assertIn("new_launcher.py:2: duplicate 'duplicate'", stderr.getvalue())
+
     def test_duplicate_classes(self):
         self.assertEqual(len(checker.check_source('class A: pass\nclass A: pass\n')), 1)
 

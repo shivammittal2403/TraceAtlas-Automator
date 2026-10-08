@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 
+MAX_PLANNED_QUERIES = 250
+
+
 FIELDS = [
     ("case_id", "Case ID", "entry"),
     ("task_id", "Task ID", "entry"),
@@ -457,29 +460,7 @@ class TraceAtlasOSINTPanel(tk.Tk):
                 indent=2,
             ),
         )
-        self.set_widget_value(
-            "authorization",
-            json.dumps(
-                {
-                    "authorized_by": "OSINT Manager",
-                    "authorization_basis": "customer-authorized public OSINT engagement",
-                    "permitted_actions": [
-                        "public search",
-                        "public archive review",
-                        "public registry lookup",
-                        "passive infrastructure lookup",
-                    ],
-                    "prohibited_actions": [
-                        "hacking",
-                        "social engineering",
-                        "private surveillance",
-                        "credential use",
-                        "active scanning without separate authorization",
-                    ],
-                },
-                indent=2,
-            ),
-        )
+        self.set_widget_value("authorization", "{}")
         self.set_widget_value(
             "time_range",
             json.dumps(
@@ -503,7 +484,7 @@ class TraceAtlasOSINTPanel(tk.Tk):
         self.set_widget_value("available_evidence", "")
         self.set_widget_value(
             "configured_connectors",
-            "None configured. Output is planning-only unless live connectors are added.",
+            "",
         )
 
     def get_widget_value(self, key: str) -> str:
@@ -611,6 +592,9 @@ class TraceAtlasOSINTPanel(tk.Tk):
     def generate_plan(self) -> None:
         payload = self.collect_payload()
         warnings = self.validate_payload(payload)
+        search_plan = self._build_search_plan(payload)
+        if self.plan_truncated:
+            warnings.append(f"Search plan truncated at {MAX_PLANNED_QUERIES} planned queries.")
 
         result = {
             "mode": "PLANNING_ONLY",
@@ -623,7 +607,11 @@ class TraceAtlasOSINTPanel(tk.Tk):
             "warnings": warnings,
             "payload": payload,
             "intelligence_questions": payload.get("questions") or self._default_questions(payload),
-            "search_plan": self._build_search_plan(payload),
+            "search_plan": search_plan,
+            "planning_limits": {
+                "max_planned_queries": MAX_PLANNED_QUERIES,
+                "truncated": self.plan_truncated,
+            },
             "fact_gate_criteria": self._fact_gate_criteria(),
             "evidence_schema": self._evidence_schema(),
             "observation_schema": self._observation_schema(),
@@ -708,11 +696,15 @@ class TraceAtlasOSINTPanel(tk.Tk):
 
         plan: List[Dict[str, Any]] = []
         priority = 1
+        self.plan_truncated = False
 
         for question in questions:
             families = self._query_families_for_target(target_type, str(question))
 
             for query_family, provider, source_type, purpose in families:
+                if len(plan) >= MAX_PLANNED_QUERIES:
+                    self.plan_truncated = True
+                    return plan
                 query = self._compile_query(query_family, payload, str(question))
 
                 plan.append(
@@ -729,7 +721,7 @@ class TraceAtlasOSINTPanel(tk.Tk):
                             target_type,
                         ),
                         "estimated_cost": self._estimate_cost(query_family, provider),
-                        "authorization_status": "ALLOWED_PUBLIC_OR_AUTHORIZED",
+                        "authorization_status": "NOT_VERIFIED_PLANNING_ONLY",
                         "policy_risk": "LOW_IF_PASSIVE_PUBLIC",
                         "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
                     }

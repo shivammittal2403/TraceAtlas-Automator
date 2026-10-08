@@ -36,7 +36,7 @@ jobs:
       - name: Verify the complete supplied archive source mappings
         run: python scripts/verify_archive_merge.py
       - name: Compile sources
-        run: python -m compileall -q src tests api vercel_control.py scripts
+        run: python -m compileall -q src tests api scripts *.py
       - name: Run regression suite
         env:
           PYTHONPATH: src
@@ -54,6 +54,7 @@ jobs:
           node node_modules/playwright/cli.js install --with-deps chromium
           node tests/test_employee_ui.cjs
           node tests/test_archive_ui.cjs
+          node tests/test_graph_ui.cjs
       - name: Verify research pack integrity
         run: traceatlas-research status --verify > /dev/null
       - name: Run AI evidence-contract benchmark

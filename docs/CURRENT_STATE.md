@@ -1,3 +1,35 @@
+# Investigation quality checkpoint — 2026-10-08
+
+Baseline: `17ff1e9998fb417af86e83191b25d9e94272ad43`. Its existing CI and CodeQL
+runs completed successfully. CodeQL completion does not mean zero findings, and
+those results do not certify the changes in this checkpoint.
+
+CODED; new-head CI PENDING at commit creation:
+- Graph viewport includes negative radial coordinates and measured SVG label
+  bounds. Coordinate and Chromium regressions cover 20 and 250 nodes, multiple
+  layouts, desktop/mobile and wide Unicode labels.
+- Root Python modules now join the structure and compilation gates. Headless
+  panel regressions exercise actual planning/default/export methods.
+- Standalone OSINT/SOCMINT planning prototypes no longer invent an authorization
+  or configured connector. Planned queries remain `NOT_VERIFIED_PLANNING_ONLY`,
+  including when an operator supplies an authorization declaration.
+- SOCMINT export regenerates the current form and policy screen; it cannot reuse
+  an earlier target's cached result. OSINT planning is bounded at 250 query rows,
+  with explicit truncation metadata and a warning.
+
+The root panels remain standalone planning prototypes. They are not installed
+CLI entrypoints, integrated social collectors or a second authority beside
+`src/traceatlas/workforce`. Headless tests do not qualify native Tk rendering.
+Live sources, hosted deployment and production investigation outcomes remain
+NOT_VERIFIED.
+
+The user-supplied `allint52.zip` and pasted attachments were not readable:
+the local execution helper failed before process startup with
+`setup refresh had errors`. The complete baseline Git tree contains no
+`allint52` path. No claim of full ZIP integration, ZIP byte preservation or
+attachment review is made. The original archive-source mappings and existing
+security gates are retained.
+
 # Combined-main compatibility checkpoint — 2026-10-07
 
 Main advanced to `deaeafbedc91ad8c51e9368404321cf734a5da66` through parallel PR #73
