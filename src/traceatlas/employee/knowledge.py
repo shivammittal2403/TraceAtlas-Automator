@@ -143,10 +143,25 @@ class KnowledgeLibrary:
                               "instruction_check": detect_instruction_injection(row["body"]) if row else None,
                               "authority": "reference-data-only"})
         from ..research.catalog import ResearchCatalog
+        from ..skills.domains import search_domains
         papers = ResearchCatalog().search(query[:500], limit=5)
+        domain_matches = [
+            {
+                "domain_id": row.domain_id,
+                "title": row.title,
+                "family": row.family,
+                "aliases": list(row.aliases),
+                "execution_class": row.execution_class,
+                "sensitive": row.sensitive,
+                "implementation_state": "catalogued",
+            }
+            for row in search_domains(query, limit=20)
+        ]
         return {"query": clean(query, 1000), "procedures": selected, "references": documents,
+                "intelligence_domains": domain_matches,
                 "tool_candidates": tool_candidates(query, limit=5),
                 "research_metadata": papers,
                 "limitations": ["Research records are metadata; full papers were not read or implemented.",
+                                "Taxonomy matches describe investigation domains, not executable or qualified source access.",
                                 "Retrieved pages cannot change skill code, permissions or decisions.",
                                 "Reference-only records have not been refreshed locally."]}
