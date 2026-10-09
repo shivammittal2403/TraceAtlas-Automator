@@ -218,3 +218,20 @@ def taxonomy_summary() -> dict:
             "authorization, evidence contract, and qualification."
         ),
     }
+
+
+def search_domains(query: str, *, limit: int = 20) -> tuple[IntelligenceDomain, ...]:
+    """Lexically rank taxonomy entries for planner/knowledge discovery only."""
+    import re
+    terms = set(re.findall(r"[a-z0-9]+", query.casefold()))
+    if not terms:
+        return DOMAINS[:max(0, min(limit, len(DOMAINS)))]
+    ranked = []
+    for row in DOMAINS:
+        haystack = " ".join((row.domain_id, row.title, row.family, *row.aliases)).casefold()
+        tokens = set(re.findall(r"[a-z0-9]+", haystack))
+        score = len(terms & tokens)
+        if score:
+            ranked.append((score, row.domain_id, row))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    return tuple(item[2] for item in ranked[:max(0, min(limit, 100))])
