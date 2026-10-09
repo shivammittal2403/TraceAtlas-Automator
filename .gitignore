@@ -1,23 +1,10 @@
-(empty)
-# Python bytecode and caches
+# Python bytecode and cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Testing frameworks
-.pytest_cache/
-
-# Local packages, verification tools, operator secrets and case data
-*.whl
-node_modules
-build/
-dist/
-*.egg-info/
+# Virtual environments
 .venv/
-.openosint-test-venv/
-cases/
-reports/
-.traceatlas/
-.env
-.env.*
-!.env.example
+venv/
+ENV/
+env/
