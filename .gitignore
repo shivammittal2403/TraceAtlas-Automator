@@ -1,7 +1,10 @@
-# Python bytecode and caches
+# Python bytecode and cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Testing frameworks
-.pytest_cache/
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
