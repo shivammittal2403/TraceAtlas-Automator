@@ -434,18 +434,17 @@ wheels = [
 
 [[package]]
 name = "censys"
-version = "2.2.19"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
     { name = "backoff" },
     { name = "requests" },
     { name = "rich" },
-    { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/aa/ed0d0faf4f7015bac902cdad929f487f9baefd224ab6fa9aba5635dd5d60/censys-2.2.19.tar.gz", hash = "sha256:9202e17c2583d4b3d0af32a5be161ddb505edd390a9ca909f2e7470d4af19a97", size = 62101, upload-time = "2025-12-11T16:08:47.421Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/f1/a7da18ea36eabdc73a7fd5c80ce475a61c7a05a3912be64edb3c33980ca7/censys-2.3.0.tar.gz", hash = "sha256:7ebf18d6327acd27817265a5ad34342afae56f9f5c7f0016f651b82e593a6a33", size = 412111, upload-time = "2026-08-28T16:21:51.876Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/4b/96c1ebc5f8534c18527c81b4df9cdb2a96151010f540ecbb4c9c2af4fee4/censys-2.2.19-py3-none-any.whl", hash = "sha256:eaad49779a3bbe290e244222563a48e78ca33777fbbdf6d329d8b52223fc1084", size = 80582, upload-time = "2025-12-11T16:08:46.368Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/b1/676fccf54dc874114db5bc1308e7a68fbc914e6c6c4bf7689060f483500d/censys-2.3.0-py3-none-any.whl", hash = "sha256:18280ad81a5f22892c0506def8551813991d6a3b227da5803c3f6eb4081997d7", size = 80616, upload-time = "2026-08-28T16:21:50.738Z" },
 ]
 
 [[package]]
@@ -2715,8 +2714,8 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'web'", specifier = ">=0.25.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "authlib", specifier = ">=1.8.0" },
-    { name = "censys", marker = "extra == 'all'", specifier = ">=2.2.0" },
-    { name = "censys", marker = "extra == 'censys'", specifier = ">=2.2.0" },
+    { name = "censys", marker = "extra == 'all'", specifier = ">=2.3.0" },
+    { name = "censys", marker = "extra == 'censys'", specifier = ">=2.3.0" },
     { name = "cryptography", specifier = ">=50.0.1" },
     { name = "dnspython", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
@@ -2724,9 +2723,9 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'web'", specifier = ">=0.110.0" },
     { name = "followthemoney", marker = "extra == 'graph'", specifier = ">=4.10.0" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "itsdangerous", specifier = ">=2.1.0" },
+    { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "mcp", specifier = ">=2.2.0,<3" },
+    { name = "mcp", specifier = ">=2.3.0,<3" },
     { name = "nomenklatura", marker = "python_full_version >= '3.11' and extra == 'graph-dedup'", specifier = ">=4.14.0" },
     { name = "ollama", marker = "extra == 'all'", specifier = ">=0.3.0" },
     { name = "ollama", marker = "extra == 'ollama'", specifier = ">=0.3.0" },
@@ -2741,7 +2740,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7.1.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-dotenv", marker = "extra == 'web'", specifier = ">=1.0.0" },
-    { name = "python-whois", specifier = ">=0.9.0" },
+    { name = "python-whois", specifier = ">=0.9.6" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "reportlab", specifier = ">=4.0" },
     { name = "reportlab", marker = "extra == 'all'", specifier = ">=4.0.0" },
@@ -2754,9 +2753,9 @@ requires-dist = [
     { name = "sse-starlette", specifier = ">=1.8.0" },
     { name = "sse-starlette", marker = "extra == 'all'", specifier = ">=1.8.0" },
     { name = "sse-starlette", marker = "extra == 'web'", specifier = ">=1.8.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.29.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.29.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.29.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.54.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.54.0" },
 ]
 provides-extras = ["dev", "shodan", "ollama", "openai", "pdf", "censys", "socks", "graph", "graph-dedup", "web", "all"]
 
@@ -4498,21 +4497,20 @@ wheels = [
 
 [[package]]
 name = "uvicorn"
-version = "0.49.0"
+version = "0.54.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "h11" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/1f/fa18009dea8469069cca78a4e877a008ab78f08b064bfc9ab891579077ff/uvicorn-0.49.0.tar.gz", hash = "sha256:ebf4271aa580d9de97f93192d4595176df6e91f9aae919ca73e4fc07df1e66a3", size = 91284, upload-time = "2026-06-03T22:01:30.448Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/34/30e9280707135d2cfc589dfff3cb796bd07a3aeb1a3e415ba09dd89d7bb4/uvicorn-0.54.0.tar.gz", hash = "sha256:a2e33cbfaa0306f8e6b0c13e0cb89d7d7a2da3e62b90c66e18c33d9807b28620", size = 112283, upload-time = "2026-09-25T06:52:37.601Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/fa/e1388bbcf24ef3274f45c0c1c7b501fd14971037c1b6ee23610553307497/uvicorn-0.49.0-py3-none-any.whl", hash = "sha256:ba3d14c3ee7e41c6c654c46c9eb489d33213cdd30aa1696eab1374337c13f68f", size = 71376, upload-time = "2026-06-03T22:01:29.037Z" },
+    { url = "https://files.pythonhosted.org/packages/38/0c/b54a4fdd7f90a3af8b02ebc9ce6712c2c208b7926a2f7bad95c33ebbe943/uvicorn-0.54.0-py3-none-any.whl", hash = "sha256:505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf", size = 87427, upload-time = "2026-09-25T06:52:35.829Z" },
 ]
 
 [package.optional-dependencies]
 standard = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "httptools" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
