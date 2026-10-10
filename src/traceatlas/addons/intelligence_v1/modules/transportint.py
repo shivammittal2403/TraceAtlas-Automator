@@ -1,0 +1,4004 @@
+"""
+======================================================================
+TRACEATLAS — TRANSPORTINT
+TRANSPORT & LOGISTICS INTELLIGENCE AI EMPLOYEE
+Python Implementation
+======================================================================
+
+Mode:
+LAWFUL / AUTHORIZED / EVIDENCE-FIRST / SAFETY-AWARE
+
+Primary boundary:
+Transport / logistics intelligence,
+NOT targeting, stalking, sabotage, evasion or interference.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import itertools
+import json
+import logging
+import math
+import re
+import unicodedata
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("TRANSPORTINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class TransportMode(str, Enum):
+    MARITIME = "MARITIME"
+    AIR = "AIR"
+    RAIL = "RAIL"
+    ROAD = "ROAD"
+    PUBLIC_TRANSIT = "PUBLIC_TRANSIT"
+    INLAND_WATERWAY = "INLAND_WATERWAY"
+    PIPELINE_CONTEXT = "PIPELINE_CONTEXT"
+    MULTIMODAL = "MULTIMODAL"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class AssetType(str, Enum):
+    SHIP = "SHIP"
+    BOAT = "BOAT"
+    AIRCRAFT = "AIRCRAFT"
+    TRAIN = "TRAIN"
+    LOCOMOTIVE = "LOCOMOTIVE"
+    RAILCAR = "RAILCAR"
+    TRUCK = "TRUCK"
+    BUS = "BUS"
+    CAR = "CAR"
+    TRAILER = "TRAILER"
+    CONTAINER = "CONTAINER"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class IdentifierType(str, Enum):
+    IMO = "IMO"
+    MMSI = "MMSI"
+    CALLSIGN = "CALLSIGN"
+    TAIL_NUMBER = "TAIL_NUMBER"
+    REGISTRATION = "REGISTRATION"
+    FLEET_ID = "FLEET_ID"
+    RAIL_EQUIPMENT_ID = "RAIL_EQUIPMENT_ID"
+    VIN = "VIN"
+    CONTAINER_ID = "CONTAINER_ID"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class AssetStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    IN_SERVICE = "IN_SERVICE"
+    OUT_OF_SERVICE = "OUT_OF_SERVICE"
+    MAINTENANCE = "MAINTENANCE"
+    STORED = "STORED"
+    RETIRED = "RETIRED"
+    SCRAPPED = "SCRAPPED"
+    UNKNOWN = "UNKNOWN"
+
+
+class MovementEventType(str, Enum):
+    POSITION_OBSERVED = "POSITION_OBSERVED"
+    DEPARTURE = "DEPARTURE"
+    ARRIVAL = "ARRIVAL"
+    STOP = "STOP"
+    DWELL = "DWELL"
+    TRANSIT = "TRANSIT"
+    TRANSFER = "TRANSFER"
+    LOADING_REPORTED = "LOADING_REPORTED"
+    UNLOADING_REPORTED = "UNLOADING_REPORTED"
+    SCHEDULE_CHANGE = "SCHEDULE_CHANGE"
+    DELAY = "DELAY"
+    DIVERSION = "DIVERSION"
+    CANCELLATION = "CANCELLATION"
+    SERVICE_INTERRUPTION = "SERVICE_INTERRUPTION"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrecisionLevel(str, Enum):
+    EXACT_SENSOR = "EXACT_SENSOR"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    REGION_ONLY = "REGION_ONLY"
+    UNKNOWN = "UNKNOWN"
+
+
+class TimePrecision(str, Enum):
+    EXACT = "EXACT"
+    SECOND = "SECOND"
+    MINUTE = "MINUTE"
+    HOUR = "HOUR"
+    APPROXIMATE = "APPROXIMATE"
+    DATE_ONLY = "DATE_ONLY"
+    UNKNOWN = "UNKNOWN"
+
+
+class EventStatus(str, Enum):
+    SCHEDULED = "SCHEDULED"
+    ESTIMATED = "ESTIMATED"
+    ACTUAL = "ACTUAL"
+    OBSERVED = "OBSERVED"
+    REPORTED = "REPORTED"
+    INFERRED = "INFERRED"
+    CONFIRMED = "CONFIRMED"
+    UNKNOWN = "UNKNOWN"
+
+
+class HubType(str, Enum):
+    PORT = "PORT"
+    AIRPORT = "AIRPORT"
+    RAIL_TERMINAL = "RAIL_TERMINAL"
+    BUS_TERMINAL = "BUS_TERMINAL"
+    WAREHOUSE = "WAREHOUSE"
+    DISTRIBUTION_CENTER = "DISTRIBUTION_CENTER"
+    LOGISTICS_HUB = "LOGISTICS_HUB"
+    INTERMODAL_TERMINAL = "INTERMODAL_TERMINAL"
+    CHECKPOINT = "CHECKPOINT"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class RoleType(str, Enum):
+    LEGAL_OWNER = "LEGAL_OWNER"
+    REGISTERED_OWNER = "REGISTERED_OWNER"
+    OPERATOR = "OPERATOR"
+    MANAGER = "MANAGER"
+    CHARTERER = "CHARTERER"
+    LESSEE = "LESSEE"
+    CARRIER = "CARRIER"
+    FORWARDER = "FORWARDER"
+    SHIPPER = "SHIPPER"
+    CONSIGNEE = "CONSIGNEE"
+    UNKNOWN = "UNKNOWN"
+
+
+class EntityRole(str, Enum):
+    ORGANIZATION = "ORGANIZATION"
+    OPERATOR = "OPERATOR"
+    OWNER = "OWNER"
+    CARRIER = "CARRIER"
+    FORWARDER = "FORWARDER"
+    SHIPPER = "SHIPPER"
+    CONSIGNEE = "CONSIGNEE"
+    UNKNOWN = "UNKNOWN"
+
+
+class DelayType(str, Enum):
+    DEPARTURE_DELAY = "DEPARTURE_DELAY"
+    ARRIVAL_DELAY = "ARRIVAL_DELAY"
+    TRANSFER_DELAY = "TRANSFER_DELAY"
+    UNKNOWN = "UNKNOWN"
+
+
+class DependencyType(str, Enum):
+    SINGLE_HUB = "SINGLE_HUB"
+    CORRIDOR = "CORRIDOR"
+    CARRIER = "CARRIER"
+    TERMINAL = "TERMINAL"
+    MODE = "MODE"
+    FUEL = "FUEL"
+    CUSTOMS = "CUSTOMS"
+    COMMON_MODE = "COMMON_MODE"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class IndependenceState(str, Enum):
+    INDEPENDENT = "INDEPENDENT"
+    PARTIALLY_DEPENDENT = "PARTIALLY_DEPENDENT"
+    DEPENDENT = "DEPENDENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrivacyClassification(str, Enum):
+    PUBLIC = "PUBLIC"
+    BUSINESS = "BUSINESS"
+    INTERNAL = "INTERNAL"
+    SENSITIVE = "SENSITIVE"
+    HIGHLY_SENSITIVE = "HIGHLY_SENSITIVE"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+EARTH_RADIUS_M = 6371000.0
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def safe_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        try:
+            dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except Exception:
+            return None
+    elif isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        s = s.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            dt = None
+            for fmt in (
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+                "%Y-%m-%d",
+            ):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            if dt is None:
+                return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def mean(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def median(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return None
+    n = len(vals)
+    mid = n // 2
+    if n % 2 == 1:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2.0
+
+
+def std(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return 0.0
+    m = sum(vals) / len(vals)
+    var = sum((x - m) ** 2 for x in vals) / (len(vals) - 1)
+    return math.sqrt(var)
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def haversine_m(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dp = math.radians(float(lat2) - float(lat1))
+        dl = math.radians(float(lon2) - float(lon1))
+        a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return EARTH_RADIUS_M * c
+    except Exception:
+        return None
+
+
+def bearing_deg(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dl = math.radians(float(lon2) - float(lon1))
+        y = math.sin(dl) * math.cos(p2)
+        x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+        return (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
+    except Exception:
+        return None
+
+
+def hash_payload(payload: Any) -> str:
+    try:
+        canonical = json.dumps(payload, sort_keys=True, default=_json_default)
+    except Exception:
+        canonical = str(payload)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def round_coord(value: Optional[float], digits: int = 4) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), digits)
+
+
+def token_set(text: Optional[str]) -> set[str]:
+    if not text:
+        return set()
+    return {t for t in re.split(r"\W+", text.lower()) if t}
+
+
+def jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+VELOCITY_UNIT_TO_MS = {
+    "m/s": 1.0,
+    "mps": 1.0,
+    "km/h": 1.0 / 3.6,
+    "kph": 1.0 / 3.6,
+    "kn": 0.514444,
+    "knot": 0.514444,
+    "knots": 0.514444,
+    "mph": 0.44704,
+}
+
+
+def to_m_s(value: Optional[float], unit: Optional[str]) -> Tuple[Optional[float], Optional[str]]:
+    if value is None:
+        return None, None
+    u = (unit or "m/s").strip().lower()
+    factor = VELOCITY_UNIT_TO_MS.get(u)
+    if factor is None:
+        return None, "UNIT_UNKNOWN"
+    return value * factor, u
+
+
+def fmt_dt(value: Optional[datetime]) -> str:
+    return value.isoformat() if value else "UNKNOWN"
+
+
+def fmt_seconds(value: Optional[float]) -> str:
+    if value is None:
+        return "UNKNOWN"
+    hours = value / 3600.0
+    if abs(hours) < 1:
+        return f"{value/60:.1f} min"
+    return f"{hours:.2f} h"
+
+
+# ======================================================================
+# SECTION 3 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited TRANSPORTINT operational guidance.
+
+    Allows lawful historical/authorized transport intelligence, logistics
+    resilience, safety, compliance context, schedule/delay analysis, and
+    defensive transport-network assessment.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:how\s+to|guide\s+to|instructions?\s+to|teach\s+me|advise\s+me|help\s+me).{0,140}(?:spoof|fake|disable|turn\s+off|mask|hide|evade|avoid|bypass|interfere|hack|intrude|sabotage|derail|attack|target|intercept|smuggle|conceal|modify\s+route|issue\s+command|take\s+control).{0,140}(?:ais|gnss|gps|transponder|radar|tracking|monitoring|vessel|ship|aircraft|plane|train|rail|signaling|traffic\s+control|port|airport|terminal|fleet|vehicle|truck|cargo|route|sanction|customs|smuggling)",
+        r"\b(?:stalking|doxxing|harassment|revenge|private\s+person\s+tracking|real.time\s+targeting|weapon\s+targeting|military\s+targeting|interdiction\s+targeting|sabotage|derailment|port\s+disruption|airport\s+disruption|traffic.control.interference|rail.signaling.interference|aviation.systems.interference|vessel.systems.interference|gnss.spoofing|ais.spoofing|transponder.disabling|radar.evasion|tracking.evasion|route.hiding|smuggling.routes|sanctions.evasion|customs.evasion|cargo.concealment|unauthorized.fleet.access|stolen.fleet.credentials|take.control.of.vehicles|modify.route.plans|issue.transport.commands)\b",
+        r"(?:find|locate|track).{0,80}(?:private\s+person|individual|home|residence).{0,80}(?:vehicle|vessel|aircraft|train|truck|bus|fleet)",
+        r"(?:target|attack|sabotage|disable|destroy|interfere\s+with).{0,80}(?:port|airport|rail|bridge|tunnel|traffic.light|signaling|vessel|aircraft|train|truck|fleet|logistics.hub|terminal)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited TRANSPORTINT targeting, sabotage, evasion, interference, or private-person tracking guidance.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Manifests, fleet exports, AIS messages, tracking feeds, route descriptions,
+    operator websites, and logistics documents are untrusted data.
+    Neutralize obvious instruction-like injections while preserving evidence.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|reveal\s+private|disable\s+privacy|spoof\s+ais|disable\s+transponder|hide\s+route|smuggle)\b"
+    )
+
+    def sanitize(self, text: Any, max_len: int = 500) -> Optional[str]:
+        if text is None:
+            return None
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return s[:max_len]
+
+
+# ======================================================================
+# SECTION 4 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    source_id: str = ""
+    source_type: str = "UNKNOWN"
+    asset_id: str = ""
+    movement_id: str = ""
+    location_id: str = ""
+    observed_at: Optional[datetime] = None
+    event_time: Optional[datetime] = None
+    received_at: datetime = field(default_factory=utcnow)
+    published_at: Optional[datetime] = None
+    retrieved_at: datetime = field(default_factory=utcnow)
+    source_precision: str = "UNKNOWN"
+    time_precision: str = "UNKNOWN"
+    content_hash: str = ""
+    raw_artifact_reference: str = ""
+    parser_version: str = "TRANSPORTINT-parser-0.1.0"
+    normalizer_version: str = "TRANSPORTINT-normalizer-0.1.0"
+    authorization_context: str = ""
+
+
+@dataclass
+class Source:
+    source_id: str
+    provider: str = "UNKNOWN"
+    upstream_feed: str = "UNKNOWN"
+    independence_group: str = "UNKNOWN"
+    reliability: str = "UNKNOWN"
+    source_type: str = "UNKNOWN"
+    data_freshness: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Identifier:
+    identifier_type: IdentifierType = IdentifierType.UNKNOWN
+    value: str = ""
+    source_id: str = ""
+    evidence_id: str = ""
+    confidence: Confidence = Confidence.UNKNOWN
+
+
+@dataclass
+class RoleAssignment:
+    role_id: str = field(default_factory=lambda: new_id("ROLE"))
+    role_type: RoleType = RoleType.UNKNOWN
+    entity_id: str = ""
+    entity_name: str = ""
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.UNKNOWN
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Entity:
+    entity_id: str
+    name: str = ""
+    entity_role: EntityRole = EntityRole.UNKNOWN
+    aliases: List[str] = field(default_factory=list)
+    country: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class TransportAsset:
+    asset_id: str
+    asset_type: AssetType = AssetType.UNKNOWN
+    mode: TransportMode = TransportMode.UNKNOWN
+    identifiers: List[Identifier] = field(default_factory=list)
+    name_or_label: str = ""
+    operator_candidate: str = ""
+    owner_candidate: str = ""
+    roles: List[RoleAssignment] = field(default_factory=list)
+    registration: str = ""
+    country_or_jurisdiction: str = ""
+    capacity_context: Dict[str, Any] = field(default_factory=dict)
+    status: AssetStatus = AssetStatus.UNKNOWN
+    first_seen: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.UNKNOWN
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Hub:
+    hub_id: str
+    name: str = ""
+    hub_type: HubType = HubType.UNKNOWN
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    radius_m: Optional[float] = None
+    country: str = ""
+    region: str = ""
+    code: str = ""
+    capacity_context: Dict[str, Any] = field(default_factory=dict)
+    congestion_context: Dict[str, Any] = field(default_factory=dict)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Schedule:
+    schedule_id: str
+    service_id: str = ""
+    asset_id: str = ""
+    mode: TransportMode = TransportMode.UNKNOWN
+    origin_hub_id: str = ""
+    destination_hub_id: str = ""
+    planned_departure: Optional[datetime] = None
+    planned_arrival: Optional[datetime] = None
+    stops: List[str] = field(default_factory=list)
+    operator: str = ""
+    source_id: str = ""
+    evidence_id: str = ""
+    effective_period: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class MovementEvent:
+    event_id: str = field(default_factory=lambda: new_id("EVT"))
+    asset_id: str = ""
+    event_type: MovementEventType = MovementEventType.UNKNOWN
+    time: datetime = field(default_factory=utcnow)
+    time_precision: TimePrecision = TimePrecision.UNKNOWN
+    location_id: str = ""
+    hub_id: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    accuracy_radius_m: Optional[float] = None
+    precision_level: PrecisionLevel = PrecisionLevel.UNKNOWN
+    speed_m_s: Optional[float] = None
+    heading_deg: Optional[float] = None
+    route_reference: str = ""
+    source_id: str = ""
+    evidence_id: str = ""
+    status: EventStatus = EventStatus.UNKNOWN
+    confidence: Confidence = Confidence.UNKNOWN
+    extra: Dict[str, Any] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class RouteSegment:
+    segment_id: str = field(default_factory=lambda: new_id("SEG"))
+    asset_id: str = ""
+    from_hub_id: str = ""
+    to_hub_id: str = ""
+    from_event_id: str = ""
+    to_event_id: str = ""
+    mode: TransportMode = TransportMode.UNKNOWN
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    distance_m: Optional[float] = None
+    status: EventStatus = EventStatus.INFERRED
+    confidence: Confidence = Confidence.LOW
+    source_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Route:
+    route_id: str = field(default_factory=lambda: new_id("ROUTE"))
+    asset_id: str = ""
+    mode: TransportMode = TransportMode.UNKNOWN
+    origin_hub_id: str = ""
+    destination_hub_id: str = ""
+    segments: List[RouteSegment] = field(default_factory=list)
+    scheduled_or_actual: EventStatus = EventStatus.UNKNOWN
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    source_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Shipment:
+    shipment_id: str
+    reference: str = ""
+    carrier: str = ""
+    forwarder: str = ""
+    shipper: str = ""
+    consignee: str = ""
+    commodity_description: str = ""
+    container_ids: List[str] = field(default_factory=list)
+    asset_ids: List[str] = field(default_factory=list)
+    route_ids: List[str] = field(default_factory=list)
+    status: str = "UNKNOWN"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Container:
+    container_id: str
+    identifier: str = ""
+    shipment_reference: str = ""
+    carrier: str = ""
+    route_ids: List[str] = field(default_factory=list)
+    movement_events: List[str] = field(default_factory=list)
+    status: str = "UNKNOWN"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Delay:
+    delay_id: str = field(default_factory=lambda: new_id("DELAY"))
+    asset_id: str = ""
+    schedule_id: str = ""
+    event_id: str = ""
+    hub_id: str = ""
+    delay_type: DelayType = DelayType.UNKNOWN
+    scheduled_time: Optional[datetime] = None
+    actual_time: Optional[datetime] = None
+    delay_seconds: Optional[float] = None
+    cause_candidates: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Disruption:
+    disruption_id: str
+    disruption_type: str = "UNKNOWN"
+    hub_id: str = ""
+    route_segment_id: str = ""
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    description: str = ""
+    cause_reported: str = "UNKNOWN"
+    cause_verified: bool = False
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WeatherContext:
+    weather_id: str
+    event_type: str = "UNKNOWN"
+    region: str = ""
+    hub_id: str = ""
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    intensity: str = ""
+    source_id: str = ""
+    evidence_id: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class EnvironmentalContext:
+    env_id: str
+    event_type: str = "UNKNOWN"
+    region: str = ""
+    hub_id: str = ""
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    description: str = ""
+    source_id: str = ""
+    evidence_id: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class TransportDependency:
+    dependency_id: str = field(default_factory=lambda: new_id("DEP"))
+    dependency_type: DependencyType = DependencyType.UNKNOWN
+    subject: str = ""
+    resource: str = ""
+    resource_type: str = ""
+    count: int = 0
+    confidence: Confidence = Confidence.LOW
+    notes: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    candidate_resolutions: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class IngestedCase:
+    evidence: List[Evidence] = field(default_factory=list)
+    sources: List[Source] = field(default_factory=list)
+    entities: List[Entity] = field(default_factory=list)
+    assets: List[TransportAsset] = field(default_factory=list)
+    hubs: List[Hub] = field(default_factory=list)
+    schedules: List[Schedule] = field(default_factory=list)
+    movement_events: List[MovementEvent] = field(default_factory=list)
+    shipments: List[Shipment] = field(default_factory=list)
+    containers: List[Container] = field(default_factory=list)
+    weather: List[WeatherContext] = field(default_factory=list)
+    environmental: List[EnvironmentalContext] = field(default_factory=list)
+    disruptions: List[Disruption] = field(default_factory=list)
+    throughput_observations: List[Dict[str, Any]] = field(default_factory=list)
+    congestion_observations: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class TRANSPORTINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    sources: List[Source] = field(default_factory=list)
+    entities: List[Entity] = field(default_factory=list)
+    assets: List[TransportAsset] = field(default_factory=list)
+    hubs: List[Hub] = field(default_factory=list)
+    schedules: List[Schedule] = field(default_factory=list)
+    movement_events: List[MovementEvent] = field(default_factory=list)
+    routes: List[Route] = field(default_factory=list)
+    delays: List[Delay] = field(default_factory=list)
+    disruptions: List[Disruption] = field(default_factory=list)
+    weather_context: List[WeatherContext] = field(default_factory=list)
+    environmental_context: List[EnvironmentalContext] = field(default_factory=list)
+    shipments: List[Shipment] = field(default_factory=list)
+    containers: List[Container] = field(default_factory=list)
+    intermodal_transfers: List[Dict[str, Any]] = field(default_factory=list)
+    congestion_context: List[Dict[str, Any]] = field(default_factory=list)
+    throughput_context: List[Dict[str, Any]] = field(default_factory=list)
+    dependencies: List[TransportDependency] = field(default_factory=list)
+
+    contradictions: List[Contradiction] = field(default_factory=list)
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 5 — INGESTION
+# ======================================================================
+
+class TRANSPORTINTIngestor:
+    PARSER_VERSION = "TRANSPORTINT-parser-0.1.0"
+    NORMALIZER_VERSION = "TRANSPORTINT-normalizer-0.1.0"
+
+    EXTRA_KEYS = (
+        "imo",
+        "mmsi",
+        "callsign",
+        "tail_number",
+        "registration",
+        "container_id",
+        "flight_number",
+        "train_id",
+        "truck_id",
+        "fleet_id",
+        "rail_equipment_id",
+    )
+
+    ID_FIELD_MAP = [
+        ("IMO", "imo"),
+        ("MMSI", "mmsi"),
+        ("CALLSIGN", "callsign"),
+        ("TAIL_NUMBER", "tail_number"),
+        ("REGISTRATION", "registration"),
+        ("FLEET_ID", "fleet_id"),
+        ("RAIL_EQUIPMENT_ID", "rail_equipment_id"),
+        ("CONTAINER_ID", "container_id"),
+    ]
+
+    def __init__(self, injection_defense: Optional[PromptInjectionDefense] = None):
+        self.injection_defense = injection_defense or PromptInjectionDefense()
+
+    def ingest_case(self, case: Dict[str, Any]) -> IngestedCase:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        authorization = str(case.get("authorization", ""))
+
+        sources = [self._parse_source(s) for s in case.get("sources", [])]
+        source_map = {s.source_id: s for s in sources}
+
+        entities = [self._parse_entity(e, case_id, authorization) for e in case.get("entities", [])]
+        assets = [self._parse_asset(a, case_id, authorization, source_map) for a in case.get("assets", [])]
+        hubs = [self._parse_hub(h, case_id, authorization) for h in case.get("hubs", [])]
+        schedules = [self._parse_schedule(s, case_id, authorization) for s in case.get("schedules", [])]
+
+        movement_events: List[MovementEvent] = []
+        evidence: List[Evidence] = []
+        for ev in case.get("movement_events", []):
+            parsed_ev, parsed_event = self._parse_movement_event(ev, case_id, authorization, source_map)
+            evidence.append(parsed_ev)
+            movement_events.append(parsed_event)
+
+        shipments = [self._parse_shipment(s, case_id, authorization) for s in case.get("shipments", [])]
+        containers = [self._parse_container(c, case_id, authorization) for c in case.get("containers", [])]
+        weather = [self._parse_weather(w, case_id, authorization) for w in case.get("weather_context", [])]
+        environmental = [self._parse_environmental(e, case_id, authorization) for e in case.get("environmental_context", [])]
+        disruptions = [self._parse_disruption(d, case_id, authorization) for d in case.get("disruptions", [])]
+
+        throughput = [dict(x) for x in case.get("throughput_observations", [])]
+        congestion = [dict(x) for x in case.get("congestion_observations", [])]
+
+        all_evidence = evidence + [s.evidence_id for s in []]  # placeholder to keep type clear
+        # Collect evidence from parsed objects via their evidence_ids where available.
+        for a in assets:
+            pass
+        # Evidence lists are already embedded in object evidence_ids; we return top-level movement evidence plus object evidence ids.
+        return IngestedCase(
+            evidence=evidence,
+            sources=sources,
+            entities=entities,
+            assets=assets,
+            hubs=hubs,
+            schedules=schedules,
+            movement_events=movement_events,
+            shipments=shipments,
+            containers=containers,
+            weather=weather,
+            environmental=environmental,
+            disruptions=disruptions,
+            throughput_observations=throughput,
+            congestion_observations=congestion,
+        )
+
+    def _make_evidence(
+        self,
+        case_id: str,
+        authorization: str,
+        source_id: str,
+        source_map: Dict[str, Source],
+        asset_id: str = "",
+        movement_id: str = "",
+        location_id: str = "",
+        observed_at: Optional[datetime] = None,
+        event_time: Optional[datetime] = None,
+        raw: Any = None,
+        source_precision: str = "UNKNOWN",
+        time_precision: str = "UNKNOWN",
+    ) -> Evidence:
+        raw_ref = json.dumps(raw, sort_keys=True, default=_json_default)[:1000] if raw is not None else ""
+        src = source_map.get(source_id)
+        return Evidence(
+            case_id=case_id,
+            source_id=source_id,
+            source_type=src.source_type if src else "UNKNOWN",
+            asset_id=asset_id,
+            movement_id=movement_id,
+            location_id=location_id,
+            observed_at=observed_at,
+            event_time=event_time,
+            retrieved_at=utcnow(),
+            source_precision=source_precision,
+            time_precision=time_precision,
+            content_hash=hash_payload(raw if raw is not None else {"case_id": case_id, "source_id": source_id}),
+            raw_artifact_reference=raw_ref,
+            parser_version=self.PARSER_VERSION,
+            normalizer_version=self.NORMALIZER_VERSION,
+            authorization_context=authorization,
+        )
+
+    def _sanitize_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(payload)
+        for key in ("notes", "comment", "description", "metadata", "annotation", "message"):
+            if key in out:
+                out[f"_sanitized_{key}"] = self.injection_defense.sanitize(out.get(key))
+        return out
+
+    def _parse_source(self, s: Dict[str, Any]) -> Source:
+        return Source(
+            source_id=str(s.get("source_id", new_id("SRC"))),
+            provider=str(s.get("provider", "UNKNOWN")),
+            upstream_feed=str(s.get("upstream_feed", "UNKNOWN")),
+            independence_group=str(s.get("independence_group", s.get("provider", "UNKNOWN"))),
+            reliability=str(s.get("reliability", "UNKNOWN")).upper(),
+            source_type=str(s.get("source_type", "UNKNOWN")).upper(),
+            data_freshness=str(s.get("data_freshness", "UNKNOWN")).upper(),
+            limitations=[str(x) for x in s.get("limitations", [])],
+        )
+
+    def _parse_entity(self, e: Dict[str, Any], case_id: str, authorization: str) -> Entity:
+        raw = self._sanitize_payload(e)
+        ev = self._make_evidence(case_id, authorization, str(e.get("source_id", "")), {}, raw=raw)
+        return Entity(
+            entity_id=str(e.get("entity_id", ev.evidence_id)),
+            name=str(e.get("name", "")),
+            entity_role=enum_from(EntityRole, e.get("entity_role", e.get("role")), EntityRole.UNKNOWN),
+            aliases=[str(x) for x in e.get("aliases", [])],
+            country=e.get("country"),
+            source_ids=[str(e.get("source_id", ""))],
+            evidence_ids=[ev.evidence_id],
+            limitations=[str(x) for x in e.get("limitations", [])],
+        )
+
+    def _parse_asset(
+        self,
+        a: Dict[str, Any],
+        case_id: str,
+        authorization: str,
+        source_map: Dict[str, Source],
+    ) -> TransportAsset:
+        raw = self._sanitize_payload(a)
+        source_ids = [str(x) for x in a.get("source_ids", [])]
+        if a.get("source_id"):
+            source_ids.append(str(a.get("source_id")))
+        source_ids = unique_list(source_ids)
+
+        evidence_ids: List[str] = []
+        for sid in source_ids:
+            ev = self._make_evidence(
+                case_id=case_id,
+                authorization=authorization,
+                source_id=sid,
+                source_map=source_map,
+                asset_id=str(a.get("asset_id", "")),
+                raw=raw,
+            )
+            evidence_ids.append(ev.evidence_id)
+
+        identifiers: List[Identifier] = []
+        for idn in a.get("identifiers", []):
+            identifiers.append(
+                Identifier(
+                    identifier_type=enum_from(IdentifierType, idn.get("type", idn.get("identifier_type")), IdentifierType.UNKNOWN),
+                    value=str(idn.get("value", idn.get("id", ""))),
+                    source_id=str(idn.get("source_id", source_ids[0] if source_ids else "")),
+                    evidence_id=evidence_ids[0] if evidence_ids else "",
+                    confidence=enum_from(Confidence, idn.get("confidence"), Confidence.UNKNOWN),
+                )
+            )
+
+        for typ, key in self.ID_FIELD_MAP:
+            val = a.get(key)
+            if val:
+                identifiers.append(
+                    Identifier(
+                        identifier_type=enum_from(IdentifierType, typ, IdentifierType.OTHER),
+                        value=str(val),
+                        source_id=source_ids[0] if source_ids else "",
+                        evidence_id=evidence_ids[0] if evidence_ids else "",
+                        confidence=Confidence.MEDIUM,
+                    )
+                )
+
+        roles: List[RoleAssignment] = []
+        if a.get("operator"):
+            roles.append(
+                RoleAssignment(
+                    role_type=RoleType.OPERATOR,
+                    entity_name=str(a.get("operator")),
+                    source_ids=source_ids,
+                    evidence_ids=evidence_ids,
+                    confidence=Confidence.MEDIUM,
+                    limitations=["Operator role is source-reported; verify with registry/contract where consequential."],
+                )
+            )
+        if a.get("owner"):
+            roles.append(
+                RoleAssignment(
+                    role_type=RoleType.REGISTERED_OWNER,
+                    entity_name=str(a.get("owner")),
+                    source_ids=source_ids,
+                    evidence_ids=evidence_ids,
+                    confidence=Confidence.MEDIUM,
+                    limitations=["Registered owner may differ from operator, manager, charterer, or lessee."],
+                )
+            )
+        for r in a.get("roles", []):
+            roles.append(
+                RoleAssignment(
+                    role_type=enum_from(RoleType, r.get("role_type", r.get("type")), RoleType.UNKNOWN),
+                    entity_id=str(r.get("entity_id", "")),
+                    entity_name=str(r.get("entity_name", r.get("name", ""))),
+                    valid_from=to_datetime(r.get("valid_from")),
+                    valid_to=to_datetime(r.get("valid_to")),
+                    source_ids=[str(x) for x in r.get("source_ids", source_ids)],
+                    evidence_ids=evidence_ids,
+                    confidence=enum_from(Confidence, r.get("confidence"), Confidence.UNKNOWN),
+                    limitations=[str(x) for x in r.get("limitations", [])],
+                )
+            )
+
+        operator_candidate = ""
+        owner_candidate = ""
+        for r in roles:
+            if r.role_type == RoleType.OPERATOR and not operator_candidate:
+                operator_candidate = r.entity_name or r.entity_id
+            if r.role_type in (RoleType.REGISTERED_OWNER, RoleType.LEGAL_OWNER) and not owner_candidate:
+                owner_candidate = r.entity_name or r.entity_id
+
+        return TransportAsset(
+            asset_id=str(a.get("asset_id", new_id("ASSET"))),
+            asset_type=enum_from(AssetType, a.get("asset_type"), AssetType.UNKNOWN),
+            mode=enum_from(TransportMode, a.get("mode"), TransportMode.UNKNOWN),
+            identifiers=identifiers,
+            name_or_label=str(a.get("name_or_label", a.get("name", ""))),
+            operator_candidate=operator_candidate,
+            owner_candidate=owner_candidate,
+            roles=roles,
+            registration=str(a.get("registration", "")),
+            country_or_jurisdiction=str(a.get("country_or_jurisdiction", a.get("country", ""))),
+            capacity_context=dict(a.get("capacity_context") or {}),
+            status=enum_from(AssetStatus, a.get("status"), AssetStatus.UNKNOWN),
+            first_seen=to_datetime(a.get("first_seen")),
+            last_seen=to_datetime(a.get("last_seen")),
+            source_ids=source_ids,
+            evidence_ids=evidence_ids,
+            confidence=enum_from(Confidence, a.get("confidence"), Confidence.UNKNOWN),
+            limitations=[str(x) for x in a.get("limitations", [])],
+        )
+
+    def _parse_hub(self, h: Dict[str, Any], case_id: str, authorization: str) -> Hub:
+        raw = self._sanitize_payload(h)
+        source_ids = [str(x) for x in h.get("source_ids", [])]
+        if h.get("source_id"):
+            source_ids.append(str(h.get("source_id")))
+        source_ids = unique_list(source_ids)
+        ev = self._make_evidence(case_id, authorization, source_ids[0] if source_ids else "", {}, location_id=str(h.get("hub_id", "")), raw=raw)
+        return Hub(
+            hub_id=str(h.get("hub_id", ev.evidence_id)),
+            name=str(h.get("name", "")),
+            hub_type=enum_from(HubType, h.get("hub_type"), HubType.UNKNOWN),
+            lat=safe_float(h.get("lat", h.get("latitude"))),
+            lon=safe_float(h.get("lon", h.get("longitude"))),
+            radius_m=safe_float(h.get("radius_m")),
+            country=str(h.get("country", "")),
+            region=str(h.get("region", "")),
+            code=str(h.get("code", h.get("port_code", h.get("airport_code", h.get("rail_code", ""))))),
+            capacity_context=dict(h.get("capacity_context") or {}),
+            congestion_context=dict(h.get("congestion_context") or {}),
+            source_ids=source_ids,
+            evidence_ids=[ev.evidence_id],
+            limitations=[str(x) for x in h.get("limitations", [])],
+        )
+
+    def _parse_schedule(self, s: Dict[str, Any], case_id: str, authorization: str) -> Schedule:
+        raw = self._sanitize_payload(s)
+        source_id = str(s.get("source_id", ""))
+        ev = self._make_evidence(
+            case_id=case_id,
+            authorization=authorization,
+            source_id=source_id,
+            source_map={},
+            asset_id=str(s.get("asset_id", "")),
+            location_id=str(s.get("origin_hub_id", "")),
+            observed_at=to_datetime(s.get("published_at")),
+            event_time=to_datetime(s.get("planned_departure")),
+            raw=raw,
+            time_precision=str(s.get("time_precision", "UNKNOWN")),
+        )
+        return Schedule(
+            schedule_id=str(s.get("schedule_id", ev.evidence_id)),
+            service_id=str(s.get("service_id", "")),
+            asset_id=str(s.get("asset_id", "")),
+            mode=enum_from(TransportMode, s.get("mode"), TransportMode.UNKNOWN),
+            origin_hub_id=str(s.get("origin_hub_id", "")),
+            destination_hub_id=str(s.get("destination_hub_id", "")),
+            planned_departure=to_datetime(s.get("planned_departure", s.get("departure_time"))),
+            planned_arrival=to_datetime(s.get("planned_arrival", s.get("arrival_time"))),
+            stops=[str(x) for x in s.get("stops", [])],
+            operator=str(s.get("operator", "")),
+            source_id=source_id,
+            evidence_id=ev.evidence_id,
+            effective_period=str(s.get("effective_period", "")),
+            limitations=[str(x) for x in s.get("limitations", [])],
+        )
+
+    def _parse_movement_event(
+        self,
+        event: Dict[str, Any],
+        case_id: str,
+        authorization: str,
+        source_map: Dict[str, Source],
+    ) -> Tuple[Evidence, MovementEvent]:
+        raw = self._sanitize_payload(event)
+        source_id = str(event.get("source_id", ""))
+        src = source_map.get(source_id)
+
+        timestamp = to_datetime(event.get("time") or event.get("timestamp") or event.get("event_time"))
+        if timestamp is None:
+            timestamp = utcnow()
+
+        event_type = enum_from(MovementEventType, event.get("event_type", event.get("type")), MovementEventType.POSITION_OBSERVED)
+
+        default_status = EventStatus.OBSERVED
+        if src and src.source_type in {"SCHEDULE", "PORTAL_SCHEDULE", "TIMETABLE"}:
+            default_status = EventStatus.SCHEDULED
+
+        status = enum_from(EventStatus, event.get("status"), default_status)
+        precision = enum_from(PrecisionLevel, event.get("precision_level"), PrecisionLevel.UNKNOWN)
+        time_precision = enum_from(TimePrecision, event.get("time_precision"), TimePrecision.UNKNOWN)
+
+        speed_raw = safe_float(event.get("speed"))
+        speed_unit = event.get("speed_unit", event.get("unit"))
+        speed_m_s, normalized_speed_unit = to_m_s(speed_raw, speed_unit)
+
+        accuracy = safe_float(event.get("accuracy_m", event.get("accuracy_radius_m")))
+        heading = safe_float(event.get("heading"))
+        if heading is not None:
+            heading = (heading + 360.0) % 360.0
+
+        extra = {k: event[k] for k in self.EXTRA_KEYS if k in event}
+
+        confidence = Confidence.LOW
+        if src and src.reliability == "HIGH" and status in (EventStatus.ACTUAL, EventStatus.OBSERVED, EventStatus.CONFIRMED, EventStatus.REPORTED):
+            confidence = Confidence.MEDIUM
+        if src and src.reliability == "HIGH" and precision in (PrecisionLevel.EXACT_SENSOR, PrecisionLevel.HIGH):
+            confidence = Confidence.HIGH
+
+        limitations = [str(x) for x in event.get("limitations", [])]
+        limitations.extend(
+            [
+                "Position observation does not prove arrival, docking, landing, cargo handling, or shipment content.",
+                "Scheduled/estimated values are not actual observations.",
+                "Tracking gaps may reflect coverage, technical outage, data delay, or privacy filtering; not concealment.",
+            ]
+        )
+
+        ev = self._make_evidence(
+            case_id=case_id,
+            authorization=authorization,
+            source_id=source_id,
+            source_map=source_map,
+            asset_id=str(event.get("asset_id", "")),
+            movement_id=str(event.get("event_id", "")),
+            location_id=str(event.get("hub_id", event.get("location_id", ""))),
+            observed_at=timestamp,
+            event_time=timestamp,
+            raw=raw,
+            source_precision=precision.value,
+            time_precision=time_precision.value,
+        )
+
+        me = MovementEvent(
+            event_id=str(event.get("event_id", ev.evidence_id)),
+            asset_id=str(event.get("asset_id", "")),
+            event_type=event_type,
+            time=timestamp,
+            time_precision=time_precision,
+            location_id=str(event.get("location_id", "")),
+            hub_id=str(event.get("hub_id", "")),
+            lat=safe_float(event.get("lat", event.get("latitude"))),
+            lon=safe_float(event.get("lon", event.get("longitude"))),
+            accuracy_radius_m=accuracy,
+            precision_level=precision,
+            speed_m_s=speed_m_s,
+            heading_deg=heading,
+            route_reference=str(event.get("route_reference", event.get("route", ""))),
+            source_id=source_id,
+            evidence_id=ev.evidence_id,
+            status=status,
+            confidence=confidence,
+            extra=extra,
+            limitations=unique_list(limitations),
+        )
+        return ev, me
+
+    def _parse_shipment(self, s: Dict[str, Any], case_id: str, authorization: str) -> Shipment:
+        raw = self._sanitize_payload(s)
+        source_ids = [str(x) for x in s.get("source_ids", [])]
+        if s.get("source_id"):
+            source_ids.append(str(s.get("source_id")))
+        source_ids = unique_list(source_ids)
+        ev = self._make_evidence(case_id, authorization, source_ids[0] if source_ids else "", {}, raw=raw)
+        return Shipment(
+            shipment_id=str(s.get("shipment_id", ev.evidence_id)),
+            reference=str(s.get("reference", s.get("bill_of_lading", ""))),
+            carrier=str(s.get("carrier", "")),
+            forwarder=str(s.get("forwarder", "")),
+            shipper=str(s.get("shipper", "")),
+            consignee=str(s.get("consignee", "")),
+            commodity_description=str(s.get("commodity_description", s.get("cargo_description", ""))),
+            container_ids=[str(x) for x in s.get("container_ids", [])],
+            asset_ids=[str(x) for x in s.get("asset_ids", [])],
+            route_ids=[str(x) for x in s.get("route_ids", [])],
+            status=str(s.get("status", "UNKNOWN")),
+            source_ids=source_ids,
+            evidence_ids=[ev.evidence_id],
+            limitations=[str(x) for x in s.get("limitations", [])] + [
+                "Shipment record describes commercial/logistics linkage; it does not independently prove physical cargo location without operational evidence.",
+            ],
+        )
+
+    def _parse_container(self, c: Dict[str, Any], case_id: str, authorization: str) -> Container:
+        raw = self._sanitize_payload(c)
+        source_ids = [str(x) for x in c.get("source_ids", [])]
+        if c.get("source_id"):
+            source_ids.append(str(c.get("source_id")))
+        source_ids = unique_list(source_ids)
+        ev = self._make_evidence(case_id, authorization, source_ids[0] if source_ids else "", {}, raw=raw)
+        return Container(
+            container_id=str(c.get("container_id", ev.evidence_id)),
+            identifier=str(c.get("identifier", c.get("iso6346", ""))),
+            shipment_reference=str(c.get("shipment_reference", "")),
+            carrier=str(c.get("carrier", "")),
+            route_ids=[str(x) for x in c.get("route_ids", [])],
+            movement_events=[str(x) for x in c.get("movement_events", [])],
+            status=str(c.get("status", "UNKNOWN")),
+            source_ids=source_ids,
+            evidence_ids=[ev.evidence_id],
+            limitations=[str(x) for x in c.get("limitations", [])] + [
+                "Container identifier does not reveal contents without manifest/shipment evidence.",
+            ],
+        )
+
+    def _parse_weather(self, w: Dict[str, Any], case_id: str, authorization: str) -> WeatherContext:
+        raw = self._sanitize_payload(w)
+        source_id = str(w.get("source_id", ""))
+        ev = self._make_evidence(case_id, authorization, source_id, {}, location_id=str(w.get("hub_id", "")), raw=raw)
+        return WeatherContext(
+            weather_id=str(w.get("weather_id", ev.evidence_id)),
+            event_type=str(w.get("event_type", w.get("type", "UNKNOWN"))).upper(),
+            region=str(w.get("region", "")),
+            hub_id=str(w.get("hub_id", "")),
+            start_time=to_datetime(w.get("start_time")),
+            end_time=to_datetime(w.get("end_time")),
+            intensity=str(w.get("intensity", "")),
+            source_id=source_id,
+            evidence_id=ev.evidence_id,
+            limitations=[str(x) for x in w.get("limitations", [])] + [
+                "Weather correlation is not proven causation for transport delay.",
+            ],
+        )
+
+    def _parse_environmental(self, e: Dict[str, Any], case_id: str, authorization: str) -> EnvironmentalContext:
+        raw = self._sanitize_payload(e)
+        source_id = str(e.get("source_id", ""))
+        ev = self._make_evidence(case_id, authorization, source_id, {}, location_id=str(e.get("hub_id", "")), raw=raw)
+        return EnvironmentalContext(
+            env_id=str(e.get("env_id", ev.evidence_id)),
+            event_type=str(e.get("event_type", e.get("type", "UNKNOWN"))).upper(),
+            region=str(e.get("region", "")),
+            hub_id=str(e.get("hub_id", "")),
+            start_time=to_datetime(e.get("start_time")),
+            end_time=to_datetime(e.get("end_time")),
+            description=str(e.get("description", "")),
+            source_id=source_id,
+            evidence_id=ev.evidence_id,
+            limitations=[str(x) for x in e.get("limitations", [])],
+        )
+
+    def _parse_disruption(self, d: Dict[str, Any], case_id: str, authorization: str) -> Disruption:
+        raw = self._sanitize_payload(d)
+        source_ids = [str(x) for x in d.get("source_ids", [])]
+        if d.get("source_id"):
+            source_ids.append(str(d.get("source_id")))
+        source_ids = unique_list(source_ids)
+        ev = self._make_evidence(case_id, authorization, source_ids[0] if source_ids else "", {}, location_id=str(d.get("hub_id", "")), raw=raw)
+        return Disruption(
+            disruption_id=str(d.get("disruption_id", ev.evidence_id)),
+            disruption_type=str(d.get("disruption_type", d.get("type", "UNKNOWN"))).upper(),
+            hub_id=str(d.get("hub_id", "")),
+            route_segment_id=str(d.get("route_segment_id", "")),
+            start_time=to_datetime(d.get("start_time")),
+            end_time=to_datetime(d.get("end_time")),
+            description=str(d.get("description", "")),
+            cause_reported=str(d.get("cause_reported", "UNKNOWN")).upper(),
+            cause_verified=bool(d.get("cause_verified", False)),
+            source_ids=source_ids,
+            evidence_ids=[ev.evidence_id],
+            limitations=[str(x) for x in d.get("limitations", [])] + [
+                "Disruption observation does not establish cause or intent.",
+            ],
+        )
+
+
+# ======================================================================
+# SECTION 6 — ASSET / HUB / PLAUSIBILITY NORMALIZATION
+# ======================================================================
+
+STABLE_IDENTIFIER_TYPES = {
+    IdentifierType.IMO,
+    IdentifierType.MMSI,
+    IdentifierType.TAIL_NUMBER,
+    IdentifierType.REGISTRATION,
+    IdentifierType.RAIL_EQUIPMENT_ID,
+    IdentifierType.CONTAINER_ID,
+}
+
+EXTRA_KEY_TO_IDENTIFIER_TYPE = {
+    "imo": IdentifierType.IMO,
+    "mmsi": IdentifierType.MMSI,
+    "callsign": IdentifierType.CALLSIGN,
+    "tail_number": IdentifierType.TAIL_NUMBER,
+    "registration": IdentifierType.REGISTRATION,
+    "container_id": IdentifierType.CONTAINER_ID,
+    "fleet_id": IdentifierType.FLEET_ID,
+    "rail_equipment_id": IdentifierType.RAIL_EQUIPMENT_ID,
+}
+
+PRECISION_ACCURACY_M = {
+    PrecisionLevel.EXACT_SENSOR: 50.0,
+    PrecisionLevel.HIGH: 100.0,
+    PrecisionLevel.MEDIUM: 1000.0,
+    PrecisionLevel.LOW: 5000.0,
+    PrecisionLevel.REGION_ONLY: 50000.0,
+    PrecisionLevel.UNKNOWN: 5000.0,
+}
+
+MODE_MAX_SPEED_M_S = {
+    TransportMode.MARITIME: 30.0,
+    TransportMode.INLAND_WATERWAY: 15.0,
+    TransportMode.AIR: 300.0,
+    TransportMode.RAIL: 100.0,
+    TransportMode.ROAD: 60.0,
+    TransportMode.PUBLIC_TRANSIT: 50.0,
+    TransportMode.PIPELINE_CONTEXT: 5.0,
+    TransportMode.MULTIMODAL: 300.0,
+    TransportMode.OTHER: 100.0,
+    TransportMode.UNKNOWN: 300.0,
+}
+
+
+class AssetResolver:
+    def resolve(
+        self,
+        assets: List[TransportAsset],
+        events: List[MovementEvent],
+    ) -> Tuple[List[TransportAsset], List[MovementEvent], List[Contradiction]]:
+        contradictions: List[Contradiction] = []
+        identifier_index: Dict[Tuple[IdentifierType, str], List[str]] = defaultdict(list)
+
+        for asset in assets:
+            for ident in asset.identifiers:
+                if ident.identifier_type in STABLE_IDENTIFIER_TYPES and ident.value:
+                    identifier_index[(ident.identifier_type, ident.value.strip().upper())].append(asset.asset_id)
+
+        for (itype, value), asset_ids in identifier_index.items():
+            unique_asset_ids = unique_list(asset_ids)
+            if len(unique_asset_ids) > 1:
+                contradictions.append(
+                    Contradiction(
+                        contradiction_type="ASSET_IDENTITY_CONFLICT",
+                        description=f"Stable identifier {itype.value}={value} maps to multiple assets: {unique_asset_ids}.",
+                        evidence_ids=[],
+                        candidate_resolutions=[
+                            "duplicate identifier reuse",
+                            "data entry error",
+                            "asset renamed/re-registered",
+                            "provider normalization error",
+                        ],
+                    )
+                )
+
+        for event in events:
+            if event.asset_id:
+                continue
+            matched_assets: List[str] = []
+            for key, idtype in EXTRA_KEY_TO_IDENTIFIER_TYPE.items():
+                val = event.extra.get(key)
+                if not val:
+                    continue
+                candidates = identifier_index.get((idtype, str(val).strip().upper()), [])
+                matched_assets.extend(candidates)
+            matched_assets = unique_list(matched_assets)
+            if len(matched_assets) == 1:
+                event.asset_id = str(matched_assets[0])
+            elif len(matched_assets) > 1:
+                contradictions.append(
+                    Contradiction(
+                        contradiction_type="EVENT_ASSET_AMBIGUITY",
+                        description=f"Movement event {event.event_id} identifier matches multiple assets: {matched_assets}.",
+                        evidence_ids=[event.evidence_id],
+                        candidate_resolutions=["duplicate identity", "stale registry", "provider merge error"],
+                    )
+                )
+
+        known_asset_ids = {a.asset_id for a in assets}
+        for event in events:
+            if event.asset_id and event.asset_id not in known_asset_ids:
+                placeholder = TransportAsset(
+                    asset_id=event.asset_id,
+                    asset_type=AssetType.UNKNOWN,
+                    mode=TransportMode.UNKNOWN,
+                    name_or_label=event.asset_id,
+                    status=AssetStatus.UNKNOWN,
+                    source_ids=[event.source_id] if event.source_id else [],
+                    evidence_ids=[event.evidence_id],
+                    confidence=Confidence.LOW,
+                    limitations=["Asset referenced by movement event but not resolved from asset registry."],
+                )
+                assets.append(placeholder)
+                known_asset_ids.add(event.asset_id)
+
+        return assets, events, contradictions
+
+
+class HubMatcher:
+    def match_events(self, events: List[MovementEvent], hubs: List[Hub], default_radius_m: float = 5000.0) -> None:
+        for event in events:
+            if event.hub_id:
+                continue
+            if event.lat is None or event.lon is None:
+                continue
+
+            best_hub = None
+            best_dist = math.inf
+            event_acc = event.accuracy_radius_m or PRECISION_ACCURACY_M.get(event.precision_level, 5000.0)
+
+            for hub in hubs:
+                if hub.lat is None or hub.lon is None:
+                    continue
+                dist = haversine_m(event.lat, event.lon, hub.lat, hub.lon)
+                if dist is None:
+                    continue
+                radius = hub.radius_m or default_radius_m
+                if dist <= radius + event_acc and dist < best_dist:
+                    best_dist = dist
+                    best_hub = hub
+
+            if best_hub is not None:
+                event.hub_id = best_hub.hub_id
+                event.location_id = best_hub.hub_id
+
+
+class PhysicalPlausibilityChecker:
+    def check(
+        self,
+        events: List[MovementEvent],
+        assets: List[TransportAsset],
+    ) -> List[Contradiction]:
+        contradictions: List[Contradiction] = []
+        asset_map = {a.asset_id: a for a in assets}
+        by_asset: Dict[str, List[MovementEvent]] = defaultdict(list)
+
+        for event in events:
+            if event.lat is not None and event.lon is not None and event.asset_id:
+                by_asset[event.asset_id].append(event)
+
+        for asset_id, evs in by_asset.items():
+            evs = sorted(evs, key=lambda x: x.time)
+            asset = asset_map.get(asset_id)
+            mode = asset.mode if asset else TransportMode.UNKNOWN
+            max_speed = MODE_MAX_SPEED_M_S.get(mode, 300.0)
+
+            for e1, e2 in zip(evs, evs[1:]):
+                dt = (e2.time - e1.time).total_seconds()
+                if dt <= 0:
+                    continue
+                dist = haversine_m(e1.lat, e1.lon, e2.lat, e2.lon)
+                if dist is None:
+                    continue
+
+                acc1 = e1.accuracy_radius_m or PRECISION_ACCURACY_M.get(e1.precision_level, 5000.0)
+                acc2 = e2.accuracy_radius_m or PRECISION_ACCURACY_M.get(e2.precision_level, 5000.0)
+                tolerance = max(1000.0, 3.0 * acc1, 3.0 * acc2)
+                plausible = max_speed * dt * 1.5 + tolerance
+
+                if dist > plausible:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="IMPOSSIBLE_TRAVEL_CANDIDATE",
+                            description=(
+                                f"Asset {asset_id} implied distance {dist/1000:.1f} km in {dt/3600:.2f} h "
+                                f"between {fmt_dt(e1.time)} and {fmt_dt(e2.time)}."
+                            ),
+                            evidence_ids=[e1.evidence_id, e2.evidence_id],
+                            candidate_resolutions=[
+                                "bad sensor point",
+                                "timestamp/timezone error",
+                                "duplicate asset identity",
+                                "source mismatch",
+                                "data corruption",
+                                "air/rail high-speed mode if misclassified",
+                            ],
+                        )
+                    )
+
+        return contradictions
+
+
+# ======================================================================
+# SECTION 7 — SCHEDULE / ROUTE / DELAY / TRANSFER / DEPENDENCY
+# ======================================================================
+
+class ScheduleComparator:
+    def compare(
+        self,
+        schedules: List[Schedule],
+        events: List[MovementEvent],
+        assets: List[TransportAsset],
+        weather: List[WeatherContext],
+        disruptions: List[Disruption],
+        hubs: List[Hub],
+    ) -> List[Delay]:
+        delays: List[Delay] = []
+        hub_map = {h.hub_id: h for h in hubs}
+        actual_statuses = {
+            EventStatus.ACTUAL,
+            EventStatus.OBSERVED,
+            EventStatus.CONFIRMED,
+            EventStatus.REPORTED,
+        }
+
+        for sch in schedules:
+            dep_event = self._find_event(
+                events=events,
+                asset_id=sch.asset_id,
+                hub_id=sch.origin_hub_id,
+                event_types={MovementEventType.DEPARTURE},
+                target_time=sch.planned_departure,
+                window=timedelta(hours=12),
+                statuses=actual_statuses,
+            )
+            arr_event = self._find_event(
+                events=events,
+                asset_id=sch.asset_id,
+                hub_id=sch.destination_hub_id,
+                event_types={MovementEventType.ARRIVAL},
+                target_time=sch.planned_arrival,
+                window=timedelta(hours=24),
+                statuses=actual_statuses,
+            )
+
+            if dep_event and sch.planned_departure:
+                delay_seconds = (dep_event.time - sch.planned_departure).total_seconds()
+                delays.append(
+                    Delay(
+                        asset_id=sch.asset_id,
+                        schedule_id=sch.schedule_id,
+                        event_id=dep_event.event_id,
+                        hub_id=sch.origin_hub_id,
+                        delay_type=DelayType.DEPARTURE_DELAY,
+                        scheduled_time=sch.planned_departure,
+                        actual_time=dep_event.time,
+                        delay_seconds=delay_seconds,
+                        cause_candidates=self._cause_candidates(
+                            sch, dep_event.time, dep_event.time, weather, disruptions, hub_map
+                        ),
+                        source_ids=unique_list([sch.source_id, dep_event.source_id]),
+                        confidence=Confidence.MEDIUM if dep_event.confidence != Confidence.LOW else Confidence.LOW,
+                        limitations=[
+                            "Delay is actual-minus-scheduled time difference.",
+                            "Cause candidates are not proven causation.",
+                        ],
+                    )
+                )
+
+            if arr_event and sch.planned_arrival:
+                delay_seconds = (arr_event.time - sch.planned_arrival).total_seconds()
+                window_start = sch.planned_departure or sch.planned_arrival
+                window_end = arr_event.time
+                delays.append(
+                    Delay(
+                        asset_id=sch.asset_id,
+                        schedule_id=sch.schedule_id,
+                        event_id=arr_event.event_id,
+                        hub_id=sch.destination_hub_id,
+                        delay_type=DelayType.ARRIVAL_DELAY,
+                        scheduled_time=sch.planned_arrival,
+                        actual_time=arr_event.time,
+                        delay_seconds=delay_seconds,
+                        cause_candidates=self._cause_candidates(
+                            sch, window_start, window_end, weather, disruptions, hub_map
+                        ),
+                        source_ids=unique_list([sch.source_id, arr_event.source_id]),
+                        confidence=Confidence.MEDIUM if arr_event.confidence != Confidence.LOW else Confidence.LOW,
+                        limitations=[
+                            "Arrival delay does not prove incident, attack, technical failure, or misconduct.",
+                            "Weather/disruption correlation is not causation.",
+                        ],
+                    )
+                )
+
+        return delays
+
+    @staticmethod
+    def _find_event(
+        events: List[MovementEvent],
+        asset_id: str,
+        hub_id: str,
+        event_types: set[MovementEventType],
+        target_time: Optional[datetime],
+        window: timedelta,
+        statuses: set[EventStatus],
+    ) -> Optional[MovementEvent]:
+        if not asset_id or target_time is None:
+            return None
+        candidates = []
+        for e in events:
+            if e.asset_id != asset_id:
+                continue
+            if hub_id and e.hub_id != hub_id:
+                continue
+            if e.event_type not in event_types:
+                continue
+            if e.status not in statuses:
+                continue
+            delta = abs((e.time - target_time).total_seconds())
+            if delta <= window.total_seconds():
+                candidates.append((delta, e))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
+
+    @staticmethod
+    def _cause_candidates(
+        sch: Schedule,
+        window_start: Optional[datetime],
+        window_end: Optional[datetime],
+        weather: List[WeatherContext],
+        disruptions: List[Disruption],
+        hub_map: Dict[str, Hub],
+    ) -> List[str]:
+        causes: List[str] = []
+        if window_start is None or window_end is None:
+            return causes
+        if window_end < window_start:
+            window_start, window_end = window_end, window_start
+
+        relevant_hubs = {sch.origin_hub_id, sch.destination_hub_id}
+
+        for wx in weather:
+            ws = wx.start_time or wx.end_time
+            we = wx.end_time or wx.start_time
+            if ws is None or we is None:
+                continue
+            if we < window_start or ws > window_end:
+                continue
+            if ScheduleComparator._context_matches_hub(wx.hub_id, wx.region, relevant_hubs, hub_map):
+                causes.append(f"WEATHER:{wx.event_type}:{wx.weather_id}")
+
+        for dis in disruptions:
+            ds = dis.start_time or dis.end_time
+            de = dis.end_time or dis.start_time
+            if ds is None or de is None:
+                continue
+            if de < window_start or ds > window_end:
+                continue
+            if ScheduleComparator._context_matches_hub(dis.hub_id, "", relevant_hubs, hub_map):
+                causes.append(f"DISRUPTION:{dis.disruption_type}:{dis.disruption_id}")
+
+        return unique_list(causes)
+
+    @staticmethod
+    def _context_matches_hub(
+        context_hub_id: str,
+        context_region: str,
+        relevant_hubs: set[str],
+        hub_map: Dict[str, Hub],
+    ) -> bool:
+        if context_hub_id and context_hub_id in relevant_hubs:
+            return True
+        if not context_region:
+            return False
+        cr = context_region.strip().lower()
+        for hub_id in relevant_hubs:
+            hub = hub_map.get(hub_id)
+            if not hub:
+                continue
+            candidates = [hub.region, hub.country, hub.name, hub.code]
+            if any(cr == str(x).strip().lower() for x in candidates if x):
+                return True
+        return False
+
+
+class RouteReconstructor:
+    def reconstruct(
+        self,
+        events: List[MovementEvent],
+        hubs: List[Hub],
+        assets: List[TransportAsset],
+    ) -> List[Route]:
+        routes: List[Route] = []
+        hub_map = {h.hub_id: h for h in hubs}
+        asset_map = {a.asset_id: a for a in assets}
+        by_asset: Dict[str, List[MovementEvent]] = defaultdict(list)
+
+        for e in events:
+            if e.asset_id and e.hub_id:
+                by_asset[e.asset_id].append(e)
+
+        for asset_id, evs in by_asset.items():
+            evs = sorted(evs, key=lambda x: x.time)
+            asset = asset_map.get(asset_id)
+            mode = asset.mode if asset else TransportMode.UNKNOWN
+            segments: List[RouteSegment] = []
+
+            for e1, e2 in zip(evs, evs[1:]):
+                if e1.hub_id == e2.hub_id:
+                    continue
+                dt = (e2.time - e1.time).total_seconds()
+                if dt <= 0:
+                    continue
+
+                status = EventStatus.INFERRED
+                if e2.route_reference or e2.event_type == MovementEventType.TRANSIT or e1.event_type == MovementEventType.TRANSIT:
+                    status = EventStatus.OBSERVED
+                if dt > 72 * 3600:
+                    status = EventStatus.UNKNOWN  # gap marker
+
+                h1 = hub_map.get(e1.hub_id)
+                h2 = hub_map.get(e2.hub_id)
+                distance = haversine_m(h1.lat, h1.lon, h2.lat, h2.lon) if h1 and h2 else None
+
+                confidence = Confidence.LOW
+                if status == EventStatus.OBSERVED:
+                    confidence = Confidence.HIGH if e1.confidence != Confidence.LOW and e2.confidence != Confidence.LOW else Confidence.MEDIUM
+                elif status == EventStatus.INFERRED and dt <= 6 * 3600:
+                    confidence = Confidence.MEDIUM
+
+                limitations = [
+                    "Route segment is reconstructed from endpoint observations unless explicitly observed/transited.",
+                    "Inferred segment is not direct observation of the full path.",
+                    "Gap status does not imply concealment; check sensor coverage first.",
+                ]
+
+                segments.append(
+                    RouteSegment(
+                        asset_id=asset_id,
+                        from_hub_id=e1.hub_id,
+                        to_hub_id=e2.hub_id,
+                        from_event_id=e1.event_id,
+                        to_event_id=e2.event_id,
+                        mode=mode,
+                        start_time=e1.time,
+                        end_time=e2.time,
+                        distance_m=distance,
+                        status=status,
+                        confidence=confidence,
+                        source_ids=unique_list([e1.source_id, e2.source_id]),
+                        limitations=limitations,
+                    )
+                )
+
+            if not segments:
+                continue
+
+            routes.append(
+                Route(
+                    asset_id=asset_id,
+                    mode=mode,
+                    origin_hub_id=segments[0].from_hub_id,
+                    destination_hub_id=segments[-1].to_hub_id,
+                    segments=segments,
+                    scheduled_or_actual=EventStatus.ACTUAL if any(s.status == EventStatus.OBSERVED for s in segments) else EventStatus.INFERRED,
+                    valid_from=segments[0].start_time,
+                    valid_to=segments[-1].end_time,
+                    source_ids=unique_list([sid for s in segments for sid in s.source_ids]),
+                    confidence=Confidence.MEDIUM if any(s.confidence == Confidence.HIGH for s in segments) else Confidence.LOW,
+                    limitations=[
+                        "Route is asset-movement route, not shipment/cargo route unless independently correlated.",
+                        "Do not interpret route deviation as illicit activity without case evidence.",
+                    ],
+                )
+            )
+
+        return routes
+
+
+class IntermodalTransferAnalyzer:
+    def analyze(
+        self,
+        shipments: List[Shipment],
+        containers: List[Container],
+        events: List[MovementEvent],
+        assets: List[TransportAsset],
+    ) -> List[Dict[str, Any]]:
+        transfers: List[Dict[str, Any]] = []
+        events_by_asset: Dict[str, List[MovementEvent]] = defaultdict(list)
+        for e in events:
+            if e.asset_id and e.hub_id:
+                events_by_asset[e.asset_id].append(e)
+
+        # Shipment-linked asset pairs.
+        for shipment in shipments:
+            asset_ids = unique_list(shipment.asset_ids)
+            for a1, a2 in itertools.combinations(asset_ids, 2):
+                found = self._find_common_hub_window(events_by_asset.get(a1, []), events_by_asset.get(a2, []), timedelta(hours=24))
+                if found:
+                    e1, e2, hub_id = found
+                    transfers.append(
+                        {
+                            "transfer_id": new_id("XFER"),
+                            "shipment_id": shipment.shipment_id,
+                            "container_id": "",
+                            "from_asset_id": a1,
+                            "to_asset_id": a2,
+                            "hub_id": hub_id,
+                            "time": min(e1.time, e2.time).isoformat(),
+                            "state": "TRANSFER_CANDIDATE",
+                            "evidence_ids": [e1.evidence_id, e2.evidence_id],
+                            "notes": [
+                                "Co-location of assets at same hub does not prove cargo/container transfer.",
+                                "Transfer requires manifest, terminal record, container scan, or independent operational evidence.",
+                            ],
+                        }
+                    )
+
+        # Container identifier pairs.
+        container_events: Dict[str, List[MovementEvent]] = defaultdict(list)
+        for e in events:
+            cid = e.extra.get("container_id")
+            if cid and e.hub_id:
+                container_events[str(cid)].append(e)
+
+        for cid, evs in container_events.items():
+            asset_ids = unique_list([e.asset_id for e in evs if e.asset_id])
+            for a1, a2 in itertools.combinations(asset_ids, 2):
+                evs1 = [e for e in evs if e.asset_id == a1]
+                evs2 = [e for e in evs if e.asset_id == a2]
+                found = self._find_common_hub_window(evs1, evs2, timedelta(hours=24))
+                if found:
+                    e1, e2, hub_id = found
+                    transfers.append(
+                        {
+                            "transfer_id": new_id("XFER"),
+                            "shipment_id": "",
+                            "container_id": cid,
+                            "from_asset_id": a1,
+                            "to_asset_id": a2,
+                            "hub_id": hub_id,
+                            "time": min(e1.time, e2.time).isoformat(),
+                            "state": "CONTAINER_TRANSFER_CANDIDATE",
+                            "evidence_ids": [e1.evidence_id, e2.evidence_id],
+                            "notes": [
+                                "Container identifier appearing with multiple assets may reflect handling, record linkage, or data error.",
+                                "Do not infer cargo content from container ID alone.",
+                            ],
+                        }
+                    )
+
+        return transfers
+
+    @staticmethod
+    def _find_common_hub_window(
+        evs1: List[MovementEvent],
+        evs2: List[MovementEvent],
+        window: timedelta,
+    ) -> Optional[Tuple[MovementEvent, MovementEvent, str]]:
+        for e1 in evs1:
+            for e2 in evs2:
+                if e1.hub_id and e1.hub_id == e2.hub_id:
+                    if abs((e1.time - e2.time).total_seconds()) <= window.total_seconds():
+                        return e1, e2, e1.hub_id
+        return None
+
+
+class CargoCorrelator:
+    def correlate(
+        self,
+        shipments: List[Shipment],
+        containers: List[Container],
+        routes: List[Route],
+        events: List[MovementEvent],
+    ) -> Tuple[List[Shipment], List[Container]]:
+        route_by_asset: Dict[str, List[str]] = defaultdict(list)
+        for r in routes:
+            route_by_asset[r.asset_id].append(r.route_id)
+
+        for shipment in shipments:
+            shipment.route_ids = unique_list(
+                [rid for aid in shipment.asset_ids for rid in route_by_asset.get(aid, [])]
+            )
+
+        shipment_by_ref = {s.shipment_id: s for s in shipments}
+        shipment_by_reference = {s.reference: s for s in shipments if s.reference}
+
+        for container in containers:
+            linked_shipment = None
+            if container.shipment_reference in shipment_by_ref:
+                linked_shipment = shipment_by_ref[container.shipment_reference]
+            elif container.shipment_reference in shipment_by_reference:
+                linked_shipment = shipment_by_reference[container.shipment_reference]
+
+            if linked_shipment:
+                container.route_ids = unique_list(container.route_ids + linked_shipment.route_ids)
+
+            container.movement_events = unique_list(
+                [e.event_id for e in events if e.extra.get("container_id") == container.identifier]
+            )
+
+        return shipments, containers
+
+
+class CapacityThroughputAnalyzer:
+    def analyze(
+        self,
+        hubs: List[Hub],
+        delays: List[Delay],
+        throughput_observations: List[Dict[str, Any]],
+        congestion_observations: List[Dict[str, Any]],
+        disruptions: List[Disruption],
+    ) -> List[Dict[str, Any]]:
+        congestion: List[Dict[str, Any]] = []
+
+        for obs in congestion_observations:
+            congestion.append(
+                {
+                    "congestion_id": new_id("CONG"),
+                    "hub_id": obs.get("hub_id", ""),
+                    "type": obs.get("type", "REPORTED_CONGESTION"),
+                    "severity": obs.get("severity", "UNKNOWN"),
+                    "time": obs.get("time", ""),
+                    "source_id": obs.get("source_id", ""),
+                    "notes": ["Congestion indicator is operational context, not failure or attack."],
+                }
+            )
+
+        for hub in hubs:
+            if hub.congestion_context:
+                congestion.append(
+                    {
+                        "congestion_id": new_id("CONG"),
+                        "hub_id": hub.hub_id,
+                        "type": "HUB_CONTEXT_CONGESTION",
+                        "severity": hub.congestion_context.get("severity", "UNKNOWN"),
+                        "time": hub.congestion_context.get("time", ""),
+                        "source_id": hub.source_ids[0] if hub.source_ids else "",
+                        "notes": [hub.congestion_context],
+                    }
+                )
+
+        for delay in delays:
+            if delay.delay_seconds is not None and delay.delay_seconds > 7200 and delay.hub_id:
+                congestion.append(
+                    {
+                        "congestion_id": new_id("CONG"),
+                        "hub_id": delay.hub_id,
+                        "type": "SCHEDULE_DELAY_INDICATOR",
+                        "severity": "MODERATE" if delay.delay_seconds < 21600 else "HIGH",
+                        "time": fmt_dt(delay.actual_time),
+                        "source_id": delay.source_ids[0] if delay.source_ids else "",
+                        "notes": ["Delay may reflect congestion, weather, maintenance, regulation, crew, technical issue, or unknown cause."],
+                    }
+                )
+
+        for dis in disruptions:
+            if dis.disruption_type in {"PORT_CONGESTION", "TERMINAL_BACKLOG", "QUEUE", "CONGESTION"}:
+                congestion.append(
+                    {
+                        "congestion_id": new_id("CONG"),
+                        "hub_id": dis.hub_id,
+                        "type": dis.disruption_type,
+                        "severity": "REPORTED",
+                        "time": fmt_dt(dis.start_time),
+                        "source_id": dis.source_ids[0] if dis.source_ids else "",
+                        "notes": [dis.description],
+                    }
+                )
+
+        return congestion
+
+
+class DependencyAnalyzer:
+    def analyze(
+        self,
+        routes: List[Route],
+        shipments: List[Shipment],
+        assets: List[TransportAsset],
+        hubs: List[Hub],
+        case: Dict[str, Any],
+    ) -> List[TransportDependency]:
+        dependencies: List[TransportDependency] = []
+        threshold = int(case.get("dependency_min_count", 3))
+        hub_counts: Dict[str, int] = defaultdict(int)
+        corridor_counts: Dict[str, int] = defaultdict(int)
+        carrier_counts: Dict[str, int] = defaultdict(int)
+
+        for route in routes:
+            for seg in route.segments:
+                if seg.from_hub_id:
+                    hub_counts[seg.from_hub_id] += 1
+                if seg.to_hub_id:
+                    hub_counts[seg.to_hub_id] += 1
+                if seg.from_hub_id and seg.to_hub_id:
+                    corridor_counts[f"{seg.from_hub_id}->{seg.to_hub_id}"] += 1
+
+        for shipment in shipments:
+            if shipment.carrier:
+                carrier_counts[shipment.carrier] += 1
+
+        hub_map = {h.hub_id: h for h in hubs}
+
+        for hub_id, count in hub_counts.items():
+            if count >= threshold:
+                hub = hub_map.get(hub_id)
+                dependencies.append(
+                    TransportDependency(
+                        dependency_type=DependencyType.SINGLE_HUB,
+                        subject="transport_network",
+                        resource=hub_id,
+                        resource_type=hub.hub_type.value if hub else "UNKNOWN",
+                        count=count,
+                        confidence=Confidence.MEDIUM if count >= threshold + 2 else Confidence.LOW,
+                        notes=[
+                            "Single-hub dependency candidate for resilience planning.",
+                            "Not a targeting recommendation.",
+                        ],
+                        limitations=[
+                            "Dependency count is based on observed routes/shipments in this case only.",
+                            "Do not infer vulnerability without capacity, redundancy, and operational context.",
+                        ],
+                    )
+                )
+
+        for corridor, count in corridor_counts.items():
+            if count >= threshold:
+                dependencies.append(
+                    TransportDependency(
+                        dependency_type=DependencyType.CORRIDOR,
+                        subject="transport_network",
+                        resource=corridor,
+                        resource_type="HUB_PAIR_CORRIDOR",
+                        count=count,
+                        confidence=Confidence.LOW,
+                        notes=[
+                            "Corridor dependency candidate for continuity planning.",
+                            "Do not convert to ambush, interception, or sabotage analysis.",
+                        ],
+                        limitations=["Corridor is hub-pair proxy, not necessarily physical road/rail/waterway corridor."],
+                    )
+                )
+
+        for carrier, count in carrier_counts.items():
+            if count >= threshold:
+                dependencies.append(
+                    TransportDependency(
+                        dependency_type=DependencyType.CARRIER,
+                        subject="logistics_network",
+                        resource=carrier,
+                        resource_type="CARRIER",
+                        count=count,
+                        confidence=Confidence.LOW,
+                        notes=["Carrier concentration candidate for supply-chain resilience handoff to SUPPLYCHAININT."],
+                        limitations=["Carrier concentration is not evidence of misconduct or illicit transport."],
+                    )
+                )
+
+        # Common-mode: hub + corridor overlap.
+        for corridor, count in corridor_counts.items():
+            if count < max(2, threshold - 1):
+                continue
+            try:
+                from_hub, to_hub = corridor.split("->", 1)
+            except Exception:
+                continue
+            if hub_counts.get(from_hub, 0) >= threshold or hub_counts.get(to_hub, 0) >= threshold:
+                dependencies.append(
+                    TransportDependency(
+                        dependency_type=DependencyType.COMMON_MODE,
+                        subject="transport_network",
+                        resource=corridor,
+                        resource_type="COMMON_HUB_CORRIDOR",
+                        count=count,
+                        confidence=Confidence.LOW,
+                        notes=[
+                            "Common-mode dependency candidate: multiple movements may share same hub/corridor.",
+                            "Use for redundancy and continuity planning only.",
+                        ],
+                        limitations=["Common-mode dependency is not a attack target list."],
+                    )
+                )
+
+        return dependencies
+
+
+# ======================================================================
+# SECTION 8 — SOURCE INDEPENDENCE / CONTRADICTIONS / HYPOTHESES
+# ======================================================================
+
+class SourceIndependenceAnalyzer:
+    def assess(self, sources: List[Source], events: List[MovementEvent]) -> Dict[str, Any]:
+        used_source_ids = {e.source_id for e in events if e.source_id}
+        groups = set()
+        for sid in used_source_ids:
+            src = next((s for s in sources if s.source_id == sid), None)
+            if src and src.independence_group and src.independence_group != "UNKNOWN":
+                groups.add(src.independence_group)
+
+        if not groups:
+            status = IndependenceState.UNKNOWN
+            notes = ["Source independence group unavailable; do not treat multiple copied feeds as independent observations."]
+        elif len(groups) == 1:
+            status = IndependenceState.DEPENDENT
+            notes = [
+                "All used movement sources appear to share one independence group/upstream feed.",
+                "Multiple AIS/ADS-B/commercial trackers may derive from same receiver network.",
+            ]
+        else:
+            status = IndependenceState.PARTIALLY_DEPENDENT
+            notes = [
+                "Multiple source groups exist, but full pedigree/independence is not proven.",
+                "Verify sensor, platform, aggregator, and API lineage.",
+            ]
+
+        return {
+            "overall_status": status.value,
+            "groups": sorted(groups),
+            "used_source_ids": sorted(used_source_ids),
+            "notes": notes,
+        }
+
+
+class ContradictionDetector:
+    def detect(
+        self,
+        assets: List[TransportAsset],
+        events: List[MovementEvent],
+        schedules: List[Schedule],
+    ) -> List[Contradiction]:
+        contradictions: List[Contradiction] = []
+        by_asset: Dict[str, List[MovementEvent]] = defaultdict(list)
+        for e in events:
+            if e.asset_id and e.lat is not None and e.lon is not None:
+                by_asset[e.asset_id].append(e)
+
+        for asset_id, evs in by_asset.items():
+            evs = sorted(evs, key=lambda x: x.time)
+            for e1, e2 in itertools.combinations(evs, 2):
+                if e1.source_id == e2.source_id:
+                    continue
+                dt = abs((e1.time - e2.time).total_seconds())
+                if dt > 600:
+                    continue
+                dist = haversine_m(e1.lat, e1.lon, e2.lat, e2.lon)
+                if dist is None:
+                    continue
+                acc1 = e1.accuracy_radius_m or PRECISION_ACCURACY_M.get(e1.precision_level, 5000.0)
+                acc2 = e2.accuracy_radius_m or PRECISION_ACCURACY_M.get(e2.precision_level, 5000.0)
+                tol = max(5000.0, 3.0 * acc1, 3.0 * acc2)
+                if dist > tol:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="SENSOR_POSITION_DISAGREEMENT",
+                            description=(
+                                f"Asset {asset_id} sources {e1.source_id} and {e2.source_id} differ by "
+                                f"{dist/1000:.2f} km within {dt:.0f}s."
+                            ),
+                            evidence_ids=[e1.evidence_id, e2.evidence_id],
+                            candidate_resolutions=[
+                                "different sensor precision/calibration",
+                                "multipath/urban canyon/terrain error",
+                                "clock offset",
+                                "provider interpolation",
+                                "asset identity mismatch",
+                            ],
+                        )
+                    )
+
+        # Temporal order conflict from schedules if actual arrival before actual departure.
+        sched_by_id = {s.schedule_id: s for s in schedules}
+        for e in events:
+            if e.event_type == MovementEventType.ARRIVAL and e.extra.get("schedule_id"):
+                sch = sched_by_id.get(str(e.extra.get("schedule_id")))
+                if sch and sch.planned_departure and e.time < sch.planned_departure - timedelta(hours=24):
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="SCHEDULE_TEMPORAL_ORDER_CANDIDATE",
+                            description=(
+                                f"Arrival event {e.event_id} for schedule {sch.schedule_id} occurs far before planned departure."
+                            ),
+                            evidence_ids=[e.evidence_id],
+                            candidate_resolutions=[
+                                "timezone error",
+                                "wrong schedule linkage",
+                                "data entry error",
+                                "arrival belongs to different service",
+                            ],
+                        )
+                    )
+
+        return contradictions
+
+
+class HypothesisEngine:
+    def generate(
+        self,
+        delays: List[Delay],
+        routes: List[Route],
+        contradictions: List[Contradiction],
+        weather: List[WeatherContext],
+        disruptions: List[Disruption],
+    ) -> List[Hypothesis]:
+        hypotheses: List[Hypothesis] = []
+
+        for delay in delays[:100]:
+            base_support = [f"observed delay {fmt_seconds(delay.delay_seconds)}"]
+            if delay.cause_candidates:
+                for cause in delay.cause_candidates:
+                    hypotheses.append(
+                        Hypothesis(
+                            statement=f"Delay {delay.delay_id} may be explained by {cause}.",
+                            supports=base_support + [cause],
+                            oppositions=["Correlation is not causation"],
+                            unknowns=["official cause record", "terminal/operator log"],
+                            falsification_tests=[
+                                "cause window does not overlap movement",
+                                "independent operator record shows different cause",
+                                "delay persists without cited disruption",
+                            ],
+                        )
+                    )
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Delay {delay.delay_id} may reflect normal operational variation.",
+                    supports=base_support,
+                    oppositions=["Large delay may exceed normal variation"],
+                    unknowns=["historical baseline", "operator schedule buffer"],
+                    falsification_tests=["historical same-service delays are much smaller"],
+                )
+            )
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Delay {delay.delay_id} may reflect data quality/timestamp issue.",
+                    supports=[],
+                    oppositions=["High-confidence actual event weakens data-quality hypothesis"],
+                    unknowns=["source clock sync", "timezone normalization"],
+                    falsification_tests=["independent actual timestamp confirms delay"],
+                )
+            )
+
+        for route in routes[:100]:
+            for seg in route.segments:
+                if seg.status == EventStatus.UNKNOWN:
+                    hypotheses.append(
+                        Hypothesis(
+                            statement=f"Route gap {seg.segment_id} may reflect sensor coverage, transponder technical issue, data delay, or privacy filtering.",
+                            supports=["Observation gap between endpoints"],
+                            oppositions=["Do not infer concealment before coverage assessment"],
+                            unknowns=["receiver coverage", "device health", "provider latency"],
+                            falsification_tests=[
+                                "coverage map shows continuous reception",
+                                "independent feed observes intermediate position",
+                                "device health log shows outage",
+                            ],
+                        )
+                    )
+                elif seg.status == EventStatus.INFERRED:
+                    hypotheses.append(
+                        Hypothesis(
+                            statement=f"Route segment {seg.segment_id} is inferred between observed endpoints.",
+                            supports=["Endpoint observations exist"],
+                            oppositions=["Intermediate path not directly observed"],
+                            unknowns=["exact path", "stops", "mode changes"],
+                            falsification_tests=[
+                                "independent track shows different path",
+                                "terminal record shows intermediate hub",
+                            ],
+                        )
+                    )
+
+        for con in contradictions[:100]:
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Contradiction {con.contradiction_type} may reflect data quality or identity resolution issue.",
+                    supports=con.candidate_resolutions,
+                    oppositions=[],
+                    unknowns=["true asset identity", "sensor health", "clock sync"],
+                    falsification_tests=[
+                        "independent authorized telemetry resolves conflict",
+                        "asset registry audit confirms identity",
+                    ],
+                )
+            )
+
+        return hypotheses
+
+
+# ======================================================================
+# SECTION 9 — FACT GATE / DUAL-AI REVIEW
+# ======================================================================
+
+class FactGate:
+    def generate(
+        self,
+        *,
+        case: Dict[str, Any],
+        sources: List[Source],
+        entities: List[Entity],
+        assets: List[TransportAsset],
+        hubs: List[Hub],
+        schedules: List[Schedule],
+        events: List[MovementEvent],
+        routes: List[Route],
+        delays: List[Delay],
+        disruptions: List[Disruption],
+        weather: List[WeatherContext],
+        environmental: List[EnvironmentalContext],
+        shipments: List[Shipment],
+        containers: List[Container],
+        transfers: List[Dict[str, Any]],
+        congestion: List[Dict[str, Any]],
+        dependencies: List[TransportDependency],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        facts: List[Fact] = []
+        unknowns: List[str] = []
+        limitations: List[str] = []
+        gaps: List[KnowledgeGap] = []
+        actions: List[NextAction] = []
+        handoffs: List[SpecialistHandoff] = []
+
+        source_map = {s.source_id: s for s in sources}
+        hub_map = {h.hub_id: h for h in hubs}
+        asset_map = {a.asset_id: a for a in assets}
+
+        for asset in assets:
+            for ident in asset.identifiers:
+                src = source_map.get(ident.source_id)
+                provider = src.provider if src else ident.source_id
+                facts.append(
+                    Fact(
+                        statement=(
+                            f"Source '{provider}' identifies asset {asset.asset_id} "
+                            f"with {ident.identifier_type.value}={ident.value}."
+                        ),
+                        status=FactStatus.FACT,
+                        evidence_ids=[ident.evidence_id],
+                        limitations=[
+                            "Identifier does not prove operator, owner, cargo, mission, or crew identity.",
+                            "Identifier may be stale, reused, or incorrectly normalized.",
+                        ],
+                    )
+                )
+
+            for role in asset.roles:
+                facts.append(
+                    Fact(
+                        statement=(
+                            f"Asset {asset.asset_id} has reported role {role.role_type.value} "
+                            f"for entity '{role.entity_name or role.entity_id}'."
+                        ),
+                        status=FactStatus.CANDIDATE if role.confidence != Confidence.HIGH else FactStatus.SUPPORTED,
+                        evidence_ids=role.evidence_ids,
+                        limitations=[
+                            "Owner, operator, manager, charterer, lessee, carrier, and cargo owner may differ.",
+                            "Role validity is time-bound.",
+                        ],
+                    )
+                )
+
+        for event in events:
+            hub = hub_map.get(event.hub_id)
+            hub_name = hub.name if hub else (event.hub_id or "UNKNOWN_HUB")
+            src = source_map.get(event.source_id)
+            provider = src.provider if src else event.source_id
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Source '{provider}' reported {event.event_type.value} for asset {event.asset_id} "
+                        f"at/near {hub_name} at {fmt_dt(event.time)} with precision {event.precision_level.value}."
+                    ),
+                    status=FactStatus.FACT if event.status in (EventStatus.OBSERVED, EventStatus.ACTUAL, EventStatus.CONFIRMED, EventStatus.REPORTED) else FactStatus.CANDIDATE,
+                    evidence_ids=[event.evidence_id],
+                    limitations=event.limitations + [
+                        "Position observation does not prove docking, landing, cargo handling, or shipment content.",
+                    ],
+                )
+            )
+
+        for sch in schedules:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Schedule {sch.schedule_id} plans asset {sch.asset_id} from {sch.origin_hub_id} "
+                        f"to {sch.destination_hub_id}, departure {fmt_dt(sch.planned_departure)}, "
+                        f"arrival {fmt_dt(sch.planned_arrival)}."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=[sch.evidence_id],
+                    limitations=[
+                        "Scheduled time is not actual movement.",
+                        "Schedule may be stale or effective for a different period.",
+                    ],
+                )
+            )
+
+        for delay in delays:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Delay {delay.delay_id}: {delay.delay_type.value} of {fmt_seconds(delay.delay_seconds)} "
+                        f"for asset {delay.asset_id} schedule {delay.schedule_id}."
+                    ),
+                    status=FactStatus.SUPPORTED if delay.confidence != Confidence.LOW else FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=delay.limitations + [
+                        f"Cause candidates: {delay.cause_candidates}",
+                        "Delay does not prove incident, attack, technical failure, or misconduct.",
+                    ],
+                )
+            )
+            if not delay.cause_candidates:
+                gaps.append(
+                    KnowledgeGap(
+                        description=f"Delay cause unresolved for {delay.delay_id}.",
+                        importance="MEDIUM",
+                        recommended_source="operator/port/airport/rail disruption notice",
+                        specialist="TRANSPORTINT / INCIDENTINT",
+                        expected_information_value="Distinguishes benign operational delay from case-relevant disruption.",
+                    )
+                )
+
+        for route in routes:
+            for seg in route.segments:
+                status = FactStatus.SUPPORTED if seg.status == EventStatus.OBSERVED else FactStatus.CANDIDATE
+                facts.append(
+                    Fact(
+                        statement=(
+                            f"Route segment {seg.segment_id}: {seg.from_hub_id} -> {seg.to_hub_id} "
+                            f"status={seg.status.value}, confidence={seg.confidence.value}."
+                        ),
+                        status=status,
+                        evidence_ids=[],
+                        limitations=seg.limitations,
+                    )
+                )
+                if seg.status == EventStatus.UNKNOWN:
+                    gaps.append(
+                        KnowledgeGap(
+                            description=f"Route observation gap on segment {seg.segment_id}.",
+                            importance="HIGH",
+                            recommended_source="independent movement feed / coverage assessment",
+                            specialist="TRANSPORTINT / AISINT / SATINT",
+                            expected_information_value="Prevents gap-to-concealment error.",
+                        )
+                    )
+
+        for shipment in shipments:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Logistics record links shipment {shipment.shipment_id} to assets {shipment.asset_ids} "
+                        f"and containers {shipment.container_ids}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=shipment.evidence_ids,
+                    limitations=shipment.limitations + [
+                        "Asset movement does not independently prove specific shipment/cargo location.",
+                        "Commodity description is record-based, not laboratory/inspection verified.",
+                    ],
+                )
+            )
+
+        for container in containers:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Container record {container.container_id} identifier={container.identifier} "
+                        f"linked to shipment_reference={container.shipment_reference}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=container.evidence_ids,
+                    limitations=container.limitations,
+                )
+            )
+
+        for transfer in transfers:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Intermodal transfer candidate {transfer.get('transfer_id')} between "
+                        f"{transfer.get('from_asset_id')} and {transfer.get('to_asset_id')} at {transfer.get('hub_id')}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=transfer.get("evidence_ids", []),
+                    limitations=transfer.get("notes", []),
+                )
+            )
+
+        for cong in congestion:
+            facts.append(
+                Fact(
+                    statement=f"Congestion context {cong.get('congestion_id')} at hub {cong.get('hub_id')} type {cong.get('type')}.",
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=[
+                        "Congestion is operational capacity context, not failure or attack.",
+                        "Do not convert congestion/bottleneck analysis into sabotage targeting.",
+                    ],
+                )
+            )
+
+        for dep in dependencies:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Transport dependency candidate {dep.dependency_id}: {dep.dependency_type.value} "
+                        f"resource={dep.resource}, count={dep.count}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=dep.limitations + [
+                        "Dependency analysis is for resilience/continuity, not targeting.",
+                    ],
+                )
+            )
+
+        for dis in disruptions:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Disruption {dis.disruption_id}: {dis.disruption_type} at hub {dis.hub_id} "
+                        f"from {fmt_dt(dis.start_time)} to {fmt_dt(dis.end_time)}."
+                    ),
+                    status=FactStatus.SUPPORTED if dis.cause_verified else FactStatus.CANDIDATE,
+                    evidence_ids=dis.evidence_ids,
+                    limitations=dis.limitations + [
+                        "Disruption observation does not establish cause or intent.",
+                    ],
+                )
+            )
+
+        for wx in weather:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Weather context {wx.weather_id}: {wx.event_type} in region {wx.region} "
+                        f"from {fmt_dt(wx.start_time)} to {fmt_dt(wx.end_time)}."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=[wx.evidence_id],
+                    limitations=wx.limitations,
+                )
+            )
+
+        for con in contradictions:
+            facts.append(
+                Fact(
+                    statement=f"Open contradiction: {con.contradiction_type} — {con.description}",
+                    status=FactStatus.DISPUTED,
+                    evidence_ids=con.evidence_ids,
+                    limitations=con.candidate_resolutions,
+                )
+            )
+            unknowns.append(f"Unresolved contradiction: {con.contradiction_type}")
+
+        if source_independence.get("overall_status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            limitations.append("Source independence is dependent or unknown; multiple copied tracking feeds are not independent corroboration.")
+            gaps.append(
+                KnowledgeGap(
+                    description="Independent transport source pedigree not established.",
+                    importance="HIGH",
+                    recommended_source="official operator/port/airport/rail record or independent licensed feed",
+                    specialist="TRANSPORTINT source evaluation",
+                    expected_information_value="Prevents false confidence from aggregator duplication.",
+                )
+            )
+
+        limitations.extend(
+            [
+                "Asset identifier is not operator, owner, cargo, crew, or mission.",
+                "Owner is not operator; operator is not cargo owner.",
+                "Position observed is not arrival/docking/landing.",
+                "Position observed is not cargo movement.",
+                "Schedule is not actual movement.",
+                "ETA is not arrival.",
+                "Route gap is not concealment.",
+                "AIS/ADS-B gap is not evasion.",
+                "Route deviation is not illicit activity.",
+                "Unscheduled stop is not illegal activity.",
+                "Long dwell is not suspicious activity.",
+                "Co-location is not cargo transfer.",
+                "Container ID is not content.",
+                "Nominal capacity is not actual load.",
+                "Delay is not incident.",
+                "Accident is not attack.",
+                "Disruption is not sabotage.",
+                "Historical location is not current location.",
+                "Multiple copied tracking feeds are not independent sources.",
+                "AI agreement is not sensor corroboration.",
+                "Transport dependency analysis is for resilience, never targeting.",
+            ]
+        )
+
+        unknowns.extend(
+            [
+                "exact cargo contents",
+                "actual load factor",
+                "delay cause if not independently verified",
+                "operator intent",
+                "crew/driver/pilot identity",
+                "private-person presence",
+                "current location if data is historical",
+                "legal/regulatory violation status",
+            ]
+        )
+
+        actions.extend(
+            [
+                NextAction(description="Obtain official operator/port/airport/rail schedule and event record.", rationale="Separates scheduled from actual movement.", priority="HIGH"),
+                NextAction(description="Verify asset identity with stable registry identifier and independent feed.", rationale="Prevents false asset/operator attribution.", priority="HIGH"),
+                NextAction(description="Assess sensor/receiver coverage before interpreting tracking gaps.", rationale="Gap may be coverage/technical, not concealment.", priority="HIGH"),
+                NextAction(description="Correlate weather/disruption notices with delay windows.", rationale="Tests benign operational explanations before case inference.", priority="MEDIUM"),
+                NextAction(description="Correlate shipment/container records via TRADEINT/LOGINT where commercial meaning is needed.", rationale="Transport movement alone does not prove cargo identity.", priority="MEDIUM"),
+                NextAction(description="Handoff maritime AIS specifics to AISINT and satellite observations to SATINT.", rationale="TRANSPORTINT synthesizes multimodal context, not all sensor specialization.", priority="MEDIUM"),
+                NextAction(description="Evaluate dependencies for redundancy/continuity only.", rationale="Resilience planning must not become targeting.", priority="HIGH"),
+            ]
+        )
+
+        guard = PolicyGuard()
+        actions = [a for a in actions if guard.is_safe_action(a.description)]
+
+        handoffs.extend(
+            [
+                SpecialistHandoff(specialist="AISINT", reason="Maritime AIS-specific vessel identity, MMSI/IMO, AIS gaps, route."),
+                SpecialistHandoff(specialist="SATINT", reason="Satellite-derived port/vehicle/rail/infrastructure observations."),
+                SpecialistHandoff(specialist="GEOINT", reason="Geospatial location verification and terrain/context."),
+                SpecialistHandoff(specialist="RADINT", reason="Radar-derived movement/weather/backscatter context."),
+                SpecialistHandoff(specialist="ENVINT", reason="Weather/environmental disruption context."),
+                SpecialistHandoff(specialist="SEISINT", reason="Seismic/landslide/volcanic transport impact context."),
+                SpecialistHandoff(specialist="TRADEINT", reason="Commercial shipment/cargo truth."),
+                SpecialistHandoff(specialist="LOGINT", reason="Warehouse/inventory/dispatch/distribution lifecycle."),
+                SpecialistHandoff(specialist="SUPPLYCHAININT", reason="Business dependency and supplier risk."),
+                SpecialistHandoff(specialist="CORPINT", reason="Carrier/operator/owner legal entity resolution."),
+                SpecialistHandoff(specialist="INCIDENTINT", reason="Accident/mechanical/security incident deep analysis."),
+                SpecialistHandoff(specialist="INFRAINT", reason="Critical infrastructure resilience context, no targeting."),
+            ]
+        )
+
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs,
+        }
+
+
+class DualAIReviewer:
+    def review(
+        self,
+        *,
+        assets: List[TransportAsset],
+        events: List[MovementEvent],
+        routes: List[Route],
+        delays: List[Delay],
+        dependencies: List[TransportDependency],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+        case: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        notes: List[str] = []
+        status = ReviewStatus.AGREE
+
+        if not events:
+            status = ReviewStatus.INSUFFICIENT_EVIDENCE
+            notes.append("No movement events supplied.")
+
+        if any(seg.status in (EventStatus.INFERRED, EventStatus.UNKNOWN) for r in routes for seg in r.segments):
+            notes.append("Inferred segments and gaps are present; do not present full path as directly observed.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if delays:
+            notes.append("Delays are time differences; cause candidates are not proven causation.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if dependencies:
+            notes.append("Dependency output is resilience-only; must not be converted into targeting.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if contradictions:
+            notes.append("Open contradictions remain; final asset/route/cargo claims should stay conservative.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if source_independence.get("overall_status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            notes.append("Source independence dependent/unknown; multiple feeds may share one upstream network.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        human_review_required = False
+        tags = [str(x).upper() for x in case.get("sensitivity_tags", [])]
+        source_map = {s.source_id: s for s in case.get("sources", []) if isinstance(s, dict)}
+
+        live_sources = set()
+        for e in events:
+            src = source_map.get(e.source_id)
+            if isinstance(src, dict):
+                freshness = str(src.get("data_freshness", "")).upper()
+                if freshness in {"LIVE", "NEAR_REAL_TIME", "LIVE_AUTHORIZED"}:
+                    live_sources.add(e.source_id)
+
+        if live_sources:
+            notes.append("Live/near-real-time transport source present; restrict to authorized safety/operational use and human governance.")
+            human_review_required = True
+
+        if any(t in {"PRIVATE_PERSON", "LAW_ENFORCEMENT", "MILITARY", "CRITICAL_INFRASTRUCTURE", "SANCTIONS_CUSTOMS", "ILICIT_TRANSPORT_ALLEGATION", "REAL_TIME"} for t in tags):
+            human_review_required = True
+            notes.append("Sensitive legal/military/infrastructure/customs/private-person context supplied; human review required.")
+
+        if any(a.asset_type in {AssetType.AIRCRAFT, AssetType.SHIP, AssetType.TRAIN} for a in assets) and human_review_required:
+            notes.append("Safety-sensitive transport asset context; no interference/targeting/evasion guidance permitted.")
+
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "AI agreement is not independent sensor corroboration.",
+            "human_review_required": human_review_required,
+        }
+
+
+# ======================================================================
+# SECTION 10 — GRAPHICAL MEMORY / REPORT GENERATOR
+# ======================================================================
+
+class GraphicalMemory:
+    def __init__(self) -> None:
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        self.edges: List[Dict[str, Any]] = []
+
+    def add_node(self, node_id: str, node_type: str, properties: Dict[str, Any]) -> None:
+        self.nodes[node_id] = {"type": node_type, "properties": properties}
+
+    def add_edge(self, source_id: str, relation: str, target_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append(
+            {
+                "source_id": source_id,
+                "relation": relation,
+                "target_id": target_id,
+                "properties": properties or {},
+            }
+        )
+
+    def write_result(self, result: TRANSPORTINTResult) -> Dict[str, Any]:
+        for s in result.sources:
+            self.add_node(s.source_id, "Source", {"provider": s.provider, "group": s.independence_group, "freshness": s.data_freshness})
+
+        for a in result.assets:
+            self.add_node(
+                a.asset_id,
+                "TransportAsset",
+                {"type": a.asset_type.value, "mode": a.mode.value, "operator": a.operator_candidate, "owner": a.owner_candidate, "status": a.status.value},
+            )
+            for ident in a.identifiers:
+                node_id = f"IDENT_{a.asset_id}_{ident.identifier_type.value}_{ident.value}"
+                self.add_node(node_id, "Identifier", {"type": ident.identifier_type.value, "value": ident.value})
+                self.add_edge(a.asset_id, "HAS_IDENTIFIER", node_id)
+            for role in a.roles:
+                org_id = role.entity_id or role.entity_name
+                if org_id:
+                    self.add_node(org_id, "Organization", {"name": role.entity_name or org_id})
+                    self.add_edge(a.asset_id, role.role_type.value, org_id, {"confidence": role.confidence.value})
+
+        for h in result.hubs:
+            self.add_node(h.hub_id, "Hub", {"name": h.name, "type": h.hub_type.value, "lat": h.lat, "lon": h.lon})
+
+        for e in result.movement_events[:2000]:
+            self.add_node(
+                e.event_id,
+                "MovementEvent",
+                {"asset_id": e.asset_id, "type": e.event_type.value, "time": e.time.isoformat(), "hub_id": e.hub_id, "status": e.status.value},
+            )
+            if e.asset_id:
+                self.add_edge(e.event_id, "OBSERVED_FOR", e.asset_id, {"evidence_id": e.evidence_id})
+            if e.hub_id:
+                self.add_edge(e.event_id, "AT_HUB", e.hub_id)
+
+        for r in result.routes:
+            self.add_node(r.route_id, "Route", {"asset_id": r.asset_id, "origin": r.origin_hub_id, "destination": r.destination_hub_id})
+            for seg in r.segments:
+                self.add_node(seg.segment_id, "RouteSegment", {"from": seg.from_hub_id, "to": seg.to_hub_id, "status": seg.status.value})
+                self.add_edge(r.route_id, "HAS_SEGMENT", seg.segment_id)
+                if seg.from_hub_id:
+                    self.add_edge(seg.segment_id, "FROM_HUB", seg.from_hub_id)
+                if seg.to_hub_id:
+                    self.add_edge(seg.segment_id, "TO_HUB", seg.to_hub_id)
+
+        for f in result.facts[:1000]:
+            self.add_node(f.fact_id, "Fact", {"statement": f.statement, "status": f.status.value})
+            for ev in f.evidence_ids[:20]:
+                self.add_edge(f.fact_id, "SUPPORTED_BY", ev)
+
+        for h in result.hypotheses[:1000]:
+            self.add_node(h.hypothesis_id, "Hypothesis", {"statement": h.statement})
+
+        return {
+            "node_count": len(self.nodes),
+            "edge_count": len(self.edges),
+            "sample_nodes": list(self.nodes.keys())[:20],
+        }
+
+
+class ReportGenerator:
+    def generate(self, result: TRANSPORTINTResult) -> str:
+        lines: List[str] = []
+
+        def section(title: str) -> None:
+            lines.append("")
+            lines.append(title.upper())
+            lines.append("-" * len(title))
+
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — TRANSPORTINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Task ID: {result.task_id}")
+        lines.append(f"Objective: {result.objective}")
+        lines.append(f"Status: {result.status}")
+        lines.append(f"Policy Decision: {result.policy_decision.value}")
+
+        section("Safety / Privacy Boundary")
+        lines.append("- Lawful authorized transport/logistics intelligence, historical/safety/resilience/compliance analysis only.")
+        lines.append("- No stalking, targeting, sabotage, interference, GNSS/AIS spoofing, transponder disabling, evasion, smuggling, sanctions/customs evasion, cargo concealment, unauthorized fleet access, or transport control.")
+        for flag in result.safety_flags:
+            lines.append(f"- Safety: {flag}")
+        for flag in result.privacy_flags:
+            lines.append(f"- Privacy: {flag}")
+
+        section("Source Inventory")
+        if not result.sources:
+            lines.append("- No sources supplied.")
+        for s in result.sources:
+            lines.append(f"- {s.source_id}: provider={s.provider}, group={s.independence_group}, reliability={s.reliability}, freshness={s.data_freshness}, type={s.source_type}")
+            if s.limitations:
+                lines.append(f"  limitations={'; '.join(s.limitations)}")
+
+        section("Transport Asset Resolution")
+        if not result.assets:
+            lines.append("- No assets supplied.")
+        for a in result.assets:
+            lines.append(f"- {a.asset_id}: type={a.asset_type.value}, mode={a.mode.value}, label={a.name_or_label}, status={a.status.value}")
+            lines.append(f"  operator_candidate={a.operator_candidate}, owner_candidate={a.owner_candidate}")
+            for ident in a.identifiers:
+                lines.append(f"  identifier: {ident.identifier_type.value}={ident.value} source={ident.source_id}")
+            for role in a.roles:
+                lines.append(f"  role: {role.role_type.value} -> {role.entity_name or role.entity_id} valid={fmt_dt(role.valid_from)}..{fmt_dt(role.valid_to)}")
+            if a.limitations:
+                lines.append(f"  limitations={'; '.join(a.limitations)}")
+            lines.append("  caution: asset != owner != operator != cargo owner != crew/person.")
+
+        section("Hubs / Terminals")
+        for h in result.hubs:
+            lines.append(f"- {h.hub_id}: name={h.name}, type={h.hub_type.value}, lat={round_coord(h.lat)}, lon={round_coord(h.lon)}, radius_m={h.radius_m}")
+            if h.capacity_context:
+                lines.append(f"  capacity_context={h.capacity_context}")
+            if h.congestion_context:
+                lines.append(f"  congestion_context={h.congestion_context}")
+
+        section("Schedules")
+        for s in result.schedules:
+            lines.append(
+                f"- {s.schedule_id}: asset={s.asset_id}, mode={s.mode.value}, origin={s.origin_hub_id}, dest={s.destination_hub_id}, "
+                f"planned_dep={fmt_dt(s.planned_departure)}, planned_arr={fmt_dt(s.planned_arrival)}"
+            )
+            lines.append("  caution: scheduled is not actual.")
+
+        section("Movement Events")
+        for e in result.movement_events[:200]:
+            lines.append(
+                f"- {e.event_id}: asset={e.asset_id}, type={e.event_type.value}, time={fmt_dt(e.time)}, hub={e.hub_id}, "
+                f"status={e.status.value}, precision={e.precision_level.value}, source={e.source_id}, confidence={e.confidence.value}"
+            )
+            if e.lat is not None and e.lon is not None:
+                lines.append(f"  coord=({round_coord(e.lat)}, {round_coord(e.lon)}) accuracy_m={e.accuracy_radius_m}")
+            if e.extra:
+                lines.append(f"  extra={e.extra}")
+            for lim in e.limitations[:5]:
+                lines.append(f"  limitation: {lim}")
+
+        section("Routes / Segments / Gaps")
+        if not result.routes:
+            lines.append("- No routes reconstructed.")
+        for r in result.routes:
+            lines.append(f"- Route {r.route_id}: asset={r.asset_id}, mode={r.mode.value}, origin={r.origin_hub_id}, dest={r.destination_hub_id}, status={r.scheduled_or_actual.value}")
+            for seg in r.segments:
+                lines.append(
+                    f"  - Segment {seg.segment_id}: {seg.from_hub_id} -> {seg.to_hub_id}, status={seg.status.value}, "
+                    f"distance_m={seg.distance_m}, start={fmt_dt(seg.start_time)}, end={fmt_dt(seg.end_time)}, confidence={seg.confidence.value}"
+                )
+                for lim in seg.limitations:
+                    lines.append(f"    limitation: {lim}")
+
+        section("Departures / Arrivals / Stops / Dwell / Delays")
+        for d in result.delays:
+            lines.append(
+                f"- Delay {d.delay_id}: asset={d.asset_id}, schedule={d.schedule_id}, type={d.delay_type.value}, "
+                f"scheduled={fmt_dt(d.scheduled_time)}, actual={fmt_dt(d.actual_time)}, delay={fmt_seconds(d.delay_seconds)}, cause_candidates={d.cause_candidates}"
+            )
+            for lim in d.limitations:
+                lines.append(f"  limitation: {lim}")
+
+        section("Ports / Airports / Rail Terminals / Road / Public Transit / Warehouses")
+        for h in result.hubs:
+            lines.append(f"- Hub {h.hub_id}: type={h.hub_type.value}, name={h.name}, country={h.country}, region={h.region}")
+
+        section("Intermodal Transfers")
+        if not result.intermodal_transfers:
+            lines.append("- None.")
+        for t in result.intermodal_transfers:
+            lines.append(f"- {t}")
+            lines.append("  caution: co-location != cargo transfer; requires terminal/container/manifest evidence.")
+
+        section("Shipment / Cargo Context")
+        for s in result.shipments:
+            lines.append(f"- Shipment {s.shipment_id}: reference={s.reference}, carrier={s.carrier}, forwarder={s.forwarder}, shipper={s.shipper}, consignee={s.consignee}")
+            lines.append(f"  assets={s.asset_ids}, containers={s.container_ids}, routes={s.route_ids}, status={s.status}")
+            lines.append(f"  commodity_description={s.commodity_description}")
+            for lim in s.limitations:
+                lines.append(f"  limitation: {lim}")
+        for c in result.containers:
+            lines.append(f"- Container {c.container_id}: identifier={c.identifier}, shipment_reference={c.shipment_reference}, routes={c.route_ids}, events={c.movement_events}")
+            lines.append("  caution: container ID != content.")
+
+        section("Capacity / Throughput / Congestion")
+        for item in result.throughput_context[:100]:
+            lines.append(f"- Throughput: {item}")
+        for item in result.congestion_context[:100]:
+            lines.append(f"- Congestion: {item}")
+        lines.append("- Nominal capacity is not actual load; throughput is not maximum capacity.")
+
+        section("Transport Dependencies / Common-Mode")
+        if not result.dependencies:
+            lines.append("- None.")
+        for dep in result.dependencies:
+            lines.append(
+                f"- Dependency {dep.dependency_id}: type={dep.dependency_type.value}, resource={dep.resource}, "
+                f"resource_type={dep.resource_type}, count={dep.count}, confidence={dep.confidence.value}"
+            )
+            lines.append(f"  notes={dep.notes}")
+            lines.append(f"  limitations={dep.limitations}")
+        lines.append("- Dependency analysis is resilience/continuity only, never targeting.")
+
+        section("Disruptions / Weather / Environmental Context")
+        for d in result.disruptions:
+            lines.append(f"- Disruption {d.disruption_id}: type={d.disruption_type}, hub={d.hub_id}, start={fmt_dt(d.start_time)}, end={fmt_dt(d.end_time)}, cause_reported={d.cause_reported}, verified={d.cause_verified}")
+        for w in result.weather_context:
+            lines.append(f"- Weather {w.weather_id}: type={w.event_type}, region={w.region}, hub={w.hub_id}, start={fmt_dt(w.start_time)}, end={fmt_dt(w.end_time)}, intensity={w.intensity}")
+        for e in result.environmental_context:
+            lines.append(f"- Environmental {e.env_id}: type={e.event_type}, region={e.region}, hub={e.hub_id}, description={e.description}")
+
+        section("Source Independence")
+        lines.append(f"- Overall: {result.source_independence.get('overall_status', 'UNKNOWN')}")
+        lines.append(f"- Groups: {result.source_independence.get('groups', [])}")
+        for note in result.source_independence.get("notes", []):
+            lines.append(f"  - {note}")
+
+        section("Facts")
+        for f in result.facts[:250]:
+            lines.append(f"- [{f.status.value}] {f.statement}")
+            if f.limitations:
+                lines.append(f"  limitations: {'; '.join(f.limitations)}")
+
+        section("Contradictions")
+        if not result.contradictions:
+            lines.append("- None detected.")
+        for c in result.contradictions[:100]:
+            lines.append(f"- {c.contradiction_type}: {c.description}")
+            lines.append(f"  resolutions: {c.candidate_resolutions}")
+
+        section("Benign Explanations / Competing Hypotheses")
+        for h in result.hypotheses[:150]:
+            lines.append(f"- {h.hypothesis_id}: {h.statement}")
+            lines.append(f"  supports: {h.supports}")
+            lines.append(f"  oppositions: {h.oppositions}")
+            lines.append(f"  falsification: {h.falsification_tests}")
+
+        section("Unknowns / Knowledge Gaps")
+        for u in result.unknowns[:100]:
+            lines.append(f"- Unknown: {u}")
+        for g in result.knowledge_gaps[:100]:
+            lines.append(f"- Gap: {g.description} | importance={g.importance} | specialist={g.specialist}")
+
+        section("Next Actions")
+        if not result.next_actions:
+            lines.append("- None.")
+        for a in result.next_actions:
+            lines.append(f"- {a.description} ({a.priority}) — {a.rationale}")
+
+        section("Specialist Handoffs")
+        if not result.specialist_handoffs:
+            lines.append("- None.")
+        for h in result.specialist_handoffs:
+            lines.append(f"- {h.specialist}: {h.reason}")
+
+        section("Limitations")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+
+        section("Dual-AI Review")
+        lines.append(f"- Status: {result.review.get('status', 'N/A')}")
+        for n in result.review.get("skeptic_notes", []):
+            lines.append(f"  - {n}")
+        if result.review.get("human_review_required"):
+            lines.append("  - Human review required before consequential operational, legal, safety, or public disclosure use.")
+
+        section("Required Analyst Summary")
+        if result.assets and result.movement_events:
+            asset = result.assets[0]
+            lines.append(f"ASSET: {asset.asset_id} ({asset.name_or_label or 'unlabeled'}).")
+            lines.append(f"IDENTITY: Identifiers={[i.value for i in asset.identifiers]}.")
+            lines.append(f"OPERATOR: {asset.operator_candidate or 'UNKNOWN'}; OWNER: {asset.owner_candidate or 'UNKNOWN'}; kept separate.")
+            if result.routes:
+                r = result.routes[0]
+                lines.append(f"ROUTE: {r.origin_hub_id} -> {r.destination_hub_id}; segments={[ (s.from_hub_id, s.to_hub_id, s.status.value) for s in r.segments ]}.")
+            if result.delays:
+                d = result.delays[0]
+                lines.append(f"DELAY: {d.delay_type.value} {fmt_seconds(d.delay_seconds)}; cause_candidates={d.cause_candidates}.")
+            if result.shipments:
+                s = result.shipments[0]
+                lines.append(f"CARGO: Shipment {s.shipment_id} linked by record to assets {s.asset_ids}; cargo identity remains record-based unless independently verified.")
+            lines.append("CAUTION: Position observed != arrival/docking; schedule != actual; gap != concealment; dependency != targeting.")
+            lines.append("NEXT ACTION: Correlate official operator/terminal/TRADEINT records and independent feeds before strengthening claims.")
+        else:
+            lines.append("ASSET: No resolved transport asset/movement evidence.")
+            lines.append("NEXT ACTION: Verify source availability, asset identifiers, and time/location normalization.")
+
+        lines.append("")
+        lines.append("=" * 72)
+        lines.append("END REPORT")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 11 — TRANSPORTINT AI EMPLOYEE
+# ======================================================================
+
+class TRANSPORTIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.injection_defense = PromptInjectionDefense()
+        self.ingestor = TRANSPORTINTIngestor(injection_defense=self.injection_defense)
+        self.asset_resolver = AssetResolver()
+        self.hub_matcher = HubMatcher()
+        self.plausibility = PhysicalPlausibilityChecker()
+        self.schedule_comparator = ScheduleComparator()
+        self.route_reconstructor = RouteReconstructor()
+        self.intermodal = IntermodalTransferAnalyzer()
+        self.cargo = CargoCorrelator()
+        self.capacity = CapacityThroughputAnalyzer()
+        self.dependencies = DependencyAnalyzer()
+        self.independence = SourceIndependenceAnalyzer()
+        self.contradiction_detector = ContradictionDetector()
+        self.hypothesis_engine = HypothesisEngine()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> TRANSPORTINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        task_id = str(case.get("task_id", new_id("TASK")))
+        objective = str(case.get("objective", ""))
+        questions = case.get("questions", [])
+
+        request_text = objective + "\n" + "\n".join(str(q) for q in questions)
+
+        for a in case.get("assets", []):
+            request_text += "\n" + " ".join(
+                str(a.get(k, ""))
+                for k in ("name_or_label", "operator", "owner", "notes")
+            )
+
+        for e in case.get("movement_events", []):
+            request_text += "\n" + " ".join(
+                str(e.get(k, ""))
+                for k in ("event_id", "route_reference", "notes")
+            )
+
+        policy = self.policy.check_request(request_text)
+
+        if policy.decision == PolicyDecision.POLICY_BLOCKED:
+            return TRANSPORTINTResult(
+                case_id=case_id,
+                task_id=task_id,
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report=(
+                    "POLICY_BLOCKED\n\n"
+                    "This request seeks prohibited TRANSPORTINT targeting, sabotage, interference, "
+                    "GNSS/AIS spoofing, transponder disabling, evasion, smuggling, sanctions/customs evasion, "
+                    "cargo concealment, unauthorized fleet access, or private-person tracking guidance. "
+                    "Lawful alternative: authorized historical transport analysis, schedule-vs-actual assessment, "
+                    "delay/disruption context, resilience planning, compliance context, and evidence-linked "
+                    "transport reporting without interference or targeting."
+                ),
+                safety_flags=[
+                    "No AIS/GNSS spoofing or transponder-disabling guidance provided.",
+                    "No sabotage, derailment, port/airport disruption, or system interference provided.",
+                    "No smuggling, sanctions/customs evasion, or cargo-concealment guidance provided.",
+                    "No private-person tracking or real-time targeting provided.",
+                ],
+                limitations=[policy.reason],
+            )
+
+        ingested = self.ingestor.ingest_case(case)
+
+        assets = ingested.assets
+        events = ingested.movement_events
+        hubs = ingested.hubs
+        schedules = ingested.schedules
+        shipments = ingested.shipments
+        containers = ingested.containers
+        weather = ingested.weather
+        environmental = ingested.environmental
+        disruptions = ingested.disruptions
+
+        assets, events, identity_contradictions = self.asset_resolver.resolve(
+            assets=assets,
+            events=events,
+        )
+
+        self.hub_matcher.match_events(events=events, hubs=hubs)
+
+        plausibility_contradictions = self.plausibility.check(
+            events=events,
+            assets=assets,
+        )
+
+        delays = self.schedule_comparator.compare(
+            schedules=schedules,
+            events=events,
+            assets=assets,
+            weather=weather,
+            disruptions=disruptions,
+            hubs=hubs,
+        )
+
+        routes = self.route_reconstructor.reconstruct(
+            events=events,
+            hubs=hubs,
+            assets=assets,
+        )
+
+        transfers = self.intermodal.analyze(
+            shipments=shipments,
+            containers=containers,
+            events=events,
+            assets=assets,
+        )
+
+        shipments, containers = self.cargo.correlate(
+            shipments=shipments,
+            containers=containers,
+            routes=routes,
+            events=events,
+        )
+
+        congestion = self.capacity.analyze(
+            hubs=hubs,
+            delays=delays,
+            throughput_observations=ingested.throughput_observations,
+            congestion_observations=ingested.congestion_observations,
+            disruptions=disruptions,
+        )
+
+        dependencies = self.dependencies.analyze(
+            routes=routes,
+            shipments=shipments,
+            assets=assets,
+            hubs=hubs,
+            case=case,
+        )
+
+        detector_contradictions = self.contradiction_detector.detect(
+            assets=assets,
+            events=events,
+            schedules=schedules,
+        )
+
+        def dedupe_contradictions(items: List[Contradiction]) -> List[Contradiction]:
+            seen = set()
+            out = []
+            for c in items:
+                cid = c.contradiction_id
+                if cid not in seen:
+                    seen.add(cid)
+                    out.append(c)
+            return out
+
+        contradictions = dedupe_contradictions(
+            identity_contradictions + plausibility_contradictions + detector_contradictions
+        )
+
+        source_independence = self.independence.assess(
+            sources=ingested.sources,
+            events=events,
+        )
+
+        hypotheses = self.hypothesis_engine.generate(
+            delays=delays,
+            routes=routes,
+            contradictions=contradictions,
+            weather=weather,
+            disruptions=disruptions,
+        )
+
+        fact_out = self.fact_gate.generate(
+            case=case,
+            sources=ingested.sources,
+            entities=ingested.entities,
+            assets=assets,
+            hubs=hubs,
+            schedules=schedules,
+            events=events,
+            routes=routes,
+            delays=delays,
+            disruptions=disruptions,
+            weather=weather,
+            environmental=environmental,
+            shipments=shipments,
+            containers=containers,
+            transfers=transfers,
+            congestion=congestion,
+            dependencies=dependencies,
+            contradictions=contradictions,
+            source_independence=source_independence,
+        )
+
+        review = self.reviewer.review(
+            assets=assets,
+            events=events,
+            routes=routes,
+            delays=delays,
+            dependencies=dependencies,
+            contradictions=contradictions,
+            source_independence=source_independence,
+            case=case,
+        )
+
+        has_observed_route = any(
+            seg.status in (EventStatus.OBSERVED, EventStatus.ACTUAL, EventStatus.CONFIRMED)
+            for r in routes
+            for seg in r.segments
+        )
+
+        if not events:
+            status = "INSUFFICIENT_DATA"
+        elif contradictions:
+            status = "PARTIAL_DISPUTED_TRANSPORT"
+        elif review.get("human_review_required"):
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+        elif has_observed_route or delays:
+            status = "SUCCEEDED"
+        else:
+            status = "PARTIAL"
+
+        privacy_flags = []
+
+        if self.mode == ModelMode.LOCAL_ONLY:
+            privacy_flags.append(
+                "LOCAL_ONLY mode selected; sensitive fleet/logistics/customer telemetry should remain local."
+            )
+        elif self.mode == ModelMode.CLOUD:
+            privacy_flags.append(
+                "CLOUD mode requires sanitized/aggregated/redacted/policy-approved transport context only."
+            )
+        else:
+            privacy_flags.append(
+                "HYBRID mode requires routing controls, tenant isolation, and purpose limitation."
+            )
+
+        privacy_flags.extend(
+            [
+                "Asset identifier is not crew, driver, pilot, captain, or private-person presence.",
+                "No real-time private-person tracking or targeting support.",
+                "Historical location is not current location.",
+                "Position observed is not arrival, docking, landing, or cargo handling.",
+                "Container identifier is not cargo content.",
+                "Dependency analysis is resilience-only, never targeting.",
+            ]
+        )
+
+        result = TRANSPORTINTResult(
+            case_id=case_id,
+            task_id=task_id,
+            objective=objective,
+            status=status,
+            policy_decision=PolicyDecision.ALLOW,
+            evidence=ingested.evidence,
+            sources=ingested.sources,
+            entities=ingested.entities,
+            assets=assets,
+            hubs=hubs,
+            schedules=schedules,
+            movement_events=events,
+            routes=routes,
+            delays=delays,
+            disruptions=disruptions,
+            weather_context=weather,
+            environmental_context=environmental,
+            shipments=shipments,
+            containers=containers,
+            intermodal_transfers=transfers,
+            congestion_context=congestion,
+            throughput_context=ingested.throughput_observations,
+            dependencies=dependencies,
+            contradictions=contradictions,
+            hypotheses=hypotheses,
+            facts=fact_out["facts"],
+            knowledge_gaps=fact_out["knowledge_gaps"],
+            next_actions=fact_out["next_actions"],
+            specialist_handoffs=fact_out["specialist_handoffs"],
+            source_independence=source_independence,
+            review=review,
+            unknowns=fact_out["unknowns"],
+            limitations=fact_out["limitations"],
+            safety_flags=[
+                "No stalking or private-person real-time tracking.",
+                "No targeting coordinates or military/interdiction targeting support.",
+                "No sabotage, derailment, port/airport disruption, or system interference.",
+                "No GNSS/AIS spoofing, transponder disabling, radar/AIS evasion, or route hiding.",
+                "No smuggling, sanctions/customs evasion, or cargo-concealment guidance.",
+                "No unauthorized fleet access or stolen fleet credentials.",
+                "Asset != owner != operator != cargo owner != crew/person.",
+                "Schedule != actual; ETA != arrival; gap != concealment.",
+                "Dependency analysis is resilience/continuity only, never targeting.",
+                "Human review required for consequential legal, safety, military, customs, or private-person use.",
+            ],
+            privacy_flags=privacy_flags,
+        )
+
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 12 — SYNTHETIC DEMOS
+# ======================================================================
+
+def demo_lawful_multimodal_freight() -> None:
+    """
+    Synthetic lawful demo:
+    Historical multimodal freight movement: maritime vessel -> port -> rail terminal,
+    with schedule-vs-actual delay, weather/disruption context, shipment/container
+    record linkage, source independence, and resilience-only dependency analysis.
+
+    No targeting, sabotage, evasion, smuggling, sanctions/customs evasion,
+    AIS/GNSS spoofing, or private-person tracking.
+    """
+    employee = TRANSPORTIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-TRANSPORTINT-001",
+        "task_id": "DEMO-TASK-001",
+        "objective": (
+            "Lawful historical transport-intelligence analysis: reconstruct a multimodal freight movement "
+            "from authorized/public historical records, compare scheduled vs actual events, test benign "
+            "weather/disruption explanations for delay, preserve cargo/owner/operator distinctions, and "
+            "assess resilience dependencies without targeting or evasion guidance."
+        ),
+        "questions": [
+            "Which transport assets are evidenced?",
+            "Which route segments are observed versus inferred?",
+            "Was there a delay relative to schedule?",
+            "Are weather/disruption contexts plausible benign explanations?",
+            "Does asset movement prove cargo content or ownership?",
+            "What remains unknown?",
+        ],
+        "authorization": "AUTHORIZED_HISTORICAL_TRANSPORT_LOGISTICS_RESEARCH",
+        "sensitivity_tags": ["HISTORICAL", "FREIGHT", "SYNTHETIC_DEMO"],
+        "dependency_min_count": 2,
+        "sources": [
+            {
+                "source_id": "SRC_AIS",
+                "provider": "Demo AIS Commercial Feed",
+                "upstream_feed": "ais_aggregator",
+                "independence_group": "ais_commercial",
+                "reliability": "HIGH",
+                "source_type": "AIS_FEED",
+                "data_freshness": "HISTORICAL",
+                "limitations": [
+                    "May share upstream receiver network with other commercial AIS products."
+                ],
+            },
+            {
+                "source_id": "SRC_PORT",
+                "provider": "Demo Port Authority",
+                "upstream_feed": "port_event_records",
+                "independence_group": "port_official",
+                "reliability": "HIGH",
+                "source_type": "PORT_RECORD",
+                "data_freshness": "HISTORICAL",
+                "limitations": [
+                    "Port event record may lag operational reality and may not prove cargo handling."
+                ],
+            },
+            {
+                "source_id": "SRC_RAIL",
+                "provider": "Demo Rail Operator",
+                "upstream_feed": "rail_event_records",
+                "independence_group": "rail_official",
+                "reliability": "HIGH",
+                "source_type": "RAIL_RECORD",
+                "data_freshness": "HISTORICAL",
+                "limitations": [
+                    "Operator record may reflect planned/confirmed service rather than cargo truth."
+                ],
+            },
+            {
+                "source_id": "SRC_WEATHER",
+                "provider": "Demo Weather Service",
+                "upstream_feed": "weather_alerts",
+                "independence_group": "weather_official",
+                "reliability": "MEDIUM",
+                "source_type": "WEATHER_CONTEXT",
+                "data_freshness": "HISTORICAL",
+                "limitations": [
+                    "Weather correlation is not proven causation for transport delay."
+                ],
+            },
+            {
+                "source_id": "SRC_LOGISTICS",
+                "provider": "Demo Freight Documentation",
+                "upstream_feed": "edi_logistics_docs",
+                "independence_group": "logistics_doc",
+                "reliability": "MEDIUM",
+                "source_type": "SHIPMENT_RECORD",
+                "data_freshness": "HISTORICAL",
+                "limitations": [
+                    "Commercial/logistics document linkage does not independently prove physical cargo location."
+                ],
+            },
+        ],
+        "entities": [
+            {
+                "entity_id": "ORG_CARRIER",
+                "name": "Demo Carrier Ltd",
+                "entity_role": "CARRIER",
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_LOGISTICS",
+            },
+            {
+                "entity_id": "ORG_OWNER",
+                "name": "Demo Shipping Owner",
+                "entity_role": "OWNER",
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_AIS",
+            },
+            {
+                "entity_id": "ORG_FORWARDER",
+                "name": "Demo Forwarder",
+                "entity_role": "FORWARDER",
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_LOGISTICS",
+            },
+            {
+                "entity_id": "ORG_RAIL_OPERATOR",
+                "name": "Demo Rail Operator",
+                "entity_role": "OPERATOR",
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_RAIL",
+            },
+        ],
+        "assets": [
+            {
+                "asset_id": "ASSET_VESSEL_1",
+                "asset_type": "SHIP",
+                "mode": "MARITIME",
+                "name_or_label": "MV Demo Trader",
+                "imo": "9999999",
+                "mmsi": "123456789",
+                "callsign": "DEMO1",
+                "operator": "Demo Carrier Ltd",
+                "owner": "Demo Shipping Owner",
+                "registration": "DEMO_FLAG",
+                "country_or_jurisdiction": "DEMO_FLAG",
+                "capacity_context": {
+                    "nominal_teu": 1000,
+                    "note": "Nominal capacity is not actual load.",
+                },
+                "status": "ACTIVE",
+                "source_ids": ["SRC_AIS", "SRC_PORT"],
+                "limitations": [
+                    "Operator/owner roles are time-bound and may differ from charterer/manager/lessee.",
+                    "Asset identity does not prove cargo, crew, mission, or intent.",
+                ],
+            },
+            {
+                "asset_id": "ASSET_TRAIN_1",
+                "asset_type": "TRAIN",
+                "mode": "RAIL",
+                "name_or_label": "Demo Freight Train 1",
+                "rail_equipment_id": "TR-DEMO-1",
+                "operator": "Demo Rail Operator",
+                "status": "ACTIVE",
+                "source_ids": ["SRC_RAIL"],
+                "limitations": [
+                    "Train identifier does not prove wagon contents or shipment linkage without records.",
+                ],
+            },
+        ],
+        "hubs": [
+            {
+                "hub_id": "HUB_PORT_PRE",
+                "name": "Demo Pre-Port",
+                "hub_type": "PORT",
+                "lat": 39.0,
+                "lon": -73.0,
+                "radius_m": 10000.0,
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_PORT",
+            },
+            {
+                "hub_id": "HUB_PORT_A",
+                "name": "Demo Port A",
+                "hub_type": "PORT",
+                "lat": 40.0,
+                "lon": -74.0,
+                "radius_m": 10000.0,
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_PORT",
+                "capacity_context": {
+                    "berths": 5,
+                    "note": "Public/authorized capacity context only.",
+                },
+                "congestion_context": {
+                    "severity": "MODERATE",
+                    "time": "2026-10-07T12:00:00Z",
+                    "note": "Congestion is operational context, not failure or attack.",
+                },
+            },
+            {
+                "hub_id": "HUB_RAIL_B",
+                "name": "Demo Rail Terminal B",
+                "hub_type": "RAIL_TERMINAL",
+                "lat": 41.0,
+                "lon": -75.0,
+                "radius_m": 5000.0,
+                "country": "DEMO_COUNTRY",
+                "source_id": "SRC_RAIL",
+            },
+        ],
+        "schedules": [
+            {
+                "schedule_id": "SCH_VESSEL_1",
+                "service_id": "SVC-V1",
+                "asset_id": "ASSET_VESSEL_1",
+                "mode": "MARITIME",
+                "origin_hub_id": "HUB_PORT_PRE",
+                "destination_hub_id": "HUB_PORT_A",
+                "planned_departure": "2026-10-06T00:00:00Z",
+                "planned_arrival": "2026-10-07T18:00:00Z",
+                "operator": "Demo Carrier Ltd",
+                "source_id": "SRC_PORT",
+                "effective_period": "2026-10",
+                "limitations": [
+                    "Scheduled time is not actual movement.",
+                    "Schedule may be revised or stale.",
+                ],
+            },
+            {
+                "schedule_id": "SCH_TRAIN_1",
+                "service_id": "SVC-T1",
+                "asset_id": "ASSET_TRAIN_1",
+                "mode": "RAIL",
+                "origin_hub_id": "HUB_PORT_A",
+                "destination_hub_id": "HUB_RAIL_B",
+                "planned_departure": "2026-10-08T08:00:00Z",
+                "planned_arrival": "2026-10-08T20:00:00Z",
+                "operator": "Demo Rail Operator",
+                "source_id": "SRC_RAIL",
+                "effective_period": "2026-10",
+            },
+        ],
+        "movement_events": [
+            {
+                "event_id": "EVT_VESSEL_DEP_PRE",
+                "asset_id": "ASSET_VESSEL_1",
+                "event_type": "DEPARTURE",
+                "time": "2026-10-06T00:30:00Z",
+                "hub_id": "HUB_PORT_PRE",
+                "lat": 39.0,
+                "lon": -73.0,
+                "accuracy_m": 100.0,
+                "precision_level": "HIGH",
+                "status": "OBSERVED",
+                "source_id": "SRC_PORT",
+            },
+            {
+                "event_id": "EVT_VESSEL_POS_SEA",
+                "asset_id": "ASSET_VESSEL_1",
+                "event_type": "POSITION_OBSERVED",
+                "time": "2026-10-06T12:00:00Z",
+                "lat": 39.5,
+                "lon": -73.5,
+                "accuracy_m": 100.0,
+                "precision_level": "HIGH",
+                "speed": 8.0,
+                "speed_unit": "m/s",
+                "source_id": "SRC_AIS",
+                "status": "OBSERVED",
+            },
+            {
+                "event_id": "EVT_VESSEL_POS_NEAR_PORT",
+                "asset_id": "ASSET_VESSEL_1",
+                "event_type": "POSITION_OBSERVED",
+                "time": "2026-10-07T17:00:00Z",
+                "lat": 40.02,
+                "lon": -74.02,
+                "accuracy_m": 1000.0,
+                "precision_level": "MEDIUM",
+                "speed": 2.0,
+                "speed_unit": "m/s",
+                "source_id": "SRC_AIS",
+                "status": "OBSERVED",
+            },
+            {
+                "event_id": "EVT_VESSEL_ARR_PORT_A",
+                "asset_id": "ASSET_VESSEL_1",
+                "event_type": "ARRIVAL",
+                "time": "2026-10-07T20:15:00Z",
+                "hub_id": "HUB_PORT_A",
+                "lat": 40.0,
+                "lon": -74.0,
+                "accuracy_m": 100.0,
+                "precision_level": "HIGH",
+                "status": "OBSERVED",
+                "source_id": "SRC_PORT",
+                "container_id": "ABCU1234567",
+                "limitations": [
+                    "Arrival record does not prove cargo unloading or container content."
+                ],
+            },
+            {
+                "event_id": "EVT_TRAIN_DEP_PORT_A",
+                "asset_id": "ASSET_TRAIN_1",
+                "event_type": "DEPARTURE",
+                "time": "2026-10-08T09:00:00Z",
+                "hub_id": "HUB_PORT_A",
+                "lat": 40.0,
+                "lon": -74.0,
+                "accuracy_m": 100.0,
+                "precision_level": "HIGH",
+                "status": "OBSERVED",
+                "source_id": "SRC_RAIL",
+                "container_id": "ABCU1234567",
+                "limitations": [
+                    "Rail departure record does not independently prove container content or transfer."
+                ],
+            },
+            {
+                "event_id": "EVT_TRAIN_ARR_B",
+                "asset_id": "ASSET_TRAIN_1",
+                "event_type": "ARRIVAL",
+                "time": "2026-10-08T21:30:00Z",
+                "hub_id": "HUB_RAIL_B",
+                "lat": 41.0,
+                "lon": -75.0,
+                "accuracy_m": 100.0,
+                "precision_level": "HIGH",
+                "status": "OBSERVED",
+                "source_id": "SRC_RAIL",
+            },
+        ],
+        "shipments": [
+            {
+                "shipment_id": "SHP_1",
+                "reference": "BL-DEMO-001",
+                "carrier": "Demo Carrier Ltd",
+                "forwarder": "Demo Forwarder",
+                "shipper": "Demo Shipper",
+                "consignee": "Demo Consignee",
+                "commodity_description": "Synthetic consumer goods (record description only)",
+                "container_ids": ["CONT_1"],
+                "asset_ids": ["ASSET_VESSEL_1", "ASSET_TRAIN_1"],
+                "status": "IN_TRANSIT_HISTORICAL",
+                "source_id": "SRC_LOGISTICS",
+                "limitations": [
+                    "Commercial record linkage is not independent physical cargo proof.",
+                    "Commodity description is record-based, not inspection/lab verified.",
+                ],
+            }
+        ],
+        "containers": [
+            {
+                "container_id": "CONT_1",
+                "identifier": "ABCU1234567",
+                "shipment_reference": "SHP_1",
+                "carrier": "Demo Carrier Ltd",
+                "status": "REPORTED_IN_TRANSIT",
+                "source_id": "SRC_LOGISTICS",
+                "limitations": [
+                    "Container identifier does not reveal contents without manifest/inspection evidence."
+                ],
+            }
+        ],
+        "weather_context": [
+            {
+                "weather_id": "WX_STORM_PORT_A",
+                "event_type": "STORM",
+                "region": "Demo Port Region",
+                "hub_id": "HUB_PORT_A",
+                "start_time": "2026-10-07T10:00:00Z",
+                "end_time": "2026-10-07T22:00:00Z",
+                "intensity": "MODERATE",
+                "source_id": "SRC_WEATHER",
+                "limitations": [
+                    "Weather correlation is not proven causation for delay."
+                ],
+            }
+        ],
+        "disruptions": [
+            {
+                "disruption_id": "DIS_PORT_CONGESTION",
+                "disruption_type": "PORT_CONGESTION",
+                "hub_id": "HUB_PORT_A",
+                "start_time": "2026-10-07T00:00:00Z",
+                "end_time": "2026-10-08T12:00:00Z",
+                "description": "Reported moderate port congestion at Demo Port A.",
+                "cause_reported": "CONGESTION",
+                "cause_verified": False,
+                "source_id": "SRC_PORT",
+                "limitations": [
+                    "Disruption observation does not establish cause or intent."
+                ],
+            }
+        ],
+        "throughput_observations": [
+            {
+                "hub_id": "HUB_PORT_A",
+                "metric": "container_moves",
+                "value": 1200,
+                "period": "2026-10-07",
+                "source_id": "SRC_PORT",
+                "limitations": [
+                    "Observed throughput is not maximum theoretical capacity."
+                ],
+            }
+        ],
+        "congestion_observations": [
+            {
+                "hub_id": "HUB_PORT_A",
+                "type": "PORT_CONGESTION",
+                "severity": "MODERATE",
+                "time": "2026-10-07T12:00:00Z",
+                "source_id": "SRC_PORT",
+                "limitations": [
+                    "Congestion is operational capacity context, not failure or attack."
+                ],
+            }
+        ],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def demo_policy_blocked_interference() -> None:
+    """
+    Synthetic policy-block demonstration.
+    Shows that AIS spoofing / evasion / smuggling / sabotage requests are refused.
+    """
+    employee = TRANSPORTIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-TRANSPORTINT-BLOCK-001",
+        "task_id": "DEMO-TASK-BLOCK-001",
+        "objective": (
+            "How do I spoof AIS and disable the transponder to hide my vessel route, "
+            "evade customs, and smuggle cargo?"
+        ),
+        "questions": [
+            "What route avoids detection?",
+            "How do I disable tracking?",
+        ],
+        "authorization": "NONE",
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def main() -> None:
+    print("\n" + "=" * 72)
+    print("LAWFUL HISTORICAL MULTIMODAL FREIGHT DEMO")
+    print("=" * 72 + "\n")
+    demo_lawful_multimodal_freight()
+
+    print("\n" + "=" * 72)
+    print("POLICY-BLOCKED INTERFERENCE / EVASION DEMO")
+    print("=" * 72 + "\n")
+    demo_policy_blocked_interference()
+
+
+if __name__ == "__main__":
+    main()

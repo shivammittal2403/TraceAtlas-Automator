@@ -1,0 +1,4097 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS DISINFOINT main.py
+=============================
+
+Defensive, evidence-first, politically neutral, privacy-aware misinformation /
+disinformation intelligence scaffold.
+
+This module:
+- Does NOT fetch live social/web data.
+- Does NOT invent claims, posts, accounts, sources, campaigns, actors, intent,
+  propagation paths, media provenance, corrections, or retractions.
+- Does NOT create disinformation, propaganda, influence operations, bot
+  networks, sockpuppet networks, or persuasion campaigns.
+- Does NOT provide bot-detection evasion, private-group infiltration,
+  impersonation, harassment, source deanonymization, or access-control bypass.
+- Does NOT infer deceptive intent merely from falsity.
+- Does NOT infer coordination merely from virality.
+- Does NOT infer inauthenticity merely from coordination.
+- Does NOT infer actor identity merely from language, timezone, hosting country,
+  hashtag use, narrative similarity, or account clustering.
+- Does NOT declare media authentic, edited, synthetic, or manipulated without
+  supplied specialist evidence.
+- Does NOT target, profile, or psychologically manipulate ordinary users.
+
+It consumes deterministic records supplied by lawful/public/authorized sources:
+- content items: posts, articles, threads, documents, public video/audio context
+- claims and atomic claim decomposition
+- evidence records with support/contradiction polarity
+- source records and source pedigree / independence metadata
+- media records with specialist authenticity/context states where supplied
+- quote verification records
+- account metadata limited to public/authorized behavioral signals
+- propagation edges
+- coordination signals
+- narratives and campaign candidates
+- corrections and retractions
+
+It produces an evidence-linked DISINFOINTResult with:
+- claim typing and atomic verification states
+- source pedigree and source-family grouping
+- source independence assessment
+- original / earliest-known source candidates
+- quote verification context
+- media authenticity vs context accuracy separation
+- recycled-content candidates
+- narrative evolution and claim mutation tracking
+- propagation graph and amplification patterns
+- coordination-signal analysis with conservative states
+- bot-like behavior candidates without bot confirmation
+- campaign-candidate clustering without actor attribution
+- deceptive-intent assessment only from direct intent evidence
+- actor-attribution ladder with high evidence burden
+- contradiction preservation
+- competing hypotheses and simplified ACH matrix
+- dual-AI style skeptic review
+- privacy / safety / political-neutrality flags
+- graphical memory scaffold
+- analyst summary and report-ready result object
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+import statistics
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+VERSION = "0.1.0"
+
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+
+CONTENT_TYPES = {
+    "POST",
+    "ARTICLE",
+    "THREAD",
+    "COMMENT",
+    "DOCUMENT",
+    "IMAGE",
+    "VIDEO",
+    "AUDIO",
+    "PRESS_RELEASE",
+    "WIRE_REPORT",
+    "FACT_CHECK",
+    "OTHER",
+    "UNKNOWN",
+}
+
+CLAIM_TYPES = {
+    "FACTUAL_CLAIM",
+    "OPINION",
+    "VALUE_JUDGMENT",
+    "PREDICTION",
+    "SATIRE",
+    "RHETORICAL_STATEMENT",
+    "UNKNOWN",
+}
+
+CLAIM_SCOPES = {
+    "POST",
+    "HEADLINE",
+    "BODY",
+    "THREAD",
+    "COMMENT",
+    "QUOTE",
+    "MEDIA_CAPTION",
+    "OTHER",
+    "UNKNOWN",
+}
+
+CLAIM_STATUSES = {
+    "SUPPORTED",
+    "PARTIALLY_SUPPORTED",
+    "DISPUTED",
+    "FALSE_SUPPORTED",
+    "MISLEADING_CONTEXT",
+    "UNSUPPORTED",
+    "UNVERIFIABLE",
+    "INCONCLUSIVE",
+    "OUTDATED",
+    "SATIRE_OR_PARODY",
+    "NOT_A_FACTUAL_CLAIM",
+    "UNKNOWN",
+}
+
+EVIDENCE_POLARITY = {
+    "SUPPORTS",
+    "CONTRADICTS",
+    "NEUTRAL",
+    "UNKNOWN",
+}
+
+MEDIA_TYPES = {
+    "IMAGE",
+    "VIDEO",
+    "AUDIO",
+    "DOCUMENT",
+    "OTHER",
+    "UNKNOWN",
+}
+
+MEDIA_AUTHENTICITY = {
+    "AUTHENTIC_MEDIA_SUPPORTED",
+    "EDITED_MEDIA",
+    "SYNTHETIC_CANDIDATE",
+    "AI_GENERATED_CANDIDATE",
+    "INCONCLUSIVE",
+    "UNKNOWN",
+}
+
+MEDIA_CONTEXT = {
+    "CONTEXT_ACCURATE",
+    "MISLEADING_CONTEXT",
+    "RECYCLED_CONTEXT",
+    "FALSE_CONTEXT",
+    "UNKNOWN",
+}
+
+QUOTE_STATES = {
+    "VERBATIM_VERIFIED",
+    "PARAPHRASE",
+    "MISQUOTED",
+    "CONTEXT_TRUNCATED",
+    "UNVERIFIED",
+    "UNKNOWN",
+}
+
+STANCE = {
+    "ENDORSES",
+    "REJECTS",
+    "QUESTIONS",
+    "REPORTS_NEUTRALLY",
+    "SATIRIZES",
+    "UNCLEAR",
+}
+
+DERIVATION_STATES = {
+    "POSSIBLE_DERIVATION",
+    "SUPPORTED_DERIVATION",
+    "UNKNOWN",
+}
+
+DUPLICATE_STATES = {
+    "EXACT_DUPLICATE",
+    "SYNDICATED_COPY",
+    "LIGHT_REWRITE",
+    "PARTIAL_OVERLAP",
+    "DISTINCT",
+    "UNKNOWN",
+}
+
+SOURCE_INDEPENDENCE = {
+    "INDEPENDENT",
+    "PARTIALLY_DEPENDENT",
+    "DEPENDENT",
+    "SINGLE_SOURCE",
+    "UNKNOWN",
+}
+
+COORDINATION_STATES = {
+    "NO_COORDINATION_EVIDENCE",
+    "COORDINATION_SIGNALS",
+    "COORDINATED_ACTIVITY_CANDIDATE",
+    "COORDINATED_ACTIVITY_SUPPORTED",
+    "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED",
+    "INCONCLUSIVE",
+}
+
+BOT_STATES = {
+    "NO_BOT_LIKE_EVIDENCE",
+    "BOT_LIKE_BEHAVIOR_CANDIDATE",
+    "AUTOMATION_DISCLOSED",
+    "INCONCLUSIVE",
+    "UNKNOWN",
+}
+
+INTENT_STATES = {
+    "INTENT_NOT_ASSESSED",
+    "INTENT_UNKNOWN",
+    "DECEPTIVE_INTENT_CANDIDATE",
+    "DECEPTIVE_INTENT_SUPPORTED",
+    "DECEPTIVE_INTENT_STRONGLY_SUPPORTED",
+}
+
+ATTRIBUTION_STATES = {
+    "NO_ATTRIBUTION",
+    "SOURCE_ATTRIBUTED",
+    "POSSIBLE",
+    "PROBABLE",
+    "SUPPORTED",
+    "STRONGLY_SUPPORTED",
+    "DISPUTED",
+}
+
+CAMPAIGN_STATES = {
+    "NO_CAMPAIGN_EVIDENCE",
+    "CAMPAIGN_CLAIMED_BY_SOURCE",
+    "CAMPAIGN_CANDIDATE",
+    "CAMPAIGN_SUPPORTED",
+    "INCONCLUSIVE",
+}
+
+PRIVATE_TAGS = {
+    "private_person",
+    "private_account",
+    "private_group",
+    "private_message",
+    "personal_contact",
+    "home_location",
+    "private_location",
+    "stalking_target",
+}
+
+SENSITIVE_TAGS = {
+    "vulnerable_population",
+    "political_persuasion",
+    "microtargeting",
+    "psychographic",
+    "fear_profile",
+    "belief_manipulation",
+}
+
+BLOCK_PHRASES = [
+    # creation / operation of harmful influence
+    "create disinformation",
+    "generate disinformation",
+    "create propaganda",
+    "generate propaganda",
+    "influence operation",
+    "information operation",
+    "psychological operation",
+    "psyop",
+    "bot network",
+    "sockpuppet network",
+    "fake account network",
+    "astroturf campaign",
+    "counter bot network",
+    "manipulate audience",
+    "microtarget voters",
+    "voter persuasion",
+    "political persuasion",
+    "ideological conversion",
+    "candidate support",
+    "opposition suppression",
+    "psychographic segment",
+    "fear profile",
+    "anger susceptibility",
+    "persuasion vulnerability",
+    "belief manipulation",
+
+    # evasion / infiltration / impersonation
+    "evade bot detection",
+    "bypass bot detection",
+    "simulate human behavior",
+    "age fake accounts",
+    "rotate infrastructure for evasion",
+    "infiltrate private group",
+    "deceptively join closed group",
+    "impersonate user",
+    "impersonate journalist",
+    "impersonate official",
+    "bypass private profile",
+    "stolen sessions",
+    "private account bypass",
+
+    # harassment / targeting / deanonymization
+    "harass people who share",
+    "retaliate against sharers",
+    "target ordinary users",
+    "deanonymize source",
+    "deanonymise source",
+    "identify confidential source",
+    "dox journalist",
+    "doxx journalist",
+    "pressure journalist",
+]
+
+SOURCE_TYPE_RELIABILITY = {
+    "OFFICIAL_RECORD": "HIGH",
+    "PRIMARY_DOCUMENT": "HIGH",
+    "COURT_FILING": "HIGH",
+    "REGULATORY_FILING": "HIGH",
+    "ORIGINAL_DATASET": "HIGH",
+    "ORIGINAL_VIDEO": "HIGH",
+    "ORIGINAL_AUDIO": "HIGH",
+    "ESTABLISHED_NEWS": "MEDIUM",
+    "WIRE_SERVICE": "MEDIUM",
+    "FACT_CHECKER": "MEDIUM",
+    "ACADEMIC_PAPER": "MEDIUM",
+    "SOCIAL_ACCOUNT": "LOW",
+    "BLOG": "LOW",
+    "AGGREGATOR": "LOW",
+    "UNKNOWN": "UNKNOWN",
+}
+
+DIRECT_INTENT_EVIDENCE_TYPES = {
+    "INTERNAL_DOCUMENT",
+    "ADMISSION",
+    "PLANNING_ARTIFACT",
+    "OPERATIONAL_ARTIFACT",
+    "COURT_FINDING",
+    "REGULATORY_FINDING",
+    "PLATFORM_FINDING",
+    "REPEATED_KNOWLEDGE_OF_FALSITY",
+}
+
+ATTRIBUTION_EVIDENCE_TYPES = {
+    "ATTRIBUTION_EVIDENCE",
+    "INFRASTRUCTURE_LINK",
+    "OPERATIONAL_ARTIFACT",
+    "PLATFORM_FINDING",
+    "COURT_FINDING",
+    "REGULATORY_FINDING",
+    "FINANCIAL_TRACE",
+    "PERSON_ADMISSION",
+}
+
+
+# -----------------------------------------------------------------------------
+# Small helpers
+# -----------------------------------------------------------------------------
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def parse_dt(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except Exception:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def to_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    except Exception:
+        return None
+
+
+def public_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in d.items() if not str(k).startswith("_")}
+
+
+def ensure_list(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def iso_or_none(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if isinstance(dt, datetime) else None
+
+
+def dt_sort_key(dt: Optional[datetime]) -> float:
+    return dt.timestamp() if isinstance(dt, datetime) else 0.0
+
+
+def add_flag(obj: Dict[str, Any], flag: str) -> None:
+    flags = obj.setdefault("_quality_flags", [])
+    f = str(flag).strip().lower()
+    if f and f not in flags:
+        flags.append(f)
+
+
+def safe_std(values: List[float]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return None
+    try:
+        return statistics.stdev(vals)
+    except Exception:
+        return None
+
+
+def numeric_summary(values: List[Any]) -> Dict[str, Any]:
+    arr: List[float] = []
+    for v in values:
+        f = to_float(v)
+        if f is not None:
+            arr.append(f)
+    if not arr:
+        return {"count": 0, "min": None, "max": None, "median": None, "mean": None, "std": None}
+    return {
+        "count": len(arr),
+        "min": min(arr),
+        "max": max(arr),
+        "median": statistics.median(arr),
+        "mean": statistics.fmean(arr),
+        "std": safe_std(arr),
+    }
+
+
+def normalize_choice(value: Any, allowed: Set[str], default: str = "UNKNOWN") -> str:
+    s = str(value or "").strip().upper().replace("-", "_").replace(" ", "_")
+    return s if s in allowed else default
+
+
+def normalize_name(value: Any) -> Optional[str]:
+    s = unicodedata.normalize("NFKC", str(value or "")).lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    return s or None
+
+
+def normalize_language(value: Any) -> Optional[str]:
+    s = str(value or "").strip().lower()
+    return s or None
+
+
+def short_text(value: Any, limit: int = 220) -> Optional[str]:
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if len(s) <= limit:
+        return s
+    return s[:limit].rstrip() + "..."
+
+
+def get_tags(obj: Dict[str, Any]) -> Set[str]:
+    return {str(x).strip().lower() for x in ensure_list(obj.get("tags") or obj.get("sensitive_tags")) if x}
+
+
+def get_records(case: Dict[str, Any], *keys: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for k in keys:
+        v = case.get(k)
+        if isinstance(v, list):
+            out.extend([x for x in v if isinstance(x, dict)])
+        elif isinstance(v, dict):
+            out.append(v)
+    return out
+
+
+def sha256_text(text: Any) -> Optional[str]:
+    if text is None:
+        return None
+    s = str(text)
+    if not s.strip():
+        return None
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def normalize_text(text: Any) -> str:
+    if text is None:
+        return ""
+    s = unicodedata.normalize("NFKC", str(text)).lower()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"[^\w\s]", "", s)
+    return s.strip()
+
+
+def normalized_hash(text: Any) -> Optional[str]:
+    nt = normalize_text(text)
+    if not nt:
+        return None
+    return hashlib.sha256(nt.encode("utf-8")).hexdigest()
+
+
+def token_shingles(text: Any, n: int = 3) -> Set[str]:
+    toks = normalize_text(text).split()
+    if not toks:
+        return set()
+    if len(toks) < n:
+        return {" ".join(toks)}
+    return {" ".join(toks[i:i + n]) for i in range(len(toks) - n + 1)}
+
+
+def jaccard(a: Set[str], b: Set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
+
+
+def normalize_url(value: Any) -> Tuple[Optional[str], Optional[str], List[str]]:
+    if value is None:
+        return None, None, ["url_missing"]
+    raw = str(value).strip()
+    if not raw:
+        return None, None, ["url_missing"]
+    try:
+        p = urlparse(raw)
+    except Exception:
+        return raw, None, ["url_unparseable"]
+
+    flags: List[str] = []
+    if not p.scheme:
+        flags.append("url_scheme_missing")
+    if not p.netloc:
+        flags.append("url_host_missing")
+
+    scheme = p.scheme.lower()
+    netloc = p.netloc.lower()
+    path = re.sub(r"/+", "/", p.path)
+    if path.endswith("/") and path != "/":
+        path = path[:-1]
+
+    keep: List[Tuple[str, str]] = []
+    tracking_prefixes = ("utm_",)
+    tracking_exact = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref", "source", "spm"}
+
+    for k, v in parse_qsl(p.query, keep_blank_values=True):
+        lk = k.lower()
+        if lk.startswith(tracking_prefixes) or lk in tracking_exact:
+            continue
+        keep.append((k, v))
+
+    query = urlencode(keep, doseq=True)
+    normalized = urlunparse((scheme, netloc, path, "", query, ""))
+    return raw, normalized, flags
+
+
+class DSU:
+    def __init__(self) -> None:
+        self.parent: Dict[str, str] = {}
+
+    def find(self, x: str) -> str:
+        self.parent.setdefault(x, x)
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a: str, b: str) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            self.parent[rb] = ra
+
+
+def semantic_claim_key(claim: Dict[str, Any]) -> str:
+    subj = normalize_name(claim.get("_subject") or claim.get("subject"))
+    pred = normalize_name(claim.get("_predicate") or claim.get("predicate"))
+    obj = normalize_name(claim.get("_object") or claim.get("object"))
+    if subj or pred or obj:
+        return f"{subj or ''}|{pred or ''}|{obj or ''}"
+    return (
+        normalize_name(
+            claim.get("_claim_summary")
+            or claim.get("claim_text_summary")
+            or claim.get("claim_text")
+            or claim.get("text")
+        )
+        or str(claim.get("claim_id") or "")
+    )
+
+
+def status_rank(status: str) -> int:
+    return {
+        "STRONGLY_SUPPORTED": 7,
+        "SUPPORTED": 6,
+        "PARTIALLY_SUPPORTED": 5,
+        "MISLEADING_CONTEXT": 4,
+        "OUTDATED": 3,
+        "DISPUTED": 2,
+        "INCONCLUSIVE": 1,
+        "UNSUPPORTED": 0,
+        "UNVERIFIABLE": -1,
+        "FALSE_SUPPORTED": -2,
+        "SATIRE_OR_PARODY": -3,
+        "NOT_A_FACTUAL_CLAIM": -4,
+    }.get(str(status or "").upper(), -5)
+
+
+def intent_rank(state: str) -> int:
+    return {
+        "DECEPTIVE_INTENT_STRONGLY_SUPPORTED": 4,
+        "DECEPTIVE_INTENT_SUPPORTED": 3,
+        "DECEPTIVE_INTENT_CANDIDATE": 2,
+        "INTENT_UNKNOWN": 1,
+        "INTENT_NOT_ASSESSED": 0,
+    }.get(str(state or "").upper(), -1)
+
+
+def attribution_rank(state: str) -> int:
+    return {
+        "STRONGLY_SUPPORTED": 6,
+        "SUPPORTED": 5,
+        "PROBABLE": 4,
+        "POSSIBLE": 3,
+        "SOURCE_ATTRIBUTED": 2,
+        "DISPUTED": 1,
+        "NO_ATTRIBUTION": 0,
+    }.get(str(state or "").upper(), -1)
+
+
+# -----------------------------------------------------------------------------
+# Policy gate
+# -----------------------------------------------------------------------------
+
+def policy_block_reasons(case: Dict[str, Any]) -> List[str]:
+    reasons: List[str] = []
+
+    scanned_parts: List[str] = []
+    for key in ("objective", "questions", "scope", "authorization", "requested_outputs", "tags", "next_action_requests"):
+        val = case.get(key)
+        if val is not None:
+            scanned_parts.append(json.dumps(val, ensure_ascii=False, default=str))
+
+    text = " ".join(scanned_parts).lower()
+
+    for phrase in BLOCK_PHRASES:
+        if phrase in text:
+            reasons.append(f"Forbidden DISINFOINT action/request detected: '{phrase}'")
+
+    scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+    auth = case.get("authorization") if isinstance(case.get("authorization"), dict) else {}
+    requested = case.get("requested_outputs") if isinstance(case.get("requested_outputs"), dict) else {}
+
+    if scope.get("authorized_only") is not True:
+        reasons.append("scope.authorized_only must be true")
+
+    if scope.get("defensive_only") is False:
+        reasons.append("scope.defensive_only must not be false")
+
+    if scope.get("politically_neutral") is False:
+        reasons.append("scope.politically_neutral must not be false")
+
+    prohibited_scope_flags = [
+        "create_disinformation",
+        "generate_propaganda",
+        "influence_operation",
+        "bot_network",
+        "sockpuppet_network",
+        "evade_bot_detection",
+        "microtarget_voters",
+        "political_persuasion",
+        "psychographic_targeting",
+        "infiltrate_private_group",
+        "impersonate_user",
+        "harass_people",
+        "deanonymize_source",
+        "bypass_private_profile",
+        "counter_bot_network",
+        "manipulate_audience",
+        "private_person_tracking",
+    ]
+
+    for flag in prohibited_scope_flags:
+        if scope.get(flag) is True:
+            reasons.append(f"scope.{flag} is prohibited")
+
+    prohibited_requested = [
+        "disinformation",
+        "propaganda",
+        "influence_campaign",
+        "bot_network",
+        "sockpuppet_network",
+        "evade_bot_detection",
+        "microtargeting",
+        "psychographic_profile",
+        "fear_profile",
+        "persuasion_vulnerability",
+        "infiltrate_private_group",
+        "impersonation",
+        "harassment_list",
+        "deanonymize_source",
+        "bypass_private_access",
+        "counter_bot_network",
+        "audience_manipulation",
+    ]
+
+    for flag in prohibited_requested:
+        if requested.get(flag) is True:
+            reasons.append(f"requested_outputs.{flag} is prohibited")
+
+    if not auth.get("lawful_basis"):
+        reasons.append("authorization.lawful_basis is missing")
+
+    if not auth.get("purpose"):
+        reasons.append("authorization.purpose is missing")
+
+    return reasons
+
+
+def blocked_result(
+    case: Dict[str, Any],
+    reasons: List[str],
+    started: str,
+    input_path: Optional[str],
+    input_hash: Optional[str],
+) -> Dict[str, Any]:
+    return {
+        "case_id": case.get("case_id"),
+        "task_id": case.get("task_id"),
+        "objective": case.get("objective"),
+        "status": "POLICY_BLOCKED",
+        "policy_block_reasons": reasons,
+        "mode": case.get("model_mode", "LOCAL_ONLY"),
+        "safety_flags": [
+            "NO_DISINFORMATION_CREATION",
+            "NO_PROPAGANDA_GENERATION",
+            "NO_INFLUENCE_OPERATIONS",
+            "NO_BOT_NETWORKS",
+            "NO_SOCKPUPPET_NETWORKS",
+            "NO_BOT_DETECTION_EVASION",
+            "NO_POLITICAL_PERSUASION",
+            "NO_MICROTARGETING",
+            "NO_PSYCHOGRAPHIC_PROFILING",
+            "NO_PRIVATE_GROUP_INFILTRATION",
+            "NO_IMPERSONATION",
+            "NO_HARASSMENT",
+            "NO_SOURCE_DEANONYMIZATION",
+            "NO_ACCESS_CONTROL_BYPASS",
+        ],
+        "privacy_flags": [
+            "NO_PRIVATE_PERSON_TARGETING",
+            "NO_ORDINARY_USER_RETALIATION",
+            "PUBLIC_OR_AUTHORIZED_DATA_ONLY",
+            "MINIMUM_NECESSARY_PERSONAL_DATA",
+        ],
+        "recommended_next_actions": [
+            "Restate objective as defensive verification, provenance analysis, narrative tracking, or evidence-linked clarification",
+            "Use public/authorized/lawful records only",
+            "Separate false, unsupported, misleading-context, satire, opinion, and unverified claims",
+            "Do not infer intent, coordination, inauthenticity, or actor attribution without evidence",
+            "Handoff media forensics to IMINT/VIDINT/AUDINT/DOCINT specialists",
+        ],
+        "limitations": [
+            "Requested or detected use crosses DISINFOINT lawful/ethical boundary.",
+            "No disinformation, propaganda, influence operations, bot networks, evasion, targeting, harassment, infiltration, or source deanonymization support is provided.",
+        ],
+        "replay_manifest": {
+            "generated_at": started,
+            "finished_at": utcnow_iso(),
+            "code_version": VERSION,
+            "input_path": input_path,
+            "input_sha256": input_hash,
+        },
+    }
+
+
+# -----------------------------------------------------------------------------
+# Validation
+# -----------------------------------------------------------------------------
+
+def source_reliability_label(source: Dict[str, Any]) -> str:
+    rel = str(source.get("reliability") or source.get("_reliability") or "").strip().upper()
+    if rel in {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}:
+        return rel
+    stype = str(source.get("source_type") or source.get("_source_type") or "UNKNOWN").strip().upper()
+    return SOURCE_TYPE_RELIABILITY.get(stype, "UNKNOWN")
+
+
+def validate_sources(case: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    sources: Dict[str, Dict[str, Any]] = {}
+
+    for idx, s in enumerate(get_records(case, "sources", "known_sources")):
+        sid = str(s.get("source_id") or s.get("id") or f"SRC-{idx + 1}").strip()
+        s["source_id"] = sid
+
+        stype = str(s.get("source_type") or "UNKNOWN").strip().upper()
+        s["_source_type"] = stype
+        s["_reliability"] = source_reliability_label(s)
+
+        s["_publisher"] = s.get("publisher")
+        s["_organization"] = s.get("organization")
+        s["_account"] = s.get("account")
+        s["_domain"] = str(s.get("domain") or "").strip().lower() or None
+        s["_platform"] = str(s.get("platform") or "").strip().upper() or None
+
+        s["_upstream_source_ids"] = [
+            str(x).strip()
+            for x in ensure_list(s.get("upstream_sources") or s.get("upstream_source_ids") or s.get("upstream_source_id"))
+            if x
+        ]
+
+        s["_independence_group"] = str(
+            s.get("independence_group")
+            or s.get("upstream_source_id")
+            or (s["_upstream_source_ids"][0] if s["_upstream_source_ids"] else None)
+            or s.get("publisher")
+            or s.get("organization")
+            or s.get("account")
+            or sid
+        ).strip().upper()
+
+        s["_first_seen"] = parse_dt(s.get("first_seen"))
+        s["_last_seen"] = parse_dt(s.get("last_seen"))
+        s["_known_history"] = s.get("known_history")
+        s["_bias_context"] = s.get("bias_context")
+        s["_limitations"] = ensure_list(s.get("limitations"))
+
+        if s["_first_seen"] and s["_last_seen"] and s["_last_seen"] < s["_first_seen"]:
+            add_flag(s, "timing_conflict")
+
+        sources[sid] = s
+
+    if not sources:
+        issues.append("No sources supplied")
+
+    return sources, issues
+
+
+def validate_contents(
+    case: Dict[str, Any],
+    sources: Dict[str, Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    contents: List[Dict[str, Any]] = []
+
+    raw = get_records(
+        case,
+        "contents",
+        "posts",
+        "articles",
+        "documents",
+        "public_videos",
+        "public_audio",
+        "social_posts",
+        "threads",
+    )
+
+    for idx, c in enumerate(raw):
+        cid = str(c.get("content_id") or c.get("post_id") or c.get("article_id") or c.get("id") or f"CONTENT-{idx + 1}").strip()
+        c["content_id"] = cid
+
+        c["_content_type"] = normalize_choice(c.get("content_type") or c.get("type"), CONTENT_TYPES, "UNKNOWN")
+        c["_platform"] = str(c.get("platform") or "").strip().upper() or None
+        c["_source_account"] = str(c.get("source_account") or c.get("account_id") or "").strip() or None
+
+        raw_url, norm_url, url_flags = normalize_url(c.get("source_url") or c.get("url"))
+        c["_source_url_original"] = raw_url
+        c["_source_url_normalized"] = norm_url
+        for f in url_flags:
+            add_flag(c, f)
+
+        text = c.get("content_text") or c.get("text") or c.get("body_text")
+        c["_content_text_present"] = bool(text)
+        c["_normalized_text_hash"] = c.get("normalized_fingerprint") or normalized_hash(text)
+        c["_content_hash"] = c.get("content_hash") or sha256_text(text)
+        c["_shingles"] = token_shingles(text, int(settings.get("shingle_size", 3))) if text else set()
+
+        c["_published_at"] = parse_dt(c.get("published_at") or c.get("publication_time"))
+        c["_observed_at"] = parse_dt(c.get("observed_at"))
+        c["_retrieved_at"] = parse_dt(c.get("retrieved_at"))
+        c["_event_time"] = parse_dt(c.get("event_time"))
+
+        c["_language"] = normalize_language(c.get("language"))
+        c["_parent_content_id"] = str(c.get("parent_content_id") or "").strip() or None
+        c["_repost_of"] = str(c.get("repost_of") or "").strip() or None
+        c["_quoted_content_id"] = str(c.get("quoted_content_id") or "").strip() or None
+        c["_linked_content_ids"] = [str(x).strip() for x in ensure_list(c.get("linked_content_ids")) if x]
+
+        c["_media_ids"] = [str(x).strip() for x in ensure_list(c.get("media_ids") or c.get("media")) if x]
+        c["_claim_ids"] = [str(x).strip() for x in ensure_list(c.get("claim_ids") or c.get("claims")) if x]
+        c["_source_ids"] = [str(x).strip() for x in ensure_list(c.get("source_ids") or c.get("source_id")) if x]
+        c["_evidence_ids"] = [str(x).strip() for x in ensure_list(c.get("evidence_ids") or c.get("evidence_id")) if x]
+        c["_hashtags"] = [str(x).strip().lower() for x in ensure_list(c.get("hashtags") or c.get("hashtag")) if x]
+
+        c["_stance"] = normalize_choice(c.get("stance"), STANCE, "UNCLEAR")
+
+        tags = get_tags(c)
+        c["_tags"] = tags
+        if tags & PRIVATE_TAGS:
+            add_flag(c, "private_access_boundary")
+            c["_source_account"] = "REDACTED"
+            c["_content_text_present"] = False
+            c["_normalized_text_hash"] = None
+            c["_content_hash"] = None
+            c["_shingles"] = set()
+
+        for sid in c["_source_ids"]:
+            if sid not in sources:
+                add_flag(c, "source_unknown")
+
+        if not c["_published_at"] and not c["_observed_at"] and not c["_retrieved_at"]:
+            add_flag(c, "missing_time")
+
+        contents.append(c)
+
+    if not contents:
+        issues.append("No content items supplied")
+
+    return contents, issues
+
+
+def validate_claims(
+    case: Dict[str, Any],
+    content_by_id: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    claims: List[Dict[str, Any]] = []
+
+    for idx, c in enumerate(get_records(case, "claims")):
+        cid = str(c.get("claim_id") or c.get("id") or f"CLAIM-{idx + 1}").strip()
+        c["claim_id"] = cid
+
+        content_id = str(c.get("content_id") or c.get("post_id") or c.get("article_id") or "").strip()
+        c["_content_id"] = content_id
+        if content_id and content_id not in content_by_id:
+            issues.append(f"claim {cid} references unknown content_id={content_id}")
+
+        c["_speaker_or_source"] = c.get("speaker_or_source") or c.get("speaker") or c.get("source")
+        c["_subject"] = normalize_name(c.get("subject"))
+        c["_predicate"] = normalize_name(c.get("predicate"))
+        c["_object"] = normalize_name(c.get("object"))
+        c["_time_reference"] = str(c.get("time_reference") or c.get("time") or "").strip() or None
+        c["_location_reference"] = str(c.get("location_reference") or c.get("location") or "").strip().upper() or None
+
+        c["_claim_type"] = normalize_choice(c.get("claim_type") or c.get("type"), CLAIM_TYPES, "UNKNOWN")
+        c["_claim_scope"] = normalize_choice(c.get("claim_scope") or c.get("scope"), CLAIM_SCOPES, "UNKNOWN")
+        c["_certainty_language"] = str(c.get("certainty_language") or c.get("certainty") or "").strip().upper() or None
+
+        c["_claim_summary"] = short_text(
+            c.get("claim_text_summary")
+            or c.get("claim_text")
+            or c.get("text")
+            or c.get("summary"),
+            260,
+        )
+
+        c["_numeric_value"] = to_float(c.get("numeric_value") or c.get("value"))
+        c["_numeric_unit"] = str(c.get("numeric_unit") or c.get("unit") or "").strip() or None
+
+        c["_evidence_ids"] = [str(x).strip() for x in ensure_list(c.get("evidence_ids") or c.get("evidence_id")) if x]
+        c["_source_ids"] = [str(x).strip() for x in ensure_list(c.get("source_ids") or c.get("source_id")) if x]
+
+        c["_supplied_verification_status"] = normalize_choice(
+            c.get("verification_status") or c.get("status"),
+            CLAIM_STATUSES,
+            "UNKNOWN",
+        )
+
+        c["_claim_key"] = semantic_claim_key(c)
+
+        claims.append(c)
+
+    if not claims:
+        issues.append("No claims supplied")
+
+    return claims, issues
+
+
+def validate_evidence(
+    case: Dict[str, Any],
+    sources: Dict[str, Dict[str, Any]],
+    content_by_id: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    evidence: List[Dict[str, Any]] = []
+
+    for idx, e in enumerate(get_records(case, "evidence", "known_evidence", "primary_evidence")):
+        eid = str(e.get("evidence_id") or e.get("id") or f"EVD-{idx + 1}").strip()
+        e["evidence_id"] = eid
+
+        e["_source_id"] = str(e.get("source_id") or "").strip() or None
+        if e["_source_id"] and e["_source_id"] not in sources:
+            add_flag(e, "source_unknown")
+
+        e["_content_id"] = str(e.get("content_id") or "").strip() or None
+        if e["_content_id"] and e["_content_id"] not in content_by_id:
+            issues.append(f"evidence {eid} references unknown content_id={e['_content_id']}")
+
+        e["_claim_ids"] = [str(x).strip() for x in ensure_list(e.get("claim_ids") or e.get("claim_id")) if x]
+        e["_evidence_type"] = str(e.get("evidence_type") or e.get("type") or "UNKNOWN").strip().upper()
+        e["_polarity"] = normalize_choice(
+            e.get("polarity") or e.get("supports_or_contradicts"),
+            EVIDENCE_POLARITY,
+            "UNKNOWN",
+        )
+        e["_statement"] = short_text(e.get("statement") or e.get("text") or e.get("summary"), 260)
+        e["_url_original"], e["_url_normalized"], url_flags = normalize_url(e.get("url"))
+        for f in url_flags:
+            add_flag(e, f)
+        e["_document_ref"] = e.get("document_ref")
+        e["_media_ref"] = e.get("media_ref")
+        e["_timestamp"] = parse_dt(e.get("timestamp") or e.get("observed_at") or e.get("published_at"))
+        e["_reliability"] = str(e.get("reliability") or sources.get(e.get("_source_id") or "", {}).get("_reliability") or "UNKNOWN").upper()
+        if e["_reliability"] not in {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}:
+            e["_reliability"] = "UNKNOWN"
+
+        evidence.append(e)
+
+    return evidence, issues
+
+
+def validate_media(case: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    media: List[Dict[str, Any]] = []
+    media_by_id: Dict[str, Dict[str, Any]] = {}
+
+    raw = get_records(case, "media", "images", "videos", "audio", "documents")
+
+    for idx, m in enumerate(raw):
+        mid = str(m.get("media_id") or m.get("id") or f"MEDIA-{idx + 1}").strip()
+        m["media_id"] = mid
+
+        m["_media_type"] = normalize_choice(m.get("media_type") or m.get("type"), MEDIA_TYPES, "UNKNOWN")
+        m["_url_original"], m["_url_normalized"], url_flags = normalize_url(m.get("url") or m.get("media_url"))
+        for f in url_flags:
+            add_flag(m, f)
+
+        m["_content_hash"] = m.get("content_hash")
+        m["_perceptual_hash"] = m.get("perceptual_hash")
+        m["_first_seen"] = parse_dt(m.get("first_seen") or m.get("earliest_upload_time"))
+        m["_original_upload_ref"] = m.get("original_upload_ref")
+        m["_original_event_time"] = parse_dt(m.get("original_event_time"))
+        m["_caption"] = short_text(m.get("caption"), 220)
+        m["_credit"] = m.get("credit")
+        m["_reuse_of_media_id"] = str(m.get("reuse_of_media_id") or m.get("reuse_of") or "").strip() or None
+        m["_stock_file_label"] = str(m.get("stock_file_label") or m.get("image_label") or "").strip().upper() or None
+
+        m["_authenticity_state"] = normalize_choice(
+            m.get("authenticity_state") or m.get("media_authenticity"),
+            MEDIA_AUTHENTICITY,
+            "INCONCLUSIVE",
+        )
+        m["_context_accuracy_state"] = normalize_choice(
+            m.get("context_accuracy_state") or m.get("media_context"),
+            MEDIA_CONTEXT,
+            "UNKNOWN",
+        )
+
+        m["_limitations"] = ensure_list(m.get("limitations"))
+        m["_recycled_context_candidate"] = False
+
+        media.append(m)
+        media_by_id[mid] = m
+
+    return media, media_by_id, issues
+
+
+def validate_quotes(
+    case: Dict[str, Any],
+    content_by_id: Dict[str, Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    quotes: List[Dict[str, Any]] = []
+
+    for idx, q in enumerate(get_records(case, "quotes")):
+        qid = str(q.get("quote_id") or q.get("id") or f"QUOTE-{idx + 1}").strip()
+        q["quote_id"] = qid
+
+        content_id = str(q.get("content_id") or "").strip()
+        q["_content_id"] = content_id
+        if content_id and content_id not in content_by_id:
+            issues.append(f"quote {qid} references unknown content_id={content_id}")
+
+        q["_speaker"] = q.get("speaker")
+        q["_quote_text"] = short_text(q.get("quote_text") or q.get("text"), 260)
+        q["_quote_text_hash"] = normalized_hash(q.get("quote_text") or q.get("text"))
+        q["_original_source_id"] = str(q.get("original_source_id") or q.get("source_id") or "").strip() or None
+        if q["_original_source_id"] and q["_original_source_id"] not in sources:
+            add_flag(q, "source_unknown")
+
+        q["_verification_state"] = normalize_choice(
+            q.get("verification_state") or q.get("state"),
+            QUOTE_STATES,
+            "UNVERIFIED",
+        )
+        q["_context_window"] = short_text(q.get("context_window") or q.get("context"), 300)
+        q["_is_translation"] = bool(q.get("translation"))
+
+        quotes.append(q)
+
+    return quotes, issues
+
+
+def validate_accounts(case: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    accounts: List[Dict[str, Any]] = []
+
+    for idx, a in enumerate(get_records(case, "accounts", "account_metadata")):
+        aid = str(a.get("account_id") or a.get("id") or f"ACC-{idx + 1}").strip()
+        a["account_id"] = aid
+
+        a["_platform"] = str(a.get("platform") or "").strip().upper() or None
+        a["_handle"] = str(a.get("handle") or a.get("username") or "").strip() or None
+        a["_display_name"] = a.get("display_name")
+        a["_created_at"] = parse_dt(a.get("created_at") or a.get("account_creation_time"))
+        a["_followers_count"] = to_float(a.get("followers_count") or a.get("followers"))
+        a["_posting_frequency_per_day"] = to_float(a.get("posting_frequency_per_day") or a.get("posting_frequency"))
+        a["_repetition_score"] = to_float(a.get("repetition_score"))
+        a["_automation_disclosed"] = bool(a.get("automation_disclosed"))
+        a["_takeover_candidate"] = bool(a.get("takeover_candidate"))
+        a["_limitations"] = ensure_list(a.get("limitations"))
+
+        tags = get_tags(a)
+        a["_tags"] = tags
+        if tags & PRIVATE_TAGS:
+            add_flag(a, "private_access_boundary")
+            for k in list(a.keys()):
+                lk = str(k).lower()
+                if any(x in lk for x in ("home", "private", "personal", "contact", "address", "phone", "family", "email")):
+                    a[k] = "REDACTED"
+
+        accounts.append(a)
+
+    return accounts, issues
+
+
+def validate_edges(
+    case: Dict[str, Any],
+    content_by_id: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    edges: List[Dict[str, Any]] = []
+
+    for idx, e in enumerate(get_records(case, "propagation_edges", "edges", "derivations")):
+        eid = str(e.get("edge_id") or e.get("id") or f"EDGE-{idx + 1}").strip()
+        e["edge_id"] = eid
+
+        from_id = str(e.get("from_content_id") or e.get("source_content_id") or "").strip()
+        to_id = str(e.get("to_content_id") or e.get("target_content_id") or "").strip()
+        e["_from_content_id"] = from_id
+        e["_to_content_id"] = to_id
+
+        if from_id and from_id not in content_by_id:
+            issues.append(f"edge {eid} references unknown from_content_id={from_id}")
+        if to_id and to_id not in content_by_id:
+            issues.append(f"edge {eid} references unknown to_content_id={to_id}")
+
+        e["_relation"] = normalize_choice(
+            e.get("relation") or e.get("type"),
+            {"REPOSTED", "QUOTED", "LINKED", "DERIVED_FROM", "MENTIONED", "OTHER", "UNKNOWN"},
+            "UNKNOWN",
+        )
+        e["_derivation_state"] = normalize_choice(e.get("derivation_state") or e.get("confidence"), DERIVATION_STATES, "UNKNOWN")
+        e["_time"] = parse_dt(e.get("time") or e.get("observed_at"))
+        e["_source_ids"] = [str(x).strip() for x in ensure_list(e.get("source_ids") or e.get("source_id")) if x]
+        e["_evidence_ids"] = [str(x).strip() for x in ensure_list(e.get("evidence_ids") or e.get("evidence_id")) if x]
+
+        edges.append(e)
+
+    return edges, issues
+
+
+def validate_coordination_signals(case: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    signals: List[Dict[str, Any]] = []
+
+    for idx, s in enumerate(get_records(case, "coordination_signals", "signals")):
+        sid = str(s.get("signal_id") or s.get("id") or f"SIG-{idx + 1}").strip()
+        s["signal_id"] = sid
+
+        s["_type"] = str(s.get("type") or s.get("signal_type") or "UNKNOWN").strip().upper()
+        s["_account_ids"] = [str(x).strip() for x in ensure_list(s.get("account_ids") or s.get("accounts")) if x]
+        s["_content_ids"] = [str(x).strip() for x in ensure_list(s.get("content_ids") or s.get("contents")) if x]
+        s["_time_window_start"] = parse_dt(s.get("time_window_start") or s.get("start_time"))
+        s["_time_window_end"] = parse_dt(s.get("time_window_end") or s.get("end_time"))
+        s["_strength"] = normalize_choice(s.get("strength"), {"WEAK", "MODERATE", "STRONG", "UNKNOWN"}, "UNKNOWN")
+        s["_state"] = normalize_choice(s.get("state"), COORDINATION_STATES, "UNKNOWN")
+        s["_source"] = s.get("source")
+        s["_description"] = short_text(s.get("description") or s.get("note"), 240)
+
+        if s["_time_window_start"] and s["_time_window_end"] and s["_time_window_end"] < s["_time_window_start"]:
+            add_flag(s, "timing_conflict")
+
+        signals.append(s)
+
+    return signals, issues
+
+
+def validate_narratives(case: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    narratives: List[Dict[str, Any]] = []
+
+    for idx, n in enumerate(get_records(case, "narratives")):
+        nid = str(n.get("narrative_id") or n.get("id") or f"NARR-{idx + 1}").strip()
+        n["narrative_id"] = nid
+
+        n["_summary"] = short_text(n.get("summary") or n.get("text"), 260)
+        n["_core_claim_ids"] = [str(x).strip() for x in ensure_list(n.get("core_claim_ids") or n.get("core_claims")) if x]
+        n["_supporting_claim_ids"] = [str(x).strip() for x in ensure_list(n.get("supporting_claim_ids") or n.get("supporting_claims")) if x]
+        n["_themes"] = [str(x).strip().upper() for x in ensure_list(n.get("themes")) if x]
+        n["_entities"] = [str(x).strip() for x in ensure_list(n.get("entities")) if x]
+        n["_keywords"] = [str(x).strip().lower() for x in ensure_list(n.get("keywords")) if x]
+        n["_content_ids"] = [str(x).strip() for x in ensure_list(n.get("content_ids") or n.get("contents")) if x]
+        n["_first_seen"] = parse_dt(n.get("first_seen"))
+        n["_last_seen"] = parse_dt(n.get("last_seen"))
+        n["_evolution_states"] = ensure_list(n.get("evolution_states"))
+
+        narratives.append(n)
+
+    return narratives, issues
+
+
+def validate_campaigns(
+    case: Dict[str, Any],
+    narrative_ids: Set[str],
+    signal_ids: Set[str],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    campaigns: List[Dict[str, Any]] = []
+
+    for idx, c in enumerate(get_records(case, "campaign_candidates", "campaigns")):
+        cid = str(c.get("campaign_id") or c.get("id") or f"CAMP-{idx + 1}").strip()
+        c["campaign_id"] = cid
+
+        c["_narrative_ids"] = [str(x).strip() for x in ensure_list(c.get("narrative_ids") or c.get("narratives")) if x]
+        c["_content_ids"] = [str(x).strip() for x in ensure_list(c.get("content_ids") or c.get("contents")) if x]
+        c["_account_ids"] = [str(x).strip() for x in ensure_list(c.get("account_ids") or c.get("accounts")) if x]
+        c["_platforms"] = [str(x).strip().upper() for x in ensure_list(c.get("platforms")) if x]
+        c["_infrastructure"] = ensure_list(c.get("infrastructure"))
+        c["_time_range"] = c.get("time_range")
+        c["_coordination_signal_ids"] = [str(x).strip() for x in ensure_list(c.get("coordination_signal_ids") or c.get("signals")) if x]
+        c["_attribution_state"] = normalize_choice(c.get("attribution_state"), ATTRIBUTION_STATES, "NO_ATTRIBUTION")
+        c["_actor_label"] = c.get("actor_label")
+        c["_intent_state"] = normalize_choice(c.get("intent_state"), INTENT_STATES, "INTENT_UNKNOWN")
+        c["_evidence_ids"] = [str(x).strip() for x in ensure_list(c.get("evidence_ids") or c.get("evidence_id")) if x]
+
+        for nid in c["_narrative_ids"]:
+            if nid not in narrative_ids:
+                issues.append(f"campaign {cid} references unknown narrative_id={nid}")
+        for sid in c["_coordination_signal_ids"]:
+            if sid not in signal_ids:
+                issues.append(f"campaign {cid} references unknown coordination_signal_id={sid}")
+
+        campaigns.append(c)
+
+    return campaigns, issues
+
+
+# -----------------------------------------------------------------------------
+# Deterministic analysis
+# -----------------------------------------------------------------------------
+
+def detect_duplicates(
+    contents: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    relationships: List[Dict[str, Any]] = []
+
+    for c in contents:
+        c["_duplicate_state"] = "UNKNOWN"
+        c["_duplicate_similarity"] = None
+
+    by_hash: Dict[str, List[str]] = defaultdict(list)
+    for c in contents:
+        if c.get("_normalized_text_hash"):
+            by_hash[c["_normalized_text_hash"]].append(c["content_id"])
+
+    for h, ids in by_hash.items():
+        if len(ids) > 1:
+            for cid in ids:
+                next(x for x in contents if x["content_id"] == cid)["_duplicate_state"] = "EXACT_DUPLICATE"
+            relationships.append(
+                {
+                    "type": "exact_duplicate",
+                    "normalized_text_hash": h,
+                    "content_ids": sorted(ids),
+                }
+            )
+
+    max_pairs = int(settings.get("max_near_duplicate_pairs", 5000))
+    light = float(settings.get("near_duplicate_light_threshold", 0.75))
+    partial = float(settings.get("near_duplicate_partial_threshold", 0.45))
+
+    comparable = [c for c in contents if c.get("_shingles")]
+    pairs = 0
+    for i in range(len(comparable)):
+        if pairs >= max_pairs:
+            break
+        a = comparable[i]
+        for j in range(i + 1, len(comparable)):
+            if pairs >= max_pairs:
+                break
+            b = comparable[j]
+            if a.get("_duplicate_state") == "EXACT_DUPLICATE" or b.get("_duplicate_state") == "EXACT_DUPLICATE":
+                continue
+            if a.get("_language") and b.get("_language") and a["_language"] != b["_language"]:
+                continue
+            sim = jaccard(a["_shingles"], b["_shingles"])
+            pairs += 1
+            if sim >= light:
+                state = "LIGHT_REWRITE"
+            elif sim >= partial:
+                state = "PARTIAL_OVERLAP"
+            else:
+                state = "DISTINCT"
+
+            if state != "DISTINCT":
+                for m in (a, b):
+                    if m["_duplicate_state"] in {"UNKNOWN", "DISTINCT"}:
+                        m["_duplicate_state"] = state
+                    m["_duplicate_similarity"] = max(m.get("_duplicate_similarity") or 0.0, sim)
+                relationships.append(
+                    {
+                        "type": "near_duplicate",
+                        "content_ids": [a["content_id"], b["content_id"]],
+                        "similarity": sim,
+                        "state": state,
+                    }
+                )
+            else:
+                for m in (a, b):
+                    if m["_duplicate_state"] == "UNKNOWN":
+                        m["_duplicate_state"] = "DISTINCT"
+
+    for c in contents:
+        if c.get("_parent_content_id") or c.get("_repost_of"):
+            if c["_duplicate_state"] in {"UNKNOWN", "DISTINCT"}:
+                c["_duplicate_state"] = "SYNDICATED_COPY"
+
+    return relationships
+
+
+def build_source_families(
+    contents: List[Dict[str, Any]],
+    content_by_id: Dict[str, Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    edges: List[Dict[str, Any]],
+) -> Dict[str, List[str]]:
+    dsu = DSU()
+
+    for c in contents:
+        dsu.find("C:" + c["content_id"])
+
+    for c in contents:
+        for rel in [c.get("_parent_content_id"), c.get("_repost_of"), c.get("_quoted_content_id")]:
+            if rel and rel in content_by_id:
+                dsu.union("C:" + c["content_id"], "C:" + rel)
+
+        for sid in c.get("_source_ids") or []:
+            if sid in sources:
+                dsu.union("C:" + c["content_id"], "S:" + sid)
+
+        for mid in c.get("_media_ids") or []:
+            dsu.union("C:" + c["content_id"], "M:" + mid)
+
+    for sid, s in sources.items():
+        for up in s.get("_upstream_source_ids") or []:
+            if up in sources:
+                dsu.union("S:" + sid, "S:" + up)
+
+    for q in quotes:
+        cid = q.get("_content_id")
+        osid = q.get("_original_source_id")
+        if cid in content_by_id and osid in sources:
+            dsu.union("C:" + cid, "S:" + osid)
+
+    for e in edges:
+        if e.get("_derivation_state") in {"SUPPORTED_DERIVATION", "POSSIBLE_DERIVATION"}:
+            frm = e.get("_from_content_id")
+            to = e.get("_to_content_id")
+            if frm in content_by_id and to in content_by_id:
+                dsu.union("C:" + frm, "C:" + to)
+
+    families_by_root: Dict[str, List[str]] = defaultdict(list)
+    for c in contents:
+        root = dsu.find("C:" + c["content_id"])
+        families_by_root[root].append(c["content_id"])
+
+    out: Dict[str, List[str]] = {}
+    for i, (root, ids) in enumerate(sorted(families_by_root.items(), key=lambda x: x[0]), 1):
+        fid = f"FAM-{i:04d}"
+        ids = sorted(ids)
+        out[fid] = ids
+        for cid in ids:
+            content_by_id[cid]["_source_family_id"] = fid
+
+    return out
+
+
+def analyze_source_independence(
+    claims: List[Dict[str, Any]],
+    content_by_id: Dict[str, Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+    results: List[Dict[str, Any]] = []
+    independence_map: Dict[str, str] = {}
+
+    for cl in claims:
+        cid = cl["claim_id"]
+        sup_contents = [c for c in content_by_id.values() if cid in c.get("_claim_ids", [])]
+        sup_evidence = [e for e in evidence if cid in e.get("_claim_ids", [])]
+
+        fams = {c.get("_source_family_id") for c in sup_contents if c.get("_source_family_id")}
+        groups: Set[str] = set()
+
+        for c in sup_contents:
+            for sid in c.get("_source_ids") or []:
+                grp = sources.get(sid, {}).get("_independence_group")
+                if grp:
+                    groups.add(grp)
+
+        for e in sup_evidence:
+            grp = sources.get(e.get("_source_id") or "", {}).get("_independence_group")
+            if grp:
+                groups.add(grp)
+
+        item_count = len(sup_contents) + len(sup_evidence)
+        family_count = len(fams)
+        group_count = len(groups)
+
+        if item_count == 0:
+            state = "UNKNOWN"
+        elif item_count == 1:
+            state = "SINGLE_SOURCE"
+        elif family_count <= 1 and group_count <= 1:
+            state = "DEPENDENT"
+        elif family_count >= 2 and group_count >= 2:
+            state = "INDEPENDENT"
+        else:
+            state = "PARTIALLY_DEPENDENT"
+
+        independence_map[cid] = state
+        results.append(
+            {
+                "claim_id": cid,
+                "supporting_content_count": len(sup_contents),
+                "supporting_evidence_count": len(sup_evidence),
+                "source_family_count": family_count,
+                "independence_group_count": group_count,
+                "independence_state": state,
+                "limitations": [
+                    "Independence is assessed from supplied pedigree and grouping metadata only.",
+                    "Multiple copies of one upstream source are not independent corroboration.",
+                ],
+            }
+        )
+
+    return results, independence_map
+
+
+def analyze_media_context(
+    media: List[Dict[str, Any]],
+    content_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    for m in media:
+        mid = m["media_id"]
+        related_contents = [c for c in content_by_id.values() if mid in c.get("_media_ids", [])]
+
+        for c in related_contents:
+            ref_time = c.get("_event_time") or c.get("_published_at") or c.get("_observed_at")
+            orig = m.get("_original_event_time") or m.get("_first_seen")
+            if orig and ref_time and orig < ref_time and not m.get("_stock_file_label"):
+                m["_recycled_context_candidate"] = True
+                if m.get("_context_accuracy_state") == "UNKNOWN":
+                    m["_context_accuracy_state"] = "RECYCLED_CONTEXT"
+
+
+def verify_claims(
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    content_by_id: Dict[str, Dict[str, Any]],
+    media_by_id: Dict[str, Dict[str, Any]],
+    independence_map: Dict[str, str],
+    settings: Dict[str, Any],
+) -> None:
+    for cl in claims:
+        cid = cl["claim_id"]
+        ctype = cl.get("_claim_type")
+
+        if ctype in {"OPINION", "VALUE_JUDGMENT", "PREDICTION", "RHETORICAL_STATEMENT"}:
+            cl["_verification_status"] = "NOT_A_FACTUAL_CLAIM"
+            continue
+
+        if ctype == "SATIRE":
+            cl["_verification_status"] = "SATIRE_OR_PARODY"
+            continue
+
+        supplied = cl.get("_supplied_verification_status")
+        if supplied and supplied != "UNKNOWN":
+            cl["_verification_status"] = supplied
+            continue
+
+        evs = [e for e in evidence if cid in e.get("_claim_ids", [])]
+        supports = [e for e in evs if e.get("_polarity") == "SUPPORTS" and e.get("_reliability") in {"HIGH", "MEDIUM"}]
+        contradicts = [e for e in evs if e.get("_polarity") == "CONTRADICTS" and e.get("_reliability") in {"HIGH", "MEDIUM"}]
+
+        sup_contents = [c for c in content_by_id.values() if cid in c.get("_claim_ids", [])]
+
+        media_context_bad = False
+        for c in sup_contents:
+            for mid in c.get("_media_ids") or []:
+                m = media_by_id.get(mid, {})
+                if m.get("_context_accuracy_state") in {"MISLEADING_CONTEXT", "FALSE_CONTEXT", "RECYCLED_CONTEXT"}:
+                    media_context_bad = True
+
+        outdated = any(
+            e.get("_evidence_type") in {"OUTDATED_DATA", "OLD_DATA", "ARCHIVE_RECORD"}
+            and e.get("_polarity") == "CONTRADICTS"
+            for e in evs
+        )
+
+        indep = independence_map.get(cid, "UNKNOWN")
+
+        if contradicts:
+            cl["_verification_status"] = "FALSE_SUPPORTED"
+        elif media_context_bad:
+            cl["_verification_status"] = "MISLEADING_CONTEXT"
+        elif outdated:
+            cl["_verification_status"] = "OUTDATED"
+        elif supports:
+            high_support = any(e.get("_reliability") == "HIGH" for e in supports)
+            if indep == "INDEPENDENT" and high_support:
+                cl["_verification_status"] = "SUPPORTED"
+            else:
+                cl["_verification_status"] = "PARTIALLY_SUPPORTED"
+        elif evs:
+            cl["_verification_status"] = "INCONCLUSIVE"
+        else:
+            cl["_verification_status"] = "UNSUPPORTED"
+
+        cl["_confidence"] = claim_confidence(cl["_verification_status"], indep)
+
+
+def claim_confidence(status: str, independence: str) -> str:
+    if status in {"SUPPORTED", "FALSE_SUPPORTED"} and independence in {"INDEPENDENT", "PARTIALLY_DEPENDENT"}:
+        return "HIGH"
+    if status in {"SUPPORTED", "PARTIALLY_SUPPORTED", "FALSE_SUPPORTED", "MISLEADING_CONTEXT", "OUTDATED"}:
+        return "MODERATE"
+    return "LOW"
+
+
+def analyze_coordination(
+    contents: List[Dict[str, Any]],
+    accounts: List[Dict[str, Any]],
+    edges: List[Dict[str, Any]],
+    supplied_signals: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> Dict[str, Any]:
+    computed: List[Dict[str, Any]] = []
+    window = max(1, int(settings.get("sync_minute_window", 5)))
+    min_items = max(2, int(settings.get("min_coordinated_items", 3)))
+
+    # Synchronized identical or near-identical text.
+    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for c in contents:
+        h = c.get("_normalized_text_hash")
+        dt = c.get("_published_at") or c.get("_observed_at")
+        if not h or not dt:
+            continue
+        minute = (dt.minute // window) * window
+        bucket = dt.replace(minute=minute, second=0, microsecond=0)
+        groups[(h, bucket)].append(c)
+
+    for (h, bucket), items in groups.items():
+        if len(items) < min_items:
+            continue
+        accts = {c.get("_source_account") or c["content_id"] for c in items}
+        plats = {c.get("_platform") for c in items if c.get("_platform")}
+        if len(accts) < 2:
+            continue
+        strength = "STRONG" if len(accts) >= 5 or len(items) >= 10 else "MODERATE"
+        computed.append(
+            {
+                "signal_id": f"COMP-SYNC-{len(computed) + 1}",
+                "type": "SYNCHRONIZED_IDENTICAL_TEXT",
+                "content_ids": sorted(c["content_id"] for c in items),
+                "account_ids": sorted(a for a in accts if a),
+                "platforms": sorted(p for p in plats if p),
+                "time_bucket": bucket.isoformat(),
+                "normalized_text_hash": h,
+                "strength": strength,
+                "source": "computed_from_supplied_content_metadata",
+                "limitations": [
+                    "Synchronized identical text may also arise from wire copy, press release, scheduled posting, or common source.",
+                    "This is a coordination signal, not proof of inauthentic behavior.",
+                ],
+            }
+        )
+
+    # Same media reused across accounts.
+    media_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for c in contents:
+        for mid in c.get("_media_ids") or []:
+            media_groups[mid].append(c)
+
+    for mid, items in media_groups.items():
+        if len(items) < min_items:
+            continue
+        accts = {c.get("_source_account") or c["content_id"] for c in items}
+        if len(accts) < 2:
+            continue
+        strength = "STRONG" if len(accts) >= 5 or len(items) >= 10 else "MODERATE"
+        computed.append(
+            {
+                "signal_id": f"COMP-MEDIA-{len(computed) + 1}",
+                "type": "SAME_MEDIA_ACROSS_ACCOUNTS",
+                "media_id": mid,
+                "content_ids": sorted(c["content_id"] for c in items),
+                "account_ids": sorted(a for a in accts if a),
+                "strength": strength,
+                "source": "computed_from_supplied_media_references",
+                "limitations": [
+                    "Shared media may be legitimate news imagery, public footage, or widely syndicated content.",
+                    "This is a coordination signal, not proof of campaign or intent.",
+                ],
+            }
+        )
+
+    # Account creation clusters.
+    created_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for a in accounts:
+        dt = a.get("_created_at")
+        if dt:
+            created_groups[dt.date().isoformat()].append(a)
+
+    for day, items in created_groups.items():
+        if len(items) >= min_items:
+            computed.append(
+                {
+                    "signal_id": f"COMP-CREATE-{len(computed) + 1}",
+                    "type": "ACCOUNT_CREATION_CLUSTER",
+                    "date": day,
+                    "account_ids": sorted(a["account_id"] for a in items),
+                    "strength": "MODERATE" if len(items) < 10 else "STRONG",
+                    "source": "computed_from_supplied_account_metadata",
+                    "limitations": [
+                        "Account creation clusters can arise from legitimate signups, platform events, or batch provisioning.",
+                        "This is not proof of sockpuppets or coordinated inauthentic behavior.",
+                    ],
+                }
+            )
+
+    all_signals = computed + [
+        {
+            "signal_id": s.get("signal_id"),
+            "type": s.get("_type"),
+            "account_ids": s.get("_account_ids"),
+            "content_ids": s.get("_content_ids"),
+            "time_window_start": iso_or_none(s.get("_time_window_start")),
+            "time_window_end": iso_or_none(s.get("_time_window_end")),
+            "strength": s.get("_strength"),
+            "state": s.get("_state"),
+            "source": s.get("_source"),
+            "description": s.get("_description"),
+            "limitations": ["Supplied coordination signal; preserve source and evidence."],
+        }
+        for s in supplied_signals
+    ]
+
+    supplied_states = {s.get("state") for s in all_signals if s.get("state") in COORDINATION_STATES}
+    strong_count = sum(1 for s in all_signals if s.get("strength") == "STRONG")
+
+    if "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED" in supplied_states:
+        status = "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED"
+    elif "COORDINATED_ACTIVITY_SUPPORTED" in supplied_states:
+        status = "COORDINATED_ACTIVITY_SUPPORTED"
+    elif strong_count >= 2:
+        status = "COORDINATED_ACTIVITY_CANDIDATE"
+    elif all_signals:
+        status = "COORDINATION_SIGNALS"
+    else:
+        status = "NO_COORDINATION_EVIDENCE"
+
+    return {
+        "status": status,
+        "signals": all_signals,
+        "computed_signal_count": len(computed),
+        "supplied_signal_count": len(supplied_signals),
+        "limitations": [
+            "Coordination signals do not prove inauthenticity.",
+            "Legitimate newsrooms, campaigns, emergency communicators, and marketing teams may coordinate.",
+            "No bot-network, sockpuppet-network, or influence-operation design is supported.",
+        ],
+    }
+
+
+def analyze_bot_like(
+    accounts: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    freq_threshold = float(settings.get("bot_frequency_threshold", 50.0))
+    rep_threshold = float(settings.get("bot_repetition_threshold", 0.8))
+
+    for a in accounts:
+        freq = a.get("_posting_frequency_per_day")
+        rep = a.get("_repetition_score")
+
+        if a.get("_automation_disclosed"):
+            state = "AUTOMATION_DISCLOSED"
+        elif a.get("_takeover_candidate"):
+            state = "INCONCLUSIVE"
+            add_flag(a, "possible_account_takeover")
+        elif freq is not None and rep is not None and freq >= freq_threshold and rep >= rep_threshold:
+            state = "BOT_LIKE_BEHAVIOR_CANDIDATE"
+        else:
+            state = "NO_BOT_LIKE_EVIDENCE"
+
+        out.append(
+            {
+                "account_id": a.get("account_id"),
+                "platform": a.get("_platform"),
+                "state": state,
+                "posting_frequency_per_day": freq,
+                "repetition_score": rep,
+                "automation_disclosed": a.get("_automation_disclosed"),
+                "takeover_candidate": a.get("_takeover_candidate"),
+                "quality_flags": a.get("_quality_flags"),
+                "limitations": [
+                    "Bot-like behavior is not bot confirmation.",
+                    "Automation can be legitimate: news feeds, alerts, public services, customer support.",
+                    "No bot-detection evasion or fake-account operation is supported.",
+                ],
+            }
+        )
+
+    return out
+
+
+def analyze_intent(
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    campaigns: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    direct_high = [
+        e
+        for e in evidence
+        if e.get("_evidence_type") in DIRECT_INTENT_EVIDENCE_TYPES
+        and e.get("_polarity") == "SUPPORTS"
+        and e.get("_reliability") == "HIGH"
+    ]
+    direct_medium = [
+        e
+        for e in evidence
+        if e.get("_evidence_type") in DIRECT_INTENT_EVIDENCE_TYPES
+        and e.get("_polarity") == "SUPPORTS"
+        and e.get("_reliability") == "MEDIUM"
+    ]
+
+    state = "INTENT_UNKNOWN"
+    if direct_high:
+        state = "DECEPTIVE_INTENT_SUPPORTED"
+    elif direct_medium:
+        state = "DECEPTIVE_INTENT_CANDIDATE"
+
+    for c in campaigns:
+        supplied = c.get("_intent_state")
+        if supplied and intent_rank(supplied) > intent_rank(state):
+            state = supplied
+
+    return {
+        "state": state,
+        "direct_intent_evidence_ids": [e.get("evidence_id") for e in direct_high + direct_medium],
+        "limitations": [
+            "Deceptive intent is not inferred from falsity alone.",
+            "Correction failure, repetition, bias, or coordination signals are not sufficient for intent.",
+            "Intent assessment requires direct evidence such as admission, planning artifact, internal document, court/regulatory/platform finding, or demonstrated knowledge-of-falsity.",
+        ],
+    }
+
+
+def analyze_attribution(
+    campaigns: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    accounts: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
+    attr_high = [
+        e
+        for e in evidence
+        if e.get("_evidence_type") in ATTRIBUTION_EVIDENCE_TYPES
+        and e.get("_polarity") == "SUPPORTS"
+        and e.get("_reliability") == "HIGH"
+    ]
+    attr_medium = [
+        e
+        for e in evidence
+        if e.get("_evidence_type") in ATTRIBUTION_EVIDENCE_TYPES
+        and e.get("_polarity") == "SUPPORTS"
+        and e.get("_reliability") == "MEDIUM"
+    ]
+
+    state = "NO_ATTRIBUTION"
+    if attr_high:
+        state = "SUPPORTED"
+    elif attr_medium:
+        state = "POSSIBLE"
+
+    source_reported = any(c.get("_actor_label") for c in campaigns)
+    if source_reported and attribution_rank(state) < attribution_rank("SOURCE_ATTRIBUTED"):
+        state = "SOURCE_ATTRIBUTED"
+
+    for c in campaigns:
+        supplied = c.get("_attribution_state")
+        if supplied and attribution_rank(supplied) > attribution_rank(state):
+            state = supplied
+
+    return {
+        "state": state,
+        "attribution_evidence_ids": [e.get("evidence_id") for e in attr_high + attr_medium],
+        "campaign_actor_labels_as_source_claims": [
+            {
+                "campaign_id": c.get("campaign_id"),
+                "actor_label": c.get("_actor_label"),
+                "note": "Preserved as source-reported label only, not independent attribution.",
+            }
+            for c in campaigns
+            if c.get("_actor_label")
+        ],
+        "limitations": [
+            "Language, timezone, TLD, hosting country, CDN, VPN, hashtag use, narrative similarity, or account clustering alone do not establish actor identity.",
+            "Real-world attribution requires strong independent evidence and human review.",
+            "No state, government, or organization attribution is asserted without evidence.",
+        ],
+    }
+
+
+def detect_contradictions(
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    contents: List[Dict[str, Any]],
+    initial_contradictions: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    contradictions = list(initial_contradictions)
+
+    # Numeric claim conflicts.
+    tol = float(settings.get("numeric_relative_tolerance", 0.05))
+    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for c in claims:
+        if c.get("_numeric_value") is None:
+            continue
+        key = (
+            c.get("_subject"),
+            c.get("_predicate"),
+            c.get("_object"),
+            c.get("_time_reference"),
+            c.get("_location_reference"),
+            c.get("_numeric_unit"),
+        )
+        groups[key].append(c)
+
+    for key, cs in groups.items():
+        if len(cs) < 2:
+            continue
+        vals = [float(x["_numeric_value"]) for x in cs if x.get("_numeric_value") is not None]
+        if not vals:
+            continue
+        lo, hi = min(vals), max(vals)
+        scale = max(abs(lo), abs(hi), 1e-9)
+        if (hi - lo) / scale > tol:
+            for c in cs:
+                add_flag(c, "numeric_contradiction")
+            contradictions.append(
+                {
+                    "type": "numeric_claim_conflict",
+                    "subject": key[0],
+                    "predicate": key[1],
+                    "object": key[2],
+                    "time_reference": key[3],
+                    "location_reference": key[4],
+                    "unit": key[5],
+                    "claim_ids": [c.get("claim_id") for c in cs],
+                    "values": vals,
+                    "note": "Numeric claims conflict; preserve definitions, time snapshots, and sources rather than averaging.",
+                }
+            )
+
+    # Quote speaker conflicts.
+    by_quote_hash: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for q in quotes:
+        if q.get("_quote_text_hash"):
+            by_quote_hash[q["_quote_text_hash"]].append(q)
+
+    for h, qs in by_quote_hash.items():
+        if len(qs) < 2:
+            continue
+        speakers = {normalize_name(q.get("_speaker")) for q in qs if q.get("_speaker")}
+        if len(speakers) > 1:
+            for q in qs:
+                add_flag(q, "quote_speaker_conflict")
+            contradictions.append(
+                {
+                    "type": "quote_speaker_conflict",
+                    "quote_text_hash": h,
+                    "quote_ids": [q.get("quote_id") for q in qs],
+                    "speakers": sorted(s for s in speakers if s),
+                    "note": "Same quoted text attributed to different speakers in supplied records.",
+                }
+            )
+
+    # Media authenticity vs context separation is not automatically contradiction,
+    # but false context with authentic media is recorded as misleading context.
+    for m in media:
+        if m.get("_authenticity_state") == "AUTHENTIC_MEDIA_SUPPORTED" and m.get("_context_accuracy_state") in {
+            "MISLEADING_CONTEXT",
+            "FALSE_CONTEXT",
+            "RECYCLED_CONTEXT",
+        }:
+            contradictions.append(
+                {
+                    "type": "authentic_media_false_context",
+                    "media_id": m.get("media_id"),
+                    "authenticity_state": m.get("_authenticity_state"),
+                    "context_accuracy_state": m.get("_context_accuracy_state"),
+                    "note": "Media may be genuine while caption/date/location/event association is false or misleading.",
+                }
+            )
+
+    return contradictions
+
+
+def build_hypotheses(
+    claims: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    intent: Dict[str, Any],
+    attribution: Dict[str, Any],
+    media: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    hypotheses: List[Dict[str, Any]] = []
+    ach_matrix: List[Dict[str, Any]] = []
+
+    problematic = [
+        c
+        for c in claims
+        if c.get("_verification_status") in {
+            "FALSE_SUPPORTED",
+            "MISLEADING_CONTEXT",
+            "UNSUPPORTED",
+            "INCONCLUSIVE",
+            "DISPUTED",
+            "OUTDATED",
+        }
+    ]
+
+    for idx, cl in enumerate(problematic, 1):
+        cid = cl["claim_id"]
+        status = cl.get("_verification_status")
+        base = {
+            "hypothesis_set_id": f"HSET-{idx}",
+            "claim_id": cid,
+            "claim_status": status,
+        }
+
+        options = [
+            ("H1", "factual misunderstanding or incorrect inference"),
+            ("H2", "outdated information reused as current"),
+            ("H3", "satire or parody misread as fact"),
+            ("H4", "genuine media with false or misleading context"),
+            ("H5", "coordinated campaign or inauthentic amplification"),
+            ("H6", "independent organic adoption of a popular narrative"),
+        ]
+
+        for hid, desc in options:
+            consistency: List[str] = []
+
+            if hid == "H1":
+                if status in {"UNSUPPORTED", "INCONCLUSIVE"}:
+                    consistency.append("CONSISTENT: claim lacks strong evidence")
+                if intent.get("state") in {"DECEPTIVE_INTENT_SUPPORTED", "DECEPTIVE_INTENT_STRONGLY_SUPPORTED"}:
+                    consistency.append("INCONSISTENT: direct deceptive-intent evidence present")
+
+            if hid == "H2":
+                if status == "OUTDATED" or any(m.get("_recycled_context_candidate") for m in media):
+                    consistency.append("CONSISTENT: outdated/recycled context indicators present")
+                if status == "FALSE_SUPPORTED":
+                    consistency.append("NEUTRAL: falsity may be due to outdated data or other cause")
+
+            if hid == "H3":
+                if cl.get("_claim_type") == "SATIRE":
+                    consistency.append("CONSISTENT: claim typed as satire in supplied records")
+                if status == "FALSE_SUPPORTED":
+                    consistency.append("INCONSISTENT: strong contradicting evidence suggests factual claim, not only satire")
+
+            if hid == "H4":
+                if any(
+                    m.get("_authenticity_state") == "AUTHENTIC_MEDIA_SUPPORTED"
+                    and m.get("_context_accuracy_state") in {"MISLEADING_CONTEXT", "FALSE_CONTEXT", "RECYCLED_CONTEXT"}
+                    for m in media
+                ):
+                    consistency.append("CONSISTENT: authentic media with misleading context supplied")
+                if any(m.get("_authenticity_state") in {"SYNTHETIC_CANDIDATE", "AI_GENERATED_CANDIDATE"} for m in media):
+                    consistency.append("INCONSISTENT: media authenticity is not supported as genuine")
+
+            if hid == "H5":
+                if coordination.get("status") in {
+                    "COORDINATED_ACTIVITY_CANDIDATE",
+                    "COORDINATED_ACTIVITY_SUPPORTED",
+                    "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED",
+                }:
+                    consistency.append("CONSISTENT: coordination signals or source-reported coordinated activity present")
+                else:
+                    consistency.append("INCONSISTENT OR WEAK: no sufficient coordination evidence supplied")
+                if attribution.get("state") in {"NO_ATTRIBUTION", "SOURCE_ATTRIBUTED"}:
+                    consistency.append("UNKNOWN: actor attribution unresolved")
+
+            if hid == "H6":
+                if coordination.get("status") in {"NO_COORDINATION_EVIDENCE", "COORDINATION_SIGNALS"}:
+                    consistency.append("CONSISTENT: organic adoption remains plausible")
+                if coordination.get("status") in {"COORDINATED_ACTIVITY_SUPPORTED", "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED"}:
+                    consistency.append("INCONSISTENT: coordination evidence weakens purely organic explanation")
+
+            hypotheses.append(
+                {
+                    **base,
+                    "hypothesis_id": f"{cid}-{hid}",
+                    "statement": f"{cl.get('_claim_summary') or cid}: {desc}.",
+                    "evidence_consistency": consistency or ["UNKNOWN: insufficient supplied evidence"],
+                    "falsification_conditions": [
+                        "Primary evidence contradicts this explanation.",
+                        "Source pedigree shows independent corroboration or exclusion.",
+                        "Media/quote/context specialist evidence resolves the mechanism.",
+                    ],
+                }
+            )
+
+            ach_matrix.append(
+                {
+                    "claim_id": cid,
+                    "hypothesis_id": f"{cid}-{hid}",
+                    "evidence_consistency": consistency or ["UNKNOWN"],
+                }
+            )
+
+    return hypotheses, ach_matrix
+
+
+def build_facts(
+    contents: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    bot_like: List[Dict[str, Any]],
+    intent: Dict[str, Any],
+    attribution: Dict[str, Any],
+    contradictions: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> Tuple[
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[str],
+]:
+    supported: List[Dict[str, Any]] = []
+    candidates: List[Dict[str, Any]] = []
+    partial: List[Dict[str, Any]] = []
+    disputed: List[Dict[str, Any]] = []
+    false_supported_claims: List[Dict[str, Any]] = []
+    misleading_context_claims: List[Dict[str, Any]] = []
+
+    not_facts = [
+        "False claim is not automatically disinformation.",
+        "Unsupported claim is not automatically false.",
+        "Disagreement is not automatically misinformation.",
+        "Opinion is not automatically a factual claim.",
+        "Satire is not automatically disinformation.",
+        "AI-generated content is not automatically disinformation.",
+        "Edited media is not automatically fake media.",
+        "Genuine media is not automatically true caption/context.",
+        "Old media is not automatically fake media.",
+        "Virality is not automatically coordination.",
+        "Coordination is not automatically inauthenticity.",
+        "Automation is not automatically maliciousness.",
+        "Bot-like behavior is not automatically bot confirmation.",
+        "Shared narrative is not automatically same actor.",
+        "Shared hashtag is not automatically campaign membership.",
+        "Same language is not automatically same nationality.",
+        "Timezone is not automatically physical location.",
+        "Hosting country is not automatically actor country.",
+        "Account is not automatically real person.",
+        "Repost is not automatically endorsement.",
+        "Quoting is not automatically endorsement.",
+        "Platform moderation is not automatically factual guilt.",
+        "Deleted content is not automatically admission.",
+        "Multiple copies are not automatically independent corroboration.",
+        "Model agreement is not automatically source corroboration.",
+        "Claim falsity is not automatically deceptive intent.",
+        "Campaign cluster is not automatically real-world actor.",
+        "Source bias is not automatically falsehood.",
+        "No disinformation, propaganda, influence operation, bot network, targeting, harassment, or source deanonymization is supported.",
+    ]
+
+    for c in contents:
+        candidates.append(
+            {
+                "fact_id": f"FCT-CONTENT-{len(supported) + len(candidates) + len(partial) + 1}",
+                "statement": (
+                    f"Content {c.get('content_id')} was observed/published on platform "
+                    f"{c.get('_platform') or 'UNKNOWN'} by account/source {c.get('_source_account') or c.get('_source_ids')} "
+                    f"at {iso_or_none(c.get('_published_at') or c.get('_observed_at'))} with normalized hash "
+                    f"{c.get('_normalized_text_hash')}."
+                ),
+                "content_id": c.get("content_id"),
+                "confidence": "MODERATE",
+                "limitation": "This is a content-observation fact, not verification of the content's claims.",
+            }
+        )
+
+    for cl in claims:
+        status = cl.get("_verification_status")
+        stmt = (
+            f"Claim {cl.get('claim_id')} is classified {status}: "
+            f"{short_text(cl.get('_claim_summary'), 180)}"
+        )
+        fact = {
+            "fact_id": f"FCT-CLAIM-{len(supported) + len(candidates) + len(partial) + 1}",
+            "statement": stmt,
+            "claim_id": cl.get("claim_id"),
+            "verification_status": status,
+            "independence_state": cl.get("_independence_state"),
+            "confidence": cl.get("_confidence", "LOW"),
+            "limitation": "Claim status describes evidence state, not automatic truth, intent, or actor attribution.",
+        }
+
+        if status == "FALSE_SUPPORTED":
+            false_supported_claims.append(fact)
+            disputed.append(fact)
+        elif status == "MISLEADING_CONTEXT":
+            misleading_context_claims.append(fact)
+            disputed.append(fact)
+        elif status in {"SUPPORTED", "PARTIALLY_SUPPORTED"}:
+            candidates.append(fact)
+        else:
+            partial.append(fact)
+
+    for e in evidence:
+        partial.append(
+            {
+                "fact_id": f"FCT-EVD-{len(partial) + 1}",
+                "statement": (
+                    f"Evidence {e.get('evidence_id')} from source {e.get('_source_id')} is "
+                    f"{e.get('_polarity')} for claims {e.get('_claim_ids')}."
+                ),
+                "evidence_id": e.get("evidence_id"),
+                "confidence": "MODERATE" if e.get("_reliability") in {"HIGH", "MEDIUM"} else "LOW",
+                "limitation": "Evidence record must be inspected; metadata alone does not prove claim truth.",
+            }
+        )
+
+    for m in media:
+        partial.append(
+            {
+                "fact_id": f"FCT-MEDIA-{len(partial) + 1}",
+                "statement": (
+                    f"Media {m.get('media_id')} has supplied authenticity state "
+                    f"{m.get('_authenticity_state')} and context state {m.get('_context_accuracy_state')}."
+                ),
+                "media_id": m.get("media_id"),
+                "confidence": "MODERATE" if m.get("_authenticity_state") != "INCONCLUSIVE" else "LOW",
+                "limitation": "MEDIAINT/DISINFOINT does not independently declare media authentic, edited, or synthetic without specialist evidence.",
+            }
+        )
+
+    for q in quotes:
+        partial.append(
+            {
+                "fact_id": f"FCT-QUOTE-{len(partial) + 1}",
+                "statement": f"Quote {q.get('quote_id')} has supplied verification state {q.get('_verification_state')}.",
+                "quote_id": q.get("quote_id"),
+                "confidence": "MODERATE" if q.get("_verification_state") in {"VERBATIM_VERIFIED", "MISQUOTED", "CONTEXT_TRUNCATED"} else "LOW",
+                "limitation": "Screenshot or repost is not primary quote evidence.",
+            }
+        )
+
+    candidates.append(
+        {
+            "fact_id": f"FCT-COORD-{len(candidates) + 1}",
+            "statement": f"Coordination assessment state: {coordination.get('status')}.",
+            "confidence": "MODERATE" if coordination.get("status") != "NO_COORDINATION_EVIDENCE" else "LOW",
+            "limitation": "Coordination signals are not proof of inauthentic behavior, campaign, intent, or actor.",
+        }
+    )
+
+    partial.append(
+        {
+            "fact_id": f"FCT-INTENT-{len(partial) + 1}",
+            "statement": f"Deceptive intent state: {intent.get('state')}.",
+            "confidence": "LOW",
+            "limitation": "Intent is not inferred from falsity, repetition, correction failure, bias, or coordination alone.",
+        }
+    )
+
+    partial.append(
+        {
+            "fact_id": f"FCT-ATTR-{len(partial) + 1}",
+            "statement": f"Actor attribution state: {attribution.get('state')}.",
+            "confidence": "LOW",
+            "limitation": "Attribution requires strong independent evidence; language/timezone/hosting/hashtag/narrative similarity are insufficient.",
+        }
+    )
+
+    for b in bot_like:
+        if b.get("state") == "BOT_LIKE_BEHAVIOR_CANDIDATE":
+            partial.append(
+                {
+                    "fact_id": f"FCT-BOT-{len(partial) + 1}",
+                    "statement": f"Account {b.get('account_id')} has bot-like behavior candidate state.",
+                    "confidence": "LOW",
+                    "limitation": "Bot-like behavior is not bot confirmation and may be automated legitimate service.",
+                }
+            )
+
+    for c in contradictions:
+        disputed.append(
+            {
+                "disputed_id": f"DIS-{len(disputed) + 1}",
+                "type": c.get("type"),
+                "statement": "Material information-integrity contradiction present; do not silently resolve.",
+                "details": c,
+            }
+        )
+
+    return supported, candidates, partial, disputed, false_supported_claims, misleading_context_claims, not_facts
+
+
+def dual_ai_review(
+    contents: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    intent: Dict[str, Any],
+    attribution: Dict[str, Any],
+    issues: List[str],
+) -> Dict[str, Any]:
+    primary = {
+        "role": "Primary Information Integrity Analyst",
+        "assessment": (
+            "Content, claim, evidence, source, media, and/or propagation records exist."
+            if contents or claims
+            else "No usable information-integrity records were supplied."
+        ),
+        "classification": "Claim verification, source independence, coordination, intent, and attribution remain conservative and evidence-bounded.",
+    }
+
+    if not contents and not claims:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "INSUFFICIENT_EVIDENCE",
+            "reason": "No deterministic content/claim/evidence records were supplied. Do not infer campaigns, actors, intent, or falsity from narrative.",
+        }
+    elif issues:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Validation issues require downgraded confidence.",
+        }
+    elif contradictions:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Contradictions must be preserved; do not silently resolve claim, source, quote, numeric, or media-context conflicts.",
+        }
+    elif intent.get("state") == "INTENT_UNKNOWN" and coordination.get("status") in {"COORDINATION_SIGNALS", "COORDINATED_ACTIVITY_CANDIDATE"}:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Coordination signals may exist, but deceptive intent and inauthenticity remain unresolved.",
+        }
+    elif attribution.get("state") in {"NO_ATTRIBUTION", "SOURCE_ATTRIBUTED"}:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "AGREE_ON_EVIDENCE_BOUNDED_ASSESSMENT_ONLY",
+            "reason": "Records may support claim/source/media/propagation assessment only, not actor attribution or disinformation adjudication.",
+        }
+    else:
+        skeptic = {
+            "role": "Independent Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Single-source or incomplete metadata supports candidate information-integrity context only.",
+        }
+
+    return {
+        "primary": primary,
+        "skeptic": skeptic,
+        "comparison": skeptic.get("verdict", "INSUFFICIENT_EVIDENCE"),
+        "note": "Rule-based dual-review scaffold. AI agreement is not source corroboration. Humans govern consequential attribution/action.",
+    }
+
+
+def build_graph(
+    sources: Dict[str, Dict[str, Any]],
+    contents: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    accounts: List[Dict[str, Any]],
+    edges: List[Dict[str, Any]],
+    families: Dict[str, List[str]],
+    narratives: List[Dict[str, Any]],
+    campaigns: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    facts: List[Dict[str, Any]],
+    hypotheses: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    graph_edges: List[Dict[str, Any]] = []
+
+    def add_node(node_id: str, node_type: str, props: Dict[str, Any]) -> None:
+        if not node_id:
+            return
+        if any(n.get("id") == node_id for n in nodes):
+            return
+        nodes.append({"id": node_id, "type": node_type, "properties": props})
+
+    def add_edge(src: str, dst: str, rel: str, props: Dict[str, Any]) -> None:
+        if not src or not dst:
+            return
+        graph_edges.append({"from": src, "to": dst, "type": rel, "properties": props})
+
+    for sid, s in sources.items():
+        add_node(sid, "Source", public_dict(s))
+
+    for c in contents:
+        cid = c.get("content_id")
+        add_node(
+            cid,
+            "Content",
+            {
+                "content_type": c.get("_content_type"),
+                "platform": c.get("_platform"),
+                "source_account": c.get("_source_account"),
+                "published_at": iso_or_none(c.get("_published_at")),
+                "normalized_text_hash": c.get("_normalized_text_hash"),
+                "source_family_id": c.get("_source_family_id"),
+                "duplicate_state": c.get("_duplicate_state"),
+                "stance": c.get("_stance"),
+                "quality_flags": c.get("_quality_flags"),
+            },
+        )
+        for sid in c.get("_source_ids") or []:
+            add_edge(cid, sid, "PUBLISHED_BY", {"content_id": cid})
+        for mid in c.get("_media_ids") or []:
+            add_edge(cid, mid, "USES_MEDIA", {"content_id": cid})
+        if c.get("_parent_content_id"):
+            add_edge(cid, c["_parent_content_id"], "DERIVED_FROM", {"content_id": cid})
+        if c.get("_repost_of"):
+            add_edge(cid, c["_repost_of"], "REPOSTS", {"content_id": cid})
+        if c.get("_quoted_content_id"):
+            add_edge(cid, c["_quoted_content_id"], "QUOTES", {"content_id": cid})
+        if c.get("_source_family_id"):
+            add_edge(cid, c["_source_family_id"], "BELONGS_TO_SOURCE_FAMILY", {"content_id": cid})
+
+    for fid, ids in families.items():
+        add_node(fid, "SourceFamily", {"content_ids": ids})
+        for cid in ids:
+            add_edge(cid, fid, "BELONGS_TO_SOURCE_FAMILY", {"family_id": fid})
+
+    for cl in claims:
+        cid = cl.get("claim_id")
+        add_node(
+            cid,
+            "Claim",
+            {
+                "content_id": cl.get("_content_id"),
+                "claim_type": cl.get("_claim_type"),
+                "verification_status": cl.get("_verification_status"),
+                "independence_state": cl.get("_independence_state"),
+                "summary": cl.get("_claim_summary"),
+                "quality_flags": cl.get("_quality_flags"),
+            },
+        )
+        if cl.get("_content_id"):
+            add_edge(cid, cl["_content_id"], "MADE_IN", {"claim_id": cid})
+        for eid in cl.get("_evidence_ids") or []:
+            add_edge(cid, eid, "SUPPORTED_BY_CANDIDATE", {"claim_id": cid})
+
+    for e in evidence:
+        eid = e.get("evidence_id")
+        add_node(
+            eid,
+            "Evidence",
+            {
+                "source_id": e.get("_source_id"),
+                "content_id": e.get("_content_id"),
+                "claim_ids": e.get("_claim_ids"),
+                "polarity": e.get("_polarity"),
+                "evidence_type": e.get("_evidence_type"),
+                "reliability": e.get("_reliability"),
+            },
+        )
+        if e.get("_source_id"):
+            add_edge(eid, e["_source_id"], "SUPPORTED_BY", {"evidence_id": eid})
+        for cid in e.get("_claim_ids") or []:
+            rel = "CONTRADICTS" if e.get("_polarity") == "CONTRADICTS" else "SUPPORTS" if e.get("_polarity") == "SUPPORTS" else "NEUTRAL_TO"
+            add_edge(eid, cid, rel, {"evidence_id": eid})
+
+    for m in media:
+        mid = m.get("media_id")
+        add_node(
+            mid,
+            "Media",
+            {
+                "media_type": m.get("_media_type"),
+                "authenticity_state": m.get("_authenticity_state"),
+                "context_accuracy_state": m.get("_context_accuracy_state"),
+                "first_seen": iso_or_none(m.get("_first_seen")),
+                "original_event_time": iso_or_none(m.get("_original_event_time")),
+                "recycled_context_candidate": m.get("_recycled_context_candidate"),
+            },
+        )
+
+    for q in quotes:
+        qid = q.get("quote_id")
+        add_node(
+            qid,
+            "Quote",
+            {
+                "content_id": q.get("_content_id"),
+                "speaker": q.get("_speaker"),
+                "verification_state": q.get("_verification_state"),
+                "original_source_id": q.get("_original_source_id"),
+            },
+        )
+        if q.get("_content_id"):
+            add_edge(qid, q["_content_id"], "QUOTES", {"quote_id": qid})
+
+    for a in accounts:
+        aid = a.get("account_id")
+        add_node(
+            aid,
+            "Account",
+            {
+                "platform": a.get("_platform"),
+                "handle": a.get("_handle"),
+                "created_at": iso_or_none(a.get("_created_at")),
+                "automation_disclosed": a.get("_automation_disclosed"),
+                "quality_flags": a.get("_quality_flags"),
+            },
+        )
+
+    for e in edges:
+        eid = e.get("edge_id")
+        add_node(eid, "PropagationEdge", public_dict(e))
+        if e.get("_from_content_id") and e.get("_to_content_id"):
+            add_edge(e["_from_content_id"], e["_to_content_id"], e.get("_relation") or "PROPAGATES_TO", {"edge_id": eid})
+
+    for s in coordination.get("signals") or []:
+        sid = s.get("signal_id")
+        add_node(sid, "CoordinationSignal", s)
+        for aid in s.get("account_ids") or []:
+            add_edge(sid, aid, "INVOLVES_ACCOUNT", {"signal_id": sid})
+        for cid in s.get("content_ids") or []:
+            add_edge(sid, cid, "INVOLVES_CONTENT", {"signal_id": sid})
+
+    for n in narratives:
+        nid = n.get("narrative_id")
+        add_node(nid, "Narrative", public_dict(n))
+        for cid in n.get("_content_ids") or []:
+            add_edge(nid, cid, "ASSOCIATED_WITH_CONTENT", {"narrative_id": nid})
+
+    for c in campaigns:
+        cid = c.get("campaign_id")
+        add_node(cid, "CampaignCandidate", public_dict(c))
+        for nid in c.get("_narrative_ids") or []:
+            add_edge(cid, nid, "ASSOCIATED_WITH_NARRATIVE", {"campaign_id": cid})
+        for sid in c.get("_coordination_signal_ids") or []:
+            add_edge(cid, sid, "ASSOCIATED_WITH_SIGNAL", {"campaign_id": cid})
+
+    for fac in facts:
+        fid = fac.get("fact_id") or fac.get("disputed_id")
+        add_node(fid, "Fact" if fac.get("fact_id") else "ContradictionFact", fac)
+        for key in ("content_id", "claim_id", "evidence_id", "media_id", "quote_id"):
+            if fac.get(key):
+                add_edge(fid, fac[key], "SUPPORTED_BY", {"fact_id": fid})
+
+    for h in hypotheses:
+        add_node(h.get("hypothesis_id"), "Hypothesis", h)
+
+    for i, c in enumerate(contradictions, 1):
+        cid = f"CONTRA-{i}"
+        add_node(cid, "Contradiction", c)
+
+    for g in gaps:
+        gid = g.get("gap_id") or f"GAP-{len(gaps)}"
+        add_node(gid, "Gap", g)
+
+    return {"nodes": nodes, "edges": graph_edges, "version": VERSION}
+
+
+def build_knowledge_gaps(
+    contents: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    evidence: List[Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    intent: Dict[str, Any],
+    attribution: Dict[str, Any],
+    contradictions: List[Dict[str, Any]],
+    issues: List[str],
+    sources: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    gaps: List[Dict[str, Any]] = []
+
+    if not contents:
+        gaps.append(
+            {
+                "gap_id": "GAP-NO-CONTENT",
+                "gap": "No content items supplied",
+                "importance": "HIGH",
+                "recommended_source": "Public/authorized/lawful content snapshot or archive record",
+                "expected_information_value": "Establishes information-integrity evidence base",
+            }
+        )
+
+    if not claims:
+        gaps.append(
+            {
+                "gap_id": "GAP-NO-CLAIMS",
+                "gap": "No atomic claims supplied",
+                "importance": "HIGH",
+                "recommended_source": "Claim decomposition from preserved content",
+                "expected_information_value": "Enables claim-level verification",
+            }
+        )
+
+    if any(c.get("_verification_status") in {"UNSUPPORTED", "INCONCLUSIVE"} for c in claims):
+        gaps.append(
+            {
+                "gap_id": "GAP-PRIMARY-EVIDENCE-MISSING",
+                "gap": "One or more claims lack sufficient primary evidence",
+                "importance": "HIGH",
+                "recommended_source": "Official record, primary document, original media, dataset, court/regulatory filing, direct statement",
+                "expected_information_value": "Separates reporting/repetition from primary evidence",
+            }
+        )
+
+    if any(m.get("_authenticity_state") in {"INCONCLUSIVE", "UNKNOWN"} for m in media):
+        gaps.append(
+            {
+                "gap_id": "GAP-MEDIA-AUTHENTICITY-UNRESOLVED",
+                "gap": "Media authenticity unresolved",
+                "importance": "HIGH",
+                "recommended_source": "IMINT/VIDINT/AUDINT/DOCINT specialist provenance and manipulation analysis",
+                "expected_information_value": "Prevents conflating media authenticity with caption/context accuracy",
+            }
+        )
+
+    if any(m.get("_context_accuracy_state") in {"UNKNOWN", "MISLEADING_CONTEXT", "RECYCLED_CONTEXT", "FALSE_CONTEXT"} for m in media):
+        gaps.append(
+            {
+                "gap_id": "GAP-MEDIA-CONTEXT-UNRESOLVED",
+                "gap": "Media context accuracy unresolved or misleading",
+                "importance": "HIGH",
+                "recommended_source": "Archive records, original upload metadata, event date/location evidence, GEOINT/timing specialists",
+                "expected_information_value": "Detects recycled or falsely contextualized genuine media",
+            }
+        )
+
+    if any(q.get("_verification_state") in {"UNVERIFIED", "CONTEXT_TRUNCATED", "MISQUOTED"} for q in quotes):
+        gaps.append(
+            {
+                "gap_id": "GAP-QUOTE-CONTEXT-UNVERIFIED",
+                "gap": "Quote verification or context unresolved",
+                "importance": "MODERATE",
+                "recommended_source": "Original transcript, recording, video timestamp, full article paragraph, native social post",
+                "expected_information_value": "Reduces misquotation and out-of-context risk",
+            }
+        )
+
+    if coordination.get("status") in {"COORDINATION_SIGNALS", "COORDINATED_ACTIVITY_CANDIDATE", "INCONCLUSIVE"}:
+        gaps.append(
+            {
+                "gap_id": "GAP-COORDINATION-UNCERTAIN",
+                "gap": "Coordination status unresolved or signal-only",
+                "importance": "HIGH",
+                "recommended_source": "Platform transparency reports, infrastructure records, account lifecycle data, authenticated operational artifacts",
+                "expected_information_value": "Distinguishes organic spread, legitimate coordination, and inauthentic behavior",
+            }
+        )
+
+    if intent.get("state") in {"INTENT_UNKNOWN", "DECEPTIVE_INTENT_CANDIDATE"}:
+        gaps.append(
+            {
+                "gap_id": "GAP-INTENT-UNSUPPORTED",
+                "gap": "Deceptive intent unsupported or unresolved",
+                "importance": "HIGH",
+                "recommended_source": "Direct intent evidence: admission, internal document, planning artifact, court/regulatory/platform finding",
+                "expected_information_value": "Prevents false disinformation labeling from falsity alone",
+            }
+        )
+
+    if attribution.get("state") in {"NO_ATTRIBUTION", "SOURCE_ATTRIBUTED", "POSSIBLE"}:
+        gaps.append(
+            {
+                "gap_id": "GAP-ATTRIBUTION-UNRESOLVED",
+                "gap": "Actor attribution unresolved",
+                "importance": "HIGH",
+                "recommended_source": "Independent infrastructure, financial, operational, platform, or legal evidence",
+                "expected_information_value": "Prevents language/timezone/hosting/hashtag-based attribution",
+            }
+        )
+
+    if any(get_tags(c) & PRIVATE_TAGS for c in contents) or any(get_tags(a) & PRIVATE_TAGS for a in []):
+        gaps.append(
+            {
+                "gap_id": "GAP-PRIVATE-ACCESS-BOUNDARY",
+                "gap": "Private account/group/message boundary encountered",
+                "importance": "PRIVACY_BOUNDARY",
+                "recommended_source": "No bypass source recommended; use public/authorized data only",
+                "expected_information_value": "Prevents unlawful access, infiltration, or private-person targeting",
+            }
+        )
+
+    if contradictions:
+        gaps.append(
+            {
+                "gap_id": "GAP-CONTRADICTIONS",
+                "gap": "Material information-integrity contradictions present",
+                "importance": "HIGH",
+                "recommended_source": "Raw snapshots, archives, primary evidence, source pedigree, specialist media reports",
+                "expected_information_value": "Prevents silent false resolution",
+            }
+        )
+
+    if issues:
+        gaps.append(
+            {
+                "gap_id": "GAP-VALIDATION-ISSUES",
+                "gap": "Input validation issues present",
+                "importance": "HIGH",
+                "recommended_source": "Corrected content/claim/evidence/source/time/hash metadata",
+                "expected_information_value": "Improves information-integrity trust",
+            }
+        )
+
+    return gaps
+
+
+def build_next_actions(
+    contents: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    media: List[Dict[str, Any]],
+    quotes: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    intent: Dict[str, Any],
+    attribution: Dict[str, Any],
+) -> List[str]:
+    actions: List[str] = []
+
+    if not contents or not claims:
+        actions.append("Supply deterministic public/authorized content, atomic claims, evidence, source pedigree, and timestamps")
+
+    if any(g["gap_id"] == "GAP-PRIMARY-EVIDENCE-MISSING" for g in gaps):
+        actions.append("Retrieve original primary source before treating repeated claims as verified")
+
+    if any(g["gap_id"] == "GAP-MEDIA-AUTHENTICITY-UNRESOLVED" for g in gaps):
+        actions.append("Handoff image/video/audio/document technical provenance to IMINT/VIDINT/AUDINT/DOCINT")
+
+    if any(g["gap_id"] == "GAP-MEDIA-CONTEXT-UNRESOLVED" for g in gaps):
+        actions.append("Verify media date/location/event association using archives, original uploads, and specialist context evidence")
+
+    if any(g["gap_id"] == "GAP-QUOTE-CONTEXT-UNVERIFIED" for g in gaps):
+        actions.append("Obtain native transcript/recording/full context before assessing quotation accuracy")
+
+    if coordination.get("status") in {"COORDINATION_SIGNALS", "COORDINATED_ACTIVITY_CANDIDATE"}:
+        actions.append("Test organic and legitimate-coordination explanations before claiming inauthentic behavior")
+
+    if intent.get("state") in {"INTENT_UNKNOWN", "DECEPTIVE_INTENT_CANDIDATE"}:
+        actions.append("Do not label disinformation without direct deceptive-intent evidence; seek admission, planning artifact, or authoritative finding")
+
+    if attribution.get("state") in {"NO_ATTRIBUTION", "SOURCE_ATTRIBUTED", "POSSIBLE"}:
+        actions.append("Do not attribute actors from language, timezone, hosting, hashtags, or narrative similarity; require independent operational evidence")
+
+    if contradictions:
+        actions.append("Preserve contradictions and compare raw snapshots, archives, primary evidence, and source pedigree before resolution")
+
+    actions.append("Maintain defensive boundary: no propaganda, influence operations, bot networks, targeting, harassment, infiltration, impersonation, or source deanonymization")
+
+    return actions
+
+
+def build_specialist_handoffs(
+    media: List[Dict[str, Any]],
+    claims: List[Dict[str, Any]],
+    coordination: Dict[str, Any],
+    attribution: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    handoffs: List[Dict[str, Any]] = []
+
+    if any(m.get("_media_type") == "IMAGE" for m in media):
+        handoffs.append(
+            {
+                "to": "IMINT",
+                "reason": "Image provenance, duplicate detection, manipulation indicators, and geolocation clues require technical imagery analysis",
+                "restrictions": ["Do not identify private persons from faces", "MEDIAINT/DISINFOINT does not declare authenticity from context alone"],
+            }
+        )
+
+    if any(m.get("_media_type") == "VIDEO" for m in media):
+        handoffs.append(
+            {
+                "to": "VIDINT",
+                "reason": "Video keyframes, edits, timeline, metadata, and provenance require technical video analysis",
+                "restrictions": ["Publication date is not recording date", "Clip is not complete event proof"],
+            }
+        )
+
+    if any(m.get("_media_type") == "AUDIO" for m in media):
+        handoffs.append(
+            {
+                "to": "AUDINT",
+                "reason": "ASR, speaker segmentation, edit indicators, and synthetic-audio indicators require technical audio analysis",
+                "restrictions": ["Do not perform biometric speaker identification", "Transcript context is not authentication proof"],
+            }
+        )
+
+    if any(m.get("_media_type") == "DOCUMENT" for m in media):
+        handoffs.append(
+            {
+                "to": "DOCINT / METADATAINT",
+                "reason": "Document parsing, file provenance, and metadata require document intelligence",
+                "restrictions": ["Do not execute untrusted documents", "Metadata can be altered"],
+            }
+        )
+
+    if any("location" in str(c.get("_location_reference", "")).lower() or "geoloc" in str(c.get("_claim_summary", "")).lower() for c in claims):
+        handoffs.append(
+            {
+                "to": "GEOINT",
+                "reason": "Geolocation claims require geographic evidence and terrain/context analysis",
+                "restrictions": ["No private-person location inference from weak clues"],
+            }
+        )
+
+    if coordination.get("status") != "NO_COORDINATION_EVIDENCE" or attribution.get("state") != "NO_ATTRIBUTION":
+        handoffs.append(
+            {
+                "to": "SOCMINT / CTI / THREATACTORINT / DOMAININT / WEBINT as appropriate",
+                "reason": "Platform behavior, infrastructure, campaign operations, and actor attribution exceed claim verification",
+                "restrictions": ["No bot-network design", "No evasion", "No private infiltration", "No real-person attribution without strong evidence"],
+            }
+        )
+
+    if any("expert" in str(c.get("_claim_summary", "")).lower() or "study" in str(c.get("_claim_summary", "")).lower() for c in claims):
+        handoffs.append(
+            {
+                "to": "ACADEMICINT / subject-matter specialist",
+                "reason": "Scientific, technical, medical, legal, or financial claims require domain validation",
+                "restrictions": ["Media simplification may distort specialist findings"],
+            }
+        )
+
+    return handoffs
+
+
+def analyst_summary(r: Dict[str, Any]) -> str:
+    def fmt_list(lst: Any) -> str:
+        if not lst:
+            return "NONE"
+        if isinstance(lst, list):
+            return ", ".join(str(x) for x in lst)
+        return str(lst)
+
+    claims = r.get("claims") or []
+    contents = r.get("contents") or []
+    media = r.get("media") or []
+    coordination = r.get("coordination_status") or {}
+    intent = r.get("intent_status") or {}
+    attribution = r.get("actor_attribution") or {}
+    contradictions = r.get("contradictions") or []
+    false_claims = r.get("false_supported_claims") or []
+    misleading = r.get("misleading_context_claims") or []
+
+    lines = [
+        "CLAIM / NARRATIVE: " + fmt_list([c.get("claim_summary") for c in claims[:5]]),
+        "ATOMIC CLAIMS: " + str(len(claims)),
+        "CLAIM VERIFICATION: " + fmt_list([f"{c.get('claim_id')}={c.get('verification_status')}" for c in claims[:10]]),
+        "ORIGINAL / EARLIEST KNOWN SOURCE: " + fmt_list([f"{x.get('family_id')}->{x.get('earliest_known_content_id')}" for x in (r.get("original_source_candidates") or [])[:5]]),
+        "SOURCE PEDIGREE: families=" + str(len(r.get("source_families") or {})),
+        "SOURCE RELIABILITY: " + fmt_list([f"{s.get('source_id')}={s.get('reliability')}" for s in (r.get("source_reliability") or [])[:10]]),
+        "SOURCE INDEPENDENCE: " + fmt_list([f"{x.get('claim_id')}={x.get('independence_state')}" for x in (r.get("source_independence") or [])[:10]]),
+        "CONTEXT: media_context_states=" + fmt_list(sorted({m.get("context_accuracy_state") for m in media if m.get("context_accuracy_state")})),
+        "MEDIA AUTHENTICITY: " + fmt_list(sorted({m.get("authenticity_state") for m in media if m.get("authenticity_state")})),
+        "MEDIA CONTEXT ACCURACY: " + fmt_list(sorted({m.get("context_accuracy_state") for m in media if m.get("context_accuracy_state")})),
+        "RECYCLED CONTENT: " + fmt_list([m.get("media_id") for m in media if m.get("recycled_context_candidate")]),
+        "NARRATIVE EVOLUTION: " + fmt_list([n.get("narrative_id") for n in (r.get("narratives") or [])]),
+        "PROPAGATION: edges=" + str(len(r.get("propagation_graph") or [])),
+        "AMPLIFICATION: " + fmt_list([f"{k}={v}" for k, v in list((r.get("amplification_patterns") or {}).items())[:10]]),
+        "COORDINATION SIGNALS: " + str(len((coordination.get("signals") or []) if isinstance(coordination, dict) else [])),
+        "COORDINATION STATUS: " + str(coordination.get("status") if isinstance(coordination, dict) else coordination),
+        "BOT-LIKE BEHAVIOR: " + fmt_list([f"{b.get('account_id')}={b.get('state')}" for b in (r.get("bot_like_behavior_candidates") or [])[:10]]),
+        "CAMPAIGN STATUS: " + str(r.get("campaign_status")),
+        "DECEPTIVE INTENT STATUS: " + str(intent.get("state") if isinstance(intent, dict) else intent),
+        "ATTRIBUTION STATUS: " + str(attribution.get("state") if isinstance(attribution, dict) else attribution),
+        "CONTRADICTIONS: " + str(len(contradictions)),
+        "ALTERNATIVE EXPLANATIONS: hypotheses=" + str(len(r.get("hypotheses") or [])),
+        "FALSE_SUPPORTED CLAIMS: " + fmt_list([c.get("claim_id") for c in false_claims]),
+        "MISLEADING_CONTEXT CLAIMS: " + fmt_list([c.get("claim_id") for c in misleading]),
+        "UNKNOWN: " + fmt_list(r.get("unknowns")),
+        "NEXT ACTION: " + ((r.get("recommended_next_actions") or ["NONE"])[0]),
+    ]
+
+    return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------------
+# Main analysis
+# -----------------------------------------------------------------------------
+
+def analyze(case: Dict[str, Any], input_path: Optional[str] = None, input_hash: Optional[str] = None) -> Dict[str, Any]:
+    started = utcnow_iso()
+
+    block_reasons = policy_block_reasons(case)
+    if block_reasons:
+        return blocked_result(case, block_reasons, started, input_path, input_hash)
+
+    settings_raw = case.get("analysis_settings") or {}
+    scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+
+    def setting_float(name: str, default: float) -> float:
+        try:
+            return float(settings_raw.get(name, default))
+        except Exception:
+            return default
+
+    def setting_int(name: str, default: int) -> int:
+        try:
+            return int(settings_raw.get(name, default))
+        except Exception:
+            return default
+
+    settings: Dict[str, Any] = {
+        "shingle_size": setting_int("shingle_size", 3),
+        "max_near_duplicate_pairs": setting_int("max_near_duplicate_pairs", 5000),
+        "near_duplicate_light_threshold": setting_float("near_duplicate_light_threshold", 0.75),
+        "near_duplicate_partial_threshold": setting_float("near_duplicate_partial_threshold", 0.45),
+        "numeric_relative_tolerance": setting_float("numeric_relative_tolerance", 0.05),
+        "sync_minute_window": setting_int("sync_minute_window", 5),
+        "min_coordinated_items": setting_int("min_coordinated_items", 3),
+        "bot_frequency_threshold": setting_float("bot_frequency_threshold", 50.0),
+        "bot_repetition_threshold": setting_float("bot_repetition_threshold", 0.8),
+        "journalist_privacy_strict": scope.get("journalist_privacy_strict", True) is not False,
+    }
+
+    now = parse_dt(case.get("knowledge_time")) or datetime.now(timezone.utc)
+
+    sources, src_issues = validate_sources(case)
+    contents, cont_issues = validate_contents(case, sources, settings)
+    content_by_id = {c["content_id"]: c for c in contents}
+    claims, claim_issues = validate_claims(case, content_by_id)
+    evidence, ev_issues = validate_evidence(case, sources, content_by_id)
+    media, media_by_id, media_issues = validate_media(case)
+    quotes, quote_issues = validate_quotes(case, content_by_id, sources)
+    accounts, acc_issues = validate_accounts(case)
+    edges, edge_issues = validate_edges(case, content_by_id)
+    supplied_signals, sig_issues = validate_coordination_signals(case)
+    narratives, narr_issues = validate_narratives(case)
+    narrative_ids = {n["narrative_id"] for n in narratives}
+    signal_ids = {s["signal_id"] for s in supplied_signals}
+    campaigns, camp_issues = validate_campaigns(case, narrative_ids, signal_ids)
+
+    issues = (
+        src_issues
+        + cont_issues
+        + claim_issues
+        + ev_issues
+        + media_issues
+        + quote_issues
+        + acc_issues
+        + edge_issues
+        + sig_issues
+        + narr_issues
+        + camp_issues
+    )
+
+    duplicate_relationships = detect_duplicates(contents, settings)
+    families = build_source_families(contents, content_by_id, sources, media, quotes, edges)
+    independence_results, independence_map = analyze_source_independence(claims, content_by_id, evidence, sources)
+
+    for cl in claims:
+        cl["_independence_state"] = independence_map.get(cl["claim_id"], "UNKNOWN")
+
+    analyze_media_context(media, content_by_id)
+    verify_claims(claims, evidence, content_by_id, media_by_id, independence_map, settings)
+
+    coordination = analyze_coordination(contents, accounts, edges, supplied_signals, settings)
+    bot_like = analyze_bot_like(accounts, settings)
+    intent = analyze_intent(claims, evidence, campaigns)
+    attribution = analyze_attribution(campaigns, evidence, accounts, sources)
+
+    contradictions = detect_contradictions(
+        claims,
+        evidence,
+        media,
+        quotes,
+        contents,
+        list(case.get("existing_contradictions") or []),
+        settings,
+    )
+
+    hypotheses, ach_matrix = build_hypotheses(claims, contradictions, coordination, intent, attribution, media)
+
+    (
+        supported_facts,
+        candidate_facts,
+        partial_facts,
+        disputed_facts,
+        false_supported_claims,
+        misleading_context_claims,
+        not_facts,
+    ) = build_facts(
+        contents,
+        claims,
+        evidence,
+        media,
+        quotes,
+        coordination,
+        bot_like,
+        intent,
+        attribution,
+        contradictions,
+        sources,
+    )
+
+    dual = dual_ai_review(contents, claims, contradictions, coordination, intent, attribution, issues)
+
+    gaps = build_knowledge_gaps(
+        contents,
+        claims,
+        evidence,
+        media,
+        quotes,
+        coordination,
+        intent,
+        attribution,
+        contradictions,
+        issues,
+        sources,
+    )
+
+    next_actions = build_next_actions(
+        contents,
+        claims,
+        media,
+        quotes,
+        gaps,
+        contradictions,
+        coordination,
+        intent,
+        attribution,
+    )
+
+    handoffs = build_specialist_handoffs(media, claims, coordination, attribution)
+
+    graph = build_graph(
+        sources,
+        contents,
+        claims,
+        evidence,
+        media,
+        quotes,
+        accounts,
+        edges,
+        families,
+        narratives,
+        campaigns,
+        coordination,
+        supported_facts + candidate_facts + partial_facts,
+        hypotheses,
+        contradictions,
+        gaps,
+    )
+
+    # Original / earliest-known source candidates.
+    original_source_candidates: List[Dict[str, Any]] = []
+    for fid, ids in families.items():
+        its = [content_by_id[i] for i in ids if i in content_by_id]
+        its = sorted(
+            its,
+            key=lambda x: dt_sort_key(x.get("_published_at") or x.get("_observed_at") or x.get("_retrieved_at")),
+        )
+        if its:
+            first = its[0]
+            original_source_candidates.append(
+                {
+                    "family_id": fid,
+                    "earliest_known_content_id": first.get("content_id"),
+                    "earliest_known_time": iso_or_none(first.get("_published_at") or first.get("_observed_at") or first.get("_retrieved_at")),
+                    "source_ids": first.get("_source_ids"),
+                    "note": "Earliest known source in supplied family; not necessarily the true original source.",
+                }
+            )
+
+    # Amplification patterns from supplied edges.
+    amplification: Counter = Counter()
+    for e in edges:
+        if e.get("_relation") in {"REPOSTED", "QUOTED", "LINKED", "DERIVED_FROM", "MENTIONED"}:
+            frm = e.get("_from_content_id")
+            if frm:
+                amplification[frm] += 1
+
+    # Campaign status.
+    if campaigns:
+        if coordination.get("status") in {
+            "COORDINATED_ACTIVITY_SUPPORTED",
+            "COORDINATED_INAUTHENTIC_BEHAVIOR_SOURCE_REPORTED",
+        }:
+            campaign_status = "CAMPAIGN_SUPPORTED"
+        elif coordination.get("status") in {"COORDINATION_SIGNALS", "COORDINATED_ACTIVITY_CANDIDATE"}:
+            campaign_status = "CAMPAIGN_CANDIDATE"
+        else:
+            campaign_status = "CAMPAIGN_CLAIMED_BY_SOURCE"
+    else:
+        campaign_status = "NO_CAMPAIGN_EVIDENCE"
+
+    # Public objects.
+    content_public = [
+        {
+            "content_id": c.get("content_id"),
+            "content_type": c.get("_content_type"),
+            "platform": c.get("_platform"),
+            "source_account": c.get("_source_account"),
+            "source_url": c.get("_source_url_original"),
+            "normalized_url": c.get("_source_url_normalized"),
+            "published_at": iso_or_none(c.get("_published_at")),
+            "observed_at": iso_or_none(c.get("_observed_at")),
+            "retrieved_at": iso_or_none(c.get("_retrieved_at")),
+            "event_time": iso_or_none(c.get("_event_time")),
+            "language": c.get("_language"),
+            "content_hash": c.get("_content_hash"),
+            "normalized_text_hash": c.get("_normalized_text_hash"),
+            "hashtags": c.get("_hashtags"),
+            "media_ids": c.get("_media_ids"),
+            "claim_ids": c.get("_claim_ids"),
+            "source_ids": c.get("_source_ids"),
+            "evidence_ids": c.get("_evidence_ids"),
+            "stance": c.get("_stance"),
+            "source_family_id": c.get("_source_family_id"),
+            "duplicate_state": c.get("_duplicate_state"),
+            "duplicate_similarity": c.get("_duplicate_similarity"),
+            "quality_flags": c.get("_quality_flags"),
+            "limitations": [
+                "Content observation is not claim verification.",
+                "Repost/quote is not endorsement automatically.",
+                "Private-access boundary data is redacted.",
+            ],
+        }
+        for c in contents
+    ]
+
+    claim_public = [
+        {
+            "claim_id": c.get("claim_id"),
+            "content_id": c.get("_content_id"),
+            "speaker_or_source": c.get("_speaker_or_source"),
+            "subject": c.get("_subject"),
+            "predicate": c.get("_predicate"),
+            "object": c.get("_object"),
+            "time_reference": c.get("_time_reference"),
+            "location_reference": c.get("_location_reference"),
+            "claim_type": c.get("_claim_type"),
+            "claim_scope": c.get("_claim_scope"),
+            "certainty_language": c.get("_certainty_language"),
+            "claim_summary": c.get("_claim_summary"),
+            "numeric_value": c.get("_numeric_value"),
+            "numeric_unit": c.get("_numeric_unit"),
+            "verification_status": c.get("_verification_status"),
+            "independence_state": c.get("_independence_state"),
+            "confidence": c.get("_confidence"),
+            "evidence_ids": c.get("_evidence_ids"),
+            "source_ids": c.get("_source_ids"),
+            "quality_flags": c.get("_quality_flags"),
+            "limitations": [
+                "Unsupported is not false.",
+                "False claim is not disinformation without intent evidence.",
+                "Opinion/prediction/satire are not fact-checked as empirical claims.",
+            ],
+        }
+        for c in claims
+    ]
+
+    evidence_public = [
+        {
+            "evidence_id": e.get("evidence_id"),
+            "source_id": e.get("_source_id"),
+            "content_id": e.get("_content_id"),
+            "claim_ids": e.get("_claim_ids"),
+            "evidence_type": e.get("_evidence_type"),
+            "polarity": e.get("_polarity"),
+            "statement": e.get("_statement"),
+            "url": e.get("_url_normalized"),
+            "document_ref": e.get("_document_ref"),
+            "media_ref": e.get("_media_ref"),
+            "timestamp": iso_or_none(e.get("_timestamp")),
+            "reliability": e.get("_reliability"),
+            "quality_flags": e.get("_quality_flags"),
+            "limitations": [
+                "Evidence metadata must be inspected; it does not automatically prove claim truth.",
+                "Primary source is not automatically true.",
+            ],
+        }
+        for e in evidence
+    ]
+
+    media_public = [
+        {
+            "media_id": m.get("media_id"),
+            "media_type": m.get("_media_type"),
+            "url": m.get("_url_normalized"),
+            "content_hash": m.get("_content_hash"),
+            "perceptual_hash": m.get("_perceptual_hash"),
+            "first_seen": iso_or_none(m.get("_first_seen")),
+            "original_upload_ref": m.get("_original_upload_ref"),
+            "original_event_time": iso_or_none(m.get("_original_event_time")),
+            "caption": m.get("_caption"),
+            "credit": m.get("_credit"),
+            "reuse_of_media_id": m.get("_reuse_of_media_id"),
+            "stock_file_label": m.get("_stock_file_label"),
+            "authenticity_state": m.get("_authenticity_state"),
+            "context_accuracy_state": m.get("_context_accuracy_state"),
+            "recycled_context_candidate": m.get("_recycled_context_candidate"),
+            "quality_flags": m.get("_quality_flags"),
+            "limitations": [
+                "Media authenticity and context accuracy are separate states.",
+                "Genuine media can have false caption/date/location/event association.",
+                "No independent authenticity adjudication without specialist evidence.",
+            ],
+        }
+        for m in media
+    ]
+
+    quote_public = [
+        {
+            "quote_id": q.get("quote_id"),
+            "content_id": q.get("_content_id"),
+            "speaker": q.get("_speaker"),
+            "quote_text": q.get("_quote_text"),
+            "quote_text_hash": q.get("_quote_text_hash"),
+            "original_source_id": q.get("_original_source_id"),
+            "verification_state": q.get("_verification_state"),
+            "context_window": q.get("_context_window"),
+            "is_translation": q.get("_is_translation"),
+            "quality_flags": q.get("_quality_flags"),
+            "limitations": [
+                "Screenshot is not primary quote evidence.",
+                "Translation is not original quote.",
+                "Paraphrase is not direct quotation.",
+            ],
+        }
+        for q in quotes
+    ]
+
+    account_public = [
+        {
+            "account_id": a.get("account_id"),
+            "platform": a.get("_platform"),
+            "handle": a.get("_handle"),
+            "display_name": a.get("_display_name"),
+            "created_at": iso_or_none(a.get("_created_at")),
+            "followers_count": a.get("_followers_count"),
+            "posting_frequency_per_day": a.get("_posting_frequency_per_day"),
+            "repetition_score": a.get("_repetition_score"),
+            "automation_disclosed": a.get("_automation_disclosed"),
+            "takeover_candidate": a.get("_takeover_candidate"),
+            "quality_flags": a.get("_quality_flags"),
+            "limitations": [
+                "Account metadata is not real-person identity.",
+                "No private-person targeting, harassment, or source deanonymization.",
+                "Bot-like behavior is not bot confirmation.",
+            ],
+        }
+        for a in accounts
+    ]
+
+    edge_public = [
+        {
+            "edge_id": e.get("edge_id"),
+            "from_content_id": e.get("_from_content_id"),
+            "to_content_id": e.get("_to_content_id"),
+            "relation": e.get("_relation"),
+            "derivation_state": e.get("_derivation_state"),
+            "time": iso_or_none(e.get("_time")),
+            "source_ids": e.get("_source_ids"),
+            "evidence_ids": e.get("_evidence_ids"),
+            "limitations": [
+                "Propagation edge is not causation.",
+                "Earlier post does not automatically prove later account copied it.",
+            ],
+        }
+        for e in edges
+    ]
+
+    narrative_public = [public_dict(n) for n in narratives]
+    campaign_public = [public_dict(c) for c in campaigns]
+
+    source_reliability = [
+        {
+            "source_id": s.get("source_id"),
+            "source_type": s.get("_source_type"),
+            "publisher": s.get("_publisher"),
+            "organization": s.get("_organization"),
+            "account": s.get("_account"),
+            "domain": s.get("_domain"),
+            "platform": s.get("_platform"),
+            "reliability": s.get("_reliability"),
+            "independence_group": s.get("_independence_group"),
+            "upstream_source_ids": s.get("_upstream_source_ids"),
+            "first_seen": iso_or_none(s.get("_first_seen")),
+            "last_seen": iso_or_none(s.get("_last_seen")),
+            "bias_context": s.get("_bias_context"),
+            "limitations": s.get("_limitations"),
+        }
+        for s in sources.values()
+    ]
+
+    all_source_ids = sorted(
+        {
+            sid
+            for obj in contents + claims + evidence + quotes + edges
+            for sid in (obj.get("_source_ids") or obj.get("_source_id") or [])
+            if sid
+        }
+    )
+
+    def pairwise_independence(ids: List[str]) -> str:
+        if len(ids) < 2:
+            return "SINGLE_SOURCE"
+        states: List[str] = []
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                a = sources.get(ids[i], {})
+                b = sources.get(ids[j], {})
+                if a.get("_independence_group") and a.get("_independence_group") == b.get("_independence_group"):
+                    states.append("DEPENDENT")
+                elif a.get("_independence_group") and b.get("_independence_group"):
+                    states.append("INDEPENDENT")
+                else:
+                    states.append("UNKNOWN")
+        if all(x == "INDEPENDENT" for x in states):
+            return "INDEPENDENT"
+        if any(x == "DEPENDENT" for x in states):
+            return "DEPENDENT_OR_UNKNOWN"
+        return "UNKNOWN"
+
+    source_independence_global = pairwise_independence(all_source_ids)
+
+    claim_type_summary = dict(Counter(c.get("_claim_type") for c in claims))
+    claim_status_summary = dict(Counter(c.get("_verification_status") for c in claims))
+    claim_confidence_map = {c.get("claim_id"): c.get("_confidence") for c in claims}
+
+    timeline: List[Dict[str, Any]] = []
+    for c in contents:
+        timeline.append(
+            {
+                "kind": "content",
+                "id": c.get("content_id"),
+                "time": iso_or_none(c.get("_published_at") or c.get("_observed_at") or c.get("_retrieved_at")),
+                "platform": c.get("_platform"),
+                "source_family_id": c.get("_source_family_id"),
+            }
+        )
+    for e in evidence:
+        timeline.append(
+            {
+                "kind": "evidence",
+                "id": e.get("evidence_id"),
+                "time": iso_or_none(e.get("_timestamp")),
+                "polarity": e.get("_polarity"),
+                "claim_ids": e.get("_claim_ids"),
+            }
+        )
+    for m in media:
+        timeline.append(
+            {
+                "kind": "media_first_seen",
+                "id": m.get("media_id"),
+                "time": iso_or_none(m.get("_first_seen")),
+                "original_event_time": iso_or_none(m.get("_original_event_time")),
+            }
+        )
+    for s in coordination.get("signals") or []:
+        timeline.append(
+            {
+                "kind": "coordination_signal",
+                "id": s.get("signal_id"),
+                "time": s.get("time_bucket") or s.get("time_window_start"),
+                "type": s.get("type"),
+                "strength": s.get("strength"),
+            }
+        )
+
+    timeline.sort(key=lambda x: x.get("time") or "")
+
+    unknowns: List[str] = []
+    if not contents:
+        unknowns.append("Content evidence base unresolved")
+    if not claims:
+        unknowns.append("Atomic claim resolution unresolved")
+    if any(c.get("_verification_status") in {"UNSUPPORTED", "INCONCLUSIVE"} for c in claims):
+        unknowns.append("Primary evidence unresolved for one or more claims")
+    if any(m.get("_authenticity_state") in {"INCONCLUSIVE", "UNKNOWN"} for m in media):
+        unknowns.append("Media authenticity unresolved")
+    if any(m.get("_context_accuracy_state") in {"UNKNOWN", "MISLEADING_CONTEXT", "RECYCLED_CONTEXT", "FALSE_CONTEXT"} for m in media):
+        unknowns.append("Media context accuracy unresolved")
+    if coordination.get("status") in {"COORDINATION_SIGNALS", "COORDINATED_ACTIVITY_CANDIDATE", "INCONCLUSIVE"}:
+        unknowns.append("Coordination and inauthenticity unresolved")
+    if intent.get("state") in {"INTENT_UNKNOWN", "DECEPTIVE_INTENT_CANDIDATE"}:
+        unknowns.append("Deceptive intent unresolved")
+    if attribution.get("state") in {"NO_ATTRIBUTION", "SOURCE_ATTRIBUTED", "POSSIBLE"}:
+        unknowns.append("Actor attribution unresolved")
+    unknowns.append("Ordinary-user targeting, harassment, source deanonymization, private infiltration, and influence-operation design are prohibited and unresolved by design")
+
+    if contradictions:
+        status = "SOURCE_CONFLICT"
+    elif issues:
+        status = "PARTIAL"
+    elif not contents and not claims:
+        status = "INCONCLUSIVE"
+    elif supported_facts or candidate_facts:
+        status = "SUCCEEDED"
+    else:
+        status = "PARTIAL"
+
+    result: Dict[str, Any] = {
+        "case_id": case.get("case_id"),
+        "task_id": case.get("task_id"),
+        "objective": case.get("objective"),
+        "questions": case.get("questions") or [],
+        "mode": case.get("model_mode", "LOCAL_ONLY"),
+                "status": status,
+        "source_ids": sorted(sources.keys()),
+        "evidence_ids": sorted({e.get("evidence_id") for e in evidence if e.get("evidence_id")}),
+        "contents": content_public,
+        "claims": claim_public,
+        "claim_types": claim_type_summary,
+        "claim_statuses": claim_status_summary,
+        "claim_confidence": claim_confidence_map,
+        "evidence": evidence_public,
+        "sources": {sid: public_dict(s) for sid, s in sources.items()},
+        "source_reliability": source_reliability,
+        "source_bias": (
+            [
+                {
+                    "source_id": s.get("source_id"),
+                    "bias_context": s.get("_bias_context"),
+                }
+                for s in sources.values()
+                if s.get("_bias_context")
+            ]
+            or case.get("source_bias")
+            or [
+                "Commercial incentives may affect topic selection and framing.",
+                "State or institutional ownership may affect governance and permitted narratives.",
+                "Access journalism may increase source dependence.",
+                "Aggregators may compress or repeat upstream claims.",
+                "Social platforms may amplify emotionally engaging content.",
+            ]
+        ),
+        "source_limitations": sorted(
+            {
+                lim
+                for s in sources.values()
+                for lim in (s.get("_limitations") or [])
+                if lim
+            }
+            or case.get("source_limitations")
+            or [
+                "Publication is not truth.",
+                "Repetition is not corroboration.",
+                "Multiple copies may share one upstream source.",
+                "Media authenticity and caption/context accuracy are separate questions.",
+                "Coordination signals are not proof of inauthentic behavior.",
+                "Intent is not inferred from falsity alone.",
+            ]
+        ),
+        "source_pedigree": [
+            {
+                "source_id": s.get("source_id"),
+                "source_type": s.get("_source_type"),
+                "publisher": s.get("_publisher"),
+                "organization": s.get("_organization"),
+                "account": s.get("_account"),
+                "domain": s.get("_domain"),
+                "platform": s.get("_platform"),
+                "upstream_source_ids": s.get("_upstream_source_ids"),
+                "independence_group": s.get("_independence_group"),
+                "first_seen": iso_or_none(s.get("_first_seen")),
+                "last_seen": iso_or_none(s.get("_last_seen")),
+            }
+            for s in sources.values()
+        ],
+        "source_independence": {
+            "global_state": source_independence_global,
+            "claim_results": independence_results,
+            "note": "Count information families and independence groups, not raw copies.",
+        },
+        "original_source_candidates": original_source_candidates,
+        "earliest_known_sources": original_source_candidates,
+        "articles": [
+            c
+            for c in content_public
+            if c.get("content_type") in {"ARTICLE", "WIRE_REPORT", "PRESS_RELEASE", "FACT_CHECK"}
+        ],
+        "quotes": quote_public,
+        "quote_verification": quote_public,
+        "media": media_public,
+        "media_authenticity": [
+            {
+                "media_id": m.get("media_id"),
+                "media_type": m.get("media_type"),
+                "authenticity_state": m.get("authenticity_state"),
+                "quality_flags": m.get("quality_flags"),
+            }
+            for m in media_public
+        ],
+        "media_context": [
+            {
+                "media_id": m.get("media_id"),
+                "media_type": m.get("media_type"),
+                "context_accuracy_state": m.get("context_accuracy_state"),
+                "caption": m.get("caption"),
+                "first_seen": m.get("first_seen"),
+                "original_event_time": m.get("original_event_time"),
+                "quality_flags": m.get("quality_flags"),
+            }
+            for m in media_public
+        ],
+        "recycled_media": [
+            m
+            for m in media_public
+            if m.get("recycled_context_candidate")
+        ],
+        "narratives": narrative_public,
+        "narrative_clusters": [
+            {
+                "cluster_id": f"NCL-{i}",
+                "narrative_id": n.get("narrative_id"),
+                "summary": n.get("_summary"),
+                "themes": n.get("_themes"),
+                "entities": n.get("_entities"),
+                "keywords": n.get("_keywords"),
+                "content_ids": n.get("_content_ids"),
+                "core_claim_ids": n.get("_core_claim_ids"),
+                "supporting_claim_ids": n.get("_supporting_claim_ids"),
+            }
+            for i, n in enumerate(narratives, 1)
+        ],
+        "narrative_evolution": [
+            {
+                "narrative_id": n.get("narrative_id"),
+                "first_seen": iso_or_none(n.get("_first_seen")),
+                "last_seen": iso_or_none(n.get("_last_seen")),
+                "evolution_states": n.get("_evolution_states"),
+            }
+            for n in narratives
+        ],
+        "narrative_mutations": [
+            {
+                "narrative_id": n.get("narrative_id"),
+                "mutation": m,
+            }
+            for n in narratives
+            for m in (n.get("_evolution_states") or [])
+            if isinstance(m, dict) and (m.get("type") == "MUTATION" or "mutation" in m)
+        ],
+        "platforms": sorted(
+            {c.get("_platform") for c in contents if c.get("_platform")}
+            | {a.get("_platform") for a in accounts if a.get("_platform")}
+        ),
+        "accounts": account_public,
+        "channels": sorted(
+            {
+                str(c.get("channel") or c.get("room") or "")
+                for c in contents
+                if c.get("channel") or c.get("room")
+            }
+        ),
+        "hashtags": sorted(
+            {
+                h
+                for c in contents
+                for h in (c.get("_hashtags") or [])
+                if h
+            }
+        ),
+        "urls": sorted(
+            {
+                u
+                for u in (
+                    {c.get("_source_url_original") for c in contents if c.get("_source_url_original")}
+                    | {c.get("_source_url_normalized") for c in contents if c.get("_source_url_normalized")}
+                    | {e.get("_url_original") for e in evidence if e.get("_url_original")}
+                    | {m.get("_url_original") for m in media if m.get("_url_original")}
+                )
+                if u
+            }
+        ),
+        "domains": sorted(
+            {s.get("_domain") for s in sources.values() if s.get("_domain")}
+            | {
+                urlparse(u).netloc.lower()
+                for u in (
+                    {c.get("_source_url_original") for c in contents if c.get("_source_url_original")}
+                    | {e.get("_url_original") for e in evidence if e.get("_url_original")}
+                    | {m.get("_url_original") for m in media if m.get("_url_original")}
+                )
+                if u and urlparse(u).netloc
+            }
+        ),
+        "propagation_graph": edge_public,
+        "amplification_patterns": dict(amplification),
+        "coordination_signals": coordination.get("signals") or [],
+        "coordination_status": coordination,
+        "bot_like_behavior_candidates": bot_like,
+        "sockpuppet_candidates": [
+            {
+                "candidate_id": f"SOCK-{i}",
+                "signal_id": s.get("signal_id"),
+                "signal_type": s.get("type"),
+                "account_ids": s.get("account_ids") or [],
+                "content_ids": s.get("content_ids") or [],
+                "state": "SOCKPUPPET_CLUSTER_CANDIDATE",
+                "limitations": [
+                    "Shared behavior or infrastructure is a candidate only.",
+                    "Style similarity or synchronized posting does not prove identity or sockpuppets.",
+                    "No sockpuppet-network design or evasion support is provided.",
+                ],
+            }
+            for i, s in enumerate(coordination.get("signals") or [], 1)
+            if len(s.get("account_ids") or []) >= 2
+            and s.get("type")
+            in {
+                "SYNCHRONIZED_IDENTICAL_TEXT",
+                "SAME_MEDIA_ACROSS_ACCOUNTS",
+                "ACCOUNT_CREATION_CLUSTER",
+            }
+        ],
+        "campaign_candidates": campaign_public,
+        "campaign_status": campaign_status,
+        "intent_status": intent,
+        "actor_attribution": attribution,
+        "timeline_updates": timeline,
+        "observations": (
+            content_public
+            + claim_public
+            + evidence_public
+            + media_public
+            + quote_public
+            + edge_public
+        ),
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+        "false_supported_claims": false_supported_claims,
+        "misleading_context_claims": misleading_context_claims,
+        "duplicate_relationships": duplicate_relationships,
+        "source_families": families,
+        "contradictions": contradictions,
+        "hypotheses": hypotheses,
+        "ach_matrix": ach_matrix,
+        "falsification_results": [
+            {
+                "hypothesis_id": h.get("hypothesis_id"),
+                "status": (
+                    "WEAKENED_BY_CONTRADICTIONS"
+                    if contradictions
+                    else "NOT_FALSIFIED_WITH_CURRENT_EVIDENCE"
+                ),
+                "required_additional_evidence": [
+                    "Original primary source",
+                    "Archived content snapshot",
+                    "Independent source pedigree",
+                    "IMINT/VIDINT/AUDINT/DOCINT media provenance",
+                    "Native transcript/recording for quotes",
+                    "Platform/infrastructure/legal evidence for coordination or attribution",
+                    "Direct intent evidence for deceptive-intent claims",
+                ],
+            }
+            for h in hypotheses
+        ],
+        "corrections": case.get("corrections") or [],
+        "retractions": case.get("retractions") or [],
+        "privacy_flags": [
+            "NO_PRIVATE_PERSON_TARGETING",
+            "NO_ORDINARY_USER_RETALIATION",
+            "NO_SOURCE_DEANONYMIZATION",
+            "NO_PRIVATE_ACCOUNT_BYPASS",
+            "NO_PRIVATE_GROUP_INFILTRATION",
+            "PUBLIC_OR_AUTHORIZED_DATA_ONLY",
+            "MINIMUM_NECESSARY_PERSONAL_DATA",
+        ],
+        "safety_flags": [
+            "NO_DISINFORMATION_CREATION",
+            "NO_PROPAGANDA_GENERATION",
+            "NO_INFLUENCE_OPERATIONS",
+            "NO_BOT_NETWORKS",
+            "NO_SOCKPUPPET_NETWORKS",
+            "NO_BOT_DETECTION_EVASION",
+            "NO_POLITICAL_PERSUASION",
+            "NO_MICROTARGETING",
+            "NO_PSYCHOGRAPHIC_PROFILING",
+            "NO_IMPERSONATION",
+            "NO_HARASSMENT",
+            "NO_AUTONOMOUS_ACCOUNT_CONTACT",
+            "NO_COUNTER_BOT_NETWORK",
+        ],
+        "unknowns": unknowns,
+        "knowledge_gaps": gaps,
+        "recommended_next_actions": next_actions,
+        "specialist_handoffs": handoffs,
+        "limitations": [
+            "This scaffold does not fetch live social/web data.",
+            "It consumes deterministic information-integrity records only.",
+            "It does not invent claims, sources, accounts, campaigns, actors, intent, or propagation paths.",
+            "It separates false, unsupported, misleading-context, satire, opinion, and unverified claims.",
+            "It does not infer deceptive intent from falsity alone.",
+            "It does not infer coordination from virality alone.",
+            "It does not infer inauthenticity from coordination alone.",
+            "It does not infer actor identity from language, timezone, hosting country, hashtags, or narrative similarity.",
+            "It does not declare media authentic, edited, synthetic, or manipulated without specialist evidence.",
+            "It does not support propaganda, influence operations, bot networks, targeting, harassment, infiltration, impersonation, or source deanonymization.",
+        ],
+        "dual_ai_review": dual,
+        "not_facts": not_facts,
+        "graphical_memory": graph,
+        "validation_issues": issues,
+        "analysis_settings": settings,
+        "replay_manifest": {
+            "generated_at": started,
+            "finished_at": utcnow_iso(),
+            "code_version": VERSION,
+            "input_path": input_path,
+            "input_sha256": input_hash,
+            "deterministic_operations": [
+                "content hash and normalized fingerprint generation",
+                "URL/domain normalization",
+                "timestamp parsing and temporal ordering",
+                "token-shingle near-duplicate detection",
+                "source-family union-find",
+                "source independence grouping",
+                "claim evidence polarity aggregation",
+                "media authenticity/context state separation",
+                "recycled-context candidate detection",
+                "quote text hash and speaker-conflict detection",
+                "numeric claim conflict detection",
+                "coordination signal computation from supplied metadata",
+                "bot-like behavior candidate scoring",
+                "intent evidence gating",
+                "attribution evidence gating",
+                "fact gate",
+                "ACH matrix construction",
+            ],
+            "note": (
+                "Replay requires original content snapshots, URLs, timestamps, hashes, fingerprints, "
+                "source pedigree, citation/propagation edges, media provenance records, quote context, "
+                "evidence polarity, coordination features, intent evidence, attribution evidence, "
+                "correction/retraction history, and model/parser versions."
+            ),
+        },
+    }
+
+    result["required_analyst_summary"] = analyst_summary(result)
+    return result
+
+
+# -----------------------------------------------------------------------------
+# Template
+# -----------------------------------------------------------------------------
+
+def template_case() -> Dict[str, Any]:
+    return {
+        "_template_note": (
+            "Placeholders only. Replace with deterministic public/authorized/lawful records. "
+            "Do not treat this template as real claim, source, media, coordination, intent, or actor evidence."
+        ),
+        "case_id": "CASE-DISINFOINT-EXAMPLE",
+        "task_id": "TASK-DISINFOINT-EXAMPLE",
+        "objective": (
+            "Defensive information-integrity verification of a public claim that a video depicts a current event. "
+            "Trace earliest known source, assess source independence, separate media authenticity from context accuracy, "
+            "and preserve uncertainty where evidence is insufficient."
+        ),
+        "questions": [
+            "What atomic factual claims are being made?",
+            "What is the earliest known source for the media and claim?",
+            "Are the observing sources independent or derived from one family?",
+            "Is the media itself authentic according to supplied specialist/context evidence?",
+            "Is the caption/date/location/event association accurate?",
+            "Are coordination signals present, and do they remain only signals?",
+            "Is deceptive intent supported by direct evidence?",
+            "Is actor attribution supported by independent evidence?",
+            "What remains unknown?",
+        ],
+        "scope": {
+            "authorized_only": True,
+            "public_or_authorized_sources_only": True,
+            "lawful_only": True,
+            "defensive_only": True,
+            "politically_neutral": True,
+            "privacy_aware": True,
+            "no_harmful_action": True,
+        },
+        "authorization": {
+            "lawful_basis": "PUBLIC_OR_AUTHORIZED_INFORMATION_INTEGRITY_RESEARCH",
+            "purpose": "DEFENSIVE_CLAIM_VERIFICATION_AND_PROVENANCE_ANALYSIS",
+            "approval_reference": "AUTH-DISINFOINT-001",
+            "data_retention": "MINIMUM_NECESSARY",
+        },
+        "model_mode": "LOCAL_ONLY",
+        "knowledge_time": "2026-10-08T12:00:00Z",
+        "analysis_settings": {
+            "shingle_size": 3,
+            "max_near_duplicate_pairs": 5000,
+            "near_duplicate_light_threshold": 0.75,
+            "near_duplicate_partial_threshold": 0.45,
+            "numeric_relative_tolerance": 0.05,
+            "sync_minute_window": 5,
+            "min_coordinated_items": 2,
+            "bot_frequency_threshold": 50.0,
+            "bot_repetition_threshold": 0.8,
+        },
+        "sources": [
+            {
+                "source_id": "SRC-VIDEO",
+                "source_type": "PUBLIC_VIDEO_PLATFORM",
+                "platform": "PUBLIC_VIDEO",
+                "reliability": "LOW",
+                "independence_group": "VIDEO_PLATFORM_A",
+                "limitations": ["Platform metadata may be incomplete or altered by reuploads."],
+            },
+            {
+                "source_id": "SRC-SOCIAL",
+                "source_type": "SOCIAL_ACCOUNT",
+                "platform": "PUBLIC_SOCIAL",
+                "reliability": "LOW",
+                "independence_group": "SOCIAL_A",
+                "limitations": ["Social posts may repeat claims without primary evidence."],
+            },
+            {
+                "source_id": "SRC-ARCHIVE",
+                "source_type": "PUBLIC_ARCHIVE",
+                "reliability": "HIGH",
+                "independence_group": "ARCHIVE_A",
+                "limitations": ["Archive timestamps may lag original publication."],
+            },
+            {
+                "source_id": "SRC-OFFICIAL",
+                "source_type": "OFFICIAL_RECORD",
+                "organization": "EXAMPLE_OFFICIAL_BODY",
+                "reliability": "HIGH",
+                "independence_group": "OFFICIAL_A",
+                "limitations": ["Official records establish official position/record, not every disputed fact."],
+            },
+        ],
+        "contents": [
+            {
+                "content_id": "CONTENT-ORIG",
+                "content_type": "VIDEO",
+                "platform": "PUBLIC_VIDEO",
+                "source_account": "ACC-ORIGINAL",
+                "source_url": "https://video.example/original-2024",
+                "content_text": "Original footage from 2024 event.",
+                "published_at": "2024-06-01T10:00:00Z",
+                "event_time": "2024-06-01T09:00:00Z",
+                "language": "en",
+                "media_ids": ["MEDIA-1"],
+                "claim_ids": ["CLAIM-ORIG-DATE"],
+                "source_ids": ["SRC-VIDEO"],
+                "evidence_ids": ["EVD-ARCHIVE-2"],
+            },
+            {
+                "content_id": "CONTENT-REPOST-1",
+                "content_type": "POST",
+                "platform": "PUBLIC_SOCIAL",
+                "source_account": "ACC-REPOST-1",
+                "source_url": "https://social.example/post/1",
+                "content_text": "Today: video shows event in City C.",
+                "published_at": "2026-10-08T10:00:00Z",
+                "event_time": "2026-10-08T09:00:00Z",
+                "language": "en",
+                "media_ids": ["MEDIA-1"],
+                "claim_ids": ["CLAIM-1", "CLAIM-2"],
+                "source_ids": ["SRC-SOCIAL"],
+                "evidence_ids": [],
+                "hashtags": ["cityc", "event"],
+            },
+            {
+                "content_id": "CONTENT-REPOST-2",
+                "content_type": "POST",
+                "platform": "PUBLIC_SOCIAL",
+                "source_account": "ACC-REPOST-2",
+                "source_url": "https://social.example/post/2",
+                "content_text": "Today: video shows event in City C.",
+                "published_at": "2026-10-08T10:01:00Z",
+                "event_time": "2026-10-08T09:00:00Z",
+                "language": "en",
+                "media_ids": ["MEDIA-1"],
+                "claim_ids": ["CLAIM-1", "CLAIM-2"],
+                "source_ids": ["SRC-SOCIAL"],
+                "evidence_ids": [],
+                "hashtags": ["cityc", "event"],
+            },
+        ],
+        "claims": [
+            {
+                "claim_id": "CLAIM-1",
+                "content_id": "CONTENT-REPOST-1",
+                "speaker_or_source": "ACC-REPOST-1",
+                "subject": "video",
+                "predicate": "depicts",
+                "object": "event in City C on 2026-10-08",
+                "time_reference": "2026-10-08",
+                "location_reference": "CITY-C",
+                "claim_type": "FACTUAL_CLAIM",
+                "claim_scope": "POST",
+                "claim_text_summary": "The video depicts an event in City C on 2026-10-08.",
+                "evidence_ids": ["EVD-ARCHIVE-1"],
+                "source_ids": ["SRC-SOCIAL"],
+            },
+            {
+                "claim_id": "CLAIM-2",
+                "content_id": "CONTENT-REPOST-1",
+                "speaker_or_source": "ACC-REPOST-1",
+                "subject": "event",
+                "predicate": "occurred in",
+                "object": "City C",
+                "time_reference": "2026-10-08",
+                "location_reference": "CITY-C",
+                "claim_type": "FACTUAL_CLAIM",
+                "claim_scope": "POST",
+                "claim_text_summary": "An event occurred in City C on 2026-10-08.",
+                "evidence_ids": [],
+                "source_ids": ["SRC-SOCIAL"],
+            },
+            {
+                "claim_id": "CLAIM-ORIG-DATE",
+                "content_id": "CONTENT-ORIG",
+                "speaker_or_source": "ACC-ORIGINAL",
+                "subject": "original footage",
+                "predicate": "was first published on",
+                "object": "2024-06-01",
+                "time_reference": "2024-06-01",
+                "claim_type": "FACTUAL_CLAIM",
+                "claim_scope": "POST",
+                "claim_text_summary": "The original footage was first published on 2024-06-01.",
+                "evidence_ids": ["EVD-ARCHIVE-2"],
+                "source_ids": ["SRC-VIDEO"],
+            },
+        ],
+        "evidence": [
+            {
+                "evidence_id": "EVD-ARCHIVE-1",
+                "source_id": "SRC-ARCHIVE",
+                "claim_ids": ["CLAIM-1"],
+                "evidence_type": "ARCHIVE_RECORD",
+                "polarity": "CONTRADICTS",
+                "statement": "The same media fingerprint was first archived on 2024-06-01, not 2026-10-08.",
+                "url": "https://archive.example/media-1",
+                "timestamp": "2024-06-01T10:00:00Z",
+                "reliability": "HIGH",
+            },
+            {
+                "evidence_id": "EVD-ARCHIVE-2",
+                "source_id": "SRC-ARCHIVE",
+                "claim_ids": ["CLAIM-ORIG-DATE"],
+                "evidence_type": "ARCHIVE_RECORD",
+                "polarity": "SUPPORTS",
+                "statement": "Archive records show the media was first seen on 2024-06-01.",
+                "url": "https://archive.example/media-1",
+                "timestamp": "2024-06-01T10:00:00Z",
+                "reliability": "HIGH",
+            },
+        ],
+        "media": [
+            {
+                "media_id": "MEDIA-1",
+                "media_type": "VIDEO",
+                "url": "https://video.example/media-1.mp4",
+                "first_seen": "2024-06-01T10:00:00Z",
+                "original_event_time": "2024-06-01T09:00:00Z",
+                "caption": "Original 2024 footage",
+                "authenticity_state": "AUTHENTIC_MEDIA_SUPPORTED",
+                "context_accuracy_state": "UNKNOWN",
+                "limitations": ["Specialist video provenance is not independently adjudicated by this scaffold."],
+            }
+        ],
+        "quotes": [
+            {
+                "quote_id": "QUOTE-1",
+                "content_id": "CONTENT-REPOST-1",
+                "speaker": "Unknown social account",
+                "quote_text": "Today: video shows event in City C.",
+                "original_source_id": "SRC-SOCIAL",
+                "verification_state": "UNVERIFIED",
+                "context_window": None,
+            }
+        ],
+        "accounts": [
+            {
+                "account_id": "ACC-ORIGINAL",
+                "platform": "PUBLIC_VIDEO",
+                "handle": "original_uploader",
+                "display_name": "Original Uploader",
+                "created_at": "2020-01-01T00:00:00Z",
+            },
+            {
+                "account_id": "ACC-REPOST-1",
+                "platform": "PUBLIC_SOCIAL",
+                "handle": "repost_one",
+                "display_name": "Repost One",
+                "created_at": "2026-10-07T00:00:00Z",
+                "posting_frequency_per_day": 5.0,
+                "repetition_score": 0.2,
+            },
+            {
+                "account_id": "ACC-REPOST-2",
+                "platform": "PUBLIC_SOCIAL",
+                "handle": "repost_two",
+                "display_name": "Repost Two",
+                "created_at": "2026-10-07T00:00:00Z",
+                "posting_frequency_per_day": 4.0,
+                "repetition_score": 0.2,
+            },
+        ],
+        "propagation_edges": [
+            {
+                "edge_id": "EDGE-1",
+                "from_content_id": "CONTENT-ORIG",
+                "to_content_id": "CONTENT-REPOST-1",
+                "relation": "DERIVED_FROM",
+                "derivation_state": "SUPPORTED_DERIVATION",
+                "time": "2026-10-08T10:00:00Z",
+                "source_ids": ["SRC-SOCIAL"],
+                "evidence_ids": ["EVD-ARCHIVE-1"],
+            },
+            {
+                "edge_id": "EDGE-2",
+                "from_content_id": "CONTENT-ORIG",
+                "to_content_id": "CONTENT-REPOST-2",
+                "relation": "DERIVED_FROM",
+                "derivation_state": "SUPPORTED_DERIVATION",
+                "time": "2026-10-08T10:01:00Z",
+                "source_ids": ["SRC-SOCIAL"],
+                "evidence_ids": ["EVD-ARCHIVE-1"],
+            },
+        ],
+        "coordination_signals": [],
+        "narratives": [
+            {
+                "narrative_id": "NARR-1",
+                "summary": "Recycled video presented as current event in City C.",
+                "core_claim_ids": ["CLAIM-1"],
+                "supporting_claim_ids": ["CLAIM-2"],
+                "themes": ["RECYCLED_MEDIA", "FALSE_CONTEXT"],
+                "entities": ["CITY-C"],
+                "keywords": ["video", "today", "city c"],
+                "content_ids": ["CONTENT-REPOST-1", "CONTENT-REPOST-2"],
+                "first_seen": "2026-10-08T10:00:00Z",
+                "last_seen": "2026-10-08T10:01:00Z",
+                "evolution_states": [
+                    {
+                        "state": "EMERGENT",
+                        "time": "2026-10-08T10:00:00Z",
+                    }
+                ],
+            }
+        ],
+        "campaign_candidates": [],
+        "corrections": [],
+        "retractions": [],
+        "existing_facts": [],
+        "existing_hypotheses": [],
+        "existing_contradictions": [],
+        "budget": "EXAMPLE",
+        "deadline": "EXAMPLE",
+    }
+
+
+# -----------------------------------------------------------------------------
+# CLI
+# -----------------------------------------------------------------------------
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS DISINFOINT defensive evidence-first information-integrity scaffold. "
+            "Consumes deterministic public/authorized records; does not fetch live data, invent claims/sources/"
+            "accounts/campaigns/intent/actors, create disinformation/propaganda/influence operations/bot networks, "
+            "provide evasion, target/harass ordinary users, infiltrate private groups, impersonate users, "
+            "or deanonymize sources."
+        )
+    )
+    parser.add_argument("--input", "-i", help="Path to DISINFOINT input JSON")
+    parser.add_argument("--output", "-o", default="disinfoint_result.json", help="Output DISINFOINTResult JSON path")
+    parser.add_argument("--write-template", action="store_true", help="Print a safe input template and exit")
+    args = parser.parse_args()
+
+    if args.write_template:
+        print(json.dumps(template_case(), indent=2, default=str))
+        return
+
+    if not args.input:
+        parser.error("--input is required unless --write-template is used")
+
+    path = Path(args.input)
+    if not path.exists():
+        raise SystemExit(f"Input file not found: {path}")
+
+    raw = path.read_bytes()
+    input_hash = sha256_bytes(raw)
+
+    try:
+        case = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Failed to parse input JSON: {exc}")
+
+    if not isinstance(case, dict):
+        raise SystemExit("Input JSON must be an object")
+
+    result = analyze(case, str(path), input_hash)
+
+    out = Path(args.output)
+    out.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+
+    print(
+        json.dumps(
+            {
+                "status": result.get("status"),
+                "output": str(out),
+                "summary": result.get("required_analyst_summary"),
+            },
+            indent=2,
+            default=str,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

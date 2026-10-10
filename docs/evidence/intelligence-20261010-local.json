@@ -1,0 +1,67 @@
+{
+  "schema": "traceatlas.intelligence.local_verification.v1",
+  "captured_at_utc": "2026-10-10T06:24:14.001089+00:00",
+  "task_date": "2026-10-10",
+  "base_sha": "36618e8a4d1ee9a99f9e5f8dd399c380d99e5315",
+  "branch": "codex/osint-archive-integration-20261010",
+  "package_version": "1.11.0",
+  "adapter_version": "1.0.0",
+  "schema_migration": "NONE",
+  "archive_sha256": "1aee7ab918ea6bf0db285ff0a945cc200b96c306a4f5816418b02b1cf895cdb1",
+  "catalog_sha256": "84a89cb7f1b4df1dd5714d16141ddc2b89f9400c209a85d76e50b10148b0e550",
+  "execution_profile_sha256": "29bb79f7f0779721f2eb38871848e9ad0ce5e60368335749c851f3031994462e",
+  "harness_sha256": {
+    "tests/test_intelligence_bridge.py": "408b1b7c982011a203f9169c9f6cfec6e953de5da030dec45d461d1561c763a6",
+    "tests/intelligence/test_contracts.py": "534a12178d4969b690f85503a64e0a394259dd239f974f625fb53ce6ea095436",
+    "tests/intelligence/test_repairs.py": "a2ed57f3dca028dc045ec1bf0b58fa74b35ea102e09774a08566f3e7b324d51c",
+    "tests/intelligence/fixture_inputs.py": "baf60213a50b8e6ba8cbac40e937054b4a5fe58c0816d51f9b5e31c5246a2c32",
+    "scripts/verify_intelligence_suite.py": "b513974c89ad0c45b6c5269a2dfdd59fe5d7d7241e1ef882265793d7e3e5603c",
+    "scripts/check_python_structure.py": "3f640440c1c3a6f7231ad11a97ae1c1575780a766dcc97c1594b366096970f17",
+    "scripts/check_secrets.py": "18f74a1489d97c6a6e103d0c4ca7b27ff8f6dbd22394b364df50295ae2441307"
+  },
+  "dataset": "Explicitly synthetic supplied-record fixtures; no external subjects or provider calls",
+  "scope": "Local supplied source, isolated test cases/databases and fixture-only UI",
+  "reviewer": "Coding agent; not independent analyst acceptance",
+  "environment": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.39"
+  },
+  "results": {
+    "core": {
+      "command": "PYTHONPATH=src python -m unittest discover -s tests -q",
+      "exit_code": 0, "run": 542, "passed": 541, "skipped": 1, "seconds": 45.138
+    },
+    "intelligence": {
+      "command": "PYTHONPATH=src python -m unittest discover -s tests/intelligence -v",
+      "exit_code": 0, "run": 194, "passed": 141, "skipped": 53, "seconds": 29.512,
+      "skip_reason": "Native Tk verification requires Xvfb/display"
+    },
+    "bridge": {
+      "command": "PYTHONPATH=src python -m unittest discover -s tests -p test_intelligence_bridge.py -v",
+      "exit_code": 0, "run": 17, "passed": 17, "seconds": 1.331
+    },
+    "graph_targets": {
+      "command": "node --test tests/test_graph_model.cjs tests/test_target_validation.cjs",
+      "exit_code": 0, "passed": 27
+    },
+    "database": {
+      "command": "node --test tests/test_database.mjs",
+      "exit_code": 0, "passed": 1, "environment": "Isolated PGlite"
+    },
+    "source_structure_secret_compile": "PASS",
+    "ruff": "PASS F821,F822,F823; 0.17.0",
+    "installed_wheel": "PASS catalog/worker/canonical CLI/custody/repeat",
+    "local_browser": "NOT_RUN beyond launch; missing browser and failed invalid/truncated download",
+    "local_native": "SKIPPED; no display/Xvfb",
+    "remote_ci": "PENDING_AT_COMMIT_CREATION",
+    "live": "NOT_VERIFIED", "hosted": "NOT_VERIFIED",
+    "operated": "NOT_VERIFIED", "outcome_validated": "NOT_VERIFIED"
+  },
+  "wheel": {
+    "name": "traceatlas_automator-1.11.0-py3-none-any.whl",
+    "sha256": "ea7b21bb57ad9cc52b6d7ae998e13ea13ca10ef2e6367bc1c03dc14ef698f541",
+    "bytes": 5622619
+  },
+  "expiry": "Invalidated by relevant code, dependency, dataset or environment changes",
+  "artifact_reference": "This file plus source/harness hashes; remote CI artifacts are linked from the PR after publication"
+}

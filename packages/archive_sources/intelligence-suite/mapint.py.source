@@ -1,0 +1,3707 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS MAPINT main.py
+=========================
+
+Public / authorized / evidence-first / safety-constrained mapping and
+cartographic intelligence scaffold.
+
+This module:
+- Does NOT fetch live map services.
+- Does NOT invent coordinates, boundaries, roads, buildings, routes, parcels,
+  ownership, occupancy, facility function, or map features.
+- Does NOT track private persons.
+- Does NOT infer private homes from weak clues.
+- Does NOT create stalking maps or personal routine maps.
+- Does NOT provide evasion routing, checkpoint avoidance, border evasion,
+  customs evasion, sanctions-evasion routing, or escape-route planning.
+- Does NOT provide attack routes, strike coordinates, weapon-position
+  optimization, facility-intrusion routing, sabotage chokepoints, or
+  critical-infrastructure vulnerability exploitation.
+- Does NOT generate actionable routes; it only validates supplied route
+  references and network topology context.
+
+It consumes deterministic map/GIS/cartographic records supplied by
+authorized/public sources:
+- map sources and pedigree metadata
+- places, addresses, coordinates
+- gazetteer/administrative context
+- boundaries and administrative areas
+- roads, railways, transit stops, ports, airports
+- buildings, facilities, landmarks, POIs
+- parcels, zones, land use, land cover
+- hydrography, coastlines, waterways
+- elevation/terrain layers where supplied as metadata or vector features
+- historical maps and map versions
+- supplied route references
+- source reliability / independence / temporal validity metadata
+
+It produces an evidence-linked MAPINTResult with:
+- coordinate parsing and validation
+- CRS / datum / projection metadata handling
+- place/address/coordinate resolution status
+- feature geometry validation
+- topology checks
+- containment / proximity / distance / area calculations where supported
+- road-network topology context
+- supplied-route validation without route generation
+- historical map / change detection context
+- source reliability / bias / pedigree / independence
+- contradiction preservation
+- competing hypotheses and falsification
+- dual-AI style skeptic review
+- privacy / safety flags
+- graphical memory scaffold
+- analyst summary and report-ready result object
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+import statistics
+from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+VERSION = "0.1.0"
+
+# -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+
+FEATURE_TYPES = {
+    "PLACE",
+    "ADDRESS",
+    "ROAD",
+    "STREET",
+    "HIGHWAY",
+    "RAILWAY",
+    "STATION",
+    "TRANSIT_STOP",
+    "PORT",
+    "AIRPORT",
+    "WATERWAY",
+    "RIVER",
+    "LAKE",
+    "COASTLINE",
+    "BOUNDARY",
+    "ADMIN_AREA",
+    "BUILDING",
+    "FACILITY",
+    "LANDMARK",
+    "PARCEL",
+    "ZONE",
+    "LAND_USE",
+    "LAND_COVER",
+    "POI",
+    "TERRAIN_FEATURE",
+    "OTHER",
+    "UNKNOWN",
+}
+
+GEOMETRY_TYPES = {
+    "POINT",
+    "MULTIPOINT",
+    "LINESTRING",
+    "MULTILINESTRING",
+    "POLYGON",
+    "MULTIPOLYGON",
+    "RASTER_CELL",
+    "GRID",
+    "NETWORK",
+    "UNKNOWN",
+    "REDACTED",
+}
+
+COORD_CONFIDENCE = {
+    "EXACT_SURVEYED",
+    "HIGH_CONFIDENCE",
+    "APPROXIMATE",
+    "CENTROID_ONLY",
+    "SOURCE_PIN",
+    "INFERRED",
+    "UNKNOWN",
+    "REDACTED",
+}
+
+GEOCODING_STATES = {
+    "ROOFTOP_OR_EXACT_SOURCE",
+    "PARCEL",
+    "BUILDING",
+    "STREET_SEGMENT",
+    "INTERPOLATED",
+    "POSTCODE",
+    "LOCALITY",
+    "REGION",
+    "CENTROID",
+    "UNRESOLVED",
+    "UNKNOWN",
+}
+
+TEMPORAL_FEATURE_STATES = {
+    "ACTIVE",
+    "HISTORICAL",
+    "REMOVED",
+    "PLANNED",
+    "UNDER_CONSTRUCTION",
+    "TEMPORARY",
+    "UNKNOWN",
+}
+
+MAP_FRESHNESS_STATES = {
+    "CURRENT",
+    "RECENT",
+    "AGING",
+    "HISTORICAL",
+    "PLANNED",
+    "UNKNOWN",
+}
+
+SEVERE_QUALITY_FLAGS = {
+    "geometry_unresolved",
+    "coordinate_unresolved",
+    "crs_missing",
+    "crs_unrecognized",
+    "crs_mismatch",
+    "datum_mismatch",
+    "mixed_coordinates",
+    "latitude_out_of_range",
+    "longitude_out_of_range",
+    "temporal_conflict",
+    "source_unknown",
+    "privacy_private_location_redacted",
+    "polygon_not_closed",
+    "insufficient_points",
+    "topology_error",
+    "unit_quantity_mismatch",
+}
+
+PRIVATE_TAGS = {
+    "private_residence",
+    "home",
+    "personal_address",
+    "person_location",
+    "private_person",
+    "stalking_target",
+}
+
+SENSITIVE_TAGS = {
+    "private_residence",
+    "home",
+    "personal_address",
+    "shelter",
+    "school",
+    "medical",
+    "hospital",
+    "religious",
+    "critical_infrastructure",
+    "utility",
+    "military",
+    "police",
+    "border_checkpoint",
+    "customs",
+    "immigration",
+}
+
+BLOCK_PHRASES = [
+    # privacy / stalking / person tracking
+    "track private person",
+    "private person tracking",
+    "stalk",
+    "stalking",
+    "stalking map",
+    "personal routine",
+    "home location",
+    "private home",
+    "private residence location",
+    "identify someone's home",
+    "find someone's house",
+    "locate private individual",
+    "real-time person tracking",
+    "live person tracking",
+    "private gps tracking",
+    "de-anonymize individual",
+    " deanonymize individual",
+
+    # evasion / smuggling / border / customs / sanctions
+    "evasion route",
+    "evade checkpoint",
+    "checkpoint avoidance",
+    "border evasion",
+    "customs evasion",
+    "sanctions evasion",
+    "sanctions-evasion route",
+    "smuggling route",
+    "contraband route",
+    "escape route from police",
+    "escape from authorities",
+    "avoid authorities",
+    "avoid border control",
+    "avoid customs",
+    "covert infiltration",
+    "facility intrusion",
+    "intrusion route",
+
+    # targeting / weapon / attack planning
+    "attack route",
+    "strike coordinate",
+    "strike coordinates",
+    "target coordinate",
+    "target coordinates",
+    "weapon targeting",
+    "weapon delivery",
+    "weapon position",
+    "sniper position",
+    "artillery targeting",
+    "missile targeting",
+    "drone targeting",
+    "fire support coordinate",
+    "aim point",
+    "vulnerable strike point",
+    "sabotage chokepoint",
+    "critical infrastructure vulnerability",
+    "security bypass route",
+    "surveillance evasion route",
+]
+
+SOURCE_TYPE_RELIABILITY = {
+    "NATIONAL_MAPPING_AGENCY": "HIGH",
+    "OFFICIAL_CADASTRE": "HIGH",
+    "MUNICIPAL_GIS": "HIGH",
+    "OFFICIAL_TRANSPORT_AGENCY": "HIGH",
+    "OFFICIAL_PLANNING": "HIGH",
+    "GOVERNMENT_GIS": "HIGH",
+    "AUTHORIZED_GIS_EXPORT": "HIGH",
+    "OFFICIAL_BOUNDARY_AUTHORITY": "HIGH",
+    "AUTHORIZED_COMMERCIAL_MAP": "MODERATE",
+    "COMMERCIAL_MAP": "MODERATE",
+    "OPENSTREETMAP": "MODERATE",
+    "OPEN_MAPPING_DATASET": "MODERATE",
+    "HISTORICAL_MAP": "MODERATE",
+    "DERIVED_ANALYTICAL_LAYER": "MODERATE",
+    "COMMUNITY_MAP": "LOW",
+    "CROWDSOURCED_MAP": "LOW",
+    "USER_CONTRIBUTED_LAYER": "LOW",
+    "API_AGGREGATOR": "LOW",
+    "UNKNOWN": "UNKNOWN",
+}
+
+
+# -----------------------------------------------------------------------------
+# Small helpers
+# -----------------------------------------------------------------------------
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def parse_dt(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except Exception:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def to_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    except Exception:
+        return None
+
+
+def public_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in d.items() if not str(k).startswith("_")}
+
+
+def ensure_list(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def iso_or_none(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if isinstance(dt, datetime) else None
+
+
+def add_flag(obj: Dict[str, Any], flag: str) -> None:
+    flags = obj.setdefault("_quality_flags", [])
+    f = str(flag).strip().lower()
+    if f and f not in flags:
+        flags.append(f)
+
+
+def safe_std(values: List[float]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return None
+    try:
+        return statistics.stdev(vals)
+    except Exception:
+        return None
+
+
+def numeric_summary(values: List[Any]) -> Dict[str, Any]:
+    arr: List[float] = []
+    for v in values:
+        f = to_float(v)
+        if f is not None:
+            arr.append(f)
+    if not arr:
+        return {"count": 0, "min": None, "max": None, "median": None, "mean": None, "std": None}
+    return {
+        "count": len(arr),
+        "min": min(arr),
+        "max": max(arr),
+        "median": statistics.median(arr),
+        "mean": statistics.fmean(arr),
+        "std": safe_std(arr),
+    }
+
+
+def haversine_km(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if None in (lat1, lon1, lat2, lon2):
+        return None
+    try:
+        lat1_f = float(lat1)
+        lon1_f = float(lon1)
+        lat2_f = float(lat2)
+        lon2_f = float(lon2)
+    except Exception:
+        return None
+
+    r = 6371.0
+    phi1 = math.radians(lat1_f)
+    phi2 = math.radians(lat2_f)
+    dphi = math.radians(lat2_f - lat1_f)
+    dlmb = math.radians(lon2_f - lon1_f)
+
+    a = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2.0) ** 2
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return r * c
+
+
+# -----------------------------------------------------------------------------
+# Coordinate / CRS / geometry parsing
+# -----------------------------------------------------------------------------
+
+DEC_PAIR_RE = re.compile(
+    r"^\s*([-+]?\d+(?:\.\d+)?)\s*[,\s;]\s*([-+]?\d+(?:\.\d+)?)\s*$"
+)
+
+
+def infer_axis_order(a: Optional[float], b: Optional[float]) -> Optional[str]:
+    if a is None or b is None:
+        return None
+    if abs(a) > 90.0 and abs(b) <= 90.0:
+        return "lon_lat"
+    if abs(b) > 90.0 and abs(a) <= 90.0:
+        return "lat_lon"
+    return None
+
+
+def apply_hemisphere(value: float, hemi: str, axis: str) -> float:
+    v = abs(value)
+    if axis == "lat" and hemi.upper() == "S":
+        return -v
+    if axis == "lon" and hemi.upper() == "W":
+        return -v
+    return v
+
+
+def parse_decimal_pair(text: str) -> Optional[Tuple[float, float]]:
+    m = DEC_PAIR_RE.match(str(text).strip())
+    if not m:
+        return None
+    a = to_float(m.group(1))
+    b = to_float(m.group(2))
+    if a is None or b is None:
+        return None
+    return a, b
+
+
+def parse_dms(text: str) -> Optional[Tuple[float, float, str]]:
+    s = str(text).upper()
+    hemis = re.findall(r"\b([NSEW])\b", s)
+    nums: List[float] = []
+    for x in re.findall(r"[-+]?\d+(?:\.\d+)?", s):
+        f = to_float(x)
+        if f is not None:
+            nums.append(abs(f))
+
+    if len(nums) >= 6 and len(hemis) >= 2:
+        lat = nums[0] + nums[1] / 60.0 + nums[2] / 3600.0
+        lon = nums[3] + nums[4] / 60.0 + nums[5] / 3600.0
+        lat = apply_hemisphere(lat, hemis[0], "lat")
+        lon = apply_hemisphere(lon, hemis[1], "lon")
+        return lat, lon, "DMS"
+
+    if len(nums) >= 4 and len(hemis) >= 2:
+        lat = nums[0] + nums[1] / 60.0
+        lon = nums[2] + nums[3] / 60.0
+        lat = apply_hemisphere(lat, hemis[0], "lat")
+        lon = apply_hemisphere(lon, hemis[1], "lon")
+        return lat, lon, "DDM"
+
+    return None
+
+
+def looks_like_coordinate(x: Any) -> bool:
+    if isinstance(x, dict):
+        return True
+    if isinstance(x, str):
+        return bool(DEC_PAIR_RE.match(x.strip()) or parse_dms(x))
+    if isinstance(x, (list, tuple)) and len(x) >= 2:
+        return to_float(x[0]) is not None and to_float(x[1]) is not None
+    return False
+
+
+def detect_crs(value: Any) -> Dict[str, Any]:
+    raw = str(value).strip() if value is not None else ""
+    lower = raw.lower()
+    epsg: Optional[int] = None
+
+    m = re.search(r"(?:EPSG[:\s]*|EPSG::)(\d+)", raw, re.I)
+    if m:
+        epsg = to_float(m.group(1))
+        epsg = int(epsg) if epsg is not None else None
+
+    projected = False
+    geographic = False
+    units: Optional[str] = None
+    datum: Optional[str] = None
+    projection: Optional[str] = None
+    flags: List[str] = []
+
+    if not raw:
+        flags.append("crs_missing")
+
+    if epsg == 4326 or ("wgs" in lower and "84" in lower and "mercator" not in lower):
+        geographic = True
+        units = "degrees"
+        datum = "WGS84"
+        projection = "LAT_LON"
+    elif epsg == 3857 or "web mercator" in lower:
+        projected = True
+        units = "meters"
+        datum = "WGS84"
+        projection = "WEB_MERCATOR"
+    elif (epsg is not None and 32600 <= epsg <= 32700) or "utm" in lower:
+        projected = True
+        units = "meters"
+        projection = "UTM"
+        if epsg is not None and 32600 <= epsg <= 32660:
+            datum = "WGS84"
+        elif epsg is not None and 32700 <= epsg <= 32760:
+            datum = "WGS84"
+    elif "lonlat" in lower or "latlon" in lower or "geographic" in lower:
+        geographic = True
+        units = "degrees"
+        projection = "LAT_LON"
+    elif raw:
+        flags.append("crs_unrecognized")
+
+    return {
+        "raw": raw or None,
+        "epsg": epsg,
+        "projected": projected,
+        "is_geographic": geographic,
+        "units": units,
+        "datum": datum,
+        "projection": projection,
+        "flags": flags,
+    }
+
+
+def same_crs(a: Optional[Dict[str, Any]], b: Optional[Dict[str, Any]]) -> bool:
+    if not a or not b:
+        return False
+    if a.get("epsg") is not None and b.get("epsg") is not None:
+        return a["epsg"] == b["epsg"]
+    return str(a.get("raw") or "").strip().lower() == str(b.get("raw") or "").strip().lower()
+
+
+def crs_compatible(a: Optional[Dict[str, Any]], b: Optional[Dict[str, Any]]) -> bool:
+    if not same_crs(a, b):
+        return False
+    if a.get("is_geographic") and b.get("is_geographic"):
+        return True
+    if a.get("projected") and b.get("projected") and a.get("units") == b.get("units"):
+        return True
+    return False
+
+
+def parse_coordinate_value(
+    value: Any,
+    axis_order: Any = None,
+    crs_meta: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    original = value
+    flags: List[str] = []
+    lat = lon = easting = northing = None
+    fmt = "UNKNOWN"
+
+    crs_meta = crs_meta or {}
+
+    if isinstance(value, dict):
+        if "value" in value and not any(k in value for k in ("latitude", "lat", "longitude", "lon", "easting", "northing", "x", "y")):
+            return parse_coordinate_value(value.get("value"), value.get("axis_order", axis_order), crs_meta)
+
+        if any(k in value for k in ("latitude", "lat")):
+            lat = to_float(value.get("latitude") if value.get("latitude") is not None else value.get("lat"))
+            lon = to_float(value.get("longitude") if value.get("longitude") is not None else value.get("lon"))
+            fmt = "DECIMAL_DICT"
+        elif any(k in value for k in ("easting", "x")) and any(k in value for k in ("northing", "y")):
+            easting = to_float(value.get("easting") if value.get("easting") is not None else value.get("x"))
+            northing = to_float(value.get("northing") if value.get("northing") is not None else value.get("y"))
+            fmt = "PROJECTED_DICT"
+        elif isinstance(value.get("coordinates"), (list, tuple)) and len(value.get("coordinates", [])) >= 2:
+            coords = value["coordinates"]
+            a = to_float(coords[0])
+            b = to_float(coords[1])
+            order = str(axis_order or value.get("axis_order") or "").lower()
+            if not order:
+                inferred = infer_axis_order(a, b)
+                if inferred:
+                    order = inferred
+                    flags.append("axis_order_inferred")
+                else:
+                    order = "lat_lon"
+                    flags.append("axis_order_defaulted_lat_lon")
+            if order == "lon_lat":
+                lon, lat = a, b
+            else:
+                lat, lon = a, b
+            fmt = "GEOJSON_POINT"
+        else:
+            flags.append("coordinate_object_unrecognized")
+
+    elif isinstance(value, (list, tuple)) and len(value) >= 2:
+        a = to_float(value[0])
+        b = to_float(value[1])
+        order = str(axis_order or "").lower()
+        if not order:
+            inferred = infer_axis_order(a, b)
+            if inferred:
+                order = inferred
+                flags.append("axis_order_inferred")
+            else:
+                order = "lat_lon"
+                flags.append("axis_order_defaulted_lat_lon")
+        if order == "lon_lat":
+            lon, lat = a, b
+        else:
+            lat, lon = a, b
+        fmt = "DECIMAL_ARRAY"
+
+    elif isinstance(value, str):
+        dp = parse_decimal_pair(value)
+        if dp:
+            a, b = dp
+            order = str(axis_order or "").lower()
+            if not order:
+                inferred = infer_axis_order(a, b)
+                if inferred:
+                    order = inferred
+                    flags.append("axis_order_inferred")
+                else:
+                    order = "lat_lon"
+                    flags.append("axis_order_defaulted_lat_lon")
+            if order == "lon_lat":
+                lon, lat = a, b
+            else:
+                lat, lon = a, b
+            fmt = "DECIMAL_STRING"
+        else:
+            dms = parse_dms(value)
+            if dms:
+                lat, lon, fmt = dms
+
+    if lat is not None and not (-90.0 <= lat <= 90.0):
+        flags.append("latitude_out_of_range")
+        lat = None
+    if lon is not None and not (-180.0 <= lon <= 180.0):
+        flags.append("longitude_out_of_range")
+        lon = None
+
+    if easting is not None and northing is not None and crs_meta.get("is_geographic"):
+        flags.append("projected_coordinates_with_geographic_crs")
+
+    if lat is None and lon is None and easting is None and northing is None:
+        flags.append("coordinate_unresolved")
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "easting": easting,
+        "northing": northing,
+        "format": fmt,
+        "flags": flags,
+        "original": original,
+    }
+
+
+def parsed_point_xy(pt: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    if pt.get("lat") is not None and pt.get("lon") is not None:
+        return pt["lon"], pt["lat"]
+    if pt.get("easting") is not None and pt.get("northing") is not None:
+        return pt["easting"], pt["northing"]
+    return None
+
+
+def parse_geometry(
+    geom: Any,
+    crs_meta: Optional[Dict[str, Any]] = None,
+    axis_order: Any = None,
+) -> Dict[str, Any]:
+    crs_meta = crs_meta or {}
+    flags: List[str] = []
+
+    if geom is None:
+        return {
+            "type": "UNKNOWN",
+            "rings": [],
+            "flat_points": [],
+            "projected": False,
+            "geographic": False,
+            "flags": ["geometry_missing"],
+        }
+
+    gtype: Optional[str] = None
+    coords = geom
+
+    if isinstance(geom, dict):
+        gtype = str(geom.get("type") or geom.get("geometry_type") or "UNKNOWN").upper()
+        coords = (
+            geom.get("coordinates")
+            or geom.get("points")
+            or geom.get("ring")
+            or geom.get("value")
+            or geom.get("geometry")
+        )
+        if gtype == "UNKNOWN" and coords is not None:
+            gtype = None
+
+    if gtype not in GEOMETRY_TYPES:
+        # Guess geometry type.
+        if looks_like_coordinate(coords):
+            gtype = "POINT"
+        elif isinstance(coords, list) and coords:
+            if looks_like_coordinate(coords[0]):
+                gtype = "LINESTRING"
+            elif isinstance(coords[0], list) and coords[0] and looks_like_coordinate(coords[0][0]):
+                # Could be POLYGON or MULTILINESTRING. Default POLYGON unless explicit.
+                gtype = "POLYGON"
+            elif (
+                isinstance(coords[0], list)
+                and coords[0]
+                and isinstance(coords[0][0], list)
+                and coords[0][0]
+                and looks_like_coordinate(coords[0][0][0])
+            ):
+                gtype = "MULTIPOLYGON"
+            else:
+                gtype = "UNKNOWN"
+        else:
+            gtype = "UNKNOWN"
+
+    ring_list: List[List[Any]] = []
+
+    if gtype == "POINT":
+        ring_list = [[coords]]
+    elif gtype in {"LINESTRING", "MULTILINESTRING", "MULTIPOINT"}:
+        if looks_like_coordinate(coords):
+            ring_list = [[coords]]
+        elif isinstance(coords, list):
+            ring_list = [x if isinstance(x, list) else [x] for x in coords]
+        else:
+            flags.append("geometry_unresolved")
+    elif gtype in {"POLYGON", "MULTIPOLYGON"}:
+        if isinstance(coords, list) and coords and looks_like_coordinate(coords[0]):
+            ring_list = [coords]
+        elif isinstance(coords, list) and coords and isinstance(coords[0], list):
+            if gtype == "MULTIPOLYGON":
+                ring_list = []
+                for poly in coords:
+                    if isinstance(poly, list):
+                        ring_list.extend(poly if all(isinstance(r, list) for r in poly) else [poly])
+            else:
+                ring_list = coords
+        else:
+            flags.append("geometry_unresolved")
+    else:
+        flags.append("geometry_unresolved")
+
+    rings: List[List[Dict[str, Any]]] = []
+    flat_points: List[Tuple[float, float]] = []
+    has_latlon = False
+    has_projected = False
+
+    for ring in ring_list:
+        parsed_ring: List[Dict[str, Any]] = []
+        if not isinstance(ring, list):
+            ring = [ring]
+        for c in ring:
+            pc = parse_coordinate_value(c, axis_order, crs_meta)
+            parsed_ring.append(pc)
+            flags.extend(pc["flags"])
+            xy = parsed_point_xy(pc)
+            if xy is not None:
+                flat_points.append(xy)
+                if pc.get("lat") is not None and pc.get("lon") is not None:
+                    has_latlon = True
+                elif pc.get("easting") is not None and pc.get("northing") is not None:
+                    has_projected = True
+        rings.append(parsed_ring)
+
+    if has_latlon and has_projected:
+        flags.append("mixed_coordinates")
+
+    if not flat_points:
+        flags.append("geometry_unresolved")
+
+    if gtype in {"POLYGON", "MULTIPOLYGON"}:
+        for r in rings:
+            if len(r) < 4:
+                flags.append("insufficient_points")
+                break
+            first = parsed_point_xy(r[0])
+            last = parsed_point_xy(r[-1])
+            if first and last and (abs(first[0] - last[0]) > 1e-9 or abs(first[1] - last[1]) > 1e-9):
+                flags.append("polygon_not_closed")
+
+    return {
+        "type": gtype if gtype in GEOMETRY_TYPES else "UNKNOWN",
+        "rings": rings,
+        "flat_points": flat_points,
+        "projected": has_projected and not has_latlon,
+        "geographic": has_latlon and not has_projected,
+        "flags": sorted(set(flags)),
+    }
+
+
+# -----------------------------------------------------------------------------
+# Policy gate
+# -----------------------------------------------------------------------------
+
+def policy_block_reasons(case: Dict[str, Any]) -> List[str]:
+    reasons: List[str] = []
+
+    scanned_parts: List[str] = []
+    for key in ("objective", "questions", "scope", "authorization", "requested_outputs", "tags", "next_action_requests"):
+        val = case.get(key)
+        if val is not None:
+            scanned_parts.append(json.dumps(val, ensure_ascii=False, default=str))
+
+    text = " ".join(scanned_parts).lower()
+
+    for phrase in BLOCK_PHRASES:
+        if phrase in text:
+            reasons.append(f"Forbidden MAPINT action/request detected: '{phrase}'")
+
+    scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+    auth = case.get("authorization") if isinstance(case.get("authorization"), dict) else {}
+    requested = case.get("requested_outputs") if isinstance(case.get("requested_outputs"), dict) else {}
+
+    if scope.get("authorized_only") is not True:
+        reasons.append("scope.authorized_only must be true")
+
+    if scope.get("public_or_authorized_sources_only") is False:
+        reasons.append("scope.public_or_authorized_sources_only must not be false")
+
+    prohibited_scope_flags = [
+        "private_person_tracking",
+        "stalking",
+        "home_location_inference",
+        "personal_routine_mapping",
+        "evasion_routing",
+        "checkpoint_evasion",
+        "border_evasion",
+        "customs_evasion",
+        "sanctions_evasion",
+        "attack_planning",
+        "targeting",
+        "weapon_delivery",
+        "facility_intrusion",
+        "sabotage",
+        "critical_infrastructure_exploitation",
+        "covert_infiltration",
+        "publish_exact_private_home",
+    ]
+
+    for flag in prohibited_scope_flags:
+        if scope.get(flag) is True:
+            reasons.append(f"scope.{flag} is prohibited")
+
+    prohibited_requested = [
+        "exact_private_location",
+        "home_location",
+        "person_tracking",
+        "evasion_route",
+        "attack_route",
+        "strike_coordinates",
+        "weapon_position",
+        "intrusion_route",
+        "checkpoint_avoidance",
+        "border_evasion",
+        "customs_evasion",
+        "sanctions_evasion",
+        "sabotage_chokepoint",
+        "critical_infrastructure_vulnerability",
+    ]
+
+    for flag in prohibited_requested:
+        if requested.get(flag) is True:
+            reasons.append(f"requested_outputs.{flag} is prohibited")
+
+    if not auth.get("lawful_basis"):
+        reasons.append("authorization.lawful_basis is missing")
+
+    if not auth.get("purpose"):
+        reasons.append("authorization.purpose is missing")
+
+    return reasons
+
+
+def blocked_result(
+    case: Dict[str, Any],
+    reasons: List[str],
+    started: str,
+    input_path: Optional[str],
+    input_hash: Optional[str],
+) -> Dict[str, Any]:
+    return {
+        "case_id": case.get("case_id"),
+        "task_id": case.get("task_id"),
+        "objective": case.get("objective"),
+        "status": "POLICY_BLOCKED",
+        "policy_block_reasons": reasons,
+        "mode": case.get("model_mode", "LOCAL_ONLY"),
+        "privacy_flags": [
+            "NO_PRIVATE_PERSON_TRACKING",
+            "NO_HOME_LOCATION_INFERENCE",
+            "NO_STALKING_MAPS",
+            "NO_PERSONAL_ROUTINE_MAPPING",
+            "PRIVATE_LOCATION_DATA_REDACTED_BY_DEFAULT",
+        ],
+        "safety_flags": [
+            "NO_EVASION_ROUTING",
+            "NO_CHECKPOINT_AVOIDANCE",
+            "NO_BORDER_EVASION",
+            "NO_CUSTOMS_EVASION",
+            "NO_SANCTIONS_EVASION",
+            "NO_ATTACK_ROUTES",
+            "NO_STRIKE_COORDINATES",
+            "NO_WEAPON_POSITION_OPTIMIZATION",
+            "NO_FACILITY_INTRUSION_PLANNING",
+            "NO_SABOTAGE_CHOKEPOINT_IDENTIFICATION",
+            "NO_CRITICAL_INFRASTRUCTURE_EXPLOITATION",
+        ],
+        "recommended_next_actions": [
+            "Restate objective as lawful cartographic context, public mapping, resilience, navigation, research, or defensive analysis",
+            "Use official/public/authorized map sources with CRS, datum, date, scale, and pedigree metadata",
+            "Reduce precision for sensitive or private locations",
+            "Handoff visual geolocation to GEOINT, imagery to SATINT, environment to ENVINT, ownership to CORPINT/OWNERSHIPINT",
+        ],
+        "limitations": [
+            "Requested or detected use crosses MAPINT safety/privacy boundary.",
+            "No stalking, private-person tracking, evasion routing, attack routing, targeting, intrusion, sabotage, or critical-infrastructure exploitation support is provided.",
+        ],
+        "replay_manifest": {
+            "generated_at": started,
+            "finished_at": utcnow_iso(),
+            "code_version": VERSION,
+            "input_path": input_path,
+            "input_sha256": input_hash,
+        },
+    }
+
+
+# -----------------------------------------------------------------------------
+# Source validation
+# -----------------------------------------------------------------------------
+
+def source_reliability_label(source: Dict[str, Any]) -> str:
+    rel = str(source.get("reliability") or source.get("_reliability") or "").strip().upper()
+    if rel in {"HIGH", "MODERATE", "LOW", "UNKNOWN"}:
+        return rel
+    stype = str(source.get("source_type") or source.get("_source_type") or "UNKNOWN").strip().upper()
+    return SOURCE_TYPE_RELIABILITY.get(stype, "UNKNOWN")
+
+
+def validate_sources(case: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    issues: List[str] = []
+    sources: Dict[str, Dict[str, Any]] = {}
+
+    for idx, s in enumerate(case.get("map_sources") or case.get("sources") or []):
+        if not isinstance(s, dict):
+            issues.append(f"map_sources[{idx}] is not an object")
+            continue
+
+        sid = s.get("source_id") or s.get("id") or f"SRC-{idx + 1}"
+        s["source_id"] = sid
+
+        stype = str(s.get("source_type", "UNKNOWN")).strip().upper()
+        s["_source_type"] = stype
+        s["_reliability"] = source_reliability_label(s)
+
+        s["_independence_group"] = str(
+            s.get("independence_group")
+            or s.get("upstream_source_id")
+            or s.get("provider")
+            or sid
+        ).strip().upper()
+
+        s["_upstream_source_id"] = s.get("upstream_source_id")
+        s["_provider"] = s.get("provider")
+        s["_license"] = s.get("license")
+        s["_crs"] = detect_crs(s.get("crs") or s.get("srs"))
+        s["_valid_from"] = parse_dt(s.get("valid_from"))
+        s["_valid_to"] = parse_dt(s.get("valid_to"))
+        s["_published_at"] = parse_dt(s.get("published_at"))
+        s["_retrieved_at"] = parse_dt(s.get("retrieved_at"))
+        s["_content_hash"] = s.get("content_hash")
+
+        if s["_valid_from"] and s["_valid_to"] and s["_valid_to"] < s["_valid_from"]:
+            add_flag(s, "temporal_conflict")
+
+        sources[sid] = s
+
+    if not sources:
+        issues.append("No map sources supplied")
+
+    return sources, issues
+
+
+def source_independence(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+    if not a or not b:
+        return "UNKNOWN"
+    if a.get("source_id") == b.get("source_id"):
+        return "DEPENDENT"
+
+    shared_keys = [
+        "_upstream_source_id",
+        "upstream_source_id",
+        "_independence_group",
+        "independence_group",
+        "_provider",
+        "provider",
+        "_license",
+        "license",
+    ]
+
+    for k in shared_keys:
+        av = a.get(k)
+        bv = b.get(k)
+        if av is not None and bv is not None and av == bv:
+            return "DEPENDENT"
+
+    ag = a.get("_independence_group")
+    bg = b.get("_independence_group")
+    if ag and bg and ag == bg:
+        return "DEPENDENT"
+    if ag and bg and ag != bg:
+        return "INDEPENDENT"
+
+    return "UNKNOWN"
+
+
+def summarize_source_independence(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> str:
+    ids = [s for s in source_ids if s]
+    if len(ids) < 2:
+        return "SINGLE_SOURCE"
+
+    states: List[str] = []
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            states.append(source_independence(sources.get(ids[i], {}), sources.get(ids[j], {})))
+
+    if all(s == "INDEPENDENT" for s in states):
+        return "INDEPENDENT"
+    if any(s == "DEPENDENT" for s in states):
+        return "DEPENDENT_OR_UNKNOWN"
+    if any(s == "PARTIALLY_DEPENDENT" for s in states):
+        return "PARTIALLY_DEPENDENT"
+    return "UNKNOWN"
+
+
+# -----------------------------------------------------------------------------
+# Point / feature validation
+# -----------------------------------------------------------------------------
+
+def map_freshness(obj: Dict[str, Any], now: datetime) -> str:
+    vf = obj.get("_valid_from")
+    vt = obj.get("_valid_to")
+    pub = obj.get("_published_at")
+
+    if vt and now > vt:
+        return "HISTORICAL"
+    if vf and now < vf:
+        return "PLANNED"
+
+    ref = pub or vf
+    if not ref:
+        return "UNKNOWN"
+
+    age_days = (now - ref).days
+    if age_days <= 365:
+        return "CURRENT"
+    if age_days <= 365 * 3:
+        return "RECENT"
+    if age_days <= 365 * 10:
+        return "AGING"
+    return "HISTORICAL"
+
+
+def feature_confidence(feature: Dict[str, Any], sources: Dict[str, Dict[str, Any]]) -> str:
+    flags = set(feature.get("_quality_flags") or [])
+    severe = bool(flags & SEVERE_QUALITY_FLAGS)
+    src = sources.get(feature.get("_source_id") or "", {})
+    rel = source_reliability_label(src)
+    prec = str(feature.get("_precision") or "UNKNOWN").upper()
+
+    if severe:
+        return "LOW"
+    if rel == "HIGH" and prec in {"EXACT_SURVEYED", "HIGH_CONFIDENCE"}:
+        return "HIGH"
+    if rel == "HIGH" or (rel == "MODERATE" and prec in {"EXACT_SURVEYED", "HIGH_CONFIDENCE", "APPROXIMATE"}):
+        return "MODERATE"
+    if rel == "MODERATE":
+        return "LOW"
+    return "UNKNOWN"
+
+
+def redact_if_private(
+    obj: Dict[str, Any],
+    tags: set,
+    sensitive_exact_authorized: bool,
+) -> bool:
+    if tags & PRIVATE_TAGS and not sensitive_exact_authorized:
+        add_flag(obj, "privacy_private_location_redacted")
+        return True
+    return False
+
+
+def validate_points(
+    case: Dict[str, Any],
+    sources: Dict[str, Dict[str, Any]],
+    settings: Dict[str, Any],
+    now: datetime,
+) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+    issues: List[str] = []
+    warnings: List[str] = []
+    points: List[Dict[str, Any]] = []
+
+    sensitive_exact_authorized = settings.get("sensitive_exact_authorized", False)
+
+    specs = [
+        ("places", "PLACE"),
+        ("addresses", "ADDRESS"),
+        ("coordinates", "COORDINATE"),
+    ]
+
+    for key, ptype in specs:
+        for idx, raw in enumerate(case.get(key) or []):
+            if not isinstance(raw, dict):
+                issues.append(f"{key}[{idx}] is not an object")
+                continue
+
+            p = dict(raw)
+            pid = (
+                p.get("place_id")
+                or p.get("address_id")
+                or p.get("coordinate_id")
+                or p.get("point_id")
+                or p.get("id")
+                or f"{ptype}-{idx + 1}"
+            )
+            p["point_id"] = pid
+            p["_point_type"] = ptype
+
+            src = p.get("source_id")
+            p["_source_id"] = src
+            if src and src not in sources:
+                issues.append(f"point {pid} references unknown source_id={src}")
+                add_flag(p, "source_unknown")
+
+            crs_meta = detect_crs(
+                p.get("crs")
+                or p.get("srs")
+                or (sources.get(src, {}).get("_crs") if src else None)
+            )
+            p["_crs_meta"] = crs_meta
+            for fl in crs_meta.get("flags", []):
+                add_flag(p, fl)
+
+            coord = parse_coordinate_value(
+                p.get("coordinate")
+                or p.get("location")
+                or p.get("point")
+                or p.get("value")
+                or p.get("geometry"),
+                p.get("axis_order") or (sources.get(src, {}).get("axis_order") if src else None),
+                crs_meta,
+            )
+            p["_coordinate"] = coord
+            for fl in coord.get("flags", []):
+                add_flag(p, fl)
+
+            tags = {str(x).strip().lower() for x in ensure_list(p.get("tags") or p.get("sensitive_tags")) if x}
+            p["_tags"] = tags
+
+            if redact_if_private(p, tags, sensitive_exact_authorized):
+                p["_xy"] = None
+                p["_coordinate"] = {"redacted": True}
+                p["_precision"] = "REDACTED"
+            else:
+                xy = parsed_point_xy(coord)
+                p["_xy"] = xy
+                p["_precision"] = str(
+                    p.get("precision")
+                    or p.get("coordinate_confidence")
+                    or ("EXACT_SURVEYED" if p.get("surveyed") is True else "UNKNOWN")
+                ).upper()
+                if p["_precision"] not in COORD_CONFIDENCE:
+                    p["_precision"] = "UNKNOWN"
+
+            p["_accuracy_m"] = to_float(p.get("accuracy_m") or p.get("positional_accuracy_m") or p.get("uncertainty_m"))
+            p["_geocoding_state"] = str(p.get("geocoding_state") or p.get("match_type") or "UNKNOWN").upper()
+            if p["_geocoding_state"] not in GEOCODING_STATES:
+                p["_geocoding_state"] = "UNKNOWN"
+
+            p["_valid_from"] = parse_dt(p.get("valid_from") or p.get("effective_date") or p.get("observed_at"))
+            p["_valid_to"] = parse_dt(p.get("valid_to"))
+            p["_published_at"] = parse_dt(p.get("published_at"))
+            p["_retrieved_at"] = parse_dt(p.get("retrieved_at"))
+
+            if p["_valid_from"] and p["_valid_to"] and p["_valid_to"] < p["_valid_from"]:
+                add_flag(p, "temporal_conflict")
+
+            p["_freshness"] = map_freshness(p, now)
+            p["_confidence"] = feature_confidence(p, sources)
+
+            if p.get("_xy") is None and "privacy_private_location_redacted" not in (p.get("_quality_flags") or []):
+                warnings.append(f"point {pid} coordinate unresolved")
+
+            points.append(p)
+
+    if not points:
+        issues.append("No places/addresses/coordinates supplied")
+
+    return points, issues, warnings
+
+
+def validate_features(
+    case: Dict[str, Any],
+    sources: Dict[str, Dict[str, Any]],
+    settings: Dict[str, Any],
+    now: datetime,
+) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+    issues: List[str] = []
+    warnings: List[str] = []
+    features: List[Dict[str, Any]] = []
+
+    sensitive_exact_authorized = settings.get("sensitive_exact_authorized", False)
+
+    specs = [
+        ("map_features", None),
+        ("boundaries", "BOUNDARY"),
+        ("administrative_areas", "ADMIN_AREA"),
+        ("roads", "ROAD"),
+        ("railways", "RAILWAY"),
+        ("stations", "STATION"),
+        ("transit_stops", "TRANSIT_STOP"),
+        ("ports", "PORT"),
+        ("airports", "AIRPORT"),
+        ("waterways", "WATERWAY"),
+        ("coastlines", "COASTLINE"),
+        ("buildings", "BUILDING"),
+        ("facilities", "FACILITY"),
+        ("landmarks", "LANDMARK"),
+        ("parcels", "PARCEL"),
+        ("zones", "ZONE"),
+        ("land_use", "LAND_USE"),
+        ("land_cover", "LAND_COVER"),
+        ("terrain_features", "TERRAIN_FEATURE"),
+        ("elevation_layers", "TERRAIN_FEATURE"),
+        ("poi", "POI"),
+        ("historical_features", "OTHER"),
+    ]
+
+    for key, default_type in specs:
+        for idx, raw in enumerate(case.get(key) or []):
+            if not isinstance(raw, dict):
+                issues.append(f"{key}[{idx}] is not an object")
+                continue
+
+            f = dict(raw)
+            fid = f.get("feature_id") or f.get("id") or f"{key.upper()}-{idx + 1}"
+            f["feature_id"] = fid
+
+            ftype = str(f.get("feature_type") or default_type or "UNKNOWN").strip().upper()
+            if ftype not in FEATURE_TYPES:
+                warnings.append(f"feature {fid} unknown feature_type={ftype}")
+                ftype = "OTHER"
+            f["_feature_type"] = ftype
+
+            src = f.get("source_id")
+            f["_source_id"] = src
+            if src and src not in sources:
+                issues.append(f"feature {fid} references unknown source_id={src}")
+                add_flag(f, "source_unknown")
+
+            crs_meta = detect_crs(
+                f.get("crs")
+                or f.get("srs")
+                or (sources.get(src, {}).get("_crs") if src else None)
+            )
+            f["_crs_meta"] = crs_meta
+            for fl in crs_meta.get("flags", []):
+                add_flag(f, fl)
+
+            axis_order = f.get("axis_order") or (sources.get(src, {}).get("axis_order") if src else None)
+            geom = parse_geometry(
+                f.get("geometry")
+                or f.get("coordinates")
+                or f.get("point")
+                or f.get("location")
+                or f.get("value"),
+                crs_meta,
+                axis_order,
+            )
+            f["_geometry"] = geom
+            for fl in geom.get("flags", []):
+                add_flag(f, fl)
+
+            tags = {str(x).strip().lower() for x in ensure_list(f.get("tags") or f.get("sensitive_tags")) if x}
+            f["_tags"] = tags
+
+            if redact_if_private(f, tags, sensitive_exact_authorized):
+                f["_geometry"] = {
+                    "type": "REDACTED",
+                    "rings": [],
+                    "flat_points": [],
+                    "projected": False,
+                    "geographic": False,
+                    "flags": ["privacy_redacted"],
+                }
+                f["_precision"] = "REDACTED"
+            else:
+                f["_precision"] = str(
+                    f.get("precision")
+                    or f.get("coordinate_confidence")
+                    or ("EXACT_SURVEYED" if f.get("surveyed") is True else "UNKNOWN")
+                ).upper()
+                if f["_precision"] not in COORD_CONFIDENCE:
+                    f["_precision"] = "UNKNOWN"
+
+                if tags & SENSITIVE_TAGS and not sensitive_exact_authorized:
+                    if f["_precision"] in {"EXACT_SURVEYED", "HIGH_CONFIDENCE"}:
+                        f["_precision"] = "APPROXIMATE"
+                        add_flag(f, "sensitive_precision_downgraded")
+
+            f["_accuracy_m"] = to_float(f.get("accuracy_m") or f.get("positional_accuracy_m") or f.get("uncertainty_m"))
+
+            f["_valid_from"] = parse_dt(
+                f.get("valid_from")
+                or f.get("effective_date")
+                or f.get("survey_date")
+                or f.get("observed_at")
+            )
+            f["_valid_to"] = parse_dt(f.get("valid_to"))
+            f["_published_at"] = parse_dt(f.get("published_at"))
+            f["_retrieved_at"] = parse_dt(f.get("retrieved_at"))
+
+            if f["_valid_from"] and f["_valid_to"] and f["_valid_to"] < f["_valid_from"]:
+                add_flag(f, "temporal_conflict")
+
+            state = str(f.get("temporal_state") or "UNKNOWN").strip().upper()
+            if state not in TEMPORAL_FEATURE_STATES:
+                warnings.append(f"feature {fid} unknown temporal_state={state}")
+                state = "UNKNOWN"
+            f["_temporal_state"] = state
+
+            if f["_valid_to"] and now > f["_valid_to"] and state == "ACTIVE":
+                add_flag(f, "stale_active_feature")
+
+            if state == "PLANNED" and f.get("exists") is True:
+                add_flag(f, "planned_marked_existing")
+
+            f["_freshness"] = map_freshness(f, now)
+            f["_confidence"] = feature_confidence(f, sources)
+
+            if f["_geometry"].get("type") == "UNKNOWN" and "privacy_private_location_redacted" not in (f.get("_quality_flags") or []):
+                warnings.append(f"feature {fid} geometry unresolved")
+
+            features.append(f)
+
+    if not features:
+        issues.append("No map features supplied")
+
+    return features, issues, warnings
+
+
+# -----------------------------------------------------------------------------
+# Spatial operations
+# -----------------------------------------------------------------------------
+
+def representative_xy(feature: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    geom = feature.get("_geometry") or {}
+    pts = geom.get("flat_points") or []
+    if not pts:
+        return None
+    if geom.get("type") == "POINT":
+        return pts[0]
+    x = sum(p[0] for p in pts) / len(pts)
+    y = sum(p[1] for p in pts) / len(pts)
+    return x, y
+
+
+def distance_xy(
+    xy1: Optional[Tuple[float, float]],
+    xy2: Optional[Tuple[float, float]],
+    crs1: Optional[Dict[str, Any]],
+    crs2: Optional[Dict[str, Any]],
+) -> Tuple[Optional[float], str]:
+    if xy1 is None or xy2 is None:
+        return None, "MISSING_GEOMETRY"
+    if not crs_compatible(crs1, crs2):
+        return None, "INCOMPATIBLE_CRS"
+
+    if crs1 and crs1.get("is_geographic"):
+        lon1, lat1 = xy1
+        lon2, lat2 = xy2
+        d_km = haversine_km(lat1, lon1, lat2, lon2)
+        if d_km is None:
+            return None, "DISTANCE_UNRESOLVED"
+        return d_km * 1000.0, "HAVERSINE_M"
+
+    if crs1 and crs1.get("projected") and crs1.get("units") == "meters":
+        return math.hypot(xy1[0] - xy2[0], xy1[1] - xy2[1]), "PROJECTED_EUCLIDEAN_M"
+
+    return None, "UNSUPPORTED_CRS_FOR_DISTANCE"
+
+
+def point_distance_to_feature_m(
+    xy: Optional[Tuple[float, float]],
+    feature: Dict[str, Any],
+    crs: Optional[Dict[str, Any]],
+) -> Tuple[Optional[float], str]:
+    rep = representative_xy(feature)
+    if rep is None:
+        return None, "FEATURE_GEOMETRY_MISSING"
+    return distance_xy(xy, rep, crs, feature.get("_crs_meta"))
+
+
+def min_vertex_distance_m(
+    xy: Tuple[float, float],
+    feature: Dict[str, Any],
+) -> Optional[float]:
+    pts = (feature.get("_geometry") or {}).get("flat_points") or []
+    crs = feature.get("_crs_meta")
+    best: Optional[float] = None
+    for p in pts:
+        d, _ = distance_xy(xy, p, crs, crs)
+        if d is None:
+            continue
+        if best is None or d < best:
+            best = d
+    return best
+
+
+def _point_in_ring(xy: Tuple[float, float], ring: List[Tuple[float, float]]) -> bool:
+    x, y = xy
+    inside = False
+    n = len(ring)
+    if n < 3:
+        return False
+    j = n - 1
+    for i in range(n):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi + 1e-18) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def point_in_feature_xy(
+    xy: Optional[Tuple[float, float]],
+    point_crs: Optional[Dict[str, Any]],
+    feature: Dict[str, Any],
+) -> Optional[bool]:
+    if xy is None:
+        return None
+    geom = feature.get("_geometry") or {}
+    if geom.get("type") not in {"POLYGON", "MULTIPOLYGON"}:
+        return None
+    if not crs_compatible(point_crs, feature.get("_crs_meta")):
+        return None
+
+    for ring in geom.get("rings") or []:
+        ring_xy: List[Tuple[float, float]] = []
+        ok = True
+        for pt in ring:
+            pxy = parsed_point_xy(pt)
+            if pxy is None:
+                ok = False
+                break
+            ring_xy.append(pxy)
+        if not ok or len(ring_xy) < 3:
+            continue
+        if _point_in_ring(xy, ring_xy):
+            return True
+    return False
+
+
+def polygon_area_m2(feature: Dict[str, Any]) -> Tuple[Optional[float], str]:
+    geom = feature.get("_geometry") or {}
+    if geom.get("type") not in {"POLYGON", "MULTIPOLYGON"}:
+        return None, "NOT_POLYGON"
+
+    crs = feature.get("_crs_meta") or {}
+    rings = geom.get("rings") or []
+    total = 0.0
+
+    for ring in rings:
+        pts: List[Tuple[float, float]] = []
+        for pt in ring:
+            pxy = parsed_point_xy(pt)
+            if pxy is None:
+                return None, "GEOMETRY_UNRESOLVED"
+            pts.append(pxy)
+        if len(pts) < 3:
+            continue
+
+        if crs.get("projected") and crs.get("units") == "meters":
+            area = 0.0
+            n = len(pts)
+            for i in range(n):
+                x1, y1 = pts[i]
+                x2, y2 = pts[(i + 1) % n]
+                area += x1 * y2 - x2 * y1
+            total += abs(area) / 2.0
+            method = "PROJECTED_SHOELACE_M2"
+        elif crs.get("is_geographic"):
+            # Approximate local planar area. Not survey-grade.
+            lon0 = sum(p[0] for p in pts) / len(pts)
+            lat0 = sum(p[1] for p in pts) / len(pts)
+            m_per_deg_lat = 110540.0
+            m_per_deg_lon = 111320.0 * max(0.01, math.cos(math.radians(lat0)))
+            local = [((x - lon0) * m_per_deg_lon, (y - lat0) * m_per_deg_lat) for x, y in pts]
+            area = 0.0
+            n = len(local)
+            for i in range(n):
+                x1, y1 = local[i]
+                x2, y2 = local[(i + 1) % n]
+                area += x1 * y2 - x2 * y1
+            total += abs(area) / 2.0
+            method = "APPROXIMATE_LOCAL_PLANAR_M2"
+        else:
+            return None, "CRS_UNSUPPORTED_FOR_AREA"
+
+    if total <= 0:
+        return None, "AREA_UNRESOLVED"
+    return total, method
+
+
+# -----------------------------------------------------------------------------
+# Containment / distance / network / routes / changes
+# -----------------------------------------------------------------------------
+
+def analyze_containment(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    boundary_types = {"BOUNDARY", "ADMIN_AREA", "PARCEL", "ZONE", "LAND_USE", "LAND_COVER", "BUILDING", "FACILITY"}
+    boundaries = [
+        f
+        for f in features
+        if f.get("_feature_type") in boundary_types
+        and (f.get("_geometry") or {}).get("type") in {"POLYGON", "MULTIPOLYGON"}
+    ]
+
+    results: List[Dict[str, Any]] = []
+    edge_tol = float(settings.get("boundary_edge_tolerance_m", 100.0))
+
+    for p in points:
+        xy = p.get("_xy")
+        if xy is None:
+            continue
+        for b in boundaries:
+            inside = point_in_feature_xy(xy, p.get("_crs_meta"), b)
+            if inside is None:
+                continue
+
+            state = "INSIDE" if inside else "OUTSIDE"
+            uncertainty: List[str] = []
+
+            pa = p.get("_accuracy_m")
+            ba = b.get("_accuracy_m")
+            if pa is None or ba is None:
+                uncertainty.append("accuracy_unknown")
+            else:
+                combined = math.sqrt(float(pa) ** 2 + float(ba) ** 2)
+                if inside:
+                    md = min_vertex_distance_m(xy, b)
+                    if md is not None and md <= max(edge_tol, combined):
+                        state = "UNCERTAIN_NEAR_BOUNDARY"
+                        uncertainty.append("near_boundary")
+
+            attrs = b.get("attributes") if isinstance(b.get("attributes"), dict) else {}
+            admin_area = b.get("admin_area") or attrs.get("admin_area") or b.get("name")
+            admin_level = b.get("admin_level") or attrs.get("admin_level")
+
+            results.append(
+                {
+                    "containment_id": f"CONTAIN-{len(results) + 1}",
+                    "point_id": p.get("point_id"),
+                    "boundary_feature_id": b.get("feature_id"),
+                    "boundary_name": b.get("name"),
+                    "boundary_type": b.get("_feature_type"),
+                    "admin_area": admin_area,
+                    "admin_level": admin_level,
+                    "state": state,
+                    "source_id": b.get("_source_id"),
+                    "boundary_valid_from": iso_or_none(b.get("_valid_from")),
+                    "boundary_valid_to": iso_or_none(b.get("_valid_to")),
+                    "crs": (b.get("_crs_meta") or {}).get("raw"),
+                    "uncertainty": uncertainty,
+                    "limitations": [
+                        "Containment is map-source-dependent.",
+                        "Administrative boundary is not property boundary.",
+                        "Near-boundary states require higher-precision authoritative data.",
+                    ],
+                }
+            )
+
+    return results
+
+
+def build_spatial_index(points: List[Dict[str, Any]], features: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    index: Dict[str, Dict[str, Any]] = {}
+
+    for p in points:
+        index[p.get("point_id")] = {
+            "kind": "point",
+            "xy": p.get("_xy"),
+            "crs": p.get("_crs_meta"),
+            "accuracy_m": p.get("_accuracy_m"),
+            "name": p.get("name") or p.get("address") or p.get("place_name"),
+        }
+
+    for f in features:
+        rep = representative_xy(f)
+        index[f.get("feature_id")] = {
+            "kind": "feature",
+            "feature_type": f.get("_feature_type"),
+            "xy": rep,
+            "crs": f.get("_crs_meta"),
+            "accuracy_m": f.get("_accuracy_m"),
+            "name": f.get("name"),
+            "feature_id": f.get("feature_id"),
+        }
+
+    return index
+
+
+def analyze_distances(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    queries: List[Any],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    index = build_spatial_index(points, features)
+    results: List[Dict[str, Any]] = []
+
+    for idx, q in enumerate(queries or [], 1):
+        if not isinstance(q, dict):
+            continue
+        qid = q.get("distance_id") or q.get("id") or f"DIST-{idx}"
+        from_id = q.get("from_id") or q.get("source_id") or q.get("origin_id")
+        to_id = q.get("to_id") or q.get("target_id") or q.get("destination_id")
+
+        a = index.get(from_id)
+        b = index.get(to_id)
+
+        if not a or not b:
+            results.append(
+                {
+                    "distance_id": qid,
+                    "from_id": from_id,
+                    "to_id": to_id,
+                    "distance_m": None,
+                    "method": "UNRESOLVED",
+                    "status": "COORDINATE_UNRESOLVED",
+                    "limitations": ["One or both endpoints lack resolved compatible geometry."],
+                }
+            )
+            continue
+
+        d, method = distance_xy(a.get("xy"), b.get("xy"), a.get("crs"), b.get("crs"))
+        results.append(
+            {
+                "distance_id": qid,
+                "from_id": from_id,
+                "to_id": to_id,
+                "distance_m": d,
+                "method": method,
+                "status": "SUCCEEDED" if d is not None else "INCOMPATIBLE_CRS_OR_MISSING_GEOMETRY",
+                "limitations": [
+                    "Straight-line distance is not network/travel distance.",
+                    "Distance accuracy depends on source CRS, datum, and positional accuracy.",
+                ],
+            }
+        )
+
+    # Optional nearest-feature context.
+    if settings.get("enable_nearest_feature_context", True):
+        nearest_types = set(settings.get("nearest_feature_types") or ["ROAD", "BUILDING", "FACILITY", "TRANSIT_STOP", "PORT", "AIRPORT"])
+        max_points = int(settings.get("max_nearest_points", 50))
+        for p in points[:max_points]:
+            xy = p.get("_xy")
+            if xy is None:
+                continue
+            best: Optional[Dict[str, Any]] = None
+            for f in features:
+                if f.get("_feature_type") not in nearest_types:
+                    continue
+                d, method = point_distance_to_feature_m(xy, f, p.get("_crs_meta"))
+                if d is None:
+                    continue
+                if best is None or d < best["distance_m"]:
+                    best = {
+                        "distance_id": f"NEAREST-{p.get('point_id')}-{f.get('feature_id')}",
+                        "from_id": p.get("point_id"),
+                        "to_id": f.get("feature_id"),
+                        "distance_m": d,
+                        "method": method,
+                        "status": "NEAREST_MAPPED_FEATURE",
+                        "nearest_feature_type": f.get("_feature_type"),
+                        "nearest_feature_name": f.get("name"),
+                        "limitations": [
+                            "Nearest mapped feature is not necessarily accessible, relevant, owned, or currently present.",
+                            "Straight-line nearest distance is not travel distance.",
+                        ],
+                    }
+            if best:
+                results.append(best)
+
+    return results
+
+
+def node_key_for_xy(xy: Tuple[float, float], crs: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[float, float]:
+    if crs.get("is_geographic"):
+        prec = int(settings.get("network_degree_precision", 5))
+        return round(xy[0], prec), round(xy[1], prec)
+    return round(xy[0], 1), round(xy[1], 1)
+
+
+def build_road_network(features: List[Dict[str, Any]], settings: Dict[str, Any]) -> Dict[str, Any]:
+    roads = [
+        f
+        for f in features
+        if f.get("_feature_type") in {"ROAD", "STREET", "HIGHWAY"}
+        and (f.get("_geometry") or {}).get("type") in {"LINESTRING", "MULTILINESTRING"}
+    ]
+
+    parent: Dict[Tuple[float, float], Tuple[float, float]] = {}
+
+    def find(x: Tuple[float, float]) -> Tuple[float, float]:
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: Tuple[float, float], b: Tuple[float, float]) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    edges: List[Dict[str, Any]] = []
+    node_count = 0
+
+    for r in roads:
+        geom = r.get("_geometry") or {}
+        crs = r.get("_crs_meta") or {}
+        for line in geom.get("rings") or []:
+            pts = [parsed_point_xy(pt) for pt in line]
+            pts = [p for p in pts if p is not None]
+            if len(pts) < 2:
+                continue
+            start = node_key_for_xy(pts[0], crs, settings)
+            end = node_key_for_xy(pts[-1], crs, settings)
+            for k in (start, end):
+                if k not in parent:
+                    parent[k] = k
+                    node_count += 1
+            union(start, end)
+            edges.append(
+                {
+                    "road_feature_id": r.get("feature_id"),
+                    "start_node": start,
+                    "end_node": end,
+                    "source_id": r.get("_source_id"),
+                }
+            )
+
+    components: Dict[Tuple[float, float], int] = defaultdict(int)
+    for k in parent:
+        components[find(k)] += 1
+
+    dangling = 0
+    degree: Dict[Tuple[float, float], int] = defaultdict(int)
+    for e in edges:
+        degree[e["start_node"]] += 1
+        degree[e["end_node"]] += 1
+    for k, deg in degree.items():
+        if deg == 1:
+            dangling += 1
+
+    return {
+        "road_count": len(roads),
+        "edge_count": len(edges),
+        "node_count": len(parent),
+        "connected_components": len(components),
+        "dangling_endpoint_count": dangling,
+        "limitations": [
+            "Network topology is derived from supplied map geometries and node-matching tolerance.",
+            "Mapped connectivity does not prove legal access, physical passability, or current openness.",
+            "This scaffold does not generate routes.",
+        ],
+    }
+
+
+def validate_routes(
+    case: Dict[str, Any],
+    features: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    road_ids = {
+        f.get("feature_id")
+        for f in features
+        if f.get("_feature_type") in {"ROAD", "STREET", "HIGHWAY", "RAILWAY", "WATERWAY", "TRANSIT_ROUTE"}
+    }
+
+    endpoint_index: Dict[str, List[Tuple[Tuple[float, float], Tuple[float, float]]]] = defaultdict(list)
+    for f in features:
+        if f.get("feature_id") not in road_ids:
+            continue
+        geom = f.get("_geometry") or {}
+        crs = f.get("_crs_meta") or {}
+        for line in geom.get("rings") or []:
+            pts = [parsed_point_xy(pt) for pt in line]
+            pts = [p for p in pts if p is not None]
+            if len(pts) >= 2:
+                endpoint_index[f["feature_id"]].append(
+                    (
+                        node_key_for_xy(pts[0], crs, settings),
+                        node_key_for_xy(pts[-1], crs, settings),
+                    )
+                )
+
+    routes: List[Dict[str, Any]] = []
+
+    for idx, r in enumerate(case.get("routes") or []):
+        if not isinstance(r, dict):
+            continue
+        rid = r.get("route_id") or r.get("id") or f"ROUTE-{idx + 1}"
+        segs = [x for x in ensure_list(r.get("segment_ids") or r.get("road_ids") or r.get("features")) if x]
+        missing = [s for s in segs if s not in road_ids]
+
+        connected = True
+        if len(segs) >= 2:
+            for a, b in zip(segs, segs[1:]):
+                ea = endpoint_index.get(a, [])
+                eb = endpoint_index.get(b, [])
+                shared = False
+                for a_starts, a_ends in ea:
+                    for b_starts, b_ends in eb:
+                        if a_ends in (b_starts, b_ends) or a_starts in (b_starts, b_ends):
+                            shared = True
+                            break
+                    if shared:
+                        break
+                if not shared:
+                    connected = False
+                    break
+
+        status = "VALID_SUPPLIED_ROUTE_REFERENCE"
+        if missing:
+            status = "UNRESOLVED_SEGMENTS"
+        elif len(segs) >= 2 and not connected:
+            status = "TOPOLOGY_DISCONNECTED"
+
+        routes.append(
+            {
+                "route_id": rid,
+                "route_name": r.get("name"),
+                "mode": str(r.get("mode") or "UNKNOWN").upper(),
+                "segment_ids": segs,
+                "missing_segment_ids": missing,
+                "distance_m": to_float(r.get("distance_m")),
+                "duration_s": to_float(r.get("duration_s")),
+                "restrictions": r.get("restrictions"),
+                "source_id": r.get("source_id"),
+                "topology_status": status,
+                "limitations": [
+                    "This is validation of a supplied route reference, not route generation.",
+                    "Mapped route does not prove current passability, legal access, or safety.",
+                    "No evasion, intrusion, attack, or checkpoint-avoidance routing is supported.",
+                ],
+            }
+        )
+
+    return routes
+
+
+def temporal_overlap(
+    a_from: Optional[datetime],
+    a_to: Optional[datetime],
+    b_from: Optional[datetime],
+    b_to: Optional[datetime],
+) -> Optional[bool]:
+    if not (a_from and a_to and b_from and b_to):
+        return None
+    return not (a_to < b_from or b_to < a_from)
+
+
+def detect_map_changes(
+    features: List[Dict[str, Any]],
+    settings: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    groups: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
+
+    for f in features:
+        key = f.get("feature_id")
+        if not key and f.get("name"):
+            key = f"{f.get('name')}|{f.get('_feature_type')}"
+        if key:
+            groups[key].append(f)
+
+    changes: List[Dict[str, Any]] = []
+    threshold = float(settings.get("feature_change_distance_m", 50.0))
+
+    for key, items in groups.items():
+        if len(items) < 2:
+            continue
+        items = sorted(items, key=lambda x: x.get("_valid_from") or datetime.min.replace(tzinfo=timezone.utc))
+        for a, b in zip(items, items[1:]):
+            details: List[str] = []
+            axy = representative_xy(a)
+            bxy = representative_xy(b)
+            d, method = distance_xy(axy, bxy, a.get("_crs_meta"), b.get("_crs_meta"))
+            if d is not None and d > threshold:
+                details.append(f"representative_geometry_shift_m={d:.1f} method={method}")
+            if a.get("name") != b.get("name"):
+                details.append(f"name_change:{a.get('name')}->{b.get('name')}")
+            if a.get("_temporal_state") != b.get("_temporal_state"):
+                details.append(f"temporal_state_change:{a.get('_temporal_state')}->{b.get('_temporal_state')}")
+            if a.get("_feature_type") != b.get("_feature_type"):
+                details.append(f"feature_type_change:{a.get('_feature_type')}->{b.get('_feature_type')}")
+
+            if details:
+                changes.append(
+                    {
+                        "change_id": f"CHANGE-{len(changes) + 1}",
+                        "group_key": key,
+                        "older_feature_id": a.get("feature_id"),
+                        "newer_feature_id": b.get("feature_id"),
+                        "older_source_id": a.get("_source_id"),
+                        "newer_source_id": b.get("_source_id"),
+                        "older_valid_from": iso_or_none(a.get("_valid_from")),
+                        "newer_valid_from": iso_or_none(b.get("_valid_from")),
+                        "relationship": "SUPERSEDES" if (b.get("_valid_from") and a.get("_valid_from") and b["_valid_from"] >= a["_valid_from"]) else "VERSION_DIFFERENCE",
+                        "details": details,
+                        "limitations": [
+                            "Change detection is based on supplied map versions and may reflect mapping updates, real-world change, generalization, or georeference error.",
+                        ],
+                    }
+                )
+
+    return changes
+
+
+def detect_contradictions(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    containment_results: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+    settings: Dict[str, Any],
+    initial_contradictions: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    contradictions = list(initial_contradictions)
+
+    groups: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
+    for f in features:
+        key = f.get("feature_id")
+        if not key and f.get("name"):
+            key = f"{f.get('name')}|{f.get('_feature_type')}"
+        if key:
+            groups[key].append(f)
+
+    threshold = float(settings.get("feature_conflict_distance_m", 50.0))
+
+    for key, items in groups.items():
+        if len(items) < 2:
+            continue
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                a, b = items[i], items[j]
+                overlap = temporal_overlap(
+                    a.get("_valid_from"),
+                    a.get("_valid_to"),
+                    b.get("_valid_from"),
+                    b.get("_valid_to"),
+                )
+
+                axy = representative_xy(a)
+                bxy = representative_xy(b)
+                d, method = distance_xy(axy, bxy, a.get("_crs_meta"), b.get("_crs_meta"))
+
+                if overlap is True and d is not None and d > threshold:
+                    contradictions.append(
+                        {
+                            "type": "coordinate_conflict",
+                            "group_key": key,
+                            "feature_ids": [a.get("feature_id"), b.get("feature_id")],
+                            "source_ids": [a.get("_source_id"), b.get("_source_id")],
+                            "distance_m": d,
+                            "method": method,
+                            "note": "Same identified feature has conflicting simultaneously valid geometry.",
+                        }
+                    )
+
+                if a.get("_crs_meta", {}).get("raw") and b.get("_crs_meta", {}).get("raw") and not same_crs(a.get("_crs_meta"), b.get("_crs_meta")):
+                    contradictions.append(
+                        {
+                            "type": "crs_conflict",
+                            "group_key": key,
+                            "feature_ids": [a.get("feature_id"), b.get("feature_id")],
+                            "crs_values": [a.get("_crs_meta", {}).get("raw"), b.get("_crs_meta", {}).get("raw")],
+                            "note": "Same feature identifier appears under different CRS representations.",
+                        }
+                    )
+
+                if a.get("feature_id") == b.get("feature_id") and a.get("name") and b.get("name") and a.get("name") != b.get("name"):
+                    contradictions.append(
+                        {
+                            "type": "feature_name_conflict",
+                            "feature_id": a.get("feature_id"),
+                            "names": [a.get("name"), b.get("name")],
+                            "note": "Same feature ID has conflicting names.",
+                        }
+                    )
+
+    # Boundary/admin containment conflicts.
+    by_point: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for c in containment_results:
+        if c.get("state") in {"INSIDE", "UNCERTAIN_NEAR_BOUNDARY"}:
+            by_point[c.get("point_id")].append(c)
+
+    for pid, cs in by_point.items():
+        by_level: Dict[Any, set] = defaultdict(set)
+        for c in cs:
+            level = c.get("admin_level") or c.get("boundary_type")
+            area = c.get("admin_area") or c.get("boundary_name")
+            if area:
+                by_level[level].add(str(area))
+        for level, areas in by_level.items():
+            if len(areas) > 1:
+                contradictions.append(
+                    {
+                        "type": "boundary_containment_conflict",
+                        "point_id": pid,
+                        "admin_level": level,
+                        "admin_areas": sorted(areas),
+                        "note": "Point is mapped inside multiple non-identical administrative/containment areas at the same level.",
+                    }
+                )
+
+    # Temporal/topology quality contradictions.
+    for f in features:
+        flags = set(f.get("_quality_flags") or [])
+        if "temporal_conflict" in flags:
+            contradictions.append(
+                {
+                    "type": "temporal_conflict",
+                    "feature_id": f.get("feature_id"),
+                    "note": "Feature valid_from is after valid_to.",
+                }
+            )
+        if "stale_active_feature" in flags:
+            contradictions.append(
+                {
+                    "type": "stale_active_feature",
+                    "feature_id": f.get("feature_id"),
+                    "note": "Feature marked ACTIVE but validity period is in the past.",
+                }
+            )
+        if "planned_marked_existing" in flags:
+            contradictions.append(
+                {
+                    "type": "planned_vs_existing_conflict",
+                    "feature_id": f.get("feature_id"),
+                    "note": "Feature marked PLANNED but also indicated as existing.",
+                }
+            )
+        for flag in {"polygon_not_closed", "insufficient_points", "mixed_coordinates", "geometry_unresolved"}:
+            if flag in flags:
+                contradictions.append(
+                    {
+                        "type": "topology_or_geometry_issue",
+                        "feature_id": f.get("feature_id"),
+                        "flag": flag,
+                        "note": "Geometry/topology issue prevents confident spatial reasoning.",
+                    }
+                )
+
+    return contradictions
+
+
+# -----------------------------------------------------------------------------
+# Facts / hypotheses / dual review
+# -----------------------------------------------------------------------------
+
+def build_facts(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    containment_results: List[Dict[str, Any]],
+    distance_results: List[Dict[str, Any]],
+    route_results: List[Dict[str, Any]],
+    network: Dict[str, Any],
+    changes: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[str]]:
+    supported: List[Dict[str, Any]] = []
+    candidates: List[Dict[str, Any]] = []
+    partial: List[Dict[str, Any]] = []
+    disputed: List[Dict[str, Any]] = []
+
+    not_facts = [
+        "Mapped feature is not automatically ground truth.",
+        "Map pin is not exact location.",
+        "Coordinate decimal precision is not accuracy.",
+        "High resolution is not high accuracy.",
+        "Administrative boundary is not property boundary.",
+        "Parcel geometry is not ownership.",
+        "Building footprint is not occupant or organization.",
+        "POI is not verified current business.",
+        "Mapped road is not public access.",
+        "Footpath is not legal access.",
+        "Scheduled route is not actual passability.",
+        "Shortest mapped route is not safest or legal route.",
+        "Proximity is not relationship.",
+        "Nearest feature is not relevant feature.",
+        "GPS point is not exact ground position.",
+        "Map matching is not proven travel path.",
+        "Land use is not land cover.",
+        "DEM is not DSM.",
+        "Historical map is not current reality.",
+        "Planned feature is not existing feature.",
+        "Official map is not infallible.",
+        "Multiple map apps using same upstream source are not independent sources.",
+        "AI agreement is not geospatial corroboration.",
+        "No private-person location is inferred or exposed.",
+        "No evasion, attack, intrusion, targeting, or sabotage route is provided.",
+    ]
+
+    def classify(conf: str) -> List[Dict[str, Any]]:
+        if conf == "HIGH":
+            return supported
+        if conf == "MODERATE":
+            return candidates
+        return partial
+
+    for p in points:
+        if p.get("_quality_flags") and "privacy_private_location_redacted" in p["_quality_flags"]:
+            partial.append(
+                {
+                    "fact_id": f"FCT-PRIV-{len(partial) + 1}",
+                    "statement": f"Point {p.get('point_id')} was redacted due to private-location privacy boundary.",
+                    "point_id": p.get("point_id"),
+                    "confidence": "HIGH",
+                    "limitation": "Exact private-person/home location is not mapped or exposed.",
+                }
+            )
+            continue
+
+        conf = p.get("_confidence", "UNKNOWN")
+        stmt = (
+            f"Source {p.get('_source_id')} supplies {p.get('_point_type')} {p.get('point_id')} "
+            f"with coordinate format {p.get('_coordinate', {}).get('format')} "
+            f"CRS {p.get('_crs_meta', {}).get('raw')} "
+            f"precision {p.get('_precision')} "
+            f"accuracy_m {p.get('_accuracy_m')}."
+        )
+        classify(conf).append(
+            {
+                "fact_id": f"FCT-PT-{len(supported) + len(candidates) + len(partial) + 1}",
+                "statement": stmt,
+                "point_id": p.get("point_id"),
+                "confidence": conf,
+                "quality_flags": p.get("_quality_flags"),
+                "limitation": "Coordinate precision does not imply surveyed accuracy.",
+            }
+        )
+
+    for f in features:
+        conf = f.get("_confidence", "UNKNOWN")
+        if "privacy_private_location_redacted" in (f.get("_quality_flags") or []):
+            partial.append(
+                {
+                    "fact_id": f"FCT-PRIVF-{len(partial) + 1}",
+                    "statement": f"Feature {f.get('feature_id')} was redacted due to private-location privacy boundary.",
+                    "feature_id": f.get("feature_id"),
+                    "confidence": "HIGH",
+                    "limitation": "Exact private residence/person-related geometry is not exposed.",
+                }
+            )
+            continue
+
+        stmt = (
+            f"Map source {f.get('_source_id')} maps {f.get('_feature_type')} "
+            f"{f.get('name') or f.get('feature_id')} with geometry type "
+            f"{f.get('_geometry', {}).get('type')} in CRS {f.get('_crs_meta', {}).get('raw')} "
+            f"valid_from={iso_or_none(f.get('_valid_from'))} valid_to={iso_or_none(f.get('_valid_to'))} "
+            f"precision={f.get('_precision')} accuracy_m={f.get('_accuracy_m')}."
+        )
+        classify(conf).append(
+            {
+                "fact_id": f"FCT-F-{len(supported) + len(candidates) + len(partial) + 1}",
+                "statement": stmt,
+                "feature_id": f.get("feature_id"),
+                "confidence": conf,
+                "quality_flags": f.get("_quality_flags"),
+                "limitation": "Mapped feature representation is not automatically real-world status, ownership, occupancy, or access.",
+            }
+        )
+
+    for c in containment_results:
+        conf = "MODERATE" if c.get("state") == "INSIDE" else "LOW"
+        if c.get("uncertainty"):
+            conf = "LOW"
+        candidates.append(
+            {
+                "fact_id": f"FCT-C-{len(candidates) + 1}",
+                "statement": (
+                    f"Point {c.get('point_id')} is {c.get('state')} boundary/feature "
+                    f"{c.get('boundary_feature_id')} according to source {c.get('source_id')}."
+                ),
+                "containment_id": c.get("containment_id"),
+                "confidence": conf,
+                "limitation": "Containment depends on CRS, datum, boundary version, and source accuracy.",
+            }
+        )
+
+    for d in distance_results:
+        if d.get("distance_m") is None:
+            partial.append(
+                {
+                    "fact_id": f"FCT-D-{len(partial) + 1}",
+                    "statement": f"Distance query {d.get('distance_id')} unresolved.",
+                    "distance_id": d.get("distance_id"),
+                    "confidence": "UNKNOWN",
+                    "limitation": d.get("method"),
+                }
+            )
+        else:
+            candidates.append(
+                {
+                    "fact_id": f"FCT-D-{len(candidates) + 1}",
+                    "statement": (
+                        f"Deterministic straight-line distance between {d.get('from_id')} and {d.get('to_id')} "
+                        f"is {d.get('distance_m')} m using {d.get('method')}."
+                    ),
+                    "distance_id": d.get("distance_id"),
+                    "confidence": "MODERATE",
+                    "limitation": "Straight-line distance is not network/travel distance.",
+                }
+            )
+
+    for r in route_results:
+        partial.append(
+            {
+                "fact_id": f"FCT-R-{len(partial) + 1}",
+                "statement": f"Supplied route {r.get('route_id')} topology status is {r.get('topology_status')}.",
+                "route_id": r.get("route_id"),
+                "confidence": "LOW",
+                "limitation": "Route validation only; no route generation, no passability proof, no evasion/intrusion/attack routing.",
+            }
+        )
+
+    if network.get("road_count", 0) > 0:
+        candidates.append(
+            {
+                "fact_id": f"FCT-NET-{len(candidates) + 1}",
+                "statement": (
+                    f"Supplied road network context contains {network.get('road_count')} road features, "
+                    f"{network.get('edge_count')} endpoint edges, {network.get('node_count')} matched nodes, "
+                    f"and {network.get('connected_components')} connected components under supplied tolerance."
+                ),
+                "confidence": "MODERATE",
+                "limitation": "Topology depends on map source geometry, CRS, and node-matching tolerance.",
+            }
+        )
+
+    for ch in changes:
+        candidates.append(
+            {
+                "fact_id": f"FCT-CH-{len(candidates) + 1}",
+                "statement": f"Map version change detected for {ch.get('group_key')}: {', '.join(ch.get('details', []))}.",
+                "change_id": ch.get("change_id"),
+                "confidence": "MODERATE",
+                "limitation": "Change may be real-world, mapping update, generalization, or georeference error.",
+            }
+        )
+
+    for c in contradictions:
+        disputed.append(
+            {
+                "disputed_id": f"DIS-{len(disputed) + 1}",
+                "type": c.get("type"),
+                "statement": "Material cartographic contradiction present; do not silently resolve.",
+                "details": c,
+            }
+        )
+
+    return supported, candidates, partial, disputed, not_facts
+
+
+def build_hypotheses(
+    features: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    changes: List[Dict[str, Any]],
+    issues: List[str],
+) -> List[Dict[str, Any]]:
+    hypotheses: List[Dict[str, Any]] = []
+
+    grouped_contradictions: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for c in contradictions:
+        key = c.get("group_key") or c.get("feature_id") or c.get("point_id") or "GLOBAL"
+        grouped_contradictions[str(key)].append(c)
+
+    for idx, (key, cs) in enumerate(grouped_contradictions.items(), 1):
+        base = {
+            "hypothesis_set_id": f"HSET-{idx}",
+            "group_key": key,
+            "contradiction_types": sorted({c.get("type") for c in cs}),
+        }
+
+        hypotheses.append(
+            {
+                **base,
+                "hypothesis_id": f"H{idx}-REAL_FEATURE_WITH_MAP_VARIATION",
+                "statement": "The mapped feature is real, but sources differ due to generalization, scale, update date, or representation.",
+                "support": ["Multiple sources describe same feature." if len(cs) > 0 else "No contradiction recorded."],
+                "opposition": ["Conflicting CRS/datum indicators." if any(c.get("type") == "crs_conflict" for c in cs) else "No CRS conflict recorded."],
+                "unknowns": ["true surveyed geometry", "current real-world status"],
+                "falsification_conditions": ["Authoritative surveyed layer resolves geometry consistently."],
+            }
+        )
+
+        hypotheses.append(
+            {
+                **base,
+                "hypothesis_id": f"H{idx}-OUTDATED_MAP",
+                "statement": "One or more map versions may be outdated relative to current reality.",
+                "support": ["Temporal version differences or stale flags." if any(c.get("type") in {"stale_active_feature", "temporal_conflict"} for c in cs) else "No temporal flag recorded."],
+                "opposition": ["All sources have current valid periods." if all(not c.get("type").startswith("stale") for c in cs) else "Some sources may be stale."],
+                "unknowns": ["latest authoritative update", "real-world change date"],
+                "falsification_conditions": ["Newer official layer confirms older geometry remains valid."],
+            }
+        )
+
+        hypotheses.append(
+            {
+                **base,
+                "hypothesis_id": f"H{idx}-GEOREFERENCE_OR_DATUM_ERROR",
+                "statement": "Conflict may be caused by georeferencing error, wrong datum, wrong CRS, or coordinate transformation issue.",
+                "support": ["CRS conflict or projected/geographic mismatch." if any(c.get("type") == "crs_conflict" for c in cs) else "No CRS conflict recorded."],
+                "opposition": ["All sources share compatible CRS/datum metadata." if not any(c.get("type") == "crs_conflict" for c in cs) else "CRS metadata differs."],
+                "unknowns": ["transformation parameters", "control point residuals"],
+                "falsification_conditions": ["Reprojection with verified CRS/datum removes discrepancy."],
+            }
+        )
+
+        hypotheses.append(
+            {
+                **base,
+                "hypothesis_id": f"H{idx}-PLANNED_VS_EXISTING_CONFUSION",
+                "statement": "Feature may be planned, under construction, removed, or temporary rather than currently existing.",
+                "support": ["Temporal state conflicts." if any(c.get("type") in {"planned_vs_existing_conflict", "stale_active_feature"} for c in cs) else "No temporal state conflict recorded."],
+                "opposition": ["Authoritative current-status record confirms existence."],
+                "unknowns": ["construction status", "legal status", "opening date"],
+                "falsification_conditions": ["Official planning/current-status record resolves feature state."],
+            }
+        )
+
+        hypotheses.append(
+            {
+                **base,
+                "hypothesis_id": f"H{idx}-SOURCE_DEPENDENCY",
+                "statement": "Apparent multi-source agreement/conflict may derive from the same upstream map source.",
+                "support": ["Multiple sources supplied."],
+                "opposition": ["Source pedigree shows independent upstream origins."],
+                "unknowns": ["upstream provider", "license-derived aggregation"],
+                "falsification_conditions": ["Source pedigree confirms truly independent datasets."],
+            }
+        )
+
+    for idx, ch in enumerate(changes, 1):
+        hypotheses.append(
+            {
+                "hypothesis_set_id": f"HSET-CHANGE-{idx}",
+                "hypothesis_id": f"HCH{idx}-REAL_WORLD_CHANGE",
+                "statement": "Detected map difference may reflect real-world change.",
+                "support": ch.get("details", []),
+                "opposition": ["Mapping update or georeference change may explain difference."],
+                "falsification_conditions": ["Authoritative historical/current records show no real-world change."],
+            }
+        )
+        hypotheses.append(
+            {
+                "hypothesis_set_id": f"HSET-CHANGE-{idx}",
+                "hypothesis_id": f"HCH{idx}-CARTOGRAPHIC_UPDATE",
+                "statement": "Detected map difference may reflect cartographic update, correction, or generalization.",
+                "support": ch.get("details", []),
+                "opposition": ["Independent real-world evidence may confirm physical change."],
+                "falsification_conditions": ["Field/imagery/official record confirms physical change."],
+            }
+        )
+
+    if issues:
+        hypotheses.append(
+            {
+                "hypothesis_set_id": "HSET-GLOBAL",
+                "hypothesis_id": "H-GLOBAL-VALIDATION-WEAKNESS",
+                "statement": "Validation issues materially weaken all cartographic interpretations.",
+                "support": issues[:10],
+                "opposition": ["No independent clean source supplied yet."],
+                "falsification_conditions": ["Resolve validation issues and rerun deterministic ingestion."],
+            }
+        )
+
+    return hypotheses
+
+
+def dual_ai_review(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    issues: List[str],
+) -> Dict[str, Any]:
+    primary = {
+        "role": "Primary Cartographic Analyst",
+        "assessment": (
+            "Map features and/or spatial reference records exist."
+            if points or features
+            else "No usable cartographic records were supplied."
+        ),
+        "classification": "Location, ownership, access, and real-world status conclusions remain conservative and evidence-bounded.",
+    }
+
+    if not points and not features:
+        skeptic = {
+            "role": "Independent Mapping Skeptic",
+            "verdict": "INSUFFICIENT_EVIDENCE",
+            "reason": "No deterministic map records were supplied. Do not infer places, routes, boundaries, or features from narrative.",
+        }
+    elif issues:
+        skeptic = {
+            "role": "Independent Mapping Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Validation issues require downgraded confidence.",
+        }
+    elif contradictions:
+        skeptic = {
+            "role": "Independent Mapping Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Contradictions must be preserved; do not silently merge conflicting map sources.",
+        }
+    elif features and any(f.get("_confidence") == "HIGH" for f in features):
+        skeptic = {
+            "role": "Independent Mapping Skeptic",
+            "verdict": "AGREE_ON_MAPPED_FEATURE_CONTEXT_ONLY",
+            "reason": "High-confidence map source may support cartographic context only, not ownership, occupancy, access, current reality, or harmful routing.",
+        }
+    else:
+        skeptic = {
+            "role": "Independent Mapping Skeptic",
+            "verdict": "PARTIAL_AGREEMENT",
+            "reason": "Single-source or incomplete evidence supports candidate cartographic context only.",
+        }
+
+    return {
+        "primary": primary,
+        "skeptic": skeptic,
+        "comparison": skeptic.get("verdict", "INSUFFICIENT_EVIDENCE"),
+        "note": "Rule-based dual-review scaffold. AI agreement is not independent geospatial corroboration. Human review required for consequential spatial actions.",
+    }
+
+
+# -----------------------------------------------------------------------------
+# Graphical memory scaffold
+# -----------------------------------------------------------------------------
+
+def build_graph(
+    sources: Dict[str, Dict[str, Any]],
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    containment_results: List[Dict[str, Any]],
+    distance_results: List[Dict[str, Any]],
+    route_results: List[Dict[str, Any]],
+    changes: List[Dict[str, Any]],
+    facts: List[Dict[str, Any]],
+    hypotheses: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+    def add_node(node_id: str, node_type: str, props: Dict[str, Any]) -> None:
+        if not node_id:
+            return
+        if any(n.get("id") == node_id for n in nodes):
+            return
+        nodes.append({"id": node_id, "type": node_type, "properties": props})
+
+    def add_edge(src: str, dst: str, rel: str, props: Dict[str, Any]) -> None:
+        if not src or not dst:
+            return
+        edges.append({"from": src, "to": dst, "type": rel, "properties": props})
+
+    for sid, s in sources.items():
+        add_node(sid, "MapSource", public_dict(s))
+
+    for p in points:
+        pid = p.get("point_id")
+        add_node(
+            pid,
+            "Coordinate" if p.get("_point_type") == "COORDINATE" else p.get("_point_type").title(),
+            {
+                "point_type": p.get("_point_type"),
+                "name": p.get("name") or p.get("place_name") or p.get("address"),
+                "crs": p.get("_crs_meta", {}).get("raw"),
+                "precision": p.get("_precision"),
+                "accuracy_m": p.get("_accuracy_m"),
+                "quality_flags": p.get("_quality_flags"),
+                "redacted": "privacy_private_location_redacted" in (p.get("_quality_flags") or []),
+            },
+        )
+        if p.get("_source_id"):
+            add_edge(pid, p["_source_id"], "MAPPED_BY", {"point_id": pid})
+
+    for f in features:
+        fid = f.get("feature_id")
+        node_type = f.get("_feature_type").title() if f.get("_feature_type") else "Feature"
+        add_node(
+            fid,
+            node_type,
+            {
+                "feature_type": f.get("_feature_type"),
+                "name": f.get("name"),
+                "geometry_type": f.get("_geometry", {}).get("type"),
+                "crs": f.get("_crs_meta", {}).get("raw"),
+                "precision": f.get("_precision"),
+                "accuracy_m": f.get("_accuracy_m"),
+                "valid_from": iso_or_none(f.get("_valid_from")),
+                "valid_to": iso_or_none(f.get("_valid_to")),
+                "temporal_state": f.get("_temporal_state"),
+                "freshness": f.get("_freshness"),
+                "quality_flags": f.get("_quality_flags"),
+                "redacted": "privacy_private_location_redacted" in (f.get("_quality_flags") or []),
+            },
+        )
+        if f.get("_source_id"):
+            add_edge(fid, f["_source_id"], "MAPPED_BY", {"feature_id": fid})
+
+    for c in containment_results:
+        cid = c.get("containment_id")
+        add_node(cid, "SpatialRelationship", c)
+        if c.get("point_id") and c.get("boundary_feature_id"):
+            add_edge(c["point_id"], c["boundary_feature_id"], "WITHIN_CANDIDATE" if c.get("state") != "OUTSIDE" else "DISJOINT_CANDIDATE", {"containment_id": cid})
+
+    for d in distance_results:
+        did = d.get("distance_id")
+        add_node(did, "DistanceResult", d)
+        if d.get("from_id") and d.get("to_id"):
+            add_edge(d["from_id"], d["to_id"], "NEAR", {"distance_id": did})
+
+    for r in route_results:
+        rid = r.get("route_id")
+        add_node(rid, "Route", r)
+        for seg in r.get("segment_ids") or []:
+            add_edge(rid, seg, "ROUTE_CONNECTS", {"route_id": rid})
+
+    for ch in changes:
+        chid = ch.get("change_id")
+        add_node(chid, "MapChange", ch)
+        if ch.get("older_feature_id") and ch.get("newer_feature_id"):
+            add_edge(ch["newer_feature_id"], ch["older_feature_id"], "SUPERSEDES", {"change_id": chid})
+
+    for fac in facts:
+        fid = fac.get("fact_id")
+        add_node(fid, "Fact", fac)
+        for key in ("point_id", "feature_id", "containment_id", "distance_id", "route_id", "change_id"):
+            if fac.get(key):
+                add_edge(fid, fac[key], "SUPPORTED_BY", {"fact_id": fid})
+
+    for h in hypotheses:
+        add_node(h.get("hypothesis_id"), "Hypothesis", h)
+
+    for c in contradictions:
+        cid = f"CONTRA-{len([x for x in nodes if x.get('type') == 'Contradiction']) + 1}"
+        add_node(cid, "Contradiction", c)
+
+    for g in gaps:
+        gid = g.get("gap_id") or f"GAP-{len(gaps)}"
+        add_node(gid, "Gap", g)
+
+    return {"nodes": nodes, "edges": edges, "version": VERSION}
+
+
+# -----------------------------------------------------------------------------
+# Gaps / actions / handoffs / summary
+# -----------------------------------------------------------------------------
+
+def build_knowledge_gaps(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    containment_results: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    issues: List[str],
+    sources: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    gaps: List[Dict[str, Any]] = []
+
+    if not points and not features:
+        gaps.append(
+            {
+                "gap_id": "GAP-NO-MAP-RECORDS",
+                "gap": "No deterministic map records supplied",
+                "importance": "HIGH",
+                "recommended_source": "Official/public/authorized GIS or cartographic export",
+                "expected_information_value": "Establishes mapped spatial context",
+            }
+        )
+
+    if issues:
+        gaps.append(
+            {
+                "gap_id": "GAP-VALIDATION-ISSUES",
+                "gap": "Input validation issues present",
+                "importance": "HIGH",
+                "recommended_source": "Corrected CRS, datum, geometry, temporal, and source metadata",
+                "expected_information_value": "Improves cartographic trust",
+            }
+        )
+
+    missing_crs = [f.get("feature_id") for f in features if "crs_missing" in (f.get("_quality_flags") or [])]
+    if missing_crs:
+        gaps.append(
+            {
+                "gap_id": "GAP-CRS-UNKNOWN",
+                "gap": f"CRS unknown for features: {', '.join(missing_crs[:20])}",
+                "importance": "HIGH",
+                "recommended_source": "Layer metadata, service capabilities, official GIS dictionary",
+                "expected_information_value": "Required for reliable distance/area/containment",
+            }
+        )
+
+    unresolved_geom = [f.get("feature_id") for f in features if "geometry_unresolved" in (f.get("_quality_flags") or [])]
+    if unresolved_geom:
+        gaps.append(
+            {
+                "gap_id": "GAP-GEOMETRY-UNRESOLVED",
+                "gap": f"Geometry unresolved for features: {', '.join(unresolved_geom[:20])}",
+                "importance": "HIGH",
+                "recommended_source": "Valid GeoJSON/GML/Shapefile/GPKG geometry export",
+                "expected_information_value": "Enables spatial analysis",
+            }
+        )
+
+    if any("privacy_private_location_redacted" in (p.get("_quality_flags") or []) for p in points):
+        gaps.append(
+            {
+                "gap_id": "GAP-PRIVATE-LOCATION-REDACTED",
+                "gap": "Private/home/person-location data redacted by privacy boundary",
+                "importance": "PRIVACY_BOUNDARY",
+                "recommended_source": "No source recommended unless separately authorized for benign lawful purpose",
+                "expected_information_value": "Prevents stalking/private-person exposure",
+            }
+        )
+
+    if contradictions:
+        gaps.append(
+            {
+                "gap_id": "GAP-CONTRADICTIONS",
+                "gap": "Material cartographic contradictions present",
+                "importance": "HIGH",
+                "recommended_source": "Authoritative surveyed layer, official boundary/cadastral source, historical map georeferencing metadata",
+                "expected_information_value": "Prevents silent false resolution",
+            }
+        )
+
+    if any(c.get("type") == "boundary_containment_conflict" for c in contradictions):
+        gaps.append(
+            {
+                "gap_id": "GAP-BOUNDARY-VERSION-UNCLEAR",
+                "gap": "Administrative/containment boundary version unclear",
+                "importance": "HIGH",
+                "recommended_source": "Official boundary authority layer with valid_from/valid_to",
+                "expected_information_value": "Resolves jurisdictional containment",
+            }
+        )
+
+    if any(f.get("_freshness") in {"AGING", "HISTORICAL", "UNKNOWN"} for f in features):
+        gaps.append(
+            {
+                "gap_id": "GAP-MAP-FRESHNESS",
+                "gap": "Some map features are aging, historical, or freshness unknown",
+                "importance": "MODERATE",
+                "recommended_source": "Current official layer or authoritative update",
+                "expected_information_value": "Prevents historical-to-current contamination",
+            }
+        )
+
+    if any(source_independence(a, b) == "DEPENDENT" for a in sources.values() for b in sources.values() if a is not b):
+        gaps.append(
+            {
+                "gap_id": "GAP-SOURCE-DEPENDENCY",
+                "gap": "Some map sources may share upstream pedigree",
+                "importance": "MODERATE",
+                "recommended_source": "Source pedigree / provider / license metadata",
+                "expected_information_value": "Prevents double-counting dependent maps",
+            }
+        )
+
+    return gaps
+
+
+def build_next_actions(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+) -> List[str]:
+    actions: List[str] = []
+
+    if not points and not features:
+        actions.append("Supply deterministic official/public/authorized map records with CRS, datum, geometry, dates, and source pedigree")
+
+    if any(g["gap_id"] == "GAP-CRS-UNKNOWN" for g in gaps):
+        actions.append("Resolve CRS/datum/projection before distance, area, containment, or network analysis")
+
+    if any(g["gap_id"] == "GAP-GEOMETRY-UNRESOLVED" for g in gaps):
+        actions.append("Repair or re-export invalid geometry from authoritative GIS source")
+
+    if any(g["gap_id"] == "GAP-BOUNDARY-VERSION-UNCLEAR" for g in gaps):
+        actions.append("Retrieve official administrative boundary layer with valid_from/valid_to")
+
+    if any(g["gap_id"] == "GAP-MAP-FRESHNESS" for g in gaps):
+        actions.append("Compare current official layer with historical layer and preserve both versions")
+
+    if contradictions:
+        actions.append("Preserve contradictions and inspect source pedigree, CRS, datum, map date, and scale before resolution")
+
+    if any(f.get("_feature_type") in {"ROAD", "STREET", "HIGHWAY"} for f in features):
+        actions.append("Use official transport/current restriction data for lawful accessibility context; do not infer legal access from mapped geometry")
+
+    if any(f.get("_feature_type") in {"BUILDING", "FACILITY", "POI"} for f in features):
+        actions.append("Handoff ownership/occupancy/function questions to CORPINT/OWNERSHIPINT/ORGINT; mapped geometry alone is insufficient")
+
+    if any(g["gap_id"] == "GAP-PRIVATE-LOCATION-REDACTED" for g in gaps):
+        actions.append("Maintain privacy redaction; do not attempt to recover private home/person location from weak clues")
+
+    actions.append("Maintain safety boundary: no stalking, private-person tracking, evasion routing, attack routing, targeting, intrusion, sabotage, or critical-infrastructure exploitation")
+
+    return actions
+
+
+def build_specialist_handoffs(
+    points: List[Dict[str, Any]],
+    features: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    handoffs: List[Dict[str, Any]] = []
+
+    if any(f.get("_feature_type") in {"BUILDING", "FACILITY", "POI"} for f in features):
+        handoffs.append(
+            {
+                "to": "CORPINT / ORGINT / OWNERSHIPINT",
+                "reason": "Ownership, occupancy, organization, and function exceed cartographic geometry",
+                "restrictions": ["Mapped building/parcel does not prove owner or occupant"],
+            }
+        )
+
+    if any(f.get("_feature_type") in {"ROAD", "RAILWAY", "TRANSIT_STOP", "PORT", "AIRPORT"} for f in features):
+        handoffs.append(
+            {
+                "to": "TRANSPORTINT / AISINT where maritime",
+                "reason": "Movement, schedule, vessel/vehicle behavior, and operational transport questions exceed static map topology",
+                "restrictions": ["No evasion routing", "No harmful navigation optimization"],
+            }
+        )
+
+    if any(f.get("_feature_type") in {"LAND_USE", "LAND_COVER", "WATERWAY", "TERRAIN_FEATURE"} for f in features):
+        handoffs.append(
+            {
+                "to": "ENVINT",
+                "reason": "Environmental interpretation, hazard, ecosystem, and process questions require environmental intelligence",
+                "restrictions": ["Mapped layer is not environmental causation"],
+            }
+        )
+
+    if contradictions or any(p.get("_point_type") == "ADDRESS" for p in points):
+        handoffs.append(
+            {
+                "to": "GEOINT",
+                "reason": "Visual geolocation, scene interpretation, and consequential location reasoning may require GEOINT",
+                "restrictions": ["No private-person location exposure", "No targeting"],
+            }
+        )
+
+    if any(f.get("_feature_type") in {"BUILDING", "FACILITY", "LANDMARK"} for f in features):
+        handoffs.append(
+            {
+                "to": "SATINT / IMINT",
+                "reason": "Imagery-based verification may be required for current physical presence or structure",
+                "restrictions": ["Satellite/imagery interpretation is separate from cartographic source"],
+            }
+        )
+
+    return handoffs
+
+
+def analyst_summary(r: Dict[str, Any]) -> str:
+    def fmt_list(lst: Any) -> str:
+        if not lst:
+            return "NONE"
+        if isinstance(lst, list):
+            return ", ".join(str(x) for x in lst)
+        return str(lst)
+
+    points = r.get("points") or []
+    features = r.get("map_features") or []
+    containment = r.get("containment_results") or []
+    distances = r.get("distance_results") or []
+    routes = r.get("routes") or []
+    network = r.get("network_graph") or {}
+    changes = r.get("change_events") or []
+
+    lines = [
+        "PLACE / AREA: " + fmt_list([p.get("point_id") for p in points if p.get("_point_type") in {"PLACE", "ADDRESS"}]),
+        "COORDINATES: points=" + str(len(points)) + " features=" + str(len(features)),
+        "COORDINATE PRECISION: " + fmt_list(sorted({str(p.get("_precision")) for p in points})),
+        "CRS / DATUM: " + fmt_list(sorted({str((p.get('_crs_meta') or {}).get('raw')) for p in points + features if (p.get('_crs_meta') or {}).get('raw')})),
+        "ADMINISTRATIVE CONTEXT: " + fmt_list([f"{c.get('point_id')} inside {c.get('admin_area')} ({c.get('admin_level')})" for c in containment if c.get("state") != "OUTSIDE"][:10]),
+        "BOUNDARIES: " + str(len([f for f in features if f.get("_feature_type") in {"BOUNDARY", "ADMIN_AREA"}])),
+        "ROADS / TRANSPORT: roads=" + str(network.get("road_count", 0)) + " components=" + str(network.get("connected_components", 0)),
+        "BUILDINGS / FACILITIES: " + str(len([f for f in features if f.get("_feature_type") in {"BUILDING", "FACILITY"}])),
+        "LAND USE / LAND COVER: " + str(len([f for f in features if f.get("_feature_type") in {"LAND_USE", "LAND_COVER"}])),
+        "TERRAIN / ELEVATION: " + str(len([f for f in features if f.get("_feature_type") == "TERRAIN_FEATURE"])),
+        "HYDROGRAPHY: " + str(len([f for f in features if f.get("_feature_type") in {"WATERWAY", "RIVER", "LAKE", "COASTLINE"}])),
+        "ROUTE CONTEXT: " + fmt_list([f"{rt.get('route_id')}={rt.get('topology_status')}" for rt in routes]),
+        "DISTANCE RESULTS: " + fmt_list([f"{d.get('distance_id')}={d.get('distance_m')} m" for d in distances if d.get("distance_m") is not None][:10]),
+        "HISTORICAL MAP CONTEXT: changes=" + str(len(changes)),
+        "MAP CHANGES: " + fmt_list([f"{c.get('change_id')}:{c.get('group_key')}" for c in changes[:10]]),
+        "SOURCE RELIABILITY: " + fmt_list([f"{s.get('source_id')}={s.get('reliability')}" for s in (r.get("source_reliability") or [])]),
+        "SOURCE INDEPENDENCE: " + str(r.get("source_independence")),
+        "SPATIAL UNCERTAINTY: " + json.dumps(r.get("spatial_uncertainty") or {}, default=str),
+        "CONTRADICTIONS: " + str(len(r.get("contradictions") or [])),
+        "UNKNOWN: " + fmt_list(r.get("unknowns")),
+        "NEXT ACTION: " + ((r.get("recommended_next_actions") or ["NONE"])[0]),
+    ]
+
+    return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------------
+# Main analysis
+# -----------------------------------------------------------------------------
+
+def analyze(case: Dict[str, Any], input_path: Optional[str] = None, input_hash: Optional[str] = None) -> Dict[str, Any]:
+    started = utcnow_iso()
+
+    block_reasons = policy_block_reasons(case)
+    if block_reasons:
+        return blocked_result(case, block_reasons, started, input_path, input_hash)
+
+    settings_raw = case.get("analysis_settings") or {}
+    scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+
+    def setting_float(name: str, default: float) -> float:
+        try:
+            return float(settings_raw.get(name, default))
+        except Exception:
+            return default
+
+    def setting_int(name: str, default: int) -> int:
+        try:
+            return int(settings_raw.get(name, default))
+        except Exception:
+            return default
+
+    settings: Dict[str, Any] = {
+        "sensitive_exact_authorized": scope.get("sensitive_location_exact_authorized") is True,
+        "boundary_edge_tolerance_m": setting_float("boundary_edge_tolerance_m", 100.0),
+        "feature_change_distance_m": setting_float("feature_change_distance_m", 50.0),
+        "feature_conflict_distance_m": setting_float("feature_conflict_distance_m", 50.0),
+        "network_degree_precision": setting_int("network_degree_precision", 5),
+        "enable_nearest_feature_context": bool(settings_raw.get("enable_nearest_feature_context", True)),
+        "nearest_feature_types": settings_raw.get("nearest_feature_types") or ["ROAD", "BUILDING", "FACILITY", "TRANSIT_STOP", "PORT", "AIRPORT"],
+        "max_nearest_points": setting_int("max_nearest_points", 50),
+    }
+
+    now = parse_dt(case.get("knowledge_time")) or datetime.now(timezone.utc)
+
+    sources, src_issues = validate_sources(case)
+    points, pt_issues, pt_warnings = validate_points(case, sources, settings, now)
+    features, feat_issues, feat_warnings = validate_features(case, sources, settings, now)
+
+    issues = src_issues + pt_issues + feat_issues
+    warnings = pt_warnings + feat_warnings
+
+    containment_results = analyze_containment(points, features, settings)
+    distance_results = analyze_distances(points, features, case.get("distance_queries") or [], settings)
+    network = build_road_network(features, settings)
+    route_results = validate_routes(case, features, settings)
+    changes = detect_map_changes(features, settings)
+
+    contradictions = detect_contradictions(
+        points,
+        features,
+        containment_results,
+        sources,
+        settings,
+        list(case.get("existing_contradictions") or []),
+    )
+
+    supported_facts, candidate_facts, partial_facts, disputed_facts, not_facts = build_facts(
+        points,
+        features,
+        containment_results,
+        distance_results,
+        route_results,
+        network,
+        changes,
+        contradictions,
+        sources,
+    )
+
+    hypotheses = build_hypotheses(features, contradictions, changes, issues)
+    dual = dual_ai_review(points, features, contradictions, issues)
+
+    gaps = build_knowledge_gaps(points, features, containment_results, contradictions, issues, sources)
+    next_actions = build_next_actions(points, features, gaps, contradictions)
+    handoffs = build_specialist_handoffs(points, features, contradictions)
+
+    graph = build_graph(
+        sources,
+        points,
+        features,
+        containment_results,
+        distance_results,
+        route_results,
+        changes,
+        supported_facts + candidate_facts + partial_facts,
+        hypotheses,
+        contradictions,
+        gaps,
+    )
+
+    # Public outputs.
+    point_public = []
+    for p in points:
+        redacted = "privacy_private_location_redacted" in (p.get("_quality_flags") or [])
+        point_public.append(
+            {
+                "point_id": p.get("point_id"),
+                "point_type": p.get("_point_type"),
+                "name": p.get("name") or p.get("place_name") or p.get("address"),
+                "source_id": p.get("_source_id"),
+                "crs": p.get("_crs_meta"),
+                "coordinate": None if redacted else p.get("_coordinate"),
+                "xy": None if redacted else p.get("_xy"),
+                "precision": p.get("_precision"),
+                "accuracy_m": p.get("_accuracy_m"),
+                "geocoding_state": p.get("_geocoding_state"),
+                "valid_from": iso_or_none(p.get("_valid_from")),
+                "valid_to": iso_or_none(p.get("_valid_to")),
+                "freshness": p.get("_freshness"),
+                "quality_flags": p.get("_quality_flags"),
+                "confidence": p.get("_confidence"),
+                "tags": sorted(p.get("_tags") or []),
+                "limitations": [
+                    "Coordinate precision does not imply surveyed accuracy.",
+                    "Nearest mapped feature is not ownership, access, or relevance.",
+                ],
+            }
+        )
+
+    feature_public = []
+    for f in features:
+        redacted = "privacy_private_location_redacted" in (f.get("_quality_flags") or [])
+        feature_public.append(
+            {
+                "feature_id": f.get("feature_id"),
+                "feature_type": f.get("_feature_type"),
+                "name": f.get("name"),
+                "aliases": f.get("aliases"),
+                "source_id": f.get("_source_id"),
+                "crs": f.get("_crs_meta"),
+                "geometry_type": None if redacted else f.get("_geometry", {}).get("type"),
+                "geometry": None if redacted else {"redacted": True} if redacted else {
+                    "type": f.get("_geometry", {}).get("type"),
+                    "flat_points": f.get("_geometry", {}).get("flat_points"),
+                    "ring_count": len(f.get("_geometry", {}).get("rings") or []),
+                },
+                "precision": f.get("_precision"),
+                "accuracy_m": f.get("_accuracy_m"),
+                "valid_from": iso_or_none(f.get("_valid_from")),
+                "valid_to": iso_or_none(f.get("_valid_to")),
+                "published_at": iso_or_none(f.get("_published_at")),
+                "retrieved_at": iso_or_none(f.get("_retrieved_at")),
+                "temporal_state": f.get("_temporal_state"),
+                "freshness": f.get("_freshness"),
+                "tags": sorted(f.get("_tags") or []),
+                "quality_flags": f.get("_quality_flags"),
+                "confidence": f.get("_confidence"),
+                "attributes": f.get("attributes"),
+                "limitations": [
+                    "Mapped feature is not automatically ground truth.",
+                    "Geometry does not establish ownership, occupancy, access, or current real-world status.",
+                ],
+            }
+        )
+
+    source_reliability = [
+        {
+            "source_id": s.get("source_id"),
+            "provider": s.get("_provider"),
+            "source_type": s.get("_source_type"),
+            "reliability": s.get("_reliability"),
+            "independence_group": s.get("_independence_group"),
+            "upstream_source_id": s.get("_upstream_source_id"),
+            "license": s.get("_license"),
+            "crs": s.get("_crs"),
+            "valid_from": iso_or_none(s.get("_valid_from")),
+            "valid_to": iso_or_none(s.get("_valid_to")),
+            "content_hash": s.get("_content_hash"),
+            "limitations": s.get("limitations"),
+        }
+        for s in sources.values()
+    ]
+
+    all_source_ids = sorted(
+        {
+            sid
+            for obj in points + features
+            for sid in [obj.get("_source_id")]
+            if sid
+        }
+    )
+    source_independence = summarize_source_independence(all_source_ids, sources)
+
+    area_results = []
+    for f in features:
+        if (f.get("_geometry") or {}).get("type") in {"POLYGON", "MULTIPOLYGON"}:
+            area, method = polygon_area_m2(f)
+            area_results.append(
+                {
+                    "feature_id": f.get("feature_id"),
+                    "area_m2": area,
+                    "method": method,
+                    "limitations": [
+                        "Area depends on CRS, projection, datum, source accuracy, and geometry validity.",
+                        "Geographic areas are approximate local-planar unless projected survey-grade data is supplied.",
+                    ],
+                }
+            )
+
+    unknowns: List[str] = []
+    if not points:
+        unknowns.append("Place/address/coordinate context unresolved")
+    if not features:
+        unknowns.append("Map feature context unresolved")
+    if any("crs_missing" in (f.get("_quality_flags") or []) for f in features):
+        unknowns.append("CRS/datum unresolved for some features")
+    if contradictions:
+        unknowns.append("Cartographic contradictions unresolved")
+    unknowns.append("Ownership/occupancy/access/current real-world status unresolved by design unless separate evidence exists")
+    unknowns.append("Private-person location not inferred or exposed")
+
+    if contradictions:
+        status = "SOURCE_CONFLICT"
+    elif issues:
+        status = "PARTIAL"
+    elif not points and not features:
+        status = "INCONCLUSIVE"
+    elif supported_facts:
+        status = "SUCCEEDED"
+    else:
+        status = "PARTIAL"
+
+    result: Dict[str, Any] = {
+        "case_id": case.get("case_id"),
+        "task_id": case.get("task_id"),
+        "objective": case.get("objective"),
+        "questions": case.get("questions") or [],
+        "mode": case.get("model_mode", "LOCAL_ONLY"),
+        "status": status,
+        "source_ids": sorted(sources.keys()),
+        "evidence_ids": sorted(
+            {
+                eid
+                for obj in points + features
+                for eid in ensure_list(obj.get("evidence_id") or obj.get("evidence_ids"))
+                if eid
+            }
+        ),
+        "points": point_public,
+        "addresses": [p for p in point_public if p.get("point_type") == "ADDRESS"],
+        "places": [p for p in point_public if p.get("point_type") == "PLACE"],
+        "coordinates": [p for p in point_public if p.get("point_type") == "COORDINATE"],
+        "coordinate_formats": sorted({p.get("coordinate", {}).get("format") for p in point_public if isinstance(p.get("coordinate"), dict)}),
+        "crs": sorted({(p.get("crs") or {}).get("raw") for p in point_public + feature_public if (p.get("crs") or {}).get("raw")}),
+        "datums": sorted({(p.get("crs") or {}).get("datum") for p in point_public + feature_public if (p.get("crs") or {}).get("datum")}),
+        "projections": sorted({(p.get("crs") or {}).get("projection") for p in point_public + feature_public if (p.get("crs") or {}).get("projection")}),
+        "map_features": feature_public,
+        "boundaries": [f for f in feature_public if f.get("feature_type") in {"BOUNDARY", "ADMIN_AREA"}],
+        "roads": [f for f in feature_public if f.get("feature_type") in {"ROAD", "STREET", "HIGHWAY"}],
+        "railways": [f for f in feature_public if f.get("feature_type") == "RAILWAY"],
+        "transit_stops": [f for f in feature_public if f.get("feature_type") == "TRANSIT_STOP"],
+        "ports": [f for f in feature_public if f.get("feature_type") == "PORT"],
+        "airports": [f for f in feature_public if f.get("feature_type") == "AIRPORT"],
+        "waterways": [f for f in feature_public if f.get("feature_type") in {"WATERWAY", "RIVER", "LAKE", "COASTLINE"}],
+        "buildings": [f for f in feature_public if f.get("feature_type") == "BUILDING"],
+        "facilities": [f for f in feature_public if f.get("feature_type") == "FACILITY"],
+        "landmarks": [f for f in feature_public if f.get("feature_type") == "LANDMARK"],
+        "parcels": [f for f in feature_public if f.get("feature_type") == "PARCEL"],
+        "zones": [f for f in feature_public if f.get("feature_type") == "ZONE"],
+        "land_use": [f for f in feature_public if f.get("feature_type") == "LAND_USE"],
+        "land_cover": [f for f in feature_public if f.get("feature_type") == "LAND_COVER"],
+        "terrain": [f for f in feature_public if f.get("feature_type") == "TERRAIN_FEATURE"],
+        "containment_results": containment_results,
+        "distance_results": distance_results,
+        "area_results": area_results,
+        "network_graph": network,
+        "routes": route_results,
+        "historical_maps": case.get("historical_maps") or [],
+        "map_versions": case.get("map_versions") or [],
+        "change_events": changes,
+        "source_reliability": source_reliability,
+        "source_bias": case.get("source_bias") or [
+            "Official maps may be generalized, outdated, or incomplete.",
+            "Commercial maps may prioritize navigation/consumer coverage.",
+            "Community maps may contain edits, vandalism, or inconsistent tagging.",
+            "Political boundary representation may be disputed.",
+        ],
+        "source_limitations": case.get("source_limitations") or [
+            "Map scale limits achievable precision.",
+            "Resolution is not accuracy.",
+            "CRS/datum errors can shift features.",
+            "Historical maps are not current reality.",
+        ],
+        "source_pedigree": case.get("source_pedigree") or [
+            {
+                "source_id": s.get("source_id"),
+                "provider": s.get("_provider"),
+                "upstream_source_id": s.get("_upstream_source_id"),
+                "license": s.get("_license"),
+                "independence_group": s.get("_independence_group"),
+            }
+            for s in sources.values()
+        ],
+        "source_independence": source_independence,
+        "timeline_updates": sorted(
+            [
+                {
+                    "kind": "feature",
+                    "id": f.get("feature_id"),
+                    "valid_from": f.get("valid_from"),
+                    "valid_to": f.get("valid_to"),
+                    "temporal_state": f.get("temporal_state"),
+                }
+                for f in feature_public
+            ]
+            + [
+                {
+                    "kind": "change",
+                    "id": c.get("change_id"),
+                    "older_valid_from": c.get("older_valid_from"),
+                    "newer_valid_from": c.get("newer_valid_from"),
+                }
+                for c in changes
+            ],
+            key=lambda x: x.get("valid_from") or x.get("older_valid_from") or "",
+        ),
+        "observations": point_public + feature_public,
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+        "contradictions": contradictions,
+        "hypotheses": hypotheses,
+        "falsification_results": [
+            {
+                "hypothesis_id": h.get("hypothesis_id"),
+                "status": "WEAKENED_BY_CONTRADICTIONS" if contradictions else "NOT_FALSIFIED_WITH_CURRENT_EVIDENCE",
+                "required_additional_evidence": [
+                    "Authoritative surveyed layer",
+                    "Official boundary/cadastral layer",
+                    "Current transport/restriction data",
+                    "Historical map georeferencing metadata",
+                    "Imagery/field verification where appropriate",
+                    "Source pedigree metadata",
+                ],
+            }
+            for h in hypotheses
+        ],
+        "spatial_uncertainty": {
+            "crs_missing_count": sum(1 for f in feature_public if "crs_missing" in (f.get("quality_flags") or [])),
+            "geometry_unresolved_count": sum(1 for f in feature_public if "geometry_unresolved" in (f.get("quality_flags") or [])),
+            "coordinate_unresolved_count": sum(1 for p in point_public if "coordinate_unresolved" in (p.get("quality_flags") or [])),
+            "accuracy_known_feature_count": sum(1 for f in feature_public if f.get("accuracy_m") is not None),
+            "accuracy_unknown_feature_count": sum(1 for f in feature_public if f.get("accuracy_m") is None),
+            "network_node_tolerance": {
+                "degree_precision": settings["network_degree_precision"],
+                "projected_rounding_m": 1.0,
+            },
+            "limitations": [
+                "Spatial uncertainty depends on CRS, datum, source accuracy, map scale, and topology tolerance.",
+                "Do not escalate granularity beyond evidence.",
+            ],
+        },
+        "privacy_flags": [
+            "NO_PRIVATE_PERSON_TRACKING",
+            "NO_HOME_LOCATION_INFERENCE",
+            "NO_STALKING_MAPS",
+            "NO_PERSONAL_ROUTINE_MAPPING",
+            "PRIVATE_LOCATION_DATA_REDACTED_BY_DEFAULT",
+            "MINIMUM_NECESSARY_GRANULARITY_FOR_SENSITIVE_LOCATIONS",
+        ],
+        "safety_flags": [
+            "NO_EVASION_ROUTING",
+            "NO_CHECKPOINT_AVOIDANCE",
+            "NO_BORDER_EVASION",
+            "NO_CUSTOMS_EVASION",
+            "NO_SANCTIONS_EVASION",
+            "NO_ATTACK_ROUTES",
+            "NO_STRIKE_COORDINATES",
+            "NO_WEAPON_POSITION_OPTIMIZATION",
+            "NO_FACILITY_INTRUSION_PLANNING",
+            "NO_SABOTAGE_CHOKEPOINT_IDENTIFICATION",
+            "NO_CRITICAL_INFRASTRUCTURE_EXPLOITATION",
+            "NO_ACTIONABLE_ROUTE_GENERATION",
+        ],
+        "unknowns": unknowns,
+        "knowledge_gaps": gaps,
+        "recommended_next_actions": next_actions,
+        "specialist_handoffs": handoffs,
+        "limitations": [
+            "This scaffold does not fetch live map services.",
+            "It consumes deterministic map/GIS records only.",
+            "It does not invent coordinates, boundaries, roads, buildings, routes, ownership, or map features.",
+            "It separates mapped feature from real-world fact.",
+            "It does not generate routes; it validates supplied route references only.",
+            "It redacts private/home/person-location data unless separately authorized for benign lawful purpose.",
+            "It blocks stalking, evasion routing, attack routing, targeting, intrusion, sabotage, and critical-infrastructure exploitation.",
+        ],
+        "dual_ai_review": dual,
+        "not_facts": not_facts,
+        "graphical_memory": graph,
+        "validation_issues": issues,
+        "validation_warnings": warnings,
+        "analysis_settings": settings,
+        "replay_manifest": {
+            "generated_at": started,
+            "finished_at": utcnow_iso(),
+            "code_version": VERSION,
+            "input_path": input_path,
+            "input_sha256": input_hash,
+            "deterministic_operations": [
+                "coordinate parsing",
+                "CRS/datum metadata detection",
+                "geometry parsing",
+                "topology validation",
+                "point-in-polygon containment",
+                "haversine/projected distance",
+                "approximate/projected area",
+                "road endpoint network topology",
+                "supplied route segment validation",
+                "map version change detection",
+                "source independence grouping",
+                "contradiction detection",
+                "fact gate",
+            ],
+            "note": "Replay requires original map/layer files, layer versions, feature IDs, CRS/datum/projection, geometry, coordinate transformations, geocoding query/results, route source, distance formula, area method, georeference control points, residual errors, map-matching parameters, source pedigree, and temporal metadata.",
+        },
+    }
+
+    result["required_analyst_summary"] = analyst_summary(result)
+    return result
+
+
+# -----------------------------------------------------------------------------
+# Template
+# -----------------------------------------------------------------------------
+
+def template_case() -> Dict[str, Any]:
+    return {
+        "_template_note": "Placeholders only. Replace with deterministic authorized/public map/GIS records. Do not treat this template as real ground truth.",
+        "case_id": "CASE-MAPINT-EXAMPLE",
+        "task_id": "TASK-MAPINT-EXAMPLE",
+        "objective": "Authorized public cartographic context analysis for resilience, navigation, research, or defensive mapping.",
+        "questions": [
+            "What place/coordinate is referenced?",
+            "What administrative area contains the point according to supplied boundary layers?",
+            "What nearby mapped roads/buildings exist?",
+            "What map-source conflicts or uncertainties remain?",
+            "What is unresolved?",
+        ],
+        "scope": {
+            "authorized_only": True,
+            "public_or_authorized_sources_only": True,
+            "defensive_only": True,
+            "no_private_person_tracking": True,
+            "no_stalking": True,
+            "no_evasion_routing": True,
+            "no_attack_planning": True,
+            "no_targeting": True,
+            "sensitive_location_exact_authorized": False,
+        },
+        "authorization": {
+            "lawful_basis": "PUBLIC_OR_AUTHORIZED_CARTOGRAPHIC_RESEARCH",
+            "purpose": "DEFENSIVE_MAPPING_AND_SPATIAL_CONTEXT",
+            "approval_reference": "AUTH-MAPINT-001",
+            "data_retention": "MINIMUM_NECESSARY",
+        },
+        "model_mode": "LOCAL_ONLY",
+        "knowledge_time": "2026-10-08T00:00:00Z",
+        "analysis_settings": {
+            "boundary_edge_tolerance_m": 100,
+            "feature_change_distance_m": 50,
+            "feature_conflict_distance_m": 50,
+            "network_degree_precision": 5,
+            "enable_nearest_feature_context": True,
+            "nearest_feature_types": ["ROAD", "BUILDING", "FACILITY"],
+            "max_nearest_points": 20,
+        },
+        "map_sources": [
+            {
+                "source_id": "SRC-NMA",
+                "provider": "EXAMPLE_NATIONAL_MAPPING_AGENCY",
+                "source_type": "NATIONAL_MAPPING_AGENCY",
+                "crs": "EPSG:4326",
+                "axis_order": "lat_lon",
+                "valid_from": "2026-01-01T00:00:00Z",
+                "published_at": "2026-06-01T00:00:00Z",
+                "content_hash": "sha256:example-nma",
+                "limitations": ["Generalization may limit building-level precision."],
+            },
+            {
+                "source_id": "SRC-MUNI",
+                "provider": "EXAMPLE_MUNICIPAL_GIS",
+                "source_type": "MUNICIPAL_GIS",
+                "crs": "EPSG:4326",
+                "axis_order": "lat_lon",
+                "valid_from": "2025-01-01T00:00:00Z",
+                "published_at": "2025-12-01T00:00:00Z",
+                "content_hash": "sha256:example-muni",
+                "limitations": ["May be older than national layer."],
+            },
+        ],
+        "places": [
+            {
+                "place_id": "PLACE-A",
+                "name": "Example Site A",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "coordinate": {"latitude": 0.0, "longitude": 0.0},
+                "axis_order": "lat_lon",
+                "precision": "APPROXIMATE",
+                "accuracy_m": 50,
+                "valid_from": "2026-01-01T00:00:00Z",
+            }
+        ],
+        "addresses": [
+            {
+                "address_id": "ADDR-A",
+                "address": "Example Street 1, Example City",
+                "source_id": "SRC-MUNI",
+                "crs": "EPSG:4326",
+                "coordinate": {"latitude": 0.0005, "longitude": 0.0005},
+                "axis_order": "lat_lon",
+                "geocoding_state": "STREET_SEGMENT",
+                "precision": "INTERPOLATED",
+                "accuracy_m": 100,
+            }
+        ],
+        "boundaries": [
+            {
+                "feature_id": "BOUND-ADMIN-A",
+                "feature_type": "ADMIN_AREA",
+                "name": "Example Municipality",
+                "admin_area": "Example Municipality",
+                "admin_level": "MUNICIPALITY",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "geometry": {
+                    "type": "POLYGON",
+                    "coordinates": [
+                        [
+                            [-0.01, -0.01],
+                            [0.01, -0.01],
+                            [0.01, 0.01],
+                            [-0.01, 0.01],
+                            [-0.01, -0.01],
+                        ]
+                    ]
+                },
+                "valid_from": "2026-01-01T00:00:00Z",
+                "accuracy_m": 20,
+            }
+        ],
+        "roads": [
+            {
+                "feature_id": "ROAD-1",
+                "feature_type": "ROAD",
+                "name": "Example Road",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "geometry": {
+                    "type": "LINESTRING",
+                    "coordinates": [
+                        [-0.005, 0.0],
+                        [0.005, 0.0],
+                    ]
+                },
+                "valid_from": "2026-01-01T00:00:00Z",
+                "accuracy_m": 10,
+                "attributes": {"road_class": "residential", "access_status": "UNKNOWN"},
+            }
+        ],
+        "buildings": [
+            {
+                "feature_id": "BLDG-1",
+                "feature_type": "BUILDING",
+                "name": "Example Building",
+                "source_id": "SRC-MUNI",
+                "crs": "EPSG:4326",
+                "geometry": {
+                    "type": "POLYGON",
+                    "coordinates": [
+                        [
+                            [0.0001, 0.0001],
+                            [0.0003, 0.0001],
+                            [0.0003, 0.0003],
+                            [0.0001, 0.0003],
+                            [0.0001, 0.0001],
+                        ]
+                    ]
+                },
+                "valid_from": "2025-01-01T00:00:00Z",
+                "accuracy_m": 5,
+                "tags": ["public_facility_example"],
+            }
+        ],
+        "distance_queries": [
+            {
+                "distance_id": "DIST-A-B",
+                "from_id": "PLACE-A",
+                "to_id": "BLDG-1",
+            }
+        ],
+        "routes": [
+            {
+                "route_id": "ROUTE-EXAMPLE",
+                "name": "Example supplied public route",
+                "mode": "ROAD",
+                "segment_ids": ["ROAD-1"],
+                "distance_m": 1000,
+                "restrictions": ["Public road context only"],
+                "source_id": "SRC
+                def template_case() -> Dict[str, Any]:
+    return {
+        "_template_note": "Placeholders only. Replace with deterministic authorized/public map/GIS records. Do not treat this template as real ground truth.",
+        "case_id": "CASE-MAPINT-EXAMPLE",
+        "task_id": "TASK-MAPINT-EXAMPLE",
+        "objective": "Authorized public cartographic context analysis for resilience, navigation, research, or defensive mapping.",
+        "questions": [
+            "What place/coordinate is referenced?",
+            "What administrative area contains the point according to supplied boundary layers?",
+            "What nearby mapped roads/buildings exist?",
+            "What map-source conflicts or uncertainties remain?",
+            "What is unresolved?",
+        ],
+        "scope": {
+            "authorized_only": True,
+            "public_or_authorized_sources_only": True,
+            "defensive_only": True,
+            "no_private_person_tracking": True,
+            "no_stalking": True,
+            "no_evasion_routing": True,
+            "no_attack_planning": True,
+            "no_targeting": True,
+            "sensitive_location_exact_authorized": False,
+        },
+        "authorization": {
+            "lawful_basis": "PUBLIC_OR_AUTHORIZED_CARTOGRAPHIC_RESEARCH",
+            "purpose": "DEFENSIVE_MAPPING_AND_SPATIAL_CONTEXT",
+            "approval_reference": "AUTH-MAPINT-001",
+            "data_retention": "MINIMUM_NECESSARY",
+        },
+        "model_mode": "LOCAL_ONLY",
+        "knowledge_time": "2026-10-08T00:00:00Z",
+        "analysis_settings": {
+            "boundary_edge_tolerance_m": 100,
+            "feature_change_distance_m": 50,
+            "feature_conflict_distance_m": 50,
+            "network_degree_precision": 5,
+            "enable_nearest_feature_context": True,
+            "nearest_feature_types": ["ROAD", "BUILDING", "FACILITY"],
+            "max_nearest_points": 20,
+        },
+        "map_sources": [
+            {
+                "source_id": "SRC-NMA",
+                "provider": "EXAMPLE_NATIONAL_MAPPING_AGENCY",
+                "source_type": "NATIONAL_MAPPING_AGENCY",
+                "crs": "EPSG:4326",
+                "axis_order": "lat_lon",
+                "valid_from": "2026-01-01T00:00:00Z",
+                "published_at": "2026-06-01T00:00:00Z",
+                "content_hash": "sha256:example-nma",
+                "limitations": ["Generalization may limit building-level precision."],
+            },
+            {
+                "source_id": "SRC-MUNI",
+                "provider": "EXAMPLE_MUNICIPAL_GIS",
+                "source_type": "MUNICIPAL_GIS",
+                "crs": "EPSG:4326",
+                "axis_order": "lat_lon",
+                "valid_from": "2025-01-01T00:00:00Z",
+                "published_at": "2025-12-01T00:00:00Z",
+                "content_hash": "sha256:example-muni",
+                "limitations": ["May be older than national layer."],
+            },
+        ],
+        "places": [
+            {
+                "place_id": "PLACE-A",
+                "name": "Example Site A",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "coordinate": {"latitude": 0.0, "longitude": 0.0},
+                "axis_order": "lat_lon",
+                "precision": "APPROXIMATE",
+                "accuracy_m": 50,
+                "valid_from": "2026-01-01T00:00:00Z",
+            }
+        ],
+        "addresses": [
+            {
+                "address_id": "ADDR-A",
+                "address": "Example Street 1, Example City",
+                "source_id": "SRC-MUNI",
+                "crs": "EPSG:4326",
+                "coordinate": {"latitude": 0.0005, "longitude": 0.0005},
+                "axis_order": "lat_lon",
+                "geocoding_state": "STREET_SEGMENT",
+                "precision": "INTERPOLATED",
+                "accuracy_m": 100,
+            }
+        ],
+        "boundaries": [
+            {
+                "feature_id": "BOUND-ADMIN-A",
+                "feature_type": "ADMIN_AREA",
+                "name": "Example Municipality",
+                "admin_area": "Example Municipality",
+                "admin_level": "MUNICIPALITY",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "axis_order": "lon_lat",
+                "geometry": {
+                    "type": "POLYGON",
+                    "coordinates": [
+                        [
+                            [-0.01, -0.01],
+                            [0.01, -0.01],
+                            [0.01, 0.01],
+                            [-0.01, 0.01],
+                            [-0.01, -0.01],
+                        ]
+                    ],
+                },
+                "valid_from": "2026-01-01T00:00:00Z",
+                "accuracy_m": 20,
+            }
+        ],
+        "roads": [
+            {
+                "feature_id": "ROAD-1",
+                "feature_type": "ROAD",
+                "name": "Example Road",
+                "source_id": "SRC-NMA",
+                "crs": "EPSG:4326",
+                "axis_order": "lon_lat",
+                "geometry": {
+                    "type": "LINESTRING",
+                    "coordinates": [
+                        [-0.005, 0.0],
+                        [0.005, 0.0],
+                    ],
+                },
+                "valid_from": "2026-01-01T00:00:00Z",
+                "accuracy_m": 10,
+                "attributes": {"road_class": "residential", "access_status": "UNKNOWN"},
+            }
+        ],
+        "buildings": [
+            {
+                "feature_id": "BLDG-1",
+                "feature_type": "BUILDING",
+                "name": "Example Building",
+                "source_id": "SRC-MUNI",
+                "crs": "EPSG:4326",
+                "axis_order": "lon_lat",
+                "geometry": {
+                    "type": "POLYGON",
+                    "coordinates": [
+                        [
+                            [0.0001, 0.0001],
+                            [0.0003, 0.0001],
+                            [0.0003, 0.0003],
+                            [0.0001, 0.0003],
+                            [0.0001, 0.0001],
+                        ]
+                    ],
+                },
+                "valid_from": "2025-01-01T00:00:00Z",
+                "accuracy_m": 5,
+                "tags": ["public_facility_example"],
+            }
+        ],
+        "distance_queries": [
+            {
+                "distance_id": "DIST-A-B",
+                "from_id": "PLACE-A",
+                "to_id": "BLDG-1",
+            }
+        ],
+        "routes": [
+            {
+                "route_id": "ROUTE-EXAMPLE",
+                "name": "Example supplied public route",
+                "mode": "ROAD",
+                "segment_ids": ["ROAD-1"],
+                "distance_m": 1000,
+                "restrictions": ["Public road context only"],
+                "source_id": "SRC-NMA",
+            }
+        ],
+        "historical_maps": [],
+        "map_versions": [],
+        "existing_facts": [],
+        "existing_hypotheses": [],
+        "existing_contradictions": [],
+        "budget": "EXAMPLE",
+        "deadline": "EXAMPLE",
+    }
+
+
+# -----------------------------------------------------------------------------
+# CLI
+# -----------------------------------------------------------------------------
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS MAPINT public/authorized evidence-first cartographic intelligence scaffold. "
+            "Consumes deterministic map/GIS records; does not fetch live maps, invent coordinates, "
+            "track private persons, create stalking maps, provide evasion routing, attack routing, "
+            "targeting, intrusion planning, sabotage, or critical-infrastructure exploitation."
+        )
+    )
+    parser.add_argument("--input", "-i", help="Path to MAPINT input JSON")
+    parser.add_argument("--output", "-o", default="mapint_result.json", help="Output MAPINTResult JSON path")
+    parser.add_argument("--write-template", action="store_true", help="Print a safe input template and exit")
+    args = parser.parse_args()
+
+    if args.write_template:
+        print(json.dumps(template_case(), indent=2, default=str))
+        return
+
+    if not args.input:
+        parser.error("--input is required unless --write-template is used")
+
+    path = Path(args.input)
+    if not path.exists():
+        raise SystemExit(f"Input file not found: {path}")
+
+    raw = path.read_bytes()
+    input_hash = sha256_bytes(raw)
+
+    try:
+        case = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Failed to parse input JSON: {exc}")
+
+    if not isinstance(case, dict):
+        raise SystemExit("Input JSON must be an object")
+
+    result = analyze(case, str(path), input_hash)
+
+    out = Path(args.output)
+    out.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+
+    print(
+        json.dumps(
+            {
+                "status": result.get("status"),
+                "output": str(out),
+                "summary": result.get("required_analyst_summary"),
+            },
+            indent=2,
+            default=str,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

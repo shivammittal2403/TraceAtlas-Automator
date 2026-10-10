@@ -20,6 +20,7 @@ ACTION_DETAILS = {
     'payments': ('cute_v1', 'Deduplicate submitted payment records and calculate per-currency totals'),
     'hypotheses': ('cute_v1', 'Build an explicit analyst-labelled competing-hypotheses matrix'),
     'attack-stix': ('cute_v1', 'Parse a supplied STIX bundle into versioned ATT&CK objects'),
+    'intelligence': ('intelligence_v1', 'Review supplied records with a bounded, hash-pinned intelligence module'),
 }
 
 
@@ -219,8 +220,14 @@ def attack_stix(payload, evidence, input_id, case_id):
             'limitation': 'Local bundle parsing does not authenticate the publisher or attribute an actor.'}
 
 
+def intelligence(payload, evidence, input_id, case_id):
+    from .intelligence import analyze
+    return analyze(payload, evidence, input_id, case_id)
+
+
 JSON_ACTIONS = {'objective': objective, 'dual-review': dual_review, 'geo': geo,
-                'payments': payments, 'hypotheses': hypotheses, 'attack-stix': attack_stix}
+                'payments': payments, 'hypotheses': hypotheses, 'attack-stix': attack_stix,
+                'intelligence': intelligence}
 
 
 def detect_file(raw, filename):

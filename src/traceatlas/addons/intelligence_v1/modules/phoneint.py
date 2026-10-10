@@ -1,0 +1,801 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS PHONEINT — Safe Python Starter Implementation
+
+Purpose:
+  Evidence-first telephone/public telecom intelligence pipeline.
+
+Hard boundaries enforced in code:
+  - Does NOT intercept calls or SMS.
+  - Does NOT use/request OTPs.
+  - Does NOT perform SIM swaps/cloning/hijacking.
+  - Does NOT exploit SS7/Diameter/SIP/PBX vulnerabilities.
+  - Does NOT deploy IMSI catchers or send silent SMS.
+  - Does NOT track private persons via cell towers/location triangulation.
+  - Does NOT autonomously call, text, or message any number.
+  - Does NOT enumerate private accounts via recovery flows.
+  - Treats phone numbers as identifiers, not persons.
+  - Treats Caller ID as observation, not verified identity.
+  - Separates original carrier allocation from current provider context.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+VERSION = "0.1.0-phoneint-safe-starter"
+
+# --------------------------------------------------------------------
+# Optional dependencies
+# --------------------------------------------------------------------
+
+HAS_PHONENUMBERS = False
+try:
+    import phonenumbers  # type: ignore
+    HAS_PHONENUMBERS = True
+except ImportError:
+    HAS_PHONENUMBERS = False
+
+HAS_PNUTILS = False
+try:
+    from phonenumbers import PhoneNumberMatcher, NumberParseException, COUNTRY_CODES, NANPA_COUNTRY_CODE  # type: ignore
+    HAS_PNUTILS = True
+except Exception:
+    HAS_PNUTILS = False
+
+
+# --------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def stable_id(prefix: str, *parts: Any) -> str:
+    raw = "|".join(str(p) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def normalize_text(text: Any) -> str:
+    if text is None:
+        return ""
+    t = unicodedata.normalize("NFC", str(text))
+    t = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", t)
+    return t.strip()
+
+
+def mask_phone(number: str, keep_prefix: int = 3, keep_suffix: int = 2) -> str:
+    """Mask middle digits of a phone number string."""
+    if not number:
+        return ""
+    cleaned = re.sub(r"\D", "", number)
+    if len(cleaned) <= keep_prefix + keep_suffix:
+        return number
+    masked_mid = "*" * (len(cleaned) - keep_prefix - keep_suffix)
+    return f"{cleaned[:keep_prefix]}{masked_mid}{cleaned[-keep_suffix:]}"
+
+
+def hash_phone(number: str) -> str:
+    """Deterministic hash for cross-case correlation without exposing raw number."""
+    normalized = re.sub(r"\D", "", number)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
+
+# --------------------------------------------------------------------
+# Policy / Authorization Checks
+# --------------------------------------------------------------------
+
+PROHIBITED_PHONEINT_PATTERNS = [
+    (r"(?i)\b(intercept|tap|listen to|record)\s+(call|conversation|sms)", "INTERCEPTION_REQUEST"),
+    (r"(?i)\b(sim\s*swap|hijack|clone\s*sim)", "SIM_ABUSE_REQUEST"),
+    (r"(?i)\b(ss7|diameter|sigtran)\s*(attack|exploit|vulnerability)", "PROTOCOL_EXPLOIT_REQUEST"),
+    (r"(?i)\b(imsi\s*catcher|rogue\s*bts|cell\s*tower\s*triangulate)", "SURVEILLANCE_HARDWARE_REQUEST"),
+    (r"(?i)\b(send\s*silent\s*sms|ping\s*number|test\s*line)", "ACTIVE_PROBING_REQUEST"),
+    (r"(?i)\b(get\s*otp|request\s*code|verify\s*via\s*sms)", "OTP_ACCESS_REQUEST"),
+    (r"(?i)\b(call\s*this|text\s*this|whatsapp\s*this|message\s*this)", "AUTONOMOUS_CONTACT_REQUEST"),
+    (r"(?i)\b(find\s*person|locate\s*user|track\s*someone)", "PRIVATE_TRACKING_REQUEST"),
+]
+
+
+def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+    blob = " ".join([
+        str(manifest.get("objective", "")),
+        " ".join(str(q) for q in manifest.get("questions", []) or []),
+    ])
+    blocked = []
+    for pat, label in PROHIBITED_PHONEINT_PATTERNS:
+        if re.search(pat, blob):
+            blocked.append(label)
+    return list(dict.fromkeys(blocked))
+
+
+def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    auth = manifest.get("authorization") or {}
+    reasons: List[str] = []
+
+    if not auth.get("approved"):
+        reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+
+    scope = auth.get("scope", "public_and_authorized_only")
+    allowed_scopes = {
+        "public_and_authorized_only",
+        "authorized_enterprise_telephony",
+        "lawful_incident_records",
+    }
+    if scope not in allowed_scopes:
+        reasons.append("UNSUPPORTED_SCOPE")
+
+    model_mode = auth.get("model_mode", "LOCAL_ONLY")
+    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+        reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+
+    return (len(reasons) == 0), reasons
+
+
+# --------------------------------------------------------------------
+# Number Normalization & Parsing
+# --------------------------------------------------------------------
+
+class PhoneParser:
+    """
+    Wraps phonenumbers library if available, otherwise uses basic regex fallback.
+    Enforces strict separation of formatting vs semantic validity.
+    """
+
+    def __init__(self, default_region: Optional[str] = None):
+        self.default_region = default_region
+        self.has_lib = HAS_PHONENUMBERS
+
+    def parse(self, raw_number: str, region_hint: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Returns normalized components.
+        Never guesses country if ambiguous unless explicitly hinted.
+        """
+        result = {
+            "raw_input": raw_number,
+            "normalized_e164": None,
+            "country_code": None,
+            "national_number": None,
+            "region_code": None,
+            "valid_format": False,
+            "possible_country": [],
+            "error": None,
+            "limitations": [],
+        }
+
+        clean_raw = normalize_text(raw_number)
+        
+        # Basic cleanup for regex fallback
+        digits_only = re.sub(r"\D", "", clean_raw)
+        
+        if self.has_lib:
+            try:
+                # Try parsing with hint or default
+                parsed = phonenumbers.parse(clean_raw, region_hint or self.default_region)
+                
+                if phonenumbers.is_valid_number(parsed):
+                    result["valid_format"] = True
+                    result["normalized_e164"] = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+                    result["country_code"] = parsed.country_code
+                    result["national_number"] = parsed.national_number
+                    result["region_code"] = phonenumbers.region_code_for_number(parsed)
+                    
+                    # Detect possible countries if input was ambiguous
+                    if not region_hint and not self.default_region:
+                         # If user didn't provide hint, check if it could be multiple places
+                         # For simplicity in starter, we just note the detected one
+                         pass
+                         
+                elif phonenumbers.is_possible_number(parsed):
+                    result["valid_format"] = False # Possible but not strictly valid yet
+                    result["normalized_e164"] = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+                    result["country_code"] = parsed.country_code
+                    result["national_number"] = parsed.national_number
+                    result["region_code"] = phonenumbers.region_code_for_number(parsed)
+                    result["limitations"].append("Number format is possible but not fully validated against current numbering plan.")
+                else:
+                    result["error"] = "INVALID_FORMAT"
+                    result["limitations"].append("Does not match known numbering plans.")
+                    
+            except NumberParseException as e:
+                result["error"] = f"PARSE_ERROR:{e.error_type}"
+                result["limitations"].append("Failed to parse due to missing country context or invalid syntax.")
+        else:
+            # Fallback heuristic (very limited)
+            if len(digits_only) < 7:
+                result["error"] = "TOO_SHORT"
+            elif digits_only.startswith("00"):
+                result["error"] = "INTERNATIONAL_PREFIX_NEEDS_CC"
+            elif len(digits_only) >= 10 and digits_only[0] != "0":
+                 # Assume US/Canada if starts with non-zero and length ~10-11
+                 result["country_code"] = 1
+                 result["national_number"] = int(digits_only[-10:])
+                 result["region_code"] = "US"
+                 result["valid_format"] = True
+                 result["normalized_e164"] = f"+1{digits_only[-10:]}"
+                 result["limitations"].append("Fallback heuristic used; assumes North American numbering. Verify with real parser.")
+            else:
+                result["error"] = "AMBIGUOUS_NO_LIB"
+                result["limitations"].append("Install 'phonenumbers' library for robust global parsing.")
+
+        return result
+
+
+# --------------------------------------------------------------------
+# Line Type & Carrier Classification Stubs
+# --------------------------------------------------------------------
+
+# In a real system, this would query licensed databases like Telnyx, Twilio Lookup, 
+# OpenCellular, or national regulator datasets.
+# Here we define the structure and mock logic based on prefixes/ranges if hardcoded data exists.
+
+LINE_TYPE_MOBILE = "MOBILE"
+LINE_TYPE_FIXED = "FIXED_LINE"
+LINE_TYPE_VOIP = "VOIP"
+LINE_TYPE_TOLL_FREE = "TOLL_FREE"
+LINE_TYPE_PREMIUM = "PREMIUM_RATE"
+LINE_TYPE_UNKNOWN = "UNKNOWN"
+
+# Mock data for demonstration purposes ONLY. Do not use in production.
+MOCK_RANGE_DATA = {
+    "+1": {
+        "toll_free_prefixes": ["800", "888", "877", "866", "855", "844", "833"],
+        "voip_ranges": ["900"], # Simplified example
+    },
+    "+44": {
+        "mobile_prefixes": ["7"],
+        "fixed_prefixes": ["1", "2", "3"],
+    },
+    "+91": {
+        "mobile_prefixes": ["6", "7", "8", "9"],
+        "landline_prefixes": ["11", "22", "33", "44", "55"],
+    }
+}
+
+
+def classify_line_type(phone_obj: Dict[str, Any], cc: Optional[int], national_num: Optional[str]) -> Dict[str, Any]:
+    """
+    Heuristic classification. Real systems need authoritative DB lookups.
+    """
+    res = {
+        "line_type": LINE_TYPE_UNKNOWN,
+        "confidence": "LOW",
+        "source": "heuristic_stub",
+        "limitations": ["Heuristic only. Requires licensed carrier lookup API for accuracy."],
+    }
+
+    if not cc or not national_num:
+        return res
+
+    nat_str = str(national_num)
+    
+    # Example Logic
+    if cc == 1:
+        area_code = nat_str[:3]
+        if area_code in MOCK_RANGE_DATA["+1"]["toll_free_prefixes"]:
+            res["line_type"] = LINE_TYPE_TOLL_FREE
+            res["confidence"] = "MEDIUM"
+        elif area_code in MOCK_RANGE_DATA["+1"]["voip_ranges"]:
+            res["line_type"] = LINE_TYPE_VOIP
+            res["confidence"] = "POSSIBLE"
+            
+    elif cc == 44:
+        if nat_str.startswith("7"):
+            res["line_type"] = LINE_TYPE_MOBILE
+            res["confidence"] = "HIGH"
+        elif nat_str.startswith(("1", "2", "3")):
+            res["line_type"] = LINE_TYPE_FIXED
+            res["confidence"] = "MEDIUM"
+            
+    elif cc == 91:
+        if nat_str and nat_str[0] in ("6", "7", "8", "9"):
+             res["line_type"] = LINE_TYPE_MOBILE
+             res["confidence"] = "MEDIUM"
+             
+    return res
+
+
+def get_carrier_context(phone_obj: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Stub for carrier allocation vs current provider.
+    """
+    return {
+        "allocation_carrier": "UNKNOWN_STUB",
+        "current_carrier_candidate": "UNKNOWN_STUB",
+        "mvno_candidate": None,
+        "portability_state": "PORTABILITY_UNKNOWN",
+        "limitations": [
+            "No live carrier database connected.",
+            "Original prefix allocation does not prove current carrier due to MNP.",
+        ],
+    }
+
+
+# --------------------------------------------------------------------
+# Spam / Scam Report Analysis
+# --------------------------------------------------------------------
+
+def analyze_spam_reports(reports: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Deduplicates and assesses reliability of spam/scam reports.
+    """
+    if not reports:
+        return {"count": 0, "independent_count": 0, "risk_level": "NONE", "details": []}
+
+    # Simple fingerprinting for dedup
+    fingerprints = set()
+    unique_reports = []
+    
+    for r in reports:
+        # Combine sender, time bucket, and content hash roughly
+        fp = f"{r.get('source')}|{r.get('reported_at', '')[:10]}|{hashlib.md5(str(r.get('description','')).encode()).hexdigest()[:8]}"
+        if fp not in fingerprints:
+            fingerprints.add(fp)
+            unique_reports.append(r)
+            
+    count = len(unique_reports)
+    
+    risk = "LOW"
+    if count > 5:
+        risk = "MEDIUM"
+    if count > 20:
+        risk = "HIGH"
+        
+    return {
+        "total_received": len(reports),
+        "unique_deduplicated": count,
+        "risk_indicator": risk,
+        "caution": "Spam labels are subjective. High volume may indicate robocalls/marketing, not necessarily fraud.",
+        "samples": unique_reports[:5],
+    }
+
+
+# --------------------------------------------------------------------
+# Caller ID & Spoofing Analysis
+# --------------------------------------------------------------------
+
+def analyze_caller_id_context(events: List[Dict[str, Any]], target_number: str) -> Dict[str, Any]:
+    """
+    Analyzes observed caller IDs relative to the target number.
+    """
+    observations = []
+    spoof_candidates = []
+    
+    for ev in events:
+        displayed_cid = ev.get("displayed_caller_id")
+        actual_network_cid = ev.get("network_verified_caller_id") # Only available in authorized enterprise logs
+        
+        obs = {
+            "event_id": ev.get("event_id"),
+            "timestamp": ev.get("timestamp"),
+            "displayed": displayed_cid,
+            "verified": actual_network_cid,
+            "match": displayed_cid == actual_network_cid if actual_network_cid else None,
+        }
+        observations.append(obs)
+        
+        if actual_network_cid and displayed_cid != actual_network_cid:
+            spoof_candidates.append({
+                "event_id": ev.get("event_id"),
+                "type": "CID_MISMATCH_CANDIDATE",
+                "detail": "Displayed CID differs from network-verified CID.",
+            })
+            
+    return {
+        "observations": observations[:20],
+        "spoofing_indicators": spoof_candidates,
+        "status": "SPOOFING_CANDIDATE" if spoof_candidates else "NO_SPOOFING_EVIDENCE_IN_SAMPLE",
+        "limitation": "Caller ID can be rewritten by PBX/VoIP even without malicious intent. Absence of mismatch doesn't prove authenticity.",
+    }
+
+
+# --------------------------------------------------------------------
+# Fact Gate & Source Independence
+# --------------------------------------------------------------------
+
+def fact_gate(claims: List[Dict[str, Any]], known_facts: List[str]) -> List[Dict[str, Any]]:
+    """
+    Validates claims against provided known facts.
+    """
+    verified = []
+    for c in claims:
+        claim_text = c.get("statement", "").lower()
+        matched = False
+        for kf in known_facts:
+            if kf.lower() in claim_text or claim_text in kf.lower():
+                matched = True
+                break
+        
+        c["verification_status"] = "SUPPORTED_BY_KNOWN_FACT" if matched else "UNVERIFIED_CANDIDATE"
+        c["confidence"] = "HIGH" if matched else "LOW"
+        verified.append(c)
+    return verified
+
+
+def assess_source_independence(sources: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Checks if sources share upstream lineage.
+    """
+    domains = set()
+    aggregators = set()
+    
+    for s in sources:
+        url = s.get("url", "")
+        if url:
+            # Extract domain roughly
+            m = re.search(r"https?://([^/]+)", url)
+            if m:
+                domains.add(m.group(1))
+                
+    # Simple heuristic: if many sources come from same aggregator domain, they aren't independent
+    dep_score = 0.0
+    if len(domains) > 1:
+        most_common = Counter(domains).most_common(1)[0][1]
+        dep_score = most_common / len(sources)
+        
+    return {
+        "distinct_domains": len(domains),
+        "dependency_score": round(dep_score, 2),
+        "assessment": "PARTIALLY_DEPENDENT" if dep_score > 0.5 else "LIKELY_INDEPENDENT",
+        "note": "High dependency score suggests multiple reports originate from same upstream complaint/database.",
+    }
+
+
+# --------------------------------------------------------------------
+# Main Analysis Pipeline
+# --------------------------------------------------------------------
+
+def analyze_phone_case(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    case_id = manifest.get("case_id", "CASE-UNK")
+    task_id = manifest.get("task_id", "TASK-UNK")
+    objective = manifest.get("objective", "")
+    questions = manifest.get("questions", [])
+    
+    # 1. Policy Check
+    blocked = policy_screen(manifest)
+    if blocked:
+        return {
+            "case_id": case_id,
+            "status": "POLICY_BLOCKED",
+            "violations": blocked,
+            "message": "Request violates PHONEINT hard restrictions (interception, simulation abuse, tracking, etc.).",
+            "generated_at": utc_now(),
+        }
+        
+    # 2. Auth Check
+    auth_ok, auth_reasons = authorization_check(manifest)
+    if not auth_ok:
+        return {
+            "case_id": case_id,
+            "status": "BLOCKED_PERMISSION",
+            "reasons": auth_reasons,
+            "generated_at": utc_now(),
+        }
+
+    # 3. Input Processing
+    numbers_cfg = manifest.get("phone_numbers", [])
+    known_facts = manifest.get("known_facts", [])
+    scam_reports = manifest.get("scam_reports", [])
+    call_events = manifest.get("authorized_call_logs", [])
+    
+    results = []
+    
+    parser = PhoneParser(default_region=manifest.get("default_region"))
+    
+    for num_cfg in numbers_cfg:
+        raw = num_cfg.get("value")
+        hint = num_cfg.get("country_hint")
+        
+        if not raw:
+            continue
+            
+        # Normalize
+        parsed = parser.parse(raw, hint)
+        
+        # Classify
+        cc = parsed.get("country_code")
+        nat = parsed.get("national_number")
+        line_res = classify_line_type(parsed, cc, str(nat) if nat else None)
+        carrier_res = get_carrier_context(parsed)
+        
+        # Filter reports for this number
+        # In real app, fuzzy match on normalized number
+        relevant_reports = [r for r in scam_reports if r.get("target_number") == raw or r.get("target_normalized") == parsed.get("normalized_e164")]
+        spam_analysis = analyze_spam_reports(relevant_reports)
+        
+        # Filter events
+        relevant_events = [e for e in call_events if e.get("callee") == raw or e.get("caller") == raw]
+        cid_analysis = analyze_caller_id_context(relevant_events, raw)
+        
+        # Build Claims
+        claims = []
+        if parsed["valid_format"]:
+            claims.append({"statement": f"Number {mask_phone(raw)} is syntactically valid under plan {parsed['region_code']}.", "type": "FORMAT"})
+        if line_res["line_type"] != LINE_TYPE_UNKNOWN:
+            claims.append({"statement": f"Likely line type: {line_res['line_type']} ({line_res['confidence']}).", "type": "CLASSIFICATION"})
+        if spam_analysis["unique_deduplicated"] > 0:
+            claims.append({"statement": f"{spam_analysis['unique_deduplicated']} unique spam/scam reports found.", "type": "REPUTATION"})
+            
+        gated_claims = fact_gate(claims, known_facts)
+        
+        # Graph Nodes (Stub)
+        nodes = [
+            {"type": "PhoneNumber", "id": stable_id("PN", parsed.get("normalized_e164")), "props": {"masked": mask_phone(raw), "e164": parsed.get("normalized_e164")}},
+            {"type": "LineType", "id": stable_id("LT", line_res["line_type"]), "props": {"label": line_res["line_type"]}},
+        ]
+        
+        edges = [
+            {"from": nodes[0]["id"], "to": nodes[1]["id"], "type": "HAS_LINE_TYPE", "conf": line_res["confidence"]}
+        ]
+
+        result_entry = {
+            "input_raw": raw,
+            "normalized": parsed,
+            "line_type": line_res,
+            "carrier_context": carrier_res,
+            "spam_analysis": spam_analysis,
+            "caller_id_analysis": cid_analysis,
+            "claims": gated_claims,
+            "graph_fragment": {"nodes": nodes, "edges": edges},
+            "privacy_masked_display": mask_phone(raw),
+            "limitations": [
+                "Carrier data is stubbed.",
+                "Spam reports rely on provided inputs only.",
+                "No active probing performed.",
+            ] + parsed.get("limitations", []) + line_res.get("limitations", []),
+        }
+        results.append(result_entry)
+        
+    # Global Source Independence
+    all_sources = []
+    for r in results:
+        # Add dummy sources for demo
+        all_sources.extend([{"url": "https://example-spam-db.com"} for _ in range(r["spam_analysis"]["unique_deduplicated"])])
+        
+    indep_assessment = assess_source_independence(all_sources)
+    
+    final_output = {
+        "case_id": case_id,
+        "task_id": task_id,
+        "objective": objective,
+        "status": "SUCCEEDED" if results else "INSUFFICIENT_INPUT",
+        "generated_at": utc_now(),
+        "version": VERSION,
+        "results": results,
+        "global_source_independence": indep_assessment,
+        "policy_compliance": {
+            "interception_blocked": True,
+            "simulation_abuse_blocked": True,
+            "autonomous_contact_blocked": True,
+            "tracking_blocked": True,
+        },
+        "next_best_action": [
+            "Verify carrier status via licensed API if precision required.",
+            "Correlate with SOCMINT/FRAUDINT if scam pattern suspected.",
+            "Review authorized PBX logs for internal routing issues.",
+        ],
+        "handoffs": [
+            {"specialist": "FRAUDINT", "reason": "Scam reports detected." if any(r["spam_analysis"]["unique_deduplicated"] > 0 for r in results) else "None"},
+            {"specialist": "SOCMINT", "reason": "Public social profile linkage possible."},
+        ],
+    }
+    
+    return final_output
+
+
+# --------------------------------------------------------------------
+# Report Generation
+# --------------------------------------------------------------------
+
+def generate_markdown_report(data: Dict[str, Any]) -> str:
+    lines = []
+    lines.append("# PHONEINT Evidence-Linked Report")
+    lines.append("")
+    lines.append(f"**Case:** `{data.get('case_id')}`")
+    lines.append(f"**Status:** `{data.get('status')}`")
+    lines.append(f"**Generated:** `{data.get('generated_at')}`")
+    lines.append("")
+    
+    if data.get("status") == "POLICY_BLOCKED":
+        lines.append("## ⛔ POLICY VIOLATION DETECTED")
+        lines.append("The requested operation violates PHONEINT hard restrictions:")
+        for v in data.get("violations", []):
+            lines.append(f"- `{v}`")
+        lines.append("\n*Action: Request denied. No technical processing occurred.*")
+        return "\n".join(lines)
+        
+    if data.get("status") == "BLOCKED_PERMISSION":
+        lines.append("## 🔒 PERMISSION DENIED")
+        lines.append("Authorization check failed.")
+        for r in data.get("reasons", []):
+            lines.append(f"- `{r}`")
+        return "\n".join(lines)
+
+    lines.append("## Executive Summary")
+    lines.append("- **Numbers Processed:** " + str(len(data.get("results", []))))
+    lines.append("- **Policy Compliance:** All hard restrictions enforced (No interception/tracking/contact).")
+    lines.append("- **Data Sources:** Provided inputs only (Stubs for external APIs).")
+    lines.append("")
+    
+    for i, res in enumerate(data.get("results", [])):
+        lines.append(f"## Target {i+1}: `{res['privacy_masked_display']}`")
+        lines.append("")
+        lines.append("### 1. Normalization & Format")
+        pn = res["normalized"]
+        lines.append(f"- **Raw Input:** `{pn['raw_input']}`")
+        lines.append(f"- **Normalized E.164:** `{pn.get('normalized_e164', 'N/A')}`")
+        lines.append(f"- **Region Code:** `{pn.get('region_code', 'N/A')}`")
+        lines.append(f"- **Valid Format:** `{pn.get('valid_format', False)}`")
+        if pn.get("limitations"):
+            lines.append(f"- **Limitations:** {'; '.join(pn['limitations'])}")
+        lines.append("")
+        
+        lines.append("### 2. Line Type & Carrier Context")
+        lt = res["line_type"]
+        cr = res["carrier_context"]
+        lines.append(f"- **Line Type:** `{lt['line_type']}` (Confidence: {lt['confidence']})")
+        lines.append(f"- **Allocation Carrier:** `{cr['allocation_carrier']}`")
+        lines.append(f"- **Current Carrier Candidate:** `{cr['current_carrier_candidate']}`")
+        lines.append(f"- **Portability State:** `{cr['portability_state']}`")
+        lines.append(f"- **Caution:** Prefix ≠ Current Location/Person. Portability may change carrier.")
+        lines.append("")
+        
+        lines.append("### 3. Reputation (Spam/Scam)")
+        sp = res["spam_analysis"]
+        lines.append(f"- **Unique Reports:** `{sp['unique_deduplicated']}`")
+        lines.append(f"- **Risk Indicator:** `{sp['risk_indicator']}`")
+        lines.append(f"- **Note:** {sp['caution']}")
+        lines.append("")
+        
+        lines.append("### 4. Caller ID & Spoofing")
+        ci = res["caller_id_analysis"]
+        lines.append(f"- **Status:** `{ci['status']}`")
+        if ci["spoofing_indicators"]:
+            lines.append(f"- **Indicators Found:** {len(ci['spoofing_indicators'])}")
+        lines.append(f"- **Limitation:** {ci['limitation']}")
+        lines.append("")
+        
+        lines.append("### 5. Verified Claims")
+        for c in res["claims"]:
+            status_icon = "✅" if c["verification_status"] == "SUPPORTED_BY_KNOWN_FACT" else "❓"
+            lines.append(f"- {status_icon} `{c['statement']}` [{c['verification_status']}]")
+        lines.append("")
+        
+        if res["limitations"]:
+            lines.append("**Known Limitations:**")
+            for lim in res["limitations"]:
+                lines.append(f"- {lim}")
+        lines.append("---")
+        
+    lines.append("## Global Assessments")
+    gi = data.get("global_source_independence", {})
+    lines.append(f"- **Source Dependency Score:** `{gi.get('dependency_score')}`")
+    lines.append(f"- **Assessment:** `{gi.get('assessment')}`")
+    lines.append(f"- **Note:** {gi.get('note')}")
+    lines.append("")
+    
+    lines.append("## Next Best Actions")
+    for act in data.get("next_best_action", []):
+        lines.append(f"- {act}")
+        
+    lines.append("")
+    lines.append("## Specialist Handoffs")
+    for h in data.get("handoffs", []):
+        if h["reason"] != "None":
+            lines.append(f"- To **{h['specialist']}**: {h['reason']}")
+            
+    lines.append("")
+    lines.append("*Disclaimer: This tool performs passive, lawful analysis only. It does not intercept communications, track locations, or contact subjects.*")
+    
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------
+# CLI Entry Point
+# --------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TRACEATLAS PHONEINT Safe Starter")
+    parser.add_argument("--manifest", required=True, help="Path to input JSON manifest")
+    parser.add_argument("--output-json", default="phoneint_result.json", help="Output JSON path")
+    parser.add_argument("--output-md", default="phoneint_report.md", help="Output Markdown report path")
+    args = parser.parse_args()
+
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+        return 2
+
+    result = analyze_phone_case(manifest)
+
+    # Save JSON
+    Path(args.output_json).write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    
+    # Save MD
+    md_report = generate_markdown_report(result)
+    Path(args.output_md).write_text(md_report, encoding="utf-8")
+    
+    print(f"Success. Results written to:\n  JSON: {args.output_json}\n  MD:   {args.output_md}")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+{
+  "case_id": "TEL-CASE-001",
+  "task_id": "TEL-TASK-001",
+  "objective": "Analyze public telephone number associations, verify format, check spam reputation, and assess caller-ID spoofing risks for an incoming complaint.",
+  "questions": [
+    "Is the number valid?",
+    "What is the likely line type?",
+    "Are there existing spam reports?",
+    "Did the caller ID match the network record?"
+  ],
+  "authorization": {
+    "approved": True,
+    "scope": "public_and_authorized_only",
+    "model_mode": "LOCAL_ONLY",
+    "cloud_approved": False
+  },
+  "default_region": None,
+  "phone_numbers": [
+    {
+      "value": "+1 (800) 555-0199",
+      "country_hint": "US"
+    },
+    {
+      "value": "07700 900123",
+      "country_hint": "GB"
+    }
+  ],
+  "known_facts": [
+    "The number +1 800 555 0199 is registered to Acme Corp Support.",
+    "Acme Corp uses VoIP services for their support desk."
+  ],
+  "scam_reports": [
+    {
+      "target_number": "+1 (800) 555-0199",
+      "source": "UserReportApp",
+      "reported_at": "2026-10-01T10:00:00Z",
+      "description": "Robocall claiming bank fraud."
+    },
+    {
+      "target_number": "+1 (800) 555-0199",
+      "source": "SpamBlockList",
+      "reported_at": "2026-10-02T11:00:00Z",
+      "description": "Telemarketing spam."
+    }
+  ],
+  "authorized_call_logs": [
+    {
+      "event_id": "CALL-001",
+      "timestamp": "2026-10-05T14:30:00Z",
+      "caller": "+1 (800) 555-0199",
+      "callee": "+1 (555) 123-4567",
+      "displayed_caller_id": "+1 (800) 555-0199",
+      "network_verified_caller_id": "+1 (800) 555-0199"
+    },
+    {
+      "event_id": "CALL-002",
+      "timestamp": "2026-10-05T14:35:00Z",
+      "caller": "+1 (800) 555-0199",
+      "callee": "+1 (555) 987-6543",
+      "displayed_caller_id": "+1 (212) 555-0100",
+      "network_verified_caller_id": "+1 (800) 555-0199"
+    }
+  ]
+}
+
+

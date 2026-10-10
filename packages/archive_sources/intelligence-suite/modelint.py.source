@@ -1,0 +1,4534 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS / MODELINT — Local defensive AI model intelligence pipeline.
+
+IMPORTANT SAFETY / POLICY NOTES:
+- This is a local demo implementation.
+- It does NOT access live model providers, APIs, registries, repositories, or inference servers.
+- It does NOT steal, extract, reconstruct, or exfiltrate model weights, proprietary models,
+  training data, or private user data.
+- It does NOT use stolen API keys, bypass authentication, evade rate limits or billing.
+- It does NOT generate or optimize malicious jailbreaks, safety bypasses, poisoning payloads,
+  backdoors, or harmful model packages.
+- It does NOT execute unknown checkpoint/repository code or load untrusted artifacts.
+- It supports authorized, defensive, evidence-first AI model intelligence only.
+- Sample data is synthetic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import unicodedata
+from collections import defaultdict
+from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+PIPELINE_VERSION = "0.1.0-modelint-defensive-safe-demo"
+DEFAULT_AS_OF = "2026-10-09T00:00:00Z"
+
+
+# =====================================================================
+# ENUMS
+# =====================================================================
+
+class Status(str, Enum):
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    MODEL_UNRESOLVED = "MODEL_UNRESOLVED"
+    VERSION_UNRESOLVED = "VERSION_UNRESOLVED"
+    PROVENANCE_UNRESOLVED = "PROVENANCE_UNRESOLVED"
+    LINEAGE_UNRESOLVED = "LINEAGE_UNRESOLVED"
+    CAPABILITY_UNRESOLVED = "CAPABILITY_UNRESOLVED"
+    BENCHMARK_UNREPRODUCED = "BENCHMARK_UNREPRODUCED"
+    DEPLOYMENT_UNRESOLVED = "DEPLOYMENT_UNRESOLVED"
+    LICENSE_UNRESOLVED = "LICENSE_UNRESOLVED"
+    DRIFT_UNRESOLVED = "DRIFT_UNRESOLVED"
+    BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+    BLOCKED_POLICY = "BLOCKED_POLICY"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
+class SourceType(str, Enum):
+    OFFICIAL_MODEL_CARD = "OFFICIAL_MODEL_CARD"
+    OFFICIAL_SYSTEM_CARD = "OFFICIAL_SYSTEM_CARD"
+    TECHNICAL_REPORT = "TECHNICAL_REPORT"
+    PROVIDER_DOCS = "PROVIDER_DOCS"
+    RELEASE_NOTES = "RELEASE_NOTES"
+    MODEL_REPOSITORY = "MODEL_REPOSITORY"
+    MODEL_REGISTRY = "MODEL_REGISTRY"
+    SIGNED_MANIFEST = "SIGNED_MANIFEST"
+    ARTIFACT_HASH = "ARTIFACT_HASH"
+    PUBLIC_API_METADATA = "PUBLIC_API_METADATA"
+    BENCHMARK_RESULT = "BENCHMARK_RESULT"
+    INDEPENDENT_EVAL = "INDEPENDENT_EVAL"
+    ACADEMIC_PAPER = "ACADEMIC_PAPER"
+    REDTEAM_REPORT = "REDTEAM_REPORT"
+    SECURITY_ADVISORY = "SECURITY_ADVISORY"
+    INCIDENT_REPORT = "INCIDENT_REPORT"
+    LICENSE_DB = "LICENSE_DB"
+    DATASET_DOC = "DATASET_DOC"
+    SBOM = "SBOM"
+    PACKAGE_MANIFEST = "PACKAGE_MANIFEST"
+    CONTAINER_MANIFEST = "CONTAINER_MANIFEST"
+    RUNTIME_METADATA = "RUNTIME_METADATA"
+    AUTHORIZED_INFERENCE_LOG = "AUTHORIZED_INFERENCE_LOG"
+    AUTHORIZED_PROMPT_TRACE = "AUTHORIZED_PROMPT_TRACE"
+    AUTHORIZED_AGENT_TRACE = "AUTHORIZED_AGENT_TRACE"
+    AUTHORIZED_RAG_METADATA = "AUTHORIZED_RAG_METADATA"
+    AUTHORIZED_MODEL_INVENTORY = "AUTHORIZED_MODEL_INVENTORY"
+    PUBLIC_SECURITY_RESEARCH = "PUBLIC_SECURITY_RESEARCH"
+    OTHER = "OTHER"
+
+
+class ArtifactType(str, Enum):
+    API_ONLY = "API_ONLY"
+    OPEN_WEIGHTS = "OPEN_WEIGHTS"
+    OPEN_SOURCE = "OPEN_SOURCE"
+    CHECKPOINT = "CHECKPOINT"
+    QUANTIZED_CHECKPOINT = "QUANTIZED_CHECKPOINT"
+    ADAPTER = "ADAPTER"
+    LORA = "LORA"
+    EMBEDDING_MODEL = "EMBEDDING_MODEL"
+    RERANKER = "RERANKER"
+    VISION_MODEL = "VISION_MODEL"
+    AUDIO_MODEL = "AUDIO_MODEL"
+    MULTIMODAL_MODEL = "MULTIMODAL_MODEL"
+    ROUTER_MODEL = "ROUTER_MODEL"
+    ENSEMBLE = "ENSEMBLE"
+    OTHER = "OTHER"
+
+
+class AccessType(str, Enum):
+    PUBLIC_API = "PUBLIC_API"
+    PRIVATE_API = "PRIVATE_API"
+    LOCAL_WEIGHTS = "LOCAL_WEIGHTS"
+    OPEN_WEIGHTS = "OPEN_WEIGHTS"
+    RESTRICTED_WEIGHTS = "RESTRICTED_WEIGHTS"
+    HOSTED_UI = "HOSTED_UI"
+    ON_DEVICE = "ON_DEVICE"
+    UNKNOWN = "UNKNOWN"
+
+
+class ProvenanceLevel(str, Enum):
+    SIGNED_AND_VERIFIED = "SIGNED_AND_VERIFIED"
+    OFFICIALLY_PUBLISHED = "OFFICIALLY_PUBLISHED"
+    HASH_MATCHED = "HASH_MATCHED"
+    REPOSITORY_LINKED = "REPOSITORY_LINKED"
+    SOURCE_CLAIMED = "SOURCE_CLAIMED"
+    UNVERIFIED = "UNVERIFIED"
+    UNKNOWN = "UNKNOWN"
+
+
+class LineageState(str, Enum):
+    OFFICIALLY_DECLARED = "OFFICIALLY_DECLARED"
+    SUPPORTED = "SUPPORTED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class CapabilityKind(str, Enum):
+    NATIVE = "NATIVE"
+    SYSTEM_DERIVED = "SYSTEM_DERIVED"
+    TOOL = "TOOL"
+    RAG = "RAG"
+    AGENT = "AGENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class CapabilityState(str, Enum):
+    CLAIMED = "CLAIMED"
+    MEASURED = "MEASURED"
+    SUPPORTED = "SUPPORTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DISPUTED = "DISPUTED"
+
+
+class BenchmarkReportedBy(str, Enum):
+    PROVIDER_REPORTED = "PROVIDER_REPORTED"
+    INDEPENDENT_REPRODUCED = "INDEPENDENT_REPRODUCED"
+    LEADERBOARD_AGGREGATED = "LEADERBOARD_AGGREGATED"
+    LOCAL_TEST = "LOCAL_TEST"
+    UNKNOWN = "UNKNOWN"
+
+
+class ContaminationState(str, Enum):
+    NO_EVIDENCE = "NO_EVIDENCE"
+    POSSIBLE = "POSSIBLE"
+    SUPPORTED = "SUPPORTED"
+    CONFIRMED = "CONFIRMED"
+    UNKNOWN = "UNKNOWN"
+
+
+class SafetyTestType(str, Enum):
+    PROMPT_INJECTION = "PROMPT_INJECTION"
+    INDIRECT_PROMPT_INJECTION = "INDIRECT_PROMPT_INJECTION"
+    JAILBREAK_RESILIENCE = "JAILBREAK_RESILIENCE"
+    TOOL_SAFETY = "TOOL_SAFETY"
+    EXCESSIVE_AGENCY = "EXCESSIVE_AGENCY"
+    OVER_REFUSAL = "OVER_REFUSAL"
+    UNDER_REFUSAL = "UNDER_REFUSAL"
+    ABSTENTION = "ABSTENTION"
+    CALIBRATION = "CALIBRATION"
+    HALLUCINATION = "HALLUCINATION"
+    PRIVACY_MEMORIZATION = "PRIVACY_MEMORIZATION"
+    MODEL_EXTRACTION_RISK = "MODEL_EXTRACTION_RISK"
+    MODEL_INVERSION_RISK = "MODEL_INVERSION_RISK"
+    MEMBERSHIP_INFERENCE_RISK = "MEMBERSHIP_INFERENCE_RISK"
+    POISONING_CONTEXT = "POISONING_CONTEXT"
+    BACKDOOR_CONTEXT = "BACKDOOR_CONTEXT"
+
+
+class SafetyResult(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    PARTIAL_FAIL = "PARTIAL_FAIL"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    NOT_TESTED = "NOT_TESTED"
+
+
+class PrivacyRiskType(str, Enum):
+    MEMORIZATION = "MEMORIZATION"
+    MODEL_EXTRACTION = "MODEL_EXTRACTION"
+    MODEL_INVERSION = "MODEL_INVERSION"
+    MEMBERSHIP_INFERENCE = "MEMBERSHIP_INFERENCE"
+    TRAINING_DATA_LEAKAGE = "TRAINING_DATA_LEAKAGE"
+    PRIVATE_PROMPT_LEAKAGE = "PRIVATE_PROMPT_LEAKAGE"
+
+
+class DeploymentMode(str, Enum):
+    CLOUD_API = "CLOUD_API"
+    SELF_HOSTED = "SELF_HOSTED"
+    ON_PREM = "ON_PREM"
+    EDGE = "EDGE"
+    MOBILE = "MOBILE"
+    BROWSER = "BROWSER"
+    HYBRID = "HYBRID"
+    UNKNOWN = "UNKNOWN"
+
+
+class SupplyNodeType(str, Enum):
+    MODEL_ARTIFACT = "MODEL_ARTIFACT"
+    INFERENCE_SERVER = "INFERENCE_SERVER"
+    TOKENIZER_LIBRARY = "TOKENIZER_LIBRARY"
+    CONTAINER_BASE = "CONTAINER_BASE"
+    PACKAGE = "PACKAGE"
+    ATTESTATION = "ATTESTATION"
+    RUNTIME = "RUNTIME"
+    OTHER = "OTHER"
+
+
+class Modality(str, Enum):
+    TEXT = "TEXT"
+    IMAGE = "IMAGE"
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+    DOCUMENT = "DOCUMENT"
+    STRUCTURED_DATA = "STRUCTURED_DATA"
+    OTHER = "OTHER"
+
+
+class VerificationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    OBSERVED = "OBSERVED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DISPUTED = "DISPUTED"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class FindingType(str, Enum):
+    MODEL_IDENTITY_RESOLVED = "MODEL_IDENTITY_RESOLVED"
+    MODEL_IDENTITY_PARTIALLY_RESOLVED = "MODEL_IDENTITY_PARTIALLY_RESOLVED"
+    VERSION_ALIAS_DRIFT_CANDIDATE = "VERSION_ALIAS_DRIFT_CANDIDATE"
+    SILENT_UPDATE_SUSPECTED = "SILENT_UPDATE_SUSPECTED"
+    PROVENANCE_PARTIAL = "PROVENANCE_PARTIAL"
+    PROVENANCE_STRONG = "PROVENANCE_STRONG"
+    LINEAGE_CLAIMED = "LINEAGE_CLAIMED"
+    LINEAGE_SUPPORTED = "LINEAGE_SUPPORTED"
+    CONTEXT_WINDOW_OVERCLAIM_CANDIDATE = "CONTEXT_WINDOW_OVERCLAIM_CANDIDATE"
+    EFFECTIVE_CONTEXT_MEASURED = "EFFECTIVE_CONTEXT_MEASURED"
+    BENCHMARK_PROVIDER_REPORTED = "BENCHMARK_PROVIDER_REPORTED"
+    BENCHMARK_INDEPENDENT_REPRODUCED = "BENCHMARK_INDEPENDENT_REPRODUCED"
+    TOOL_ASSISTED_SCORE_NOT_NATIVE = "TOOL_ASSISTED_SCORE_NOT_NATIVE"
+    RAG_ASSISTED_SCORE_NOT_NATIVE = "RAG_ASSISTED_SCORE_NOT_NATIVE"
+    BENCHMARK_CONTAMINATION_POSSIBLE = "BENCHMARK_CONTAMINATION_POSSIBLE"
+    HALLUCINATION_OBSERVED = "HALLUCINATION_OBSERVED"
+    CALIBRATION_ISSUE = "CALIBRATION_ISSUE"
+    ABSTENTION_OBSERVED = "ABSTENTION_OBSERVED"
+    PROMPT_INJECTION_FAILURE_CANDIDATE = "PROMPT_INJECTION_FAILURE_CANDIDATE"
+    INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE = "INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE"
+    JAILBREAK_RESILIENCE_PARTIAL = "JAILBREAK_RESILIENCE_PARTIAL"
+    TOOL_SAFETY_FAILURE_CANDIDATE = "TOOL_SAFETY_FAILURE_CANDIDATE"
+    EXCESSIVE_AGENCY_CANDIDATE = "EXCESSIVE_AGENCY_CANDIDATE"
+    OVER_REFUSAL_OBSERVED = "OVER_REFUSAL_OBSERVED"
+    UNDER_REFUSAL_OBSERVED = "UNDER_REFUSAL_OBSERVED"
+    MEMORIZATION_RISK_CANDIDATE = "MEMORIZATION_RISK_CANDIDATE"
+    MODEL_EXTRACTION_RISK_CANDIDATE = "MODEL_EXTRACTION_RISK_CANDIDATE"
+    TRAINING_DATA_CLAIM_PARTIAL = "TRAINING_DATA_CLAIM_PARTIAL"
+    LICENSE_AMBIGUITY = "LICENSE_AMBIGUITY"
+    SUPPLY_CHAIN_ATTESTATION_PARTIAL = "SUPPLY_CHAIN_ATTESTATION_PARTIAL"
+    RUNTIME_DEPENDENCY_OBSERVED = "RUNTIME_DEPENDENCY_OBSERVED"
+    DEPLOYMENT_ROUTING_INCIDENT = "DEPLOYMENT_ROUTING_INCIDENT"
+    CAPABILITY_DRIFT_OBSERVED = "CAPABILITY_DRIFT_OBSERVED"
+    SAFETY_DRIFT_OBSERVED = "SAFETY_DRIFT_OBSERVED"
+    MODEL_SELF_REPORT_NOT_AUTHORITATIVE = "MODEL_SELF_REPORT_NOT_AUTHORITATIVE"
+    MODEL_CARD_REVISION_MISMATCH = "MODEL_CARD_REVISION_MISMATCH"
+
+
+class RiskDimension(str, Enum):
+    IDENTITY_RISK = "IDENTITY_RISK"
+    PROVENANCE_RISK = "PROVENANCE_RISK"
+    LINEAGE_RISK = "LINEAGE_RISK"
+    CAPABILITY_RISK = "CAPABILITY_RISK"
+    SAFETY_RISK = "SAFETY_RISK"
+    PRIVACY_RISK = "PRIVACY_RISK"
+    SECURITY_RISK = "SECURITY_RISK"
+    SUPPLY_CHAIN_RISK = "SUPPLY_CHAIN_RISK"
+    DEPLOYMENT_RISK = "DEPLOYMENT_RISK"
+    DRIFT_RISK = "DRIFT_RISK"
+    LICENSE_RISK = "LICENSE_RISK"
+    AVAILABILITY_RISK = "AVAILABILITY_RISK"
+    EVIDENCE_CONFIDENCE = "EVIDENCE_CONFIDENCE"
+
+
+class GapType(str, Enum):
+    EXACT_VERSION_UNKNOWN = "EXACT_VERSION_UNKNOWN"
+    WEIGHTS_UNAVAILABLE = "WEIGHTS_UNAVAILABLE"
+    BASE_MODEL_UNRESOLVED = "BASE_MODEL_UNRESOLVED"
+    TRAINING_DATA_UNDISCLOSED = "TRAINING_DATA_UNDISCLOSED"
+    LICENSE_AMBIGUOUS = "LICENSE_AMBIGUOUS"
+    QUANTIZATION_PROVENANCE_UNKNOWN = "QUANTIZATION_PROVENANCE_UNKNOWN"
+    BENCHMARK_UNREPRODUCED = "BENCHMARK_UNREPRODUCED"
+    CONTEXT_CAPABILITY_UNTESTED = "CONTEXT_CAPABILITY_UNTESTED"
+    SAFETY_CONTROLS_UNKNOWN = "SAFETY_CONTROLS_UNKNOWN"
+    SILENT_UPDATE_POSSIBLE = "SILENT_UPDATE_POSSIBLE"
+    RAG_CONTRIBUTION_UNCLEAR = "RAG_CONTRIBUTION_UNCLEAR"
+    TOOL_CONTRIBUTION_UNCLEAR = "TOOL_CONTRIBUTION_UNCLEAR"
+    PROVIDER_ROUTING_UNKNOWN = "PROVIDER_ROUTING_UNKNOWN"
+    ARTIFACT_SIGNATURE_UNAVAILABLE = "ARTIFACT_SIGNATURE_UNAVAILABLE"
+    FINE_TUNE_DATA_UNKNOWN = "FINE_TUNE_DATA_UNKNOWN"
+    SOURCE_INDEPENDENCE_GAP = "SOURCE_INDEPENDENCE_GAP"
+
+
+class PrivacyFlag(str, Enum):
+    CASE_SCOPED = "CASE_SCOPED"
+    AUTHORIZED_MODEL_ONLY = "AUTHORIZED_MODEL_ONLY"
+    NO_WEIGHT_THEFT = "NO_WEIGHT_THEFT"
+    NO_PROPRIETARY_EXTRACTION = "NO_PROPRIETARY_EXTRACTION"
+    NO_API_ABUSE = "NO_API_ABUSE"
+    NO_JAILBREAK_OPTIMIZATION = "NO_JAILBREAK_OPTIMIZATION"
+    NO_POISONING = "NO_POISONING"
+    NO_BACKDOOR_CREATION = "NO_BACKDOOR_CREATION"
+    NO_TRAINING_DATA_EXFILTRATION = "NO_TRAINING_DATA_EXFILTRATION"
+    NO_CREDENTIAL_USE = "NO_CREDENTIAL_USE"
+    NO_UNKNOWN_CODE_EXECUTION = "NO_UNKNOWN_CODE_EXECUTION"
+    LOCAL_ONLY_DEFAULT = "LOCAL_ONLY_DEFAULT"
+
+
+class HypothesisStatus(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    UNRESOLVED = "UNRESOLVED"
+    DISPUTED = "DISPUTED"
+    REJECTED = "REJECTED"
+
+
+# =====================================================================
+# CONSTANTS
+# =====================================================================
+
+SOURCE_FACTOR: Dict[SourceType, float] = {
+    SourceType.OFFICIAL_MODEL_CARD: 0.88,
+    SourceType.OFFICIAL_SYSTEM_CARD: 0.86,
+    SourceType.TECHNICAL_REPORT: 0.90,
+    SourceType.PROVIDER_DOCS: 0.88,
+    SourceType.RELEASE_NOTES: 0.88,
+    SourceType.MODEL_REPOSITORY: 0.84,
+    SourceType.MODEL_REGISTRY: 0.90,
+    SourceType.SIGNED_MANIFEST: 0.94,
+    SourceType.ARTIFACT_HASH: 0.94,
+    SourceType.PUBLIC_API_METADATA: 0.90,
+    SourceType.BENCHMARK_RESULT: 0.78,
+    SourceType.INDEPENDENT_EVAL: 0.86,
+    SourceType.ACADEMIC_PAPER: 0.84,
+    SourceType.REDTEAM_REPORT: 0.82,
+    SourceType.SECURITY_ADVISORY: 0.86,
+    SourceType.INCIDENT_REPORT: 0.80,
+    SourceType.LICENSE_DB: 0.78,
+    SourceType.DATASET_DOC: 0.76,
+    SourceType.SBOM: 0.82,
+    SourceType.PACKAGE_MANIFEST: 0.84,
+    SourceType.CONTAINER_MANIFEST: 0.84,
+    SourceType.RUNTIME_METADATA: 0.88,
+    SourceType.AUTHORIZED_INFERENCE_LOG: 0.88,
+    SourceType.AUTHORIZED_PROMPT_TRACE: 0.86,
+    SourceType.AUTHORIZED_AGENT_TRACE: 0.84,
+    SourceType.AUTHORIZED_RAG_METADATA: 0.82,
+    SourceType.AUTHORIZED_MODEL_INVENTORY: 0.90,
+    SourceType.PUBLIC_SECURITY_RESEARCH: 0.74,
+    SourceType.OTHER: 0.65,
+}
+
+PROVENANCE_RANK: Dict[ProvenanceLevel, int] = {
+    ProvenanceLevel.UNKNOWN: 0,
+    ProvenanceLevel.UNVERIFIED: 1,
+    ProvenanceLevel.SOURCE_CLAIMED: 2,
+    ProvenanceLevel.REPOSITORY_LINKED: 3,
+    ProvenanceLevel.HASH_MATCHED: 4,
+    ProvenanceLevel.OFFICIALLY_PUBLISHED: 5,
+    ProvenanceLevel.SIGNED_AND_VERIFIED: 6,
+}
+
+PROHIBITED_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
+    (
+        "MODEL_THEFT_OR_EXTRACTION",
+        re.compile(
+            r"\b(steal|extract|reconstruct|exfiltrate)\s+"
+            r"(model\s+)?(weights|proprietary\s+model|training\s+data|private\s+user\s+data)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "API_ABUSE_OR_AUTH_BYPASS",
+        re.compile(
+            r"\b(bypass|evade)\s+(model[- ]provider authentication|api authentication|rate limit|billing|quota)\b|"
+            r"\buse stolen (api key|token|credential)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "MALICIOUS_JAILBREAK_OR_SAFETY_BYPASS",
+        re.compile(
+            r"\b(generate|optimize|create|improve)\s+(malicious\s+)?(jailbreak|safety bypass|policy bypass)\b|"
+            r"\bdisable safety controls\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "POISONING_OR_BACKDOOR",
+        re.compile(
+            r"\b(poison)\s+(training data|dataset|rag corpus|retrieval corpus)\b|"
+            r"\b(insert|create|design)\s+(model backdoor|stealth backdoor|trigger backdoor)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "UNAUTHORIZED_MODEL_DEPLOYMENT_OR_TAMPERING",
+        re.compile(
+            r"\b(tamper with|replace|modify)\s+(signed model artifact|production model|model routing)\b|"
+            r"\bpublish malicious model\b|\bdeploy untrusted checkpoint\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "UNSAFE_CHECKPOINT_EXECUTION",
+        re.compile(
+            r"\b(execute|run|load)\s+(unknown|untrusted|suspicious)\s+(checkpoint|model code|repository code|binary)\b",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+# =====================================================================
+# UTILITIES
+# =====================================================================
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id(prefix: str, seed: str) -> str:
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:10]
+    return f"{prefix}{h}" if prefix else h
+
+
+def stable_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_short(text: str) -> str:
+    return stable_hash(text)[:16]
+
+
+def jsonable(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: jsonable(getattr(obj, f.name)) for f in fields(obj)}
+    if isinstance(obj, (list, tuple, set)):
+        return [jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): jsonable(v) for k, v in obj.items()}
+    return obj
+
+
+def normalize_text(value: str) -> str:
+    s = unicodedata.normalize("NFKC", value or "")
+    s = s.lower().strip()
+    s = re.sub(r"[^\w\s\-'.:/@]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def dt_or_min(value: Optional[str]) -> datetime:
+    dt = parse_dt(value)
+    return dt if dt else datetime.min.replace(tzinfo=timezone.utc)
+
+
+def days_between(a: Optional[str], b: Optional[str]) -> Optional[int]:
+    da = parse_dt(a)
+    db = parse_dt(b)
+    if not da or not db:
+        return None
+    return abs((db - da).days)
+
+
+def policy_guard(text: str) -> List[Dict[str, str]]:
+    violations: List[Dict[str, str]] = []
+    for rule, rx in PROHIBITED_PATTERNS:
+        m = rx.search(text or "")
+        if m:
+            violations.append({"rule": rule, "matched": m.group(0)})
+    return violations
+
+
+# =====================================================================
+# DATACLASSES
+# =====================================================================
+
+@dataclass
+class Source:
+    id: str
+    title: str
+    url: str
+    source_type: SourceType
+    independence_group: str = "UNKNOWN"
+    reliability: float = 0.5
+    derived_from: Optional[str] = None
+    published_at: Optional[str] = None
+    retrieved_at: Optional[str] = None
+    notes: str = ""
+
+
+@dataclass
+class Evidence:
+    id: str
+    source_id: str
+    artifact_type: str
+    excerpt: str
+    observed_at: Optional[str] = None
+    content_hash: str = ""
+    parsed_fields: Dict[str, Any] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ModelFamily:
+    id: str
+    name: str
+    provider: str
+    publisher: str
+    description: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ModelVersion:
+    id: str
+    family_id: str
+    canonical_name: str
+    version: str
+    revision: Optional[str] = None
+    release_date: Optional[str] = None
+    artifact_type: ArtifactType = ArtifactType.UNKNOWN
+    access_type: AccessType = AccessType.UNKNOWN
+    base_model: Optional[str] = None
+    parent_models: List[str] = field(default_factory=list)
+    fine_tune_type: Optional[str] = None
+    adapters: List[str] = field(default_factory=list)
+    quantization: Optional[str] = None
+    architecture_claim: Optional[str] = None
+    parameter_count_claim: Optional[str] = None
+    active_parameter_count_claim: Optional[str] = None
+    context_window_claim: Optional[int] = None
+    output_limit_claim: Optional[int] = None
+    modalities: List[Modality] = field(default_factory=list)
+    license: Optional[str] = None
+    repository: Optional[str] = None
+    artifact_hashes: Dict[str, str] = field(default_factory=dict)
+    deployment_types: List[DeploymentMode] = field(default_factory=list)
+    tokenizer_id: Optional[str] = None
+    provenance_state: ProvenanceLevel = ProvenanceLevel.UNKNOWN
+    lineage_state: LineageState = LineageState.UNKNOWN
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Artifact:
+    id: str
+    model_version_id: str
+    artifact_type: ArtifactType = ArtifactType.UNKNOWN
+    uri: str = ""
+    digest: Optional[str] = None
+    signature_state: str = "UNKNOWN"
+    format: Optional[str] = None
+    availability: AccessType = AccessType.UNKNOWN
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Tokenizer:
+    id: str
+    model_version_id: str
+    family: str = ""
+    vocab_version: Optional[str] = None
+    special_tokens: List[str] = field(default_factory=list)
+    hash: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Capability:
+    id: str
+    model_version_id: str
+    name: str
+    kind: CapabilityKind = CapabilityKind.UNKNOWN
+    state: CapabilityState = CapabilityState.CLAIMED
+    description: str = ""
+    score: Optional[float] = None
+    conditions: Dict[str, Any] = field(default_factory=dict)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Benchmark:
+    id: str
+    name: str
+    version: str = ""
+    task: str = ""
+    dataset: str = ""
+    split: str = ""
+    metric: str = ""
+    harness_id: str = ""
+    prompt_template: str = ""
+    shots: Optional[str] = None
+    sampling: Optional[str] = None
+    tool_use: bool = False
+    rag_use: bool = False
+    provider: str = ""
+    date: Optional[str] = None
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class EvalResult:
+    id: str
+    model_version_id: str
+    benchmark_id: str
+    score: Optional[float] = None
+    metric: str = ""
+    reported_by: BenchmarkReportedBy = BenchmarkReportedBy.UNKNOWN
+    reproduction_state: str = "UNKNOWN"
+    contamination_state: ContaminationState = ContaminationState.UNKNOWN
+    conditions: Dict[str, Any] = field(default_factory=dict)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SafetyTest:
+    id: str
+    model_version_id: str
+    test_type: SafetyTestType
+    scenario_category: str
+    result: SafetyResult = SafetyResult.NOT_TESTED
+    severity: str = "UNKNOWN"
+    total_cases: Optional[int] = None
+    failed_cases: Optional[int] = None
+    synthetic_only: bool = True
+    environment: str = "AUTHORIZED_SANDBOX"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PrivacyRisk:
+    id: str
+    model_version_id: str
+    risk_type: PrivacyRiskType
+    state: VerificationState = VerificationState.INCONCLUSIVE
+    description: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SupplyNode:
+    id: str
+    node_type: SupplyNodeType
+    name: str
+    version: Optional[str] = None
+    digest: Optional[str] = None
+    license: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SupplyEdge:
+    id: str
+    from_node: str
+    to_node: str
+    relationship: str
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Deployment:
+    id: str
+    model_version_id: str
+    mode: DeploymentMode = DeploymentMode.UNKNOWN
+    provider: str = ""
+    endpoint: str = ""
+    alias: Optional[str] = None
+    resolved_version: Optional[str] = None
+    resolution_time: Optional[str] = None
+    system_prompt_fingerprint: Optional[str] = None
+    tools_enabled: bool = False
+    rag_enabled: bool = False
+    retention_claim: Optional[str] = None
+    data_boundary: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class DriftObservation:
+    id: str
+    model_version_id: str
+    metric: str
+    baseline_time: Optional[str] = None
+    current_time: Optional[str] = None
+    baseline_value: Optional[float] = None
+    current_value: Optional[float] = None
+    possible_causes: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Incident:
+    id: str
+    model_version_id: str
+    incident_type: str
+    summary: str
+    time: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Finding:
+    id: str
+    finding_type: FindingType
+    subject_id: str
+    statement: str
+    verification_state: VerificationState = VerificationState.INCONCLUSIVE
+    confidence: float = 0.0
+    risk_dimension: str = RiskDimension.EVIDENCE_CONFIDENCE.value
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    specialist_handoff: Optional[str] = None
+
+
+@dataclass
+class Hypothesis:
+    id: str
+    statement: str
+    kind: str
+    supporting_finding_ids: List[str] = field(default_factory=list)
+    supporting_evidence_ids: List[str] = field(default_factory=list)
+    contradicting_evidence_ids: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    predictions: List[str] = field(default_factory=list)
+    falsification_conditions: List[str] = field(default_factory=list)
+    status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    id: str
+    contradiction_type: str
+    description: str
+    subject_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    severity: str = "MEDIUM"
+    status: str = "OPEN"
+    recommended_resolution: str = ""
+
+
+@dataclass
+class KnowledgeGap:
+    id: str
+    gap_type: GapType
+    description: str
+    about_subject_ids: List[str] = field(default_factory=list)
+    about_finding_ids: List[str] = field(default_factory=list)
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: Optional[str] = None
+    expected_information_value: float = 0.0
+
+
+@dataclass
+class NextAction:
+    id: str
+    description: str
+    priority: int = 1
+    privacy_impact: str = "LOW_IF_AUTHORIZED"
+    expected_gain: float = 0.0
+    specialist: Optional[str] = None
+    requires_human_approval: bool = False
+
+
+@dataclass
+class Recommendation:
+    id: str
+    category: str
+    action: str
+    target: str
+    rationale: str
+    evidence_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    approval: str = "HUMAN_APPROVAL_REQUIRED"
+    business_impact: str = "REQUIRES_ENGINEERING_REVIEW"
+    reversibility: str = "REQUIRES_VALIDATION"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Case:
+    case_id: str
+    task_id: str
+    objective: str
+    questions: List[str] = field(default_factory=list)
+    scope: List[str] = field(default_factory=lambda: ["authorized_defensive_model_intelligence", "evidence_first", "case_scoped"])
+    authorization: str = "demo_authorized_model_intelligence"
+    model_names: List[str] = field(default_factory=list)
+    model_ids: List[str] = field(default_factory=list)
+    providers: List[str] = field(default_factory=list)
+    versions: List[str] = field(default_factory=list)
+    artifacts: List[str] = field(default_factory=list)
+    repositories: List[str] = field(default_factory=list)
+    time_range: Optional[str] = None
+    as_of: str = DEFAULT_AS_OF
+    sample: bool = False
+    budget: Optional[str] = None
+    deadline: Optional[str] = None
+
+
+# =====================================================================
+# MODELINT ENGINE
+# =====================================================================
+
+class ModelInt:
+    def __init__(self, case: Case) -> None:
+        self.case = case
+        self.as_of = case.as_of or DEFAULT_AS_OF
+
+        self.sources: Dict[str, Source] = {}
+        self.evidence: Dict[str, Evidence] = {}
+        self.model_families: Dict[str, ModelFamily] = {}
+        self.model_versions: Dict[str, ModelVersion] = {}
+        self.artifacts: Dict[str, Artifact] = {}
+        self.tokenizers: Dict[str, Tokenizer] = {}
+        self.capabilities: Dict[str, Capability] = {}
+        self.benchmarks: Dict[str, Benchmark] = {}
+        self.eval_results: Dict[str, EvalResult] = {}
+        self.safety_tests: Dict[str, SafetyTest] = {}
+        self.privacy_risks: Dict[str, PrivacyRisk] = {}
+        self.supply_nodes: Dict[str, SupplyNode] = {}
+        self.supply_edges: Dict[str, SupplyEdge] = {}
+        self.deployments: Dict[str, Deployment] = {}
+        self.drift_observations: Dict[str, DriftObservation] = {}
+        self.incidents: Dict[str, Incident] = {}
+        self.findings: Dict[str, Finding] = {}
+        self.hypotheses: List[Hypothesis] = []
+        self.contradictions: List[Contradiction] = []
+        self.gaps: List[KnowledgeGap] = []
+        self.actions: List[NextAction] = []
+        self.recommendations: List[Recommendation] = []
+        self.handoffs: List[Dict[str, str]] = []
+        self.risk_dimensions: Dict[str, str] = {}
+        self.validation_errors: List[str] = []
+
+    # -----------------------------------------------------------------
+    # Adders
+    # -----------------------------------------------------------------
+
+    def add_source(self, source: Source) -> Source:
+        self.sources[source.id] = source
+        return source
+
+    def add_evidence(self, evidence: Evidence) -> Evidence:
+        if not evidence.content_hash:
+            evidence.content_hash = stable_hash("|".join([
+                evidence.source_id,
+                evidence.artifact_type,
+                evidence.excerpt,
+            ]))
+        self.evidence[evidence.id] = evidence
+        return evidence
+
+    def add_model_family(self, family: ModelFamily) -> ModelFamily:
+        self.model_families[family.id] = family
+        return family
+
+    def add_model_version(self, mv: ModelVersion) -> ModelVersion:
+        self.model_versions[mv.id] = mv
+        return mv
+
+    def add_artifact(self, art: Artifact) -> Artifact:
+        self.artifacts[art.id] = art
+        return art
+
+    def add_tokenizer(self, tok: Tokenizer) -> Tokenizer:
+        self.tokenizers[tok.id] = tok
+        return tok
+
+    def add_capability(self, cap: Capability) -> Capability:
+        self.capabilities[cap.id] = cap
+        return cap
+
+    def add_benchmark(self, bm: Benchmark) -> Benchmark:
+        self.benchmarks[bm.id] = bm
+        return bm
+
+    def add_eval_result(self, er: EvalResult) -> EvalResult:
+        self.eval_results[er.id] = er
+        return er
+
+    def add_safety_test(self, st: SafetyTest) -> SafetyTest:
+        self.safety_tests[st.id] = st
+        return st
+
+    def add_privacy_risk(self, pr: PrivacyRisk) -> PrivacyRisk:
+        self.privacy_risks[pr.id] = pr
+        return pr
+
+    def add_supply_node(self, node: SupplyNode) -> SupplyNode:
+        self.supply_nodes[node.id] = node
+        return node
+
+    def add_supply_edge(self, edge: SupplyEdge) -> SupplyEdge:
+        self.supply_edges[edge.id] = edge
+        return edge
+
+    def add_deployment(self, dep: Deployment) -> Deployment:
+        self.deployments[dep.id] = dep
+        return dep
+
+    def add_drift_observation(self, drift: DriftObservation) -> DriftObservation:
+        self.drift_observations[drift.id] = drift
+        return drift
+
+    def add_incident(self, inc: Incident) -> Incident:
+        self.incidents[inc.id] = inc
+        return inc
+
+    def add_finding(self, finding: Finding) -> Finding:
+        if finding.id in self.findings:
+            return self.findings[finding.id]
+        self.findings[finding.id] = finding
+        return finding
+
+    def add_contradiction(self, contradiction: Contradiction) -> Contradiction:
+        if any(c.description == contradiction.description for c in self.contradictions):
+            return self.contradictions[0]
+        self.contradictions.append(contradiction)
+        return contradiction
+
+    # -----------------------------------------------------------------
+    # Source lineage / independence
+    # -----------------------------------------------------------------
+
+    def get_source_family(self, source_id: str) -> Optional[str]:
+        src = self.sources.get(source_id)
+        if not src:
+            return None
+        seen: Set[str] = set()
+        cur = src
+        while (
+            cur
+            and cur.derived_from
+            and cur.derived_from in self.sources
+            and cur.id not in seen
+        ):
+            seen.add(cur.id)
+            cur = self.sources[cur.derived_from]
+        if cur and cur.independence_group and cur.independence_group != "UNKNOWN":
+            return cur.independence_group
+        return cur.id if cur else source_id
+
+    def source_families(self, source_ids: List[str]) -> Set[str]:
+        families: Set[str] = set()
+        for sid in source_ids:
+            fam = self.get_source_family(sid)
+            families.add(fam or sid)
+        return families
+
+    def independence_state(self, source_ids: List[str]) -> str:
+        if not source_ids:
+            return "UNKNOWN"
+        families = self.source_families(source_ids)
+        if len(source_ids) == 1:
+            return "SINGLE_SOURCE"
+        if len(families) == 1:
+            return "DEPENDENT"
+        if len(families) == len(source_ids):
+            return "INDEPENDENT"
+        return "PARTIALLY_DEPENDENT"
+
+    # -----------------------------------------------------------------
+    # Resolution / assessment
+    # -----------------------------------------------------------------
+
+    def resolve_identity(self) -> None:
+        for mv in self.model_versions.values():
+            missing: List[str] = []
+            if not mv.revision:
+                missing.append("revision")
+            if not mv.artifact_hashes:
+                missing.append("artifact hash")
+            if not mv.release_date:
+                missing.append("release date")
+
+            if missing:
+                self.add_finding(Finding(
+                    id=new_id("FIND-ID-", mv.id),
+                    finding_type=FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED,
+                    subject_id=mv.id,
+                    statement=(
+                        f"Model version {mv.id} is partially resolved; missing exact identity evidence: {', '.join(missing)}."
+                    ),
+                    verification_state=VerificationState.PARTIALLY_SUPPORTED,
+                    risk_dimension=RiskDimension.IDENTITY_RISK.value,
+                    source_ids=mv.source_ids,
+                    evidence_ids=mv.evidence_ids,
+                    limitations=[
+                        "Model name is not model version.",
+                        "Provider API alias may not expose exact underlying weights.",
+                        "Do not infer exact weights from product name alone.",
+                    ],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-IDOK-", mv.id),
+                    finding_type=FindingType.MODEL_IDENTITY_RESOLVED,
+                    subject_id=mv.id,
+                    statement=f"Model version {mv.id} has revision, artifact hash, and release date evidence.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.IDENTITY_RISK.value,
+                    source_ids=mv.source_ids,
+                    evidence_ids=mv.evidence_ids,
+                    limitations=["Artifact hash supports byte identity relative to reference, not runtime behavior or safety."],
+                ))
+
+    def assess_provenance(self) -> None:
+        for art in self.artifacts.values():
+            mv = self.model_versions.get(art.model_version_id)
+            if not mv:
+                continue
+
+            if art.signature_state == "VERIFIED" and art.digest:
+                state = ProvenanceLevel.SIGNED_AND_VERIFIED
+            elif art.digest:
+                state = ProvenanceLevel.HASH_MATCHED
+            elif mv.repository:
+                state = ProvenanceLevel.REPOSITORY_LINKED
+            else:
+                state = ProvenanceLevel.SOURCE_CLAIMED
+
+            if PROVENANCE_RANK.get(state, 0) > PROVENANCE_RANK.get(mv.provenance_state, 0):
+                mv.provenance_state = state
+
+            if state in {ProvenanceLevel.SOURCE_CLAIMED, ProvenanceLevel.UNVERIFIED, ProvenanceLevel.UNKNOWN}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PROV-", art.id),
+                    finding_type=FindingType.PROVENANCE_PARTIAL,
+                    subject_id=mv.id,
+                    statement=f"Artifact {art.id} provenance state is {state.value}.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.PROVENANCE_RISK.value,
+                    source_ids=art.source_ids,
+                    evidence_ids=art.evidence_ids,
+                    limitations=[
+                        "Hash proves artifact identity/integrity relative to reference, not publisher legitimacy or benignness.",
+                        "Signed does not mean safe.",
+                        "Unsigned does not mean malicious.",
+                    ],
+                ))
+            elif state in {ProvenanceLevel.HASH_MATCHED, ProvenanceLevel.REPOSITORY_LINKED, ProvenanceLevel.OFFICIALLY_PUBLISHED}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PROVPART-", art.id),
+                    finding_type=FindingType.PROVENANCE_PARTIAL,
+                    subject_id=mv.id,
+                    statement=f"Artifact {art.id} has partial provenance: {state.value}.",
+                    verification_state=VerificationState.PARTIALLY_SUPPORTED,
+                    risk_dimension=RiskDimension.PROVENANCE_RISK.value,
+                    source_ids=art.source_ids,
+                    evidence_ids=art.evidence_ids,
+                    limitations=["Partial provenance is not compromise evidence."],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PROVSTRONG-", art.id),
+                    finding_type=FindingType.PROVENANCE_STRONG,
+                    subject_id=mv.id,
+                    statement=f"Artifact {art.id} has strong provenance: {state.value}.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.PROVENANCE_RISK.value,
+                    source_ids=art.source_ids,
+                    evidence_ids=art.evidence_ids,
+                    limitations=["Strong provenance supports integrity/authorship context, not absence of vulnerabilities or unsafe behavior."],
+                ))
+
+    def assess_lineage(self) -> None:
+        for mv in self.model_versions.values():
+            if not mv.base_model and not mv.parent_models:
+                continue
+
+            official = any(
+                self.sources[sid].source_type in {
+                    SourceType.OFFICIAL_MODEL_CARD,
+                    SourceType.TECHNICAL_REPORT,
+                    SourceType.PROVIDER_DOCS,
+                    SourceType.MODEL_REGISTRY,
+                }
+                for sid in mv.source_ids
+                if sid in self.sources
+            )
+
+            if official:
+                mv.lineage_state = LineageState.SUPPORTED
+                ftype = FindingType.LINEAGE_SUPPORTED
+                vstate = VerificationState.SUPPORTED
+            else:
+                mv.lineage_state = LineageState.POSSIBLE
+                ftype = FindingType.LINEAGE_CLAIMED
+                vstate = VerificationState.CANDIDATE
+
+            self.add_finding(Finding(
+                id=new_id("FIND-LIN-", mv.id),
+                finding_type=ftype,
+                subject_id=mv.id,
+                statement=(
+                    f"Model {mv.id} lineage: base_model={mv.base_model}, parents={mv.parent_models}, "
+                    f"fine_tune_type={mv.fine_tune_type}, state={mv.lineage_state.value}."
+                ),
+                verification_state=vstate,
+                risk_dimension=RiskDimension.LINEAGE_RISK.value,
+                source_ids=mv.source_ids,
+                evidence_ids=mv.evidence_ids,
+                limitations=[
+                    "Base model claim is not automatically verified lineage.",
+                    "Fine-tune does not equal adapter.",
+                    "Distillation does not imply weight lineage.",
+                ],
+            ))
+
+    def assess_capabilities(self) -> None:
+        for cap in self.capabilities.values():
+            if cap.conditions.get("tool_use"):
+                cap.kind = CapabilityKind.TOOL
+            elif cap.conditions.get("rag_use"):
+                cap.kind = CapabilityKind.RAG
+            elif cap.conditions.get("agent_loop"):
+                cap.kind = CapabilityKind.AGENT
+            elif cap.kind == CapabilityKind.UNKNOWN:
+                cap.kind = CapabilityKind.NATIVE
+
+            if cap.state == CapabilityState.CLAIMED:
+                self.add_finding(Finding(
+                    id=new_id("FIND-CAPCLAIM-", cap.id),
+                    finding_type=FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED,
+                    subject_id=cap.id,
+                    statement=f"Capability {cap.name} is provider/system claimed but not independently measured in this corpus.",
+                    verification_state=VerificationState.CANDIDATE,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=cap.source_ids,
+                    evidence_ids=cap.evidence_ids,
+                    limitations=[
+                        "Provider claim is not measured capability.",
+                        "System-derived capability must not be attributed solely to base model.",
+                    ],
+                ))
+            elif cap.state in {CapabilityState.MEASURED, CapabilityState.SUPPORTED}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-CAPMEAS-", cap.id),
+                    finding_type=FindingType.EFFECTIVE_CONTEXT_MEASURED if "context" in normalize_text(cap.name) else FindingType.BENCHMARK_INDEPENDENT_REPRODUCED,
+                    subject_id=cap.id,
+                    statement=f"Capability {cap.name} measured with kind={cap.kind.value}, score={cap.score}, conditions={cap.conditions}.",
+                    verification_state=VerificationState.SUPPORTED if cap.state == CapabilityState.SUPPORTED else VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=cap.source_ids,
+                    evidence_ids=cap.evidence_ids,
+                    limitations=[
+                        "Benchmark score is not general intelligence.",
+                        "Tool/RAG-assisted score is not native model capability.",
+                    ],
+                ))
+
+    def assess_benchmarks(self) -> None:
+        for er in self.eval_results.values():
+            bm = self.benchmarks.get(er.benchmark_id)
+            if not bm:
+                continue
+
+            if er.reported_by == BenchmarkReportedBy.PROVIDER_REPORTED:
+                self.add_finding(Finding(
+                    id=new_id("FIND-BMPROV-", er.id),
+                    finding_type=FindingType.BENCHMARK_PROVIDER_REPORTED,
+                    subject_id=er.id,
+                    statement=f"Benchmark result {er.id} for {bm.name} {bm.version} is provider-reported.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.EVIDENCE_CONFIDENCE.value,
+                    source_ids=er.source_ids,
+                    evidence_ids=er.evidence_ids,
+                    limitations=[
+                        "Provider-reported benchmark is not independent verification.",
+                        "Multiple leaderboards ingesting same submission are not independent evidence.",
+                    ],
+                ))
+
+            if er.reported_by == BenchmarkReportedBy.INDEPENDENT_REPRODUCED:
+                self.add_finding(Finding(
+                    id=new_id("FIND-BMINDEP-", er.id),
+                    finding_type=FindingType.BENCHMARK_INDEPENDENT_REPRODUCED,
+                    subject_id=er.id,
+                    statement=f"Benchmark result {er.id} for {bm.name} {bm.version} has independent reproduction evidence.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.EVIDENCE_CONFIDENCE.value,
+                    source_ids=er.source_ids,
+                    evidence_ids=er.evidence_ids,
+                    limitations=["Independent reproduction still depends on harness, prompt, sampling, and dataset version."],
+                ))
+
+            if bm.tool_use or er.conditions.get("tool_use"):
+                self.add_finding(Finding(
+                    id=new_id("FIND-BMTOOL-", er.id),
+                    finding_type=FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                    subject_id=er.id,
+                    statement=f"Benchmark result {er.id} used tool assistance; score must not be attributed solely to native model capability.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=er.source_ids,
+                    evidence_ids=er.evidence_ids,
+                    limitations=["Tool availability does not prove reliable tool use.", "Tool-assisted benchmark is not model-only benchmark."],
+                ))
+
+            if bm.rag_use or er.conditions.get("rag_use"):
+                self.add_finding(Finding(
+                    id=new_id("FIND-BMRAG-", er.id),
+                    finding_type=FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE,
+                    subject_id=er.id,
+                    statement=f"Benchmark result {er.id} used RAG/retrieval assistance; factual advantage may be system-derived.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=er.source_ids,
+                    evidence_ids=er.evidence_ids,
+                    limitations=["RAG performance is not model knowledge.", "Retrieval quality, corpus freshness, and citation behavior are system factors."],
+                ))
+
+            if er.contamination_state in {ContaminationState.POSSIBLE, ContaminationState.SUPPORTED, ContaminationState.CONFIRMED}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-BMCONTAM-", er.id),
+                    finding_type=FindingType.BENCHMARK_CONTAMINATION_POSSIBLE,
+                    subject_id=er.id,
+                    statement=f"Benchmark result {er.id} has contamination state {er.contamination_state.value}.",
+                    verification_state=VerificationState.CANDIDATE,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=er.source_ids,
+                    evidence_ids=er.evidence_ids,
+                    limitations=[
+                        "Contamination is not proven without training-data or memorization evidence.",
+                        "Saturated benchmark may have low diagnostic value.",
+                    ],
+                ))
+
+    def assess_safety(self) -> None:
+        mapping = {
+            SafetyTestType.PROMPT_INJECTION: FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+            SafetyTestType.INDIRECT_PROMPT_INJECTION: FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+            SafetyTestType.JAILBREAK_RESILIENCE: FindingType.JAILBREAK_RESILIENCE_PARTIAL,
+            SafetyTestType.TOOL_SAFETY: FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+            SafetyTestType.EXCESSIVE_AGENCY: FindingType.EXCESSIVE_AGENCY_CANDIDATE,
+            SafetyTestType.OVER_REFUSAL: FindingType.OVER_REFUSAL_OBSERVED,
+            SafetyTestType.UNDER_REFUSAL: FindingType.UNDER_REFUSAL_OBSERVED,
+            SafetyTestType.ABSTENTION: FindingType.ABSTENTION_OBSERVED,
+            SafetyTestType.CALIBRATION: FindingType.CALIBRATION_ISSUE,
+            SafetyTestType.HALLUCINATION: FindingType.HALLUCINATION_OBSERVED,
+        }
+
+        for st in self.safety_tests.values():
+            if st.result in {SafetyResult.FAIL, SafetyResult.PARTIAL_FAIL}:
+                ftype = mapping.get(st.test_type, FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE)
+                self.add_finding(Finding(
+                    id=new_id("FIND-SAFETY-", st.id),
+                    finding_type=ftype,
+                    subject_id=st.id,
+                    statement=(
+                        f"Safety test {st.id} ({st.test_type.value}, {st.scenario_category}) result={st.result.value}; "
+                        f"failed={st.failed_cases}/{st.total_cases}; synthetic_only={st.synthetic_only}."
+                    ),
+                    verification_state=VerificationState.CANDIDATE,
+                    risk_dimension=RiskDimension.SAFETY_RISK.value,
+                    source_ids=st.source_ids,
+                    evidence_ids=st.evidence_ids,
+                    limitations=[
+                        "Defensive authorized synthetic evaluation only.",
+                        "No reusable harmful bypass strings are published.",
+                        "One failure is not universal safety failure.",
+                        "Results are environment/version-specific.",
+                    ],
+                ))
+            elif st.result == SafetyResult.PASS:
+                self.add_finding(Finding(
+                    id=new_id("FIND-SAFEPASS-", st.id),
+                    finding_type=FindingType.ABSTENTION_OBSERVED if st.test_type == SafetyTestType.ABSTENTION else FindingType.JAILBREAK_RESILIENCE_PARTIAL,
+                    subject_id=st.id,
+                    statement=f"Safety test {st.id} passed in authorized synthetic environment.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.SAFETY_RISK.value,
+                    source_ids=st.source_ids,
+                    evidence_ids=st.evidence_ids,
+                    limitations=["One passed test is not robust safety proof."],
+                ))
+
+    def assess_privacy(self) -> None:
+        for pr in self.privacy_risks.values():
+            if pr.risk_type == PrivacyRiskType.MEMORIZATION:
+                ftype = FindingType.MEMORIZATION_RISK_CANDIDATE
+            elif pr.risk_type == PrivacyRiskType.MODEL_EXTRACTION:
+                ftype = FindingType.MODEL_EXTRACTION_RISK_CANDIDATE
+            elif pr.risk_type == PrivacyRiskType.TRAINING_DATA_LEAKAGE:
+                ftype = FindingType.TRAINING_DATA_CLAIM_PARTIAL
+            else:
+                ftype = FindingType.MEMORIZATION_RISK_CANDIDATE
+
+            self.add_finding(Finding(
+                id=new_id("FIND-PRIV-", pr.id),
+                finding_type=ftype,
+                subject_id=pr.id,
+                statement=f"Privacy risk {pr.id}: {pr.risk_type.value}; state={pr.state.value}; {pr.description}",
+                verification_state=pr.state,
+                risk_dimension=RiskDimension.PRIVACY_RISK.value,
+                source_ids=pr.source_ids,
+                evidence_ids=pr.evidence_ids,
+                limitations=[
+                    "Synthetic authorized testing only.",
+                    "No private real-user data recovery attempted.",
+                    "Training-data inclusion does not prove memorization.",
+                    "Output similarity does not prove training-data membership.",
+                ],
+            ))
+
+    def assess_supply_chain(self) -> None:
+        for node in self.supply_nodes.values():
+            if node.node_type == SupplyNodeType.ATTESTATION:
+                self.add_finding(Finding(
+                    id=new_id("FIND-ATTNODE-", node.id),
+                    finding_type=FindingType.SUPPLY_CHAIN_ATTESTATION_PARTIAL,
+                    subject_id=node.id,
+                    statement=f"Supply-chain attestation node {node.id} observed: {node.name} {node.version or ''}.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.SUPPLY_CHAIN_RISK.value,
+                    source_ids=node.source_ids,
+                    evidence_ids=node.evidence_ids,
+                    limitations=[
+                        "Attestation quality depends on issuer trust and build environment.",
+                        "Attestation is not absolute truth.",
+                    ],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-SUPNODE-", node.id),
+                    finding_type=FindingType.RUNTIME_DEPENDENCY_OBSERVED,
+                    subject_id=node.id,
+                    statement=f"Model supply-chain dependency observed: {node.node_type.value} {node.name} {node.version or ''}.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.SUPPLY_CHAIN_RISK.value,
+                    source_ids=node.source_ids,
+                    evidence_ids=node.evidence_ids,
+                    limitations=[
+                        "Runtime dependency observation is not CVE applicability.",
+                        "Software CVE questions hand off to VULNINT.",
+                    ],
+                ))
+
+    def assess_deployment(self) -> None:
+        alias_groups: Dict[str, List[Deployment]] = defaultdict(list)
+        for dep in self.deployments.values():
+            if dep.alias:
+                alias_groups[dep.alias].append(dep)
+
+        for alias, deps in alias_groups.items():
+            resolved = sorted({d.resolved_version for d in deps if d.resolved_version})
+            if len(resolved) > 1:
+                latest = max(deps, key=lambda d: dt_or_min(d.resolution_time))
+                self.add_finding(Finding(
+                    id=new_id("FIND-ALIAS-", alias),
+                    finding_type=FindingType.VERSION_ALIAS_DRIFT_CANDIDATE,
+                    subject_id=latest.model_version_id,
+                    statement=(
+                        f"Deployment alias '{alias}' resolved to multiple model versions over time: {resolved}. "
+                        "Silent update or routing change is possible."
+                    ),
+                    verification_state=VerificationState.CANDIDATE,
+                    risk_dimension=RiskDimension.DRIFT_RISK.value,
+                    source_ids=sorted({sid for d in deps for sid in d.source_ids}),
+                    evidence_ids=sorted({eid for d in deps for eid in d.evidence_ids}),
+                    limitations=[
+                        "Behavioral or routing drift is not proof of weight change.",
+                        "Provider may change post-training, routing, system prompt, tools, or filters.",
+                    ],
+                ))
+                self.add_finding(Finding(
+                    id=new_id("FIND-SILENT-", alias),
+                    finding_type=FindingType.SILENT_UPDATE_SUSPECTED,
+                    subject_id=latest.model_version_id,
+                    statement=f"Alias '{alias}' shows version movement; exact production weight identity remains unresolved.",
+                    verification_state=VerificationState.INCONCLUSIVE,
+                    risk_dimension=RiskDimension.DEPLOYMENT_RISK.value,
+                    source_ids=sorted({sid for d in deps for sid in d.source_ids}),
+                    evidence_ids=sorted({eid for d in deps for eid in d.evidence_ids}),
+                    limitations=[
+                        "Do not claim weight change solely from output variation.",
+                        "Use release notes, fingerprints, and authorized regression evals.",
+                    ],
+                ))
+
+        for dep in self.deployments.values():
+            if dep.tools_enabled or dep.rag_enabled:
+                self.add_finding(Finding(
+                    id=new_id("FIND-DEPSYS-", dep.id),
+                    finding_type=FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                    subject_id=dep.model_version_id,
+                    statement=(
+                        f"Deployment {dep.id} enables tools={dep.tools_enabled}, rag={dep.rag_enabled}; "
+                        "product behavior is system-level and not attributable solely to base model."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                    source_ids=dep.source_ids,
+                    evidence_ids=dep.evidence_ids,
+                    limitations=[
+                        "Model ≠ product.",
+                        "System prompt, tools, RAG, memory, filters, and workflow logic contribute behavior.",
+                    ],
+                ))
+
+    def assess_drift(self) -> None:
+        for drift in self.drift_observations.values():
+            ftype = FindingType.SAFETY_DRIFT_OBSERVED if "safety" in normalize_text(drift.metric) or "injection" in normalize_text(drift.metric) else FindingType.CAPABILITY_DRIFT_OBSERVED
+            self.add_finding(Finding(
+                id=new_id("FIND-DRIFT-", drift.id),
+                finding_type=ftype,
+                subject_id=drift.model_version_id,
+                statement=(
+                    f"Drift observed for metric '{drift.metric}': baseline={drift.baseline_value} at {drift.baseline_time}, "
+                    f"current={drift.current_value} at {drift.current_time}. Possible causes: {drift.possible_causes}."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                risk_dimension=RiskDimension.DRIFT_RISK.value,
+                source_ids=drift.source_ids,
+                evidence_ids=drift.evidence_ids,
+                limitations=[
+                    "Drift is not weight-change proof.",
+                    "Compare matched evals over time.",
+                    "System prompt, routing, tools, retrieval, runtime, and provider changes may explain drift.",
+                ],
+            ))
+
+    def detect_incidents(self) -> None:
+        for inc in self.incidents.values():
+            self.add_finding(Finding(
+                id=new_id("FIND-INC-", inc.id),
+                finding_type=FindingType.DEPLOYMENT_ROUTING_INCIDENT,
+                subject_id=inc.model_version_id,
+                statement=f"Incident {inc.id}: {inc.incident_type}; {inc.summary}",
+                verification_state=VerificationState.OBSERVED,
+                risk_dimension=RiskDimension.AVAILABILITY_RISK.value,
+                source_ids=inc.source_ids,
+                evidence_ids=inc.evidence_ids,
+                limitations=[
+                    "Incident report is not universal model defect.",
+                    "Scope precisely; do not assume all projects/models affected.",
+                ],
+            ))
+
+    def detect_model_self_report(self) -> None:
+        for ev in self.evidence.values():
+            if ev.artifact_type == "model_self_report":
+                self.add_finding(Finding(
+                    id=new_id("FIND-SELFREP-", ev.id),
+                    finding_type=FindingType.MODEL_SELF_REPORT_NOT_AUTHORITATIVE,
+                    subject_id=ev.id,
+                    statement="Model/self-system identification in prompt trace is not authoritative model identity evidence.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension=RiskDimension.IDENTITY_RISK.value,
+                    source_ids=[ev.source_id],
+                    evidence_ids=[ev.id],
+                    limitations=[
+                        "Use runtime/provider metadata, artifact hashes, and release notes for identity.",
+                        "Model saying 'I am X' is weak evidence.",
+                    ],
+                ))
+
+    def detect_contradictions(self) -> None:
+        existing = {c.description for c in self.contradictions}
+
+        # Context claim vs effective retrieval.
+        for mv in self.model_versions.values():
+            claim = mv.context_window_claim
+            if not claim:
+                continue
+            for er in self.eval_results.values():
+                if er.model_version_id != mv.id:
+                    continue
+                eff = er.conditions.get("effective_retrieval_tokens")
+                if eff and int(eff) < int(claim) * 0.5:
+                    desc = (
+                        f"Model {mv.id} claims context window {claim}, but evaluation {er.id} measures effective retrieval "
+                        f"declining after {eff} tokens. Context acceptance is not reliable long-context reasoning."
+                    )
+                    if desc in existing:
+                        continue
+                    fid = new_id("FIND-CTXCON-", mv.id + er.id)
+                    self.add_finding(Finding(
+                        id=fid,
+                        finding_type=FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE,
+                        subject_id=mv.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                        source_ids=sorted(set(mv.source_ids + er.source_ids)),
+                        evidence_ids=sorted(set(mv.evidence_ids + er.evidence_ids)),
+                        limitations=[
+                            "API acceptance of long input does not prove reliable recall across full window.",
+                            "Evaluate retrieval position, lost-in-middle, and long-context reasoning separately.",
+                        ],
+                    ))
+                    self.add_contradiction(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="CONTEXT_CLAIM_VS_EFFECTIVE_RETRIEVAL",
+                        description=desc,
+                        subject_ids=[mv.id, er.id],
+                        finding_ids=[fid],
+                        evidence_ids=sorted(set(mv.evidence_ids + er.evidence_ids)),
+                        source_ids=sorted(set(mv.source_ids + er.source_ids)),
+                        severity="MEDIUM",
+                        status="OPEN",
+                        recommended_resolution="Use measured long-context evaluation for capability claims; preserve provider claim separately.",
+                    ))
+                    existing.add(desc)
+
+        # Native marketing claim vs tool/RAG-assisted eval.
+        for cap in self.capabilities.values():
+            if cap.kind != CapabilityKind.NATIVE or cap.state != CapabilityState.CLAIMED:
+                continue
+            if not cap.conditions.get("marketing_native"):
+                continue
+            for er in self.eval_results.values():
+                if er.model_version_id != cap.model_version_id:
+                    continue
+                if er.conditions.get("tool_use") or er.conditions.get("rag_use"):
+                    desc = (
+                        f"Capability {cap.id} is presented as native {cap.name}, but evaluation {er.id} used "
+                        f"tool_use={er.conditions.get('tool_use')} rag_use={er.conditions.get('rag_use')}. "
+                        "Score contribution may be system-derived."
+                    )
+                    if desc in existing:
+                        continue
+                    fid = new_id("FIND-NATIVECON-", cap.id + er.id)
+                    self.add_finding(Finding(
+                        id=fid,
+                        finding_type=FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                        subject_id=cap.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        risk_dimension=RiskDimension.CAPABILITY_RISK.value,
+                        source_ids=sorted(set(cap.source_ids + er.source_ids)),
+                        evidence_ids=sorted(set(cap.evidence_ids + er.evidence_ids)),
+                        limitations=["Do not attribute tool/RAG-assisted performance solely to base model."],
+                    ))
+                    self.add_contradiction(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="NATIVE_CAPABILITY_CLAIM_VS_ASSISTED_EVAL",
+                        description=desc,
+                        subject_ids=[cap.id, er.id],
+                        finding_ids=[fid],
+                        evidence_ids=sorted(set(cap.evidence_ids + er.evidence_ids)),
+                        source_ids=sorted(set(cap.source_ids + er.source_ids)),
+                        severity="MEDIUM",
+                        status="OPEN",
+                        recommended_resolution="Run normalized model-only and system-enabled evaluations separately.",
+                    ))
+                    existing.add(desc)
+
+        # Model card revision vs artifact revision.
+        for ev in self.evidence.values():
+            if ev.artifact_type != "model_card":
+                continue
+            card_rev = ev.parsed_fields.get("revision")
+            if not card_rev:
+                continue
+            for mv in self.model_versions.values():
+                if ev.source_id not in mv.source_ids:
+                    continue
+                if mv.revision and mv.revision != card_rev:
+                    desc = (
+                        f"Model card evidence {ev.id} references revision {card_rev}, but model version {mv.id} "
+                        f"artifact/release evidence references revision {mv.revision}."
+                    )
+                    if desc in existing:
+                        continue
+                    fid = new_id("FIND-CARDREV-", mv.id + ev.id)
+                    self.add_finding(Finding(
+                        id=fid,
+                        finding_type=FindingType.MODEL_CARD_REVISION_MISMATCH,
+                        subject_id=mv.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        risk_dimension=RiskDimension.PROVENANCE_RISK.value,
+                        source_ids=sorted(set(mv.source_ids + [ev.source_id])),
+                        evidence_ids=sorted(set(mv.evidence_ids + [ev.id])),
+                        limitations=["Documentation lag or different revision may explain mismatch; preserve both."],
+                    ))
+                    self.add_contradiction(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="MODEL_CARD_VS_ARTIFACT_REVISION",
+                        description=desc,
+                        subject_ids=[mv.id, ev.id],
+                        finding_ids=[fid],
+                        evidence_ids=sorted(set(mv.evidence_ids + [ev.id])),
+                        source_ids=sorted(set(mv.source_ids + [ev.source_id])),
+                        severity="LOW",
+                        status="OPEN",
+                        recommended_resolution="Resolve exact deployed revision through provider release notes and artifact fingerprint.",
+                    ))
+                    existing.add(desc)
+
+    # -----------------------------------------------------------------
+    # Fact gate
+    # -----------------------------------------------------------------
+
+    def fact_gate_findings(self) -> None:
+        for f in self.findings.values():
+            srcs = [self.sources[sid] for sid in f.source_ids if sid in self.sources]
+            if not srcs:
+                f.confidence = 0.0
+                if f.verification_state == VerificationState.OBSERVED:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                f.limitations.append("No mapped source for fact gate.")
+                continue
+
+            families = self.source_families(f.source_ids)
+            max_rel = max((s.reliability for s in srcs), default=0.5)
+            direct = max((SOURCE_FACTOR.get(s.source_type, 0.65) for s in srcs), default=0.65)
+            base = max_rel * direct
+
+            if len(families) >= 2:
+                base = min(0.99, base * 1.05)
+            elif len(families) == 1 and len(f.source_ids) > 1:
+                base *= 0.90
+                f.limitations.append("Multiple sources share one upstream source family.")
+
+            # Semantic guards.
+            if f.finding_type == FindingType.MODEL_IDENTITY_RESOLVED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.75 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Identity is pinned to version/revision/artifact evidence, not product name.")
+
+            elif f.finding_type == FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED if base >= 0.60 else VerificationState.INCONCLUSIVE
+                f.limitations.append("Exact production weights may remain unknown behind API alias.")
+
+            elif f.finding_type in {
+                FindingType.VERSION_ALIAS_DRIFT_CANDIDATE,
+                FindingType.SILENT_UPDATE_SUSPECTED,
+            }:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.70)
+                f.limitations.extend([
+                    "Routing/alias movement is not proof of weight change.",
+                    "Provider may change system prompt, tools, filters, routing, or post-training.",
+                ])
+
+            elif f.finding_type == FindingType.PROVENANCE_PARTIAL:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED if base >= 0.65 else VerificationState.INCONCLUSIVE
+                f.limitations.append("Partial provenance is not compromise evidence.")
+
+            elif f.finding_type == FindingType.PROVENANCE_STRONG:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.75 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Strong provenance does not prove safety or absence of vulnerabilities.")
+
+            elif f.finding_type == FindingType.LINEAGE_CLAIMED:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.65)
+                f.limitations.append("Uploader/base-model claim is not verified lineage without artifact/config evidence.")
+
+            elif f.finding_type == FindingType.LINEAGE_SUPPORTED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Supported lineage still does not imply identical behavior or safety.")
+
+            elif f.finding_type == FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE:
+                f.verification_state = VerificationState.DISPUTED
+                base = min(base, 0.82)
+                f.limitations.append("Context acceptance ≠ effective recall.")
+
+            elif f.finding_type == FindingType.EFFECTIVE_CONTEXT_MEASURED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.OBSERVED
+                f.limitations.append("Measured under specific harness, prompt, sampling, and dataset version.")
+
+            elif f.finding_type == FindingType.BENCHMARK_PROVIDER_REPORTED:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.78)
+                f.limitations.append("Provider self-report has marketing bias risk.")
+
+            elif f.finding_type == FindingType.BENCHMARK_INDEPENDENT_REPRODUCED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Independent reproduction is stronger but still harness-dependent.")
+
+            elif f.finding_type in {
+                FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE,
+            }:
+                f.verification_state = VerificationState.SUPPORTED
+                f.limitations.append("System-derived capability must be separated from native model capability.")
+
+            elif f.finding_type == FindingType.BENCHMARK_CONTAMINATION_POSSIBLE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.60)
+                f.limitations.append("Contamination claim requires training-data/memorization evidence, not suspicion alone.")
+
+            elif f.finding_type in {
+                FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+                FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+                FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+                FindingType.EXCESSIVE_AGENCY_CANDIDATE,
+            }:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.72)
+                f.limitations.extend([
+                    "Authorized synthetic testing only.",
+                    "No operational harmful bypass instructions published.",
+                    "Failure is environment/version-specific.",
+                ])
+
+            elif f.finding_type == FindingType.JAILBREAK_RESILIENCE_PARTIAL:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.68)
+                f.limitations.extend([
+                    "One successful bypass is not universal safety failure.",
+                    "One failed bypass is not robust safety.",
+                ])
+
+            elif f.finding_type in {
+                FindingType.OVER_REFUSAL_OBSERVED,
+                FindingType.UNDER_REFUSAL_OBSERVED,
+            }:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Refusal rate alone is not safety quality.")
+
+            elif f.finding_type in {
+                FindingType.MEMORIZATION_RISK_CANDIDATE,
+                FindingType.MODEL_EXTRACTION_RISK_CANDIDATE,
+            }:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.65)
+                f.limitations.append("High-level defensive risk assessment only; no extraction or private data recovery performed.")
+
+            elif f.finding_type == FindingType.TRAINING_DATA_CLAIM_PARTIAL:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Training-data disclosure claims are not verified corpus membership.")
+
+            elif f.finding_type == FindingType.LICENSE_AMBIGUITY:
+                f.verification_state = VerificationState.OBSERVED
+                f.specialist_handoff = f.specialist_handoff or "LEGALINT"
+                f.limitations.append("Final license/legal interpretation requires LEGALINT/counsel.")
+
+            elif f.finding_type == FindingType.SUPPLY_CHAIN_ATTESTATION_PARTIAL:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Attestation trust depends on issuer, build environment, and verification chain.")
+
+            elif f.finding_type == FindingType.RUNTIME_DEPENDENCY_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.specialist_handoff = f.specialist_handoff or "VULNINT / SUPPLYCHAININT"
+                f.limitations.append("Dependency presence is not CVE applicability or compromise.")
+
+            elif f.finding_type == FindingType.DEPLOYMENT_ROUTING_INCIDENT:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Incident is scoped evidence, not universal model defect.")
+
+            elif f.finding_type in {
+                FindingType.CAPABILITY_DRIFT_OBSERVED,
+                FindingType.SAFETY_DRIFT_OBSERVED,
+            }:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Drift may have system, routing, prompt, tool, retrieval, or runtime causes.")
+
+            elif f.finding_type == FindingType.MODEL_SELF_REPORT_NOT_AUTHORITATIVE:
+                f.verification_state = VerificationState.SUPPORTED
+                f.limitations.append("Model self-identification is weak identity evidence.")
+
+            elif f.finding_type == FindingType.MODEL_CARD_REVISION_MISMATCH:
+                f.verification_state = VerificationState.DISPUTED
+                f.limitations.append("Preserve documentation and artifact revisions separately.")
+
+            else:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                elif base >= 0.60:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                elif base >= 0.40:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                else:
+                    f.verification_state = VerificationState.UNSUPPORTED
+
+            f.confidence = round(max(0.0, min(0.99, base)), 3)
+
+    def build_risk_dimensions(self) -> None:
+        def max_state(types: Set[FindingType]) -> str:
+            vals = [f.verification_state.value for f in self.findings.values() if f.finding_type in types]
+            if VerificationState.DISPUTED.value in vals:
+                return "DISPUTED"
+            if VerificationState.SUPPORTED.value in vals:
+                return "SUPPORTED"
+            if VerificationState.PARTIALLY_SUPPORTED.value in vals:
+                return "PARTIALLY_SUPPORTED"
+            if VerificationState.CANDIDATE.value in vals:
+                return "CANDIDATE"
+            if VerificationState.OBSERVED.value in vals:
+                return "OBSERVED"
+            if VerificationState.INCONCLUSIVE.value in vals:
+                return "INCONCLUSIVE"
+            return "UNKNOWN"
+
+        self.risk_dimensions = {
+            RiskDimension.IDENTITY_RISK.value: max_state({
+                FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED,
+                FindingType.MODEL_SELF_REPORT_NOT_AUTHORITATIVE,
+            }),
+            RiskDimension.PROVENANCE_RISK.value: max_state({
+                FindingType.PROVENANCE_PARTIAL,
+                FindingType.MODEL_CARD_REVISION_MISMATCH,
+            }),
+            RiskDimension.LINEAGE_RISK.value: max_state({
+                FindingType.LINEAGE_CLAIMED,
+                FindingType.LINEAGE_SUPPORTED,
+            }),
+            RiskDimension.CAPABILITY_RISK.value: max_state({
+                FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE,
+                FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE,
+                FindingType.BENCHMARK_CONTAMINATION_POSSIBLE,
+            }),
+            RiskDimension.SAFETY_RISK.value: max_state({
+                FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+                FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+                FindingType.JAILBREAK_RESILIENCE_PARTIAL,
+                FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+                FindingType.EXCESSIVE_AGENCY_CANDIDATE,
+                FindingType.UNDER_REFUSAL_OBSERVED,
+            }),
+            RiskDimension.PRIVACY_RISK.value: max_state({
+                FindingType.MEMORIZATION_RISK_CANDIDATE,
+                FindingType.MODEL_EXTRACTION_RISK_CANDIDATE,
+                FindingType.TRAINING_DATA_CLAIM_PARTIAL,
+            }),
+            RiskDimension.SECURITY_RISK.value: max_state({
+                FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+                FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+            }),
+            RiskDimension.SUPPLY_CHAIN_RISK.value: max_state({
+                FindingType.SUPPLY_CHAIN_ATTESTATION_PARTIAL,
+                FindingType.RUNTIME_DEPENDENCY_OBSERVED,
+            }),
+            RiskDimension.DEPLOYMENT_RISK.value: max_state({
+                FindingType.VERSION_ALIAS_DRIFT_CANDIDATE,
+                FindingType.SILENT_UPDATE_SUSPECTED,
+                FindingType.DEPLOYMENT_ROUTING_INCIDENT,
+            }),
+            RiskDimension.DRIFT_RISK.value: max_state({
+                FindingType.CAPABILITY_DRIFT_OBSERVED,
+                FindingType.SAFETY_DRIFT_OBSERVED,
+            }),
+            RiskDimension.LICENSE_RISK.value: max_state({FindingType.LICENSE_AMBIGUITY}),
+            RiskDimension.AVAILABILITY_RISK.value: max_state({FindingType.DEPLOYMENT_ROUTING_INCIDENT}),
+            RiskDimension.EVIDENCE_CONFIDENCE.value: "MEDIUM_AUTHORIZED_SYNTHETIC_CORPUS",
+        }
+
+    def build_hypotheses(self) -> None:
+        hyps: List[Hypothesis] = []
+
+        alias_findings = [f.id for f in self.findings.values() if f.finding_type == FindingType.VERSION_ALIAS_DRIFT_CANDIDATE]
+        if alias_findings:
+            hyps.append(Hypothesis(
+                id="H-ALIAS-STABLE",
+                statement="The production alias points to a stable exact model version.",
+                kind="MODEL_IDENTITY",
+                contradicting_finding_ids=alias_findings,
+                assumptions=["Alias resolution metadata is complete."],
+                predictions=["Release notes and fingerprints would show no version movement."],
+                falsification_conditions=[
+                    "Alias resolved to multiple revisions.",
+                    "Provider release notes indicate silent update.",
+                    "Regression evals shift without config change.",
+                ],
+                status=HypothesisStatus.DISPUTED,
+                confidence=0.30,
+                limitations=["Routing drift is not weight-change proof."],
+            ))
+
+        tool_findings = [f.id for f in self.findings.values() if f.finding_type in {
+            FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+            FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE,
+        }]
+        if tool_findings:
+            hyps.append(Hypothesis(
+                id="H-BENCHMARK-NATIVE",
+                statement="Benchmark performance advantage is primarily native model capability.",
+                kind="CAPABILITY_ATTRIBUTION",
+                contradicting_finding_ids=tool_findings,
+                assumptions=["Evaluation harness conditions are accurately recorded."],
+                predictions=["Model-only normalized eval would retain most advantage."],
+                falsification_conditions=[
+                    "Tool/RAG-enabled eval substantially outperforms model-only eval.",
+                    "Retrieval corpus explains factual advantage.",
+                    "System prompt/tool schema drives performance.",
+                ],
+                status=HypothesisStatus.DISPUTED,
+                confidence=0.35,
+                limitations=["Model ≠ product."],
+            ))
+
+        contamination_findings = [f.id for f in self.findings.values() if f.finding_type == FindingType.BENCHMARK_CONTAMINATION_POSSIBLE]
+        if contamination_findings:
+            hyps.append(Hypothesis(
+                id="H-CONTAMINATION",
+                statement="Benchmark score may be inflated by contamination or benchmark-specific optimization.",
+                kind="EVAL_VALIDITY",
+                supporting_finding_ids=contamination_findings,
+                assumptions=["Public benchmark exposure may overlap training data."],
+                predictions=["Held-out/private-equivalent eval would show lower score."],
+                falsification_conditions=[
+                    "Training data disclosure excludes benchmark.",
+                    "Memorization tests negative.",
+                    "Novel paraphrase eval retains score.",
+                ],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.45,
+                limitations=["Contamination cannot be confirmed without stronger evidence."],
+            ))
+
+        safety_findings = [f.id for f in self.findings.values() if f.finding_type in {
+            FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+        }]
+        if safety_findings:
+            hyps.append(Hypothesis(
+                id="H-PI-SYSTEM-CAUSE",
+                statement="Prompt-injection/tool-safety failures may arise from system orchestration and tool gating rather than model alone.",
+                kind="SAFETY_ATTRIBUTION",
+                supporting_finding_ids=safety_findings,
+                assumptions=["Agent/tool logs and policy gates are part of tested system."],
+                predictions=["Hardening tool permissions and data/instruction separation would reduce failures without model change."],
+                falsification_conditions=[
+                    "Failures persist in model-only no-tool configuration.",
+                    "Model ignores instruction hierarchy even without tools.",
+                    "System logs show model-generated unauthorized action.",
+                ],
+                status=HypothesisStatus.POSSIBLE,
+                confidence=0.55,
+                limitations=["Do not blame model automatically; assess model vs system failure."],
+            ))
+
+        drift_findings = [f.id for f in self.findings.values() if f.finding_type in {
+            FindingType.CAPABILITY_DRIFT_OBSERVED,
+            FindingType.SAFETY_DRIFT_OBSERVED,
+        }]
+        if drift_findings:
+            hyps.append(Hypothesis(
+                id="H-DRIFT-WEIGHT-CHANGE",
+                statement="Observed drift indicates underlying weights changed.",
+                kind="DRIFT_CAUSE",
+                supporting_finding_ids=drift_findings,
+                assumptions=["No other system change occurred."],
+                predictions=["Artifact fingerprint or provider release note would confirm weight/post-training change."],
+                falsification_conditions=[
+                    "System prompt changed.",
+                    "Tool/RAG configuration changed.",
+                    "Routing changed.",
+                    "Sampling/runtime changed.",
+                    "Evaluation harness changed.",
+                ],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.35,
+                limitations=["Behavioral drift is not weight-change proof."],
+            ))
+
+        self.hypotheses = hyps
+
+    def build_knowledge_gaps(self) -> None:
+        existing = {g.description for g in self.gaps}
+
+        for mv in self.model_versions.values():
+            if mv.access_type in {AccessType.PUBLIC_API, AccessType.HOSTED_UI} and not mv.artifact_hashes:
+                desc = f"Exact production weights/artifact hash for {mv.id} are unavailable."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-WEIGHT-", mv.id),
+                        gap_type=GapType.WEIGHTS_UNAVAILABLE,
+                        description=desc,
+                        about_subject_ids=[mv.id],
+                        importance="HIGH",
+                        recommended_source="Provider signed manifest, artifact registry fingerprint, authorized deployment metadata",
+                        specialist="MODELINT / SUPPLYCHAININT",
+                        expected_information_value=0.85,
+                    ))
+                    existing.add(desc)
+
+            if mv.base_model and mv.lineage_state in {LineageState.POSSIBLE, LineageState.UNKNOWN}:
+                desc = f"Base-model lineage for {mv.id} is claimed but not fully verified."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-LIN-", mv.id),
+                        gap_type=GapType.BASE_MODEL_UNRESOLVED,
+                        description=desc,
+                        about_subject_ids=[mv.id],
+                        importance="MEDIUM",
+                        recommended_source="Config hash, tokenizer hash, upstream artifact comparison, official technical report",
+                        specialist="MODELINT / REPOINT",
+                        expected_information_value=0.70,
+                    ))
+                    existing.add(desc)
+
+        for er in self.eval_results.values():
+            if er.reported_by == BenchmarkReportedBy.PROVIDER_REPORTED:
+                desc = f"Evaluation {er.id} lacks independent reproduction under normalized harness."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-EVAL-", er.id),
+                        gap_type=GapType.BENCHMARK_UNREPRODUCED,
+                        description=desc,
+                        about_subject_ids=[er.id],
+                        importance="MEDIUM",
+                        recommended_source="Independent benchmark harness with pinned model version and sampling config",
+                        specialist="MODELINT / EVALINT",
+                        expected_information_value=0.75,
+                    ))
+                    existing.add(desc)
+
+        for st in self.safety_tests.values():
+            if st.result in {SafetyResult.FAIL, SafetyResult.PARTIAL_FAIL}:
+                desc = f"Safety test {st.id} requires authorized regression and system/tool gating validation."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-SAFETY-", st.id),
+                        gap_type=GapType.SAFETY_CONTROLS_UNKNOWN,
+                        description=desc,
+                        about_subject_ids=[st.id],
+                        importance="HIGH",
+                        recommended_source="Agent trace, tool permission logs, system prompt/config, regression suite",
+                        specialist="MODELINT / CYBINT / INCIDENTINT",
+                        expected_information_value=0.85,
+                    ))
+                    existing.add(desc)
+
+        for dep in self.deployments.values():
+            if dep.alias and len({d.resolved_version for d in self.deployments.values() if d.alias == dep.alias and d.resolved_version}) > 1:
+                desc = f"Alias '{dep.alias}' exact production version is unresolved over time."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-ALIAS-", dep.alias),
+                        gap_type=GapType.SILENT_UPDATE_POSSIBLE,
+                        description=desc,
+                        about_subject_ids=[dep.id],
+                        importance="HIGH",
+                        recommended_source="Provider release notes, response fingerprints, authorized regression evals",
+                        specialist="MODELINT",
+                        expected_information_value=0.85,
+                    ))
+                    existing.add(desc)
+
+        for node in self.supply_nodes.values():
+            if node.node_type == SupplyNodeType.ATTESTATION:
+                desc = f"Supply-chain attestation for {node.id} is partial and requires issuer/build environment trust review."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-ATT-", node.id),
+                        gap_type=GapType.ARTIFACT_SIGNATURE_UNAVAILABLE,
+                        description=desc,
+                        about_subject_ids=[node.id],
+                        importance="MEDIUM",
+                        recommended_source="Signed manifest, SLSA-like provenance, builder identity",
+                        specialist="SUPPLYCHAININT / MODELINT",
+                        expected_information_value=0.75,
+                    ))
+                    existing.add(desc)
+
+    def build_next_actions(self) -> None:
+        self.actions = [
+            NextAction(
+                id="ACT-PIN-EXACT-VERSION",
+                description="Pin exact model revision/artifact fingerprint in deployment configuration; do not rely on mutable alias alone.",
+                priority=1,
+                privacy_impact="LOW_IF_AUTHORIZED",
+                expected_gain=0.90,
+                specialist="MODELINT / CLOUDINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-NORMALIZED-EVAL",
+                description="Rerun benchmark suite with normalized harness, separating model-only, tool-enabled, and RAG-enabled configurations.",
+                priority=2,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="MODELINT / EVALINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-LONG-CONTEXT-EVAL",
+                description="Evaluate effective long-context retrieval/reasoning, not just API token acceptance.",
+                priority=3,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="MODELINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-SAFETY-REGRESSION",
+                description="Maintain authorized synthetic safety regression suite for prompt injection, tool safety, over/under refusal, abstention, and calibration.",
+                priority=4,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.90,
+                specialist="MODELINT / CYBINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-TOOL-GATING",
+                description="Review tool permissions, confirmation gates, data/instruction separation, and excessive-agency controls.",
+                priority=5,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.85,
+                specialist="MODELINT / AGENTSEC",
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-PROVENANCE",
+                description="Retrieve signed manifests, attestations, artifact hashes, and provider release notes for exact deployed model.",
+                priority=6,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="SUPPLYCHAININT / MODELINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-LICENSE-REVIEW",
+                description="Route license/training-data disclosure ambiguity to LEGALINT; MODELINT does not make final legal determinations.",
+                priority=7,
+                privacy_impact="LOW",
+                expected_gain=0.65,
+                specialist="LEGALINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HANDOFF-VULN",
+                description="Hand runtime/software CVE and dependency applicability questions to VULNINT; model behavioral risk remains MODELINT.",
+                priority=8,
+                privacy_impact="LOW",
+                expected_gain=0.70,
+                specialist="VULNINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HUMAN-REVIEW",
+                description="Require human review before production model replacement, safety-control changes, autonomy expansion, or compromise allegations.",
+                priority=9,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.85,
+                specialist=None,
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-NO-HARM",
+                description="Do not steal/extract weights, abuse APIs, bypass safety, poison data/RAG, create backdoors, execute unknown checkpoints, or optimize malicious jailbreaks.",
+                priority=99,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.0,
+                specialist=None,
+                requires_human_approval=False,
+            ),
+        ]
+
+    def build_recommendations(self) -> None:
+        self.recommendations = [
+            Recommendation(
+                id="REC-PIN-MODEL",
+                category="DEPLOYMENT",
+                action="Pin exact model version/revision and monitor alias resolution changes.",
+                target="ATLAS-7-LATEST",
+                rationale="Alias drift and silent-update suspicion prevent stable model identity.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.VERSION_ALIAS_DRIFT_CANDIDATE,
+                    FindingType.SILENT_UPDATE_SUSPECTED,
+                }],
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["Do not modify production routing without authorization."],
+            ),
+            Recommendation(
+                id="REC-SEPARATE-EVAL",
+                category="EVALUATION",
+                action="Report model-only, tool-enabled, and RAG-enabled results separately before attributing capability to base model.",
+                target="Benchmark suite",
+                rationale="Tool/RAG-assisted scores are system-derived and not native model capability.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE,
+                    FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE,
+                }],
+                approval="AUTONOMOUS_ANALYTIC",
+                limitations=["Benchmark score is not general intelligence."],
+            ),
+            Recommendation(
+                id="REC-LONG-CONTEXT",
+                category="CAPABILITY",
+                action="Use effective-context metrics, not advertised context window, for workload decisions.",
+                target="ATLAS-7 context capability",
+                rationale="API acceptance does not prove reliable recall across full context.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type == FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE],
+                approval="AUTONOMOUS_ANALYTIC",
+                limitations=["Long-context behavior is task-, prompt-, and position-dependent."],
+            ),
+            Recommendation(
+                id="REC-TOOL-SAFETY",
+                category="SAFETY",
+                action="Harden tool gating, confirmation requirements, data/instruction separation, and audit logging for agentic deployments.",
+                target="Agent/tool configuration",
+                rationale="Synthetic prompt-injection/tool-safety tests identified boundary failures in tested configuration.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+                    FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+                    FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+                }],
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["No malicious bypass instructions are provided."],
+            ),
+            Recommendation(
+                id="REC-PROVENANCE",
+                category="SUPPLY_CHAIN",
+                action="Retrieve signed manifests/attestations and verify artifact hashes before trusting model updates.",
+                target="Model artifact pipeline",
+                rationale="Provenance is partial and alias routing has changed.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.PROVENANCE_PARTIAL,
+                    FindingType.SUPPLY_CHAIN_ATTESTATION_PARTIAL,
+                }],
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["Attestation is not absolute truth."],
+            ),
+            Recommendation(
+                id="REC-LICENSE",
+                category="LEGAL",
+                action="Route model/code/training-data license ambiguity to LEGALINT before commercial or redistribution decisions.",
+                target="ATLAS-7 license",
+                rationale="License and training-data disclosure evidence are partial.",
+                finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.LICENSE_AMBIGUITY,
+                    FindingType.TRAINING_DATA_CLAIM_PARTIAL,
+                }],
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["MODELINT does not make final legal conclusions."],
+            ),
+        ]
+
+    def build_handoffs(self) -> None:
+        self.handoffs = [
+            {"specialist": "REPOINT", "reason": "Repository code, commits, model card files, training/inference code provenance."},
+            {"specialist": "PACKAGEINT", "reason": "Package identity, registry metadata, dependency versions."},
+            {"specialist": "SUPPLYCHAININT", "reason": "Build provenance, attestations, artifact registry, vendor risk."},
+            {"specialist": "VULNINT", "reason": "Runtime/software CVE applicability and patch priority."},
+            {"specialist": "DATASETINT", "reason": "Training dataset provenance, licensing, bias, contamination deep analysis."},
+            {"specialist": "MALINT", "reason": "If checkpoint/repository artifact is suspected malicious."},
+            {"specialist": "CLOUDINT", "reason": "Deployment/runtime cloud configuration and logging."},
+            {"specialist": "INCIDENTINT", "reason": "If model routing/safety incident requires reconstruction."},
+            {"specialist": "LEGALINT", "reason": "License, IP, training-data disclosure, and consequential legal review."},
+            {"specialist": "CYBINT", "reason": "Broader AI system security risk and adversarial operation context."},
+        ]
+
+    def dual_ai_review(self) -> Dict[str, Any]:
+        issues: List[str] = []
+
+        if any(f.finding_type == FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED for f in self.findings.values()):
+            issues.append("Exact model identity/production weights remain partially unresolved.")
+
+        if any(f.finding_type in {FindingType.VERSION_ALIAS_DRIFT_CANDIDATE, FindingType.SILENT_UPDATE_SUSPECTED} for f in self.findings.values()):
+            issues.append("Alias/version drift and silent-update suspicion remain open.")
+
+        if any(f.finding_type == FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE for f in self.findings.values()):
+            issues.append("Context-window claim conflicts with measured effective retrieval.")
+
+        if any(f.finding_type in {FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE, FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE} for f in self.findings.values()):
+            issues.append("Some benchmark performance is system-derived, not native model capability.")
+
+        if any(f.finding_type in {
+            FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+        } for f in self.findings.values()):
+            issues.append("Authorized synthetic safety tests identified tool/prompt-injection boundary failures.")
+
+        if any(f.finding_type == FindingType.BENCHMARK_CONTAMINATION_POSSIBLE for f in self.findings.values()):
+            issues.append("Benchmark contamination remains possible but unconfirmed.")
+
+        if any(f.finding_type == FindingType.PROVENANCE_PARTIAL for f in self.findings.values()):
+            issues.append("Artifact provenance is partial.")
+
+        if any(f.finding_type == FindingType.LICENSE_AMBIGUITY for f in self.findings.values()):
+            issues.append("License/training-data disclosure ambiguity requires LEGALINT.")
+
+        if self.contradictions:
+            issues.append(f"{len(self.contradictions)} contradiction(s) remain open.")
+
+        if not issues:
+            verdict = "AGREE"
+        elif len(issues) <= 5:
+            verdict = "PARTIAL_AGREEMENT"
+        else:
+            verdict = "INSUFFICIENT_EVIDENCE"
+
+        return {
+            "primary_model_analyst": (
+                "Synthetic authorized corpus supports partial identity for ATLAS-7 2026.09.1, with alias drift, "
+                "partial provenance, claimed long-context support, measured effective-context decline, tool/RAG-assisted "
+                "benchmark inflation risk, and synthetic prompt-injection/tool-boundary failures. Model self-report is not authoritative."
+            ),
+            "independent_model_skeptic_issues": issues,
+            "verdict": verdict,
+            "adversarial_checks": [
+                "Is model name treated as exact version? No.",
+                "Is provider claim treated as measured capability? No.",
+                "Is tool/RAG-assisted score attributed to native model? No.",
+                "Is context window treated as effective recall? No.",
+                "Is behavioral drift treated as weight-change proof? No.",
+                "Is model self-report treated as identity evidence? No.",
+                "Were weights extracted or APIs abused? No.",
+                "Were malicious jailbreaks/poisoning/backdoors generated? No.",
+                "Was unknown checkpoint code executed? No.",
+            ],
+            "note": "AI agreement is analytical agreement, not independent model evidence.",
+        }
+
+    def analyst_summary(self, dual: Dict[str, Any]) -> str:
+        mv = next(iter(self.model_versions.values()), None)
+        dep = next((d for d in self.deployments.values() if d.alias), None)
+        ctx_overclaim = any(f.finding_type == FindingType.CONTEXT_WINDOW_OVERCLAIM_CANDIDATE for f in self.findings.values())
+        tool_native = any(f.finding_type in {FindingType.TOOL_ASSISTED_SCORE_NOT_NATIVE, FindingType.RAG_ASSISTED_SCORE_NOT_NATIVE} for f in self.findings.values())
+        pi_fail = any(f.finding_type in {
+            FindingType.PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.INDIRECT_PROMPT_INJECTION_FAILURE_CANDIDATE,
+            FindingType.TOOL_SAFETY_FAILURE_CANDIDATE,
+        } for f in self.findings.values())
+
+        lines = [
+            f"MODEL: {mv.canonical_name if mv else 'UNKNOWN'}",
+            f"PROVIDER / PUBLISHER: {self.model_families[mv.family_id].provider if mv and mv.family_id in self.model_families else 'UNKNOWN'}",
+            f"EXACT VERSION / REVISION: {mv.version if mv else 'UNKNOWN'} / {mv.revision if mv else 'UNKNOWN'}",
+            f"ACCESS TYPE: {mv.access_type.value if mv else 'UNKNOWN'}",
+            f"ARTIFACT / HASH: {mv.artifact_hashes if mv else 'UNKNOWN'}",
+            f"PROVENANCE: {mv.provenance_state.value if mv else 'UNKNOWN'}",
+            f"BASE MODEL / LINEAGE: {mv.base_model if mv else 'UNKNOWN'} / {mv.lineage_state.value if mv else 'UNKNOWN'}",
+            f"CONTEXT WINDOW CLAIM: {mv.context_window_claim if mv else 'UNKNOWN'}",
+            f"DEPLOYMENT ALIAS: {dep.alias if dep else 'UNKNOWN'} resolved to {dep.resolved_version if dep else 'UNKNOWN'}",
+            "",
+            "ASSESSMENT:",
+            f"- MODEL IDENTITY = {'PARTIALLY_RESOLVED' if any(f.finding_type == FindingType.MODEL_IDENTITY_PARTIALLY_RESOLVED for f in self.findings.values()) else 'RESOLVED'}.",
+            f"- ALIAS DRIFT = {'CANDIDATE' if any(f.finding_type == FindingType.VERSION_ALIAS_DRIFT_CANDIDATE for f in self.findings.values()) else 'NOT_OBSERVED'}.",
+            f"- LONG-CONTEXT ACCEPTANCE = {'SUPPORTED' if any('context' in normalize_text(c.name) and c.state == CapabilityState.MEASURED for c in self.capabilities.values()) else 'UNKNOWN'}.",
+            f"- LONG-CONTEXT RELIABLE REASONING = {'NOT SUPPORTED / DISPUTED' if ctx_overclaim else 'UNKNOWN'}.",
+            f"- NATIVE VS SYSTEM CAPABILITY = {'SEPARATION REQUIRED' if tool_native else 'UNKNOWN'}.",
+            f"- PROMPT-INJECTION / TOOL-SAFETY RISK = {'SUPPORTED FOR TESTED CONFIGURATION' if pi_fail else 'NOT_OBSERVED'}.",
+            "",
+            "NOT ESTABLISHED:",
+            "- Exact production weights behind API alias.",
+            "- Universal safety failure from synthetic tests.",
+            "- Benchmark contamination without stronger evidence.",
+            "- Training-data memorization from output similarity alone.",
+            "- Legal/license conclusions.",
+            "",
+            f"DUAL-AI REVIEW: {dual['verdict']}.",
+            "PRIVACY/POLICY: Defensive authorized model intelligence only. No weight theft, proprietary extraction, API abuse, jailbreak optimization, poisoning, backdoor creation, or unknown checkpoint execution.",
+            "NEXT ACTION: Pin exact model fingerprint, run normalized model-only/tool/RAG evals, maintain synthetic safety regression, harden tool gating, retrieve provenance, and route legal questions to LEGALINT.",
+        ]
+        return "\n".join(lines)
+
+    def prepare(self) -> None:
+        self.resolve_identity()
+        self.assess_provenance()
+        self.assess_lineage()
+        self.assess_capabilities()
+        self.assess_benchmarks()
+        self.assess_safety()
+        self.assess_privacy()
+        self.assess_supply_chain()
+        self.assess_deployment()
+        self.assess_drift()
+        self.detect_incidents()
+        self.detect_model_self_report()
+        self.detect_contradictions()
+        self.fact_gate_findings()
+        self.build_risk_dimensions()
+        self.build_hypotheses()
+        self.build_knowledge_gaps()
+        self.build_next_actions()
+        self.build_recommendations()
+        self.build_handoffs()
+
+
+# =====================================================================
+# SAMPLE DATA
+# =====================================================================
+
+def sample_case() -> Case:
+    return Case(
+        case_id="SAMPLE-MODELINT-001",
+        task_id="TASK-MODELINT-001",
+        objective=(
+            "Authorized defensive model intelligence review for synthetic ATLAS-7: resolve exact version/alias, "
+            "assess provenance/lineage, separate native vs tool/RAG capability, evaluate long-context and safety risks, "
+            "identify drift/incidents, and produce defensive recommendations without extracting weights or bypassing safety."
+        ),
+        questions=[
+            "What exact model/version is being assessed?",
+            "Is the production alias stable?",
+            "What provenance and lineage evidence exists?",
+            "Which capabilities are native vs system-derived?",
+            "Do benchmark scores prove general capability?",
+            "Is advertised context window equal to effective recall?",
+            "What safety/prompt-injection/tool-risk evidence exists?",
+            "What privacy/memorization/extraction risks are supported?",
+            "What supply-chain/deployment drift is observed?",
+            "What remains unknown?",
+        ],
+        scope=["authorized_defensive_model_intelligence", "evidence_first", "case_scoped", "no_weight_extraction", "no_safety_bypass"],
+        authorization="demo_authorized_model_intelligence",
+        model_names=["ATLAS-7"],
+        model_ids=["MV-ATLAS-7-2026.09.1"],
+        providers=["AtlasAI-Synthetic"],
+        versions=["2026.09.1"],
+        artifacts=["ART-REGISTRY-ATLAS-7-2026.09.1"],
+        repositories=["https://models.example/atlas-7"],
+        time_range="2026-08-01/2026-10-09",
+        as_of=DEFAULT_AS_OF,
+        sample=True,
+    )
+
+
+def build_sample_modelint() -> ModelInt:
+    m = ModelInt(sample_case())
+    retrieved = now_iso()
+
+    # Sources
+    m.add_source(Source(
+        id="SRC-MODEL-CARD",
+        title="Official synthetic ATLAS-7 model card",
+        url="https://models.example/atlas-7/card",
+        source_type=SourceType.OFFICIAL_MODEL_CARD,
+        independence_group="PROVIDER_ROOT",
+        reliability=0.88,
+        published_at="2026-09-15T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Provider documentation; not independent verification.",
+    ))
+    m.add_source(Source(
+        id="SRC-PROVIDER-DOCS",
+        title="Provider API documentation for ATLAS-7",
+        url="https://docs.example/atlas-7/api",
+        source_type=SourceType.PROVIDER_DOCS,
+        independence_group="PROVIDER_ROOT",
+        reliability=0.88,
+        derived_from="SRC-MODEL-CARD",
+        published_at="2026-09-16T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Provider docs share upstream provider evidence family.",
+    ))
+    m.add_source(Source(
+        id="SRC-RELEASE-NOTES",
+        title="Provider release notes for ATLAS-7 alias updates",
+        url="https://docs.example/atlas-7/release-notes",
+        source_type=SourceType.RELEASE_NOTES,
+        independence_group="PROVIDER_ROOT",
+        reliability=0.88,
+        published_at="2026-10-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Release notes support alias version movement but not exact production weight disclosure.",
+    ))
+    m.add_source(Source(
+        id="SRC-ARTIFACT-REGISTRY",
+        title="Synthetic model artifact registry metadata",
+        url="https://registry.example/atlas-7/2026.09.1",
+        source_type=SourceType.MODEL_REGISTRY,
+        independence_group="ARTIFACT_ROOT",
+        reliability=0.90,
+        published_at="2026-09-20T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Artifact registry provides digest/revision metadata.",
+    ))
+    m.add_source(Source(
+        id="SRC-SIGNED-MANIFEST",
+        title="Signed manifest for ATLAS-7 artifact",
+        url="https://registry.example/atlas-7/2026.09.1/manifest.sig",
+        source_type=SourceType.SIGNED_MANIFEST,
+        independence_group="ARTIFACT_ROOT",
+        reliability=0.94,
+        derived_from="SRC-ARTIFACT-REGISTRY",
+        published_at="2026-09-20T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Signature verification context; signed does not mean safe.",
+    ))
+    m.add_source(Source(
+        id="SRC-INDEP-EVAL",
+        title="Independent synthetic evaluation report",
+        url="https://eval.example/atlas-7-independent",
+        source_type=SourceType.INDEPENDENT_EVAL,
+        independence_group="INDEPENDENT_EVAL_ROOT",
+        reliability=0.86,
+        published_at="2026-10-03T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Independent harness with model-only and tool/RAG conditions.",
+    ))
+    m.add_source(Source(
+        id="SRC-LEADERBOARD",
+        title="Leaderboard aggregate referencing provider submission",
+        url="https://leaderboard.example/atlas-7",
+        source_type=SourceType.BENCHMARK_RESULT,
+        independence_group="INDEPENDENT_EVAL_ROOT",
+        reliability=0.70,
+        derived_from="SRC-INDEP-EVAL",
+        published_at="2026-10-04T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Leaderboard aggregation is not independent evidence if same submission.",
+    ))
+    m.add_source(Source(
+        id="SRC-REDTEAM",
+        title="Authorized synthetic red-team report",
+        url="https://security.example/atlas-7-redteam",
+        source_type=SourceType.REDTEAM_REPORT,
+        independence_group="REDTEAM_ROOT",
+        reliability=0.82,
+        published_at="2026-10-05T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Defensive synthetic tests only; no harmful bypass publication.",
+    ))
+    m.add_source(Source(
+        id="SRC-SBOM",
+        title="Model runtime SBOM / dependency metadata",
+        url="https://build.example/atlas-7/sbom.cdx.json",
+        source_type=SourceType.SBOM,
+        independence_group="SBOM_ROOT",
+        reliability=0.82,
+        published_at="2026-09-21T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Runtime dependency inventory; CVE applicability requires VULNINT.",
+    ))
+    m.add_source(Source(
+        id="SRC-RUNTIME-LOG",
+        title="Authorized runtime/model inventory log",
+        url="https://runtime.example/atlas-7/inventory",
+        source_type=SourceType.RUNTIME_METADATA,
+        independence_group="RUNTIME_ROOT",
+        reliability=0.88,
+        published_at="2026-10-08T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Runtime metadata supports deployment alias resolution history.",
+    ))
+    m.add_source(Source(
+        id="SRC-LICENSE",
+        title="License and training-data disclosure metadata",
+        url="https://legal.example/atlas-7/license",
+        source_type=SourceType.LICENSE_DB,
+        independence_group="LICENSE_ROOT",
+        reliability=0.78,
+        published_at="2026-09-15T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="License interpretation requires LEGALINT.",
+    ))
+    m.add_source(Source(
+        id="SRC-INCIDENT",
+        title="Synthetic incident report: routing error",
+        url="https://status.example/incidents/atlas-7-routing",
+        source_type=SourceType.INCIDENT_REPORT,
+        independence_group="INCIDENT_ROOT",
+        reliability=0.80,
+        published_at="2026-09-10T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Incident is scoped evidence, not universal model defect.",
+    ))
+    m.add_source(Source(
+        id="SRC-PROMPT-TRACE",
+        title="Authorized prompt/response trace containing model self-report",
+        url="https://logs.example/atlas-7/prompt-trace",
+        source_type=SourceType.AUTHORIZED_PROMPT_TRACE,
+        independence_group="TRACE_ROOT",
+        reliability=0.86,
+        published_at="2026-10-07T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Model self-report is not authoritative identity evidence.",
+    ))
+
+    # Evidence
+    m.add_evidence(Evidence(
+        id="EV-MODEL-CARD",
+        source_id="SRC-MODEL-CARD",
+        artifact_type="model_card",
+        excerpt="Model card claims ATLAS-7 supports 1,000,000-token context, advanced reasoning, tool use, and is based on ATLAS-6.",
+        observed_at="2026-09-15T00:00:00Z",
+        parsed_fields={
+            "revision": "2026.09.0",
+            "context_window_claim": 1000000,
+            "base_model_claim": "ATLAS-6",
+            "license": "ATLAS-7 Restricted Model License",
+        },
+        limitations=["Model card is documentation, not independent verification."],
+    ))
+    m.add_evidence(Evidence(
+        id="EV-PROVIDER-DOCS",
+        source_id="SRC-PROVIDER-DOCS",
+        artifact_type="provider_api_docs",
+        excerpt="API docs state atlas-7-latest accepts up to 1,000,000 input tokens and 8,192 output tokens.",
+        observed_at="2026-09-16T00:00:00Z",
+        parsed_fields={
+            "api_context_limit": 1000000,
+            "output_limit": 8192,
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-RELEASE-NOTES",
+        source_id="SRC-RELEASE-NOTES",
+        artifact_type="release_notes",
+        excerpt="Release notes state atlas-7-latest resolved to 2026.08.2 on 2026-09-01 and to 2026.09.1 on 2026-10-01.",
+        observed_at="2026-10-01T00:00:00Z",
+        parsed_fields={
+            "alias": "atlas-7-latest",
+            "resolution_history": [
+                {"time": "2026-09-01T00:00:00Z", "resolved_version": "2026.08.2"},
+                {"time": "2026-10-01T00:00:00Z", "resolved_version": "2026.09.1"},
+            ],
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-ARTIFACT-REGISTRY",
+        source_id="SRC-ARTIFACT-REGISTRY",
+        artifact_type="artifact_registry_metadata",
+        excerpt="Artifact registry lists ATLAS-7 revision r2026.09.1 with SHA-256 digest sha256:atlas7-2026.09.1.",
+        observed_at="2026-09-20T00:00:00Z",
+        parsed_fields={
+            "revision": "r2026.09.1",
+            "digest": "sha256:atlas7-2026.09.1",
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-SIGNED-MANIFEST",
+        source_id="SRC-SIGNED-MANIFEST",
+        artifact_type="signed_manifest",
+        excerpt="Signed manifest verifies subject digest sha256:atlas7-2026.09.1 for publisher AtlasAI-Synthetic.",
+        observed_at="2026-09-20T00:00:00Z",
+        parsed_fields={
+            "signature_state": "VERIFIED",
+            "subject_digest": "sha256:atlas7-2026.09.1",
+        },
+        limitations=["Signature supports integrity/authorship context, not benignness."],
+    ))
+    m.add_evidence(Evidence(
+        id="EV-INDEP-EVAL",
+        source_id="SRC-INDEP-EVAL",
+        artifact_type="independent_evaluation",
+        excerpt="Independent eval: model-only reasoning score 79; tool/RAG-assisted score 88; long-context API accepts 1M but effective retrieval declines after 131,072 tokens.",
+        observed_at="2026-10-03T00:00:00Z",
+        parsed_fields={
+            "model_only_reasoning_score": 79,
+            "tool_rag_assisted_score": 88,
+            "accepted_tokens": 1000000,
+            "effective_retrieval_tokens": 131072,
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-LEADERBOARD",
+        source_id="SRC-LEADERBOARD",
+        artifact_type="leaderboard_result",
+        excerpt="Leaderboard displays ATLAS-7 reasoning score 82 from provider submission.",
+        observed_at="2026-10-04T00:00:00Z",
+        parsed_fields={"score": 82, "reported_by": "provider_submission"},
+        limitations=["Leaderboard aggregation is not independent evidence."],
+    ))
+    m.add_evidence(Evidence(
+        id="EV-REDTEAM",
+        source_id="SRC-REDTEAM",
+        artifact_type="redteam_report",
+        excerpt="Authorized synthetic red-team: 3/100 indirect prompt-injection cases caused tool-action boundary failure; 2/50 jailbreak-resilience cases partial fail; 2/100 benign over-refusal; 1/100 under-refusal candidate.",
+        observed_at="2026-10-05T00:00:00Z",
+        parsed_fields={
+            "prompt_injection_total": 100,
+            "prompt_injection_failures": 3,
+            "jailbreak_total": 50,
+            "jailbreak_partial_failures": 2,
+            "over_refusal_failures": 2,
+            "under_refusal_failures": 1,
+            "synthetic_only": True,
+        },
+        limitations=["No reusable harmful bypass strings are stored."],
+    ))
+    m.add_evidence(Evidence(
+        id="EV-SBOM",
+        source_id="SRC-SBOM",
+        artifact_type="sbom",
+        excerpt="Runtime SBOM lists inference-server 1.2.3, tokenizer-lib 0.9.1, container base python:3.12-slim-placeholder, attestation-service partial.",
+        observed_at="2026-09-21T00:00:00Z",
+        parsed_fields={
+            "inference_server": "1.2.3",
+            "tokenizer_lib": "0.9.1",
+            "base_image": "python:3.12-slim-placeholder",
+            "attestation": "PARTIAL",
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-RUNTIME-LOG",
+        source_id="SRC-RUNTIME-LOG",
+        artifact_type="runtime_metadata",
+        excerpt="Runtime inventory shows endpoint atlas-7-latest resolved to 2026.09.1 at 2026-10-08; tools and RAG enabled in product wrapper.",
+        observed_at="2026-10-08T00:00:00Z",
+        parsed_fields={
+            "alias": "atlas-7-latest",
+            "resolved_version": "2026.09.1",
+            "tools_enabled": True,
+            "rag_enabled": True,
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-LICENSE",
+        source_id="SRC-LICENSE",
+        artifact_type="license_metadata",
+        excerpt="License metadata: model weights Restricted, inference code Apache-2.0, training data partially disclosed, commercial use terms ambiguous.",
+        observed_at="2026-09-15T00:00:00Z",
+        parsed_fields={
+            "model_weights_license": "Restricted",
+            "code_license": "Apache-2.0",
+            "training_data_disclosure": "PARTIALLY_DISCLOSED",
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-INCIDENT",
+        source_id="SRC-INCIDENT",
+        artifact_type="incident_report",
+        excerpt="Incident: atlas-7-latest briefly served previous 2026.08.2 revision for 2 hours due routing error.",
+        observed_at="2026-09-10T00:00:00Z",
+        parsed_fields={
+            "incident_type": "ROUTING_ERROR",
+            "duration_hours": 2,
+            "affected_alias": "atlas-7-latest",
+        },
+    ))
+    m.add_evidence(Evidence(
+        id="EV-MODEL-SELF-REPORT",
+        source_id="SRC-PROMPT-TRACE",
+        artifact_type="model_self_report",
+        excerpt="In authorized trace, system responded: 'I am ATLAS-7.'",
+        observed_at="2026-10-07T00:00:00Z",
+        parsed_fields={"self_identified_model": "ATLAS-7"},
+        limitations=["Model self-identification is not authoritative identity evidence."],
+    ))
+
+    # Model family / versions
+    m.add_model_family(ModelFamily(
+        id="FAM-ATLAS-7",
+        name="ATLAS-7",
+        provider="AtlasAI-Synthetic",
+        publisher="AtlasAI-Synthetic",
+        description="Synthetic hosted multimodal-ready language model family for defensive MODELINT demo.",
+        source_ids=["SRC-MODEL-CARD", "SRC-PROVIDER-DOCS"],
+        evidence_ids=["EV-MODEL-CARD", "EV-PROVIDER-DOCS"],
+        confidence=0.90,
+        limitations=["Provider family metadata is not exact deployed weight identity."],
+    ))
+    m.add_model_version(ModelVersion(
+        id="MV-ATLAS-7-2026.09.1",
+        family_id="FAM-ATLAS-7",
+        canonical_name="ATLAS-7",
+        version="2026.09.1",
+        revision="r2026.09.1",
+        release_date="2026-09-20T00:00:00Z",
+        artifact_type=ArtifactType.API_ONLY,
+        access_type=AccessType.PUBLIC_API,
+        base_model="ATLAS-6",
+        parent_models=["ATLAS-6"],
+        fine_tune_type="CHAT_INSTRUCTION_POST_TRAINING",
+        adapters=[],
+        quantization=None,
+        architecture_claim="decoder-only transformer (high-level provider claim)",
+        parameter_count_claim="UNKNOWN",
+        active_parameter_count_claim="UNKNOWN",
+        context_window_claim=1000000,
+        output_limit_claim=8192,
+        modalities=[Modality.TEXT, Modality.IMAGE],
+        license="ATLAS-7 Restricted Model License",
+        repository="https://models.example/atlas-7",
+        artifact_hashes={"SHA-256": "sha256:atlas7-2026.09.1"},
+        deployment_types=[DeploymentMode.CLOUD_API],
+        tokenizer_id="TOK-ATLAS-7",
+        provenance_state=ProvenanceLevel.UNKNOWN,
+        lineage_state=LineageState.UNKNOWN,
+        source_ids=["SRC-MODEL-CARD", "SRC-PROVIDER-DOCS", "SRC-ARTIFACT-REGISTRY", "SRC-SIGNED-MANIFEST", "SRC-RUNTIME-LOG"],
+        evidence_ids=["EV-MODEL-CARD", "EV-PROVIDER-DOCS", "EV-ARTIFACT-REGISTRY", "EV-SIGNED-MANIFEST", "EV-RUNTIME-LOG"],
+        confidence=0.88,
+        limitations=[
+            "API access does not expose exact production weights.",
+            "Architecture claim is high-level and not verified internal design.",
+            "Parameter count is not inferred from name.",
+        ],
+    ))
+    m.add_model_version(ModelVersion(
+        id="MV-ATLAS-7-2026.08.2",
+        family_id="FAM-ATLAS-7",
+        canonical_name="ATLAS-7",
+        version="2026.08.2",
+        revision="r2026.08.2",
+        release_date="2026-08-20T00:00:00Z",
+        artifact_type=ArtifactType.API_ONLY,
+        access_type=AccessType.PUBLIC_API,
+        base_model="ATLAS-6",
+        parent_models=["ATLAS-6"],
+        fine_tune_type="CHAT_INSTRUCTION_POST_TRAINING",
+        context_window_claim=1000000,
+        output_limit_claim=8192,
+        modalities=[Modality.TEXT],
+        license="ATLAS-7 Restricted Model License",
+        deployment_types=[DeploymentMode.CLOUD_API],
+        tokenizer_id="TOK-ATLAS-7",
+        source_ids=["SRC-RELEASE-NOTES", "SRC-INCIDENT"],
+        evidence_ids=["EV-RELEASE-NOTES", "EV-INCIDENT"],
+        confidence=0.75,
+        limitations=["Prior alias revision included for drift analysis."],
+    ))
+
+    # Artifacts / tokenizer
+    m.add_artifact(Artifact(
+        id="ART-REGISTRY-ATLAS-7-2026.09.1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        artifact_type=ArtifactType.CHECKPOINT,
+        uri="registry.example/atlas-7:2026.09.1",
+        digest="sha256:atlas7-2026.09.1",
+        signature_state="VERIFIED",
+        format="safetensors-placeholder",
+        availability=AccessType.RESTRICTED_WEIGHTS,
+        source_ids=["SRC-ARTIFACT-REGISTRY", "SRC-SIGNED-MANIFEST"],
+        evidence_ids=["EV-ARTIFACT-REGISTRY", "EV-SIGNED-MANIFEST"],
+        limitations=["Restricted artifact metadata; production API may route differently."],
+    ))
+    m.add_artifact(Artifact(
+        id="ART-API-METADATA-ATLAS-7-2026.09.1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        artifact_type=ArtifactType.API_ONLY,
+        uri="https://api.example/atlas-7-latest",
+        digest=None,
+        signature_state="UNKNOWN",
+        availability=AccessType.PUBLIC_API,
+        source_ids=["SRC-PROVIDER-DOCS", "SRC-RUNTIME-LOG"],
+        evidence_ids=["EV-PROVIDER-DOCS", "EV-RUNTIME-LOG"],
+        limitations=["API metadata does not expose exact weights."],
+    ))
+    m.add_tokenizer(Tokenizer(
+        id="TOK-ATLAS-7",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        family="ATLAS-BPE",
+        vocab_version="v3",
+        special_tokens=["<|system|>", "<|user|>", "<|assistant|>", "<|tool|>"],
+        hash="sha256:tokenizer-atlas7-v3",
+        source_ids=["SRC-ARTIFACT-REGISTRY"],
+        evidence_ids=["EV-ARTIFACT-REGISTRY"],
+        limitations=["Tokenizer differences can affect context, cost, performance, and security."],
+    ))
+
+    # Capabilities
+    m.add_capability(Capability(
+        id="CAP-CTX-CLAIM",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="context_window",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.CLAIMED,
+        description="Provider claims 1,000,000-token context window.",
+        score=1000000.0,
+        conditions={"source": "provider_docs", "marketing_native": False},
+        source_ids=["SRC-MODEL-CARD", "SRC-PROVIDER-DOCS"],
+        evidence_ids=["EV-MODEL-CARD", "EV-PROVIDER-DOCS"],
+        limitations=["Claimed context window is not effective recall."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-CTX-ACCEPT",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="api_context_acceptance",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.MEASURED,
+        description="Authorized API accepted 1,000,000 input tokens in test configuration.",
+        score=1000000.0,
+        conditions={"accepted_tokens": 1000000},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+        limitations=["Acceptance does not prove reliable reasoning across full window."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-CTX-EFFECTIVE",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="effective_long_context_retrieval",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.SUPPORTED,
+        description="Independent eval measured effective retrieval declining after 131,072 tokens.",
+        score=131072.0,
+        conditions={"effective_retrieval_tokens": 131072, "decline_after_tokens": 131072},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+        limitations=["Task-, prompt-, and position-dependent."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-REASON-CLAIM",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="reasoning",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.CLAIMED,
+        description="Provider markets advanced native reasoning capability.",
+        conditions={"marketing_native": True},
+        source_ids=["SRC-MODEL-CARD"],
+        evidence_ids=["EV-MODEL-CARD"],
+        limitations=["Marketing claim is not measured capability."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-REASON-PROVIDER",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="reasoning_provider_benchmark",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.MEASURED,
+        description="Provider-reported benchmark score 82.",
+        score=82.0,
+        conditions={"tool_use": False, "rag_use": False, "reported_by": "provider"},
+        source_ids=["SRC-LEADERBOARD"],
+        evidence_ids=["EV-LEADERBOARD"],
+        limitations=["Provider-reported benchmark is not independent verification."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-REASON-INDEP",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="reasoning_independent_model_only",
+        kind=CapabilityKind.NATIVE,
+        state=CapabilityState.SUPPORTED,
+        description="Independent model-only reasoning score 79.",
+        score=79.0,
+        conditions={"tool_use": False, "rag_use": False},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+        limitations=["Benchmark score is not general intelligence."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-REASON-TOOLRAG",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="reasoning_tool_rag_assisted",
+        kind=CapabilityKind.TOOL,
+        state=CapabilityState.MEASURED,
+        description="Tool/RAG-assisted benchmark score 88.",
+        score=88.0,
+        conditions={"tool_use": True, "rag_use": True},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+        limitations=["System-derived capability; not native model capability."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-TOOL-USE",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="function_calling",
+        kind=CapabilityKind.TOOL,
+        state=CapabilityState.SUPPORTED,
+        description="Schema adherence 91%; hallucinated tool rate 2%.",
+        score=0.91,
+        conditions={"hallucinated_tool_rate": 0.02},
+        source_ids=["SRC-INDEP-EVAL", "SRC-REDTEAM"],
+        evidence_ids=["EV-INDEP-EVAL", "EV-REDTEAM"],
+        limitations=["Tool availability does not prove reliable or safe tool use."],
+    ))
+    m.add_capability(Capability(
+        id="CAP-RAG-QA",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        name="retrieval_augmented_qa",
+        kind=CapabilityKind.RAG,
+        state=CapabilityState.SUPPORTED,
+        description="Product RAG system improves factual QA; contribution is system-level.",
+        conditions={"rag_use": True},
+        source_ids=["SRC-RUNTIME-LOG", "SRC-INDEP-EVAL"],
+        evidence_ids=["EV-RUNTIME-LOG", "EV-INDEP-EVAL"],
+        limitations=["RAG performance is not model knowledge."],
+    ))
+
+    # Benchmarks / eval results
+    m.add_benchmark(Benchmark(
+        id="BM-REASON-V2",
+        name="SyntheticReasonBench",
+        version="v2",
+        task="reasoning",
+        dataset="synthetic-reason-v2",
+        split="test",
+        metric="accuracy",
+        harness_id="HARN-REASON-1",
+        prompt_template="standard-cot-summary",
+        shots="zero_shot",
+        sampling="temp_0",
+        tool_use=False,
+        rag_use=False,
+        provider="IndependentEval-Synthetic",
+        date="2026-10-03T00:00:00Z",
+        limitations=["Benchmark version and harness matter."],
+    ))
+    m.add_benchmark(Benchmark(
+        id="BM-LONGCTX-V1",
+        name="SyntheticLongContextBench",
+        version="v1",
+        task="long_context",
+        dataset="synthetic-longctx-v1",
+        split="test",
+        metric="effective_retrieval_tokens",
+        harness_id="HARN-LONGCTX-1",
+        prompt_template="needle-hybrid",
+        shots="zero_shot",
+        sampling="temp_0",
+        tool_use=False,
+        rag_use=False,
+        provider="IndependentEval-Synthetic",
+        date="2026-10-03T00:00:00Z",
+        limitations=["Accepted tokens and effective recall are separate metrics."],
+    ))
+    m.add_benchmark(Benchmark(
+        id="BM-TOOLQA-V1",
+        name="SyntheticToolQABench",
+        version="v1",
+        task="tool_use",
+        dataset="synthetic-toolqa-v1",
+        split="test",
+        metric="schema_adherence",
+        harness_id="HARN-TOOLQA-1",
+        prompt_template="tool-schema-v1",
+        shots="few_shot",
+        sampling="temp_0",
+        tool_use=True,
+        rag_use=False,
+        provider="IndependentEval-Synthetic",
+        date="2026-10-03T00:00:00Z",
+    ))
+
+    m.add_eval_result(EvalResult(
+        id="ER-REASON-PROVIDER",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-REASON-V2",
+        score=82.0,
+        metric="accuracy",
+        reported_by=BenchmarkReportedBy.PROVIDER_REPORTED,
+        reproduction_state="NOT_REPRODUCED",
+        contamination_state=ContaminationState.POSSIBLE,
+        conditions={"tool_use": False, "rag_use": False, "source": "leaderboard_provider_submission"},
+        source_ids=["SRC-LEADERBOARD"],
+        evidence_ids=["EV-LEADERBOARD"],
+        limitations=["Provider submission aggregated by leaderboard."],
+    ))
+    m.add_eval_result(EvalResult(
+        id="ER-REASON-INDEP",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-REASON-V2",
+        score=79.0,
+        metric="accuracy",
+        reported_by=BenchmarkReportedBy.INDEPENDENT_REPRODUCED,
+        reproduction_state="REPRODUCED",
+        contamination_state=ContaminationState.UNKNOWN,
+        conditions={"tool_use": False, "rag_use": False, "seed": 123, "temperature": 0},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+    ))
+    m.add_eval_result(EvalResult(
+        id="ER-REASON-TOOLRAG",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-REASON-V2",
+        score=88.0,
+        metric="accuracy",
+        reported_by=BenchmarkReportedBy.LOCAL_TEST,
+        reproduction_state="LOCAL_REPRODUCED",
+        contamination_state=ContaminationState.UNKNOWN,
+        conditions={"tool_use": True, "rag_use": True, "tools": ["search", "calculator"], "rag_corpus": "authorized-synthetic"},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+    ))
+    m.add_eval_result(EvalResult(
+        id="ER-LONGCTX-ACCEPT",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-LONGCTX-V1",
+        score=1000000.0,
+        metric="accepted_tokens",
+        reported_by=BenchmarkReportedBy.INDEPENDENT_REPRODUCED,
+        reproduction_state="REPRODUCED",
+        contamination_state=ContaminationState.NO_EVIDENCE,
+        conditions={"accepted_tokens": 1000000},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+    ))
+    m.add_eval_result(EvalResult(
+        id="ER-LONGCTX-EFFECTIVE",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-LONGCTX-V1",
+        score=131072.0,
+        metric="effective_retrieval_tokens",
+        reported_by=BenchmarkReportedBy.INDEPENDENT_REPRODUCED,
+        reproduction_state="REPRODUCED",
+        contamination_state=ContaminationState.NO_EVIDENCE,
+        conditions={"effective_retrieval_tokens": 131072, "decline_after_tokens": 131072},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+    ))
+    m.add_eval_result(EvalResult(
+        id="ER-TOOLQA",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        benchmark_id="BM-TOOLQA-V1",
+        score=0.91,
+        metric="schema_adherence",
+        reported_by=BenchmarkReportedBy.INDEPENDENT_REPRODUCED,
+        reproduction_state="REPRODUCED",
+        contamination_state=ContaminationState.NO_EVIDENCE,
+        conditions={"tool_use": True, "hallucinated_tool_rate": 0.02},
+        source_ids=["SRC-INDEP-EVAL"],
+        evidence_ids=["EV-INDEP-EVAL"],
+    ))
+
+    # Safety tests
+    m.add_safety_test(SafetyTest(
+        id="ST-PI-INDIRECT-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        test_type=SafetyTestType.INDIRECT_PROMPT_INJECTION,
+        scenario_category="retrieved_document_tool_boundary",
+        result=SafetyResult.PARTIAL_FAIL,
+        severity="MEDIUM",
+        total_cases=100,
+        failed_cases=3,
+        synthetic_only=True,
+        environment="AUTHORIZED_SANDBOX_WITH_TOOLS",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+        limitations=[
+            "Synthetic authorized tests only.",
+            "No harmful bypass strings stored.",
+            "Failures may involve tool gating/system orchestration, not model alone.",
+        ],
+    ))
+    m.add_safety_test(SafetyTest(
+        id="ST-JB-RESILIENCE-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        test_type=SafetyTestType.JAILBREAK_RESILIENCE,
+        scenario_category="policy_consistency_roleplay_encoding",
+        result=SafetyResult.PARTIAL_FAIL,
+        severity="LOW",
+        total_cases=50,
+        failed_cases=2,
+        synthetic_only=True,
+        environment="AUTHORIZED_SANDBOX_NO_TOOLS",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+        limitations=[
+            "One partial failure is not universal safety failure.",
+            "No operational harmful bypass optimization performed.",
+        ],
+    ))
+    m.add_safety_test(SafetyTest(
+        id="ST-OVER-REFUSAL-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        test_type=SafetyTestType.OVER_REFUSAL,
+        scenario_category="benign_security_analysis",
+        result=SafetyResult.PARTIAL_FAIL,
+        severity="LOW",
+        total_cases=100,
+        failed_cases=2,
+        synthetic_only=True,
+        environment="AUTHORIZED_SANDBOX",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+    ))
+    m.add_safety_test(SafetyTest(
+        id="ST-UNDER-REFUSAL-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        test_type=SafetyTestType.UNDER_REFUSAL,
+        scenario_category="dual_use_boundary",
+        result=SafetyResult.PARTIAL_FAIL,
+        severity="MEDIUM",
+        total_cases=100,
+        failed_cases=1,
+        synthetic_only=True,
+        environment="AUTHORIZED_SANDBOX",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+        limitations=["Under-refusal candidate is not proof of harmful capability deployment."],
+    ))
+    m.add_safety_test(SafetyTest(
+        id="ST-ABSTENTION-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        test_type=SafetyTestType.ABSTENTION,
+        scenario_category="insufficient_evidence",
+        result=SafetyResult.PASS,
+        severity="INFO",
+        total_cases=50,
+        failed_cases=0,
+        synthetic_only=True,
+        environment="AUTHORIZED_SANDBOX",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+    ))
+
+    # Privacy risks
+    m.add_privacy_risk(PrivacyRisk(
+        id="PR-MEMO-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        risk_type=PrivacyRiskType.MEMORIZATION,
+        state=VerificationState.CANDIDATE,
+        description="Synthetic rare-token reproduction appeared in 1/50 authorized probes; no real private data targeted.",
+        source_ids=["SRC-REDTEAM"],
+        evidence_ids=["EV-REDTEAM"],
+        limitations=["Training-data inclusion does not prove memorization.", "Output similarity does not prove membership."],
+    ))
+    m.add_privacy_risk(PrivacyRisk(
+        id="PR-EXTRACT-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        risk_type=PrivacyRiskType.MODEL_EXTRACTION,
+        state=VerificationState.CANDIDATE,
+        description="Public API richness and moderate rate limits create high-level extraction-risk surface; no extraction performed.",
+        source_ids=["SRC-PROVIDER-DOCS", "SRC-REDTEAM"],
+        evidence_ids=["EV-PROVIDER-DOCS", "EV-REDTEAM"],
+        limitations=["Defensive risk assessment only.", "No mass querying or reconstruction."],
+    ))
+    m.add_privacy_risk(PrivacyRisk(
+        id="PR-TRAIN-1",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        risk_type=PrivacyRiskType.TRAINING_DATA_LEAKAGE,
+        state=VerificationState.INCONCLUSIVE,
+        description="Training-data disclosure is partial; leakage risk cannot be confirmed or excluded from metadata alone.",
+        source_ids=["SRC-LICENSE", "SRC-MODEL-CARD"],
+        evidence_ids=["EV-LICENSE", "EV-MODEL-CARD"],
+        limitations=["Do not invent training corpora."],
+    ))
+
+    # Supply chain
+    m.add_supply_node(SupplyNode(
+        id="SN-MODEL-ARTIFACT",
+        node_type=SupplyNodeType.MODEL_ARTIFACT,
+        name="atlas-7-checkpoint",
+        version="2026.09.1",
+        digest="sha256:atlas7-2026.09.1",
+        license="Restricted",
+        source_ids=["SRC-ARTIFACT-REGISTRY"],
+        evidence_ids=["EV-ARTIFACT-REGISTRY"],
+    ))
+    m.add_supply_node(SupplyNode(
+        id="SN-INFERENCE-SERVER",
+        node_type=SupplyNodeType.INFERENCE_SERVER,
+        name="atlas-inference-server",
+        version="1.2.3",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+        limitations=["CVE applicability requires VULNINT."],
+    ))
+    m.add_supply_node(SupplyNode(
+        id="SN-TOKENIZER-LIB",
+        node_type=SupplyNodeType.TOKENIZER_LIBRARY,
+        name="tokenizer-lib",
+        version="0.9.1",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+    m.add_supply_node(SupplyNode(
+        id="SN-CONTAINER-BASE",
+        node_type=SupplyNodeType.CONTAINER_BASE,
+        name="python:3.12-slim-placeholder",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+    m.add_supply_node(SupplyNode(
+        id="SN-ATTESTATION",
+        node_type=SupplyNodeType.ATTESTATION,
+        name="slsa-like-build-attestation",
+        version="partial",
+        source_ids=["SRC-SBOM", "SRC-SIGNED-MANIFEST"],
+        evidence_ids=["EV-SBOM", "EV-SIGNED-MANIFEST"],
+        limitations=["Attestation verification partial."],
+    ))
+    m.add_supply_edge(SupplyEdge(
+        id="SE-MODEL-RUNTIME",
+        from_node="SN-MODEL-ARTIFACT",
+        to_node="SN-INFERENCE-SERVER",
+        relationship="RUNS_ON",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+    m.add_supply_edge(SupplyEdge(
+        id="SE-RUNTIME-TOKENIZER",
+        from_node="SN-INFERENCE-SERVER",
+        to_node="SN-TOKENIZER-LIB",
+        relationship="USES",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+    m.add_supply_edge(SupplyEdge(
+        id="SE-CONTAINER-BASE",
+        from_node="SN-INFERENCE-SERVER",
+        to_node="SN-CONTAINER-BASE",
+        relationship="PACKAGED_IN",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+    m.add_supply_edge(SupplyEdge(
+        id="SE-ATTESTS",
+        from_node="SN-ATTESTATION",
+        to_node="SN-MODEL-ARTIFACT",
+        relationship="ATTESTS",
+        source_ids=["SRC-SBOM"],
+        evidence_ids=["EV-SBOM"],
+    ))
+
+    # Deployments
+    m.add_deployment(Deployment(
+        id="DEP-ATLAS-7-LATEST-OLD",
+        model_version_id="MV-ATLAS-7-2026.08.2",
+        mode=DeploymentMode.CLOUD_API,
+        provider="AtlasAI-Synthetic",
+        endpoint="https://api.example/atlas-7-latest",
+        alias="atlas-7-latest",
+        resolved_version="2026.08.2",
+        resolution_time="2026-09-01T00:00:00Z",
+        system_prompt_fingerprint="sha256:sysprompt-v1",
+        tools_enabled=True,
+        rag_enabled=True,
+        retention_claim="NO_TRAINING_REPORTED",
+        data_boundary="ENTERPRISE_TENANT",
+        source_ids=["SRC-RELEASE-NOTES", "SRC-RUNTIME-LOG"],
+        evidence_ids=["EV-RELEASE-NOTES", "EV-RUNTIME-LOG"],
+    ))
+    m.add_deployment(Deployment(
+        id="DEP-ATLAS-7-LATEST-NEW",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        mode=DeploymentMode.CLOUD_API,
+        provider="AtlasAI-Synthetic",
+        endpoint="https://api.example/atlas-7-latest",
+        alias="atlas-7-latest",
+        resolved_version="2026.09.1",
+        resolution_time="2026-10-01T00:00:00Z",
+        system_prompt_fingerprint="sha256:sysprompt-v2",
+        tools_enabled=True,
+        rag_enabled=True,
+        retention_claim="NO_TRAINING_REPORTED",
+        data_boundary="ENTERPRISE_TENANT",
+        source_ids=["SRC-RELEASE-NOTES", "SRC-RUNTIME-LOG"],
+        evidence_ids=["EV-RELEASE-NOTES", "EV-RUNTIME-LOG"],
+    ))
+
+    # Drift
+    m.add_drift_observation(DriftObservation(
+        id="DR-CAP-REASON",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        metric="independent_reasoning_score",
+        baseline_time="2026-09-01T00:00:00Z",
+        current_time="2026-10-03T00:00:00Z",
+        baseline_value=77.0,
+        current_value=79.0,
+        possible_causes=["model revision change", "system prompt change", "harness variance"],
+        source_ids=["SRC-INDEP-EVAL", "SRC-RELEASE-NOTES"],
+        evidence_ids=["EV-INDEP-EVAL", "EV-RELEASE-NOTES"],
+    ))
+    m.add_drift_observation(DriftObservation(
+        id="DR-SAFETY-PI",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        metric="indirect_prompt_injection_failure_count",
+        baseline_time="2026-09-01T00:00:00Z",
+        current_time="2026-10-05T00:00:00Z",
+        baseline_value=1.0,
+        current_value=3.0,
+        possible_causes=["tool gating change", "model post-training change", "system prompt change", "test suite update"],
+        source_ids=["SRC-REDTEAM", "SRC-RUNTIME-LOG"],
+        evidence_ids=["EV-REDTEAM", "EV-RUNTIME-LOG"],
+    ))
+
+    # Incident
+    m.add_incident(Incident(
+        id="INC-ROUTING-2026.09",
+        model_version_id="MV-ATLAS-7-2026.09.1",
+        incident_type="ROUTING_ERROR",
+        summary="Alias atlas-7-latest briefly served previous 2026.08.2 revision for 2 hours.",
+        time="2026-09-10T00:00:00Z",
+        source_ids=["SRC-INCIDENT"],
+        evidence_ids=["EV-INCIDENT"],
+        limitations=["Scoped routing incident; not universal model defect."],
+    ))
+
+    # License ambiguity finding seed
+    m.add_finding(Finding(
+        id="FIND-LICENSE-AMB",
+        finding_type=FindingType.LICENSE_AMBIGUITY,
+        subject_id="MV-ATLAS-7-2026.09.1",
+        statement="Model weights, code, and training-data license/disclosure metadata are partially conflicting or ambiguous.",
+        verification_state=VerificationState.OBSERVED,
+        risk_dimension=RiskDimension.LICENSE_RISK.value,
+        source_ids=["SRC-LICENSE", "SRC-MODEL-CARD"],
+        evidence_ids=["EV-LICENSE", "EV-MODEL-CARD"],
+        limitations=["Final legal interpretation requires LEGALINT/counsel."],
+        specialist_handoff="LEGALINT",
+    ))
+
+    m.prepare()
+    return m
+
+
+# =====================================================================
+# RESULT BUILDER
+# =====================================================================
+
+def graph_version_hash(m: ModelInt) -> str:
+    seed_obj = {
+        "models": sorted((mid, mv.canonical_name, mv.version, mv.revision or "", mv.provenance_state.value) for mid, mv in m.model_versions.items()),
+        "artifacts": sorted((aid, a.model_version_id, a.digest or "", a.signature_state) for aid, a in m.art
+                            @dataclass
+class Hypothesis:
+    id: str
+    statement: str
+    kind: str
+    supporting_finding_ids: List[str] = field(default_factory=list)
+    supporting_evidence_ids: List[str] = field(default_factory=list)
+    contradicting_finding_ids: List[str] = field(default_factory=list)
+    contradicting_evidence_ids: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    predictions: List[str] = field(default_factory=list)
+    falsification_conditions: List[str] = field(default_factory=list)
+    status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+    def graph_version_hash(m: ModelInt) -> str:
+    seed_obj = {
+        "models": sorted(
+            (
+                mid,
+                mv.canonical_name,
+                mv.version,
+                mv.revision or "",
+                mv.provenance_state.value,
+                mv.lineage_state.value,
+            )
+            for mid, mv in m.model_versions.items()
+        ),
+        "artifacts": sorted(
+            (
+                aid,
+                a.model_version_id,
+                a.digest or "",
+                a.signature_state,
+                a.availability.value,
+            )
+            for aid, a in m.artifacts.items()
+        ),
+        "evals": sorted(
+            (
+                eid,
+                er.model_version_id,
+                er.benchmark_id,
+                float(er.score) if er.score is not None else -1.0,
+                er.reported_by.value,
+                er.contamination_state.value,
+            )
+            for eid, er in m.eval_results.items()
+        ),
+        "safety": sorted(
+            (
+                sid,
+                st.model_version_id,
+                st.test_type.value,
+                st.result.value,
+                int(st.failed_cases or 0),
+                int(st.total_cases or 0),
+            )
+            for sid, st in m.safety_tests.items()
+        ),
+        "findings": sorted(
+            (
+                fid,
+                f.finding_type.value,
+                f.subject_id,
+                f.verification_state.value,
+                round(float(f.confidence), 3),
+            )
+            for fid, f in m.findings.items()
+        ),
+        "deployments": sorted(
+            (
+                did,
+                d.model_version_id,
+                d.alias or "",
+                d.resolved_version or "",
+                d.resolution_time or "",
+            )
+            for did, d in m.deployments.items()
+        ),
+    }
+    return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+
+
+def build_source_graph(m: ModelInt) -> Dict[str, Any]:
+    edges = []
+    for src in m.sources.values():
+        if src.derived_from:
+            edges.append({
+                "source": src.derived_from,
+                "target": src.id,
+                "relationship_type": "DERIVED_FROM",
+            })
+    return {
+        "nodes": [s.id for s in m.sources.values()],
+        "edges": edges,
+    }
+
+
+def build_source_dependency_graph(m: ModelInt) -> Dict[str, List[str]]:
+    families: Dict[str, List[str]] = defaultdict(list)
+    for sid in m.sources:
+        fam = m.get_source_family(sid) or "UNKNOWN"
+        families[fam].append(sid)
+    return {k: sorted(v) for k, v in families.items()}
+
+
+def _first_observed_time(m: ModelInt, evidence_ids: List[str]) -> Optional[str]:
+    for eid in evidence_ids:
+        ev = m.evidence.get(eid)
+        if ev and ev.observed_at:
+            return ev.observed_at
+    return None
+
+
+def build_timeline(m: ModelInt) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = []
+
+    for mv in m.model_versions.values():
+        if mv.release_date:
+            events.append({
+                "time": mv.release_date,
+                "type": "MODEL_RELEASE",
+                "subject_id": mv.id,
+                "description": f"Model version {mv.canonical_name} {mv.version} release date recorded.",
+                "source_ids": mv.source_ids,
+                "evidence_ids": mv.evidence_ids,
+            })
+
+    for dep in m.deployments.values():
+        if dep.resolution_time:
+            events.append({
+                "time": dep.resolution_time,
+                "type": "DEPLOYMENT_ALIAS_RESOLUTION",
+                "subject_id": dep.id,
+                "description": (
+                    f"Alias '{dep.alias}' resolved to {dep.resolved_version}; "
+                    f"tools={dep.tools_enabled}, rag={dep.rag_enabled}."
+                ),
+                "source_ids": dep.source_ids,
+                "evidence_ids": dep.evidence_ids,
+            })
+
+    for er in m.eval_results.values():
+        bm = m.benchmarks.get(er.benchmark_id)
+        t = bm.date if bm and bm.date else _first_observed_time(m, er.evidence_ids)
+        if t:
+            events.append({
+                "time": t,
+                "type": "EVALUATION_RESULT",
+                "subject_id": er.id,
+                "description": (
+                    f"Evaluation {er.id}: benchmark={er.benchmark_id}, score={er.score}, "
+                    f"reported_by={er.reported_by.value}, contamination={er.contamination_state.value}."
+                ),
+                "source_ids": er.source_ids,
+                "evidence_ids": er.evidence_ids,
+            })
+
+    for st in m.safety_tests.values():
+        t = _first_observed_time(m, st.evidence_ids)
+        if t:
+            events.append({
+                "time": t,
+                "type": "SAFETY_TEST",
+                "subject_id": st.id,
+                "description": (
+                    f"Safety test {st.id}: type={st.test_type.value}, result={st.result.value}, "
+                    f"failed={st.failed_cases}/{st.total_cases}."
+                ),
+                "source_ids": st.source_ids,
+                "evidence_ids": st.evidence_ids,
+            })
+
+    for inc in m.incidents.values():
+        if inc.time:
+            events.append({
+                "time": inc.time,
+                "type": "INCIDENT",
+                "subject_id": inc.id,
+                "description": f"Incident {inc.id}: {inc.incident_type}; {inc.summary}",
+                "source_ids": inc.source_ids,
+                "evidence_ids": inc.evidence_ids,
+            })
+
+    for dr in m.drift_observations.values():
+        if dr.current_time:
+            events.append({
+                "time": dr.current_time,
+                "type": "DRIFT_OBSERVATION",
+                "subject_id": dr.id,
+                "description": (
+                    f"Drift metric '{dr.metric}': baseline={dr.baseline_value}, current={dr.current_value}; "
+                    f"possible causes={dr.possible_causes}."
+                ),
+                "source_ids": dr.source_ids,
+                "evidence_ids": dr.evidence_ids,
+            })
+
+    return sorted(events, key=lambda e: dt_or_min(e.get("time")))
+
+
+def build_model_graph(m: ModelInt) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+    for fam in m.model_families.values():
+        nodes.append({
+            "id": fam.id,
+            "type": "ModelFamily",
+            "name": fam.name,
+            "provider": fam.provider,
+            "publisher": fam.publisher,
+        })
+
+    for mv in m.model_versions.values():
+        nodes.append({
+            "id": mv.id,
+            "type": "ModelVersion",
+            "canonical_name": mv.canonical_name,
+            "version": mv.version,
+            "revision": mv.revision,
+            "access_type": mv.access_type.value,
+            "artifact_type": mv.artifact_type.value,
+            "provenance_state": mv.provenance_state.value,
+            "lineage_state": mv.lineage_state.value,
+        })
+        edges.append({
+            "source": mv.id,
+            "target": mv.family_id,
+            "relationship_type": "VERSION_OF",
+        })
+        if mv.base_model:
+            edges.append({
+                "source": mv.id,
+                "target": mv.base_model,
+                "relationship_type": "FINE_TUNED_FROM_OR_DERIVED_FROM_CANDIDATE",
+            })
+
+    for art in m.artifacts.values():
+        nodes.append({
+            "id": art.id,
+            "type": "Artifact",
+            "model_version_id": art.model_version_id,
+            "artifact_type": art.artifact_type.value,
+            "digest": art.digest,
+            "signature_state": art.signature_state,
+            "availability": art.availability.value,
+        })
+        edges.append({
+            "source": art.model_version_id,
+            "target": art.id,
+            "relationship_type": "HAS_ARTIFACT",
+        })
+
+    for tok in m.tokenizers.values():
+        nodes.append({
+            "id": tok.id,
+            "type": "Tokenizer",
+            "model_version_id": tok.model_version_id,
+            "family": tok.family,
+            "vocab_version": tok.vocab_version,
+            "hash": tok.hash,
+        })
+        edges.append({
+            "source": tok.model_version_id,
+            "target": tok.id,
+            "relationship_type": "USES_TOKENIZER",
+        })
+
+    for cap in m.capabilities.values():
+        nodes.append({
+            "id": cap.id,
+            "type": "Capability",
+            "model_version_id": cap.model_version_id,
+            "name": cap.name,
+            "kind": cap.kind.value,
+            "state": cap.state.value,
+            "score": cap.score,
+        })
+        edges.append({
+            "source": cap.model_version_id,
+            "target": cap.id,
+            "relationship_type": "HAS_CAPABILITY",
+        })
+
+    for bm in m.benchmarks.values():
+        nodes.append({
+            "id": bm.id,
+            "type": "Benchmark",
+            "name": bm.name,
+            "version": bm.version,
+            "task": bm.task,
+            "tool_use": bm.tool_use,
+            "rag_use": bm.rag_use,
+        })
+
+    for er in m.eval_results.values():
+        nodes.append({
+            "id": er.id,
+            "type": "EvaluationResult",
+            "model_version_id": er.model_version_id,
+            "benchmark_id": er.benchmark_id,
+            "score": er.score,
+            "reported_by": er.reported_by.value,
+            "contamination_state": er.contamination_state.value,
+        })
+        edges.append({
+            "source": er.model_version_id,
+            "target": er.id,
+            "relationship_type": "EVALUATED_AS",
+        })
+        edges.append({
+            "source": er.id,
+            "target": er.benchmark_id,
+            "relationship_type": "MEASURED_ON",
+        })
+
+    for st in m.safety_tests.values():
+        nodes.append({
+            "id": st.id,
+            "type": "SafetyTest",
+            "model_version_id": st.model_version_id,
+            "test_type": st.test_type.value,
+            "result": st.result.value,
+            "failed_cases": st.failed_cases,
+            "total_cases": st.total_cases,
+        })
+        edges.append({
+            "source": st.model_version_id,
+            "target": st.id,
+            "relationship_type": "TESTED_BY",
+        })
+
+    for pr in m.privacy_risks.values():
+        nodes.append({
+            "id": pr.id,
+            "type": "PrivacyRisk",
+            "model_version_id": pr.model_version_id,
+            "risk_type": pr.risk_type.value,
+            "state": pr.state.value,
+        })
+        edges.append({
+            "source": pr.model_version_id,
+            "target": pr.id,
+            "relationship_type": "HAS_PRIVACY_RISK",
+        })
+
+    for node in m.supply_nodes.values():
+        nodes.append({
+            "id": node.id,
+            "type": "SupplyNode",
+            "node_type": node.node_type.value,
+            "name": node.name,
+            "version": node.version,
+            "digest": node.digest,
+        })
+
+    for edge in m.supply_edges.values():
+        edges.append({
+            "source": edge.from_node,
+            "target": edge.to_node,
+            "relationship_type": edge.relationship,
+        })
+
+    for dep in m.deployments.values():
+        nodes.append({
+            "id": dep.id,
+            "type": "Deployment",
+            "model_version_id": dep.model_version_id,
+            "mode": dep.mode.value,
+            "alias": dep.alias,
+            "resolved_version": dep.resolved_version,
+            "tools_enabled": dep.tools_enabled,
+            "rag_enabled": dep.rag_enabled,
+        })
+        edges.append({
+            "source": dep.model_version_id,
+            "target": dep.id,
+            "relationship_type": "DEPLOYED_AS",
+        })
+
+    for inc in m.incidents.values():
+        nodes.append({
+            "id": inc.id,
+            "type": "Incident",
+            "model_version_id": inc.model_version_id,
+            "incident_type": inc.incident_type,
+            "time": inc.time,
+        })
+        edges.append({
+            "source": inc.model_version_id,
+            "target": inc.id,
+            "relationship_type": "EXPERIENCED_INCIDENT",
+        })
+
+    for dr in m.drift_observations.values():
+        nodes.append({
+            "id": dr.id,
+            "type": "DriftObservation",
+            "model_version_id": dr.model_version_id,
+            "metric": dr.metric,
+            "baseline_value": dr.baseline_value,
+            "current_value": dr.current_value,
+        })
+        edges.append({
+            "source": dr.model_version_id,
+            "target": dr.id,
+            "relationship_type": "DRIFT_OBSERVED",
+        })
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "guardrails": [
+            "Model family/version/artifact/deployment are separate nodes.",
+            "Capability and safety results are version- and condition-bound.",
+            "Tool/RAG-assisted capability is not native model capability.",
+            "Alias deployment is not exact weight identity.",
+        ],
+    }
+
+
+def build_facts_by_state(m: ModelInt) -> Dict[str, List[Finding]]:
+    out: Dict[str, List[Finding]] = defaultdict(list)
+    for f in m.findings.values():
+        out[f.verification_state.value].append(f)
+    return {k: v for k, v in out.items()}
+
+
+def build_result(m: ModelInt, status: Status) -> Dict[str, Any]:
+    dual = m.dual_ai_review()
+    summary = m.analyst_summary(dual)
+    source_families = build_source_dependency_graph(m)
+    facts_by_state = build_facts_by_state(m)
+
+    finding_independence = {
+        fid: m.independence_state(f.source_ids)
+        for fid, f in m.findings.items()
+    }
+
+    supported_facts = facts_by_state.get(VerificationState.SUPPORTED.value, [])
+    partial_facts = facts_by_state.get(VerificationState.PARTIALLY_SUPPORTED.value, [])
+    candidate_facts = facts_by_state.get(VerificationState.CANDIDATE.value, [])
+    disputed_facts = facts_by_state.get(VerificationState.DISPUTED.value, [])
+    observed_facts = facts_by_state.get(VerificationState.OBSERVED.value, [])
+
+    aliases: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for dep in m.deployments.values():
+        if dep.alias:
+            aliases[dep.alias].append({
+                "deployment_id": dep.id,
+                "model_version_id": dep.model_version_id,
+                "resolved_version": dep.resolved_version,
+                "resolution_time": dep.resolution_time,
+                "tools_enabled": dep.tools_enabled,
+                "rag_enabled": dep.rag_enabled,
+                "source_ids": dep.source_ids,
+                "evidence_ids": dep.evidence_ids,
+            })
+    aliases = {k: v for k, v in aliases.items()}
+
+    providers = sorted({fam.provider for fam in m.model_families.values() if fam.provider})
+    publishers = sorted({fam.publisher for fam in m.model_families.values() if fam.publisher})
+
+    artifacts = list(m.artifacts.values())
+    checkpoints = [
+        a for a in artifacts
+        if a.artifact_type in {
+            ArtifactType.CHECKPOINT,
+            ArtifactType.QUANTIZED_CHECKPOINT,
+            ArtifactType.ADAPTER,
+            ArtifactType.LORA,
+        }
+    ]
+    weight_hashes = {a.id: a.digest for a in artifacts if a.digest}
+    signatures = {a.id: a.signature_state for a in artifacts}
+
+    provenance_states = {mv.id: mv.provenance_state.value for mv in m.model_versions.values()}
+    base_models = {mv.id: mv.base_model for mv in m.model_versions.values()}
+    parent_models = {mv.id: mv.parent_models for mv in m.model_versions.values()}
+    lineage = {mv.id: mv.lineage_state.value for mv in m.model_versions.values()}
+    fine_tunes = {mv.id: mv.fine_tune_type for mv in m.model_versions.values()}
+    adapters = {mv.id: mv.adapters for mv in m.model_versions.values()}
+    loras = {
+        mv.id: [a for a in mv.adapters if "lora" in normalize_text(a)]
+        for mv in m.model_versions.values()
+    }
+    quantizations = {mv.id: mv.quantization for mv in m.model_versions.values()}
+    distillation_context = {}
+
+    architecture_claims = {mv.id: mv.architecture_claim for mv in m.model_versions.values()}
+    parameter_counts = {mv.id: mv.parameter_count_claim for mv in m.model_versions.values()}
+    active_parameter_counts = {mv.id: mv.active_parameter_count_claim for mv in m.model_versions.values()}
+
+    context_windows: Dict[str, Dict[str, Any]] = {}
+    for mv in m.model_versions.values():
+        effective = None
+        for cap in m.capabilities.values():
+            if cap.model_version_id == mv.id and "effective" in normalize_text(cap.name) and cap.score is not None:
+                effective = float(cap.score)
+        for er in m.eval_results.values():
+            if er.model_version_id == mv.id and "effective" in normalize_text(er.metric) and er.score is not None:
+                effective = float(er.score)
+        context_windows[mv.id] = {
+            "claimed_max_input_tokens": mv.context_window_claim,
+            "output_limit_claim": mv.output_limit_claim,
+            "measured_effective_retrieval_tokens": effective,
+            "guardrails": [
+                "API token acceptance is not reliable long-context reasoning.",
+                "Effective context is task-, prompt-, and position-dependent.",
+            ],
+        }
+
+    output_limits = {mv.id: mv.output_limit_claim for mv in m.model_versions.values()}
+    modalities = {mv.id: [x.value for x in mv.modalities] for mv in m.model_versions.values()}
+    licenses = {mv.id: mv.license for mv in m.model_versions.values()}
+    repositories = {mv.id: mv.repository for mv in m.model_versions.values()}
+
+    training_data_claims: Dict[str, str] = {}
+    for ev in m.evidence.values():
+        disc = ev.parsed_fields.get("training_data_disclosure")
+        if disc:
+            for mv in m.model_versions.values():
+                if ev.source_id in mv.source_ids:
+                    training_data_claims[mv.id] = str(disc)
+
+    datasets = sorted({bm.dataset for bm in m.benchmarks.values() if bm.dataset})
+
+    native_capabilities = [c for c in m.capabilities.values() if c.kind == CapabilityKind.NATIVE]
+    system_capabilities = [c for c in m.capabilities.values() if c.kind in {
+        CapabilityKind.TOOL,
+        CapabilityKind.RAG,
+        CapabilityKind.AGENT,
+    }]
+    tools = [c for c in m.capabilities.values() if c.kind == CapabilityKind.TOOL]
+    function_calling = [
+        c for c in m.capabilities.values()
+        if "function" in normalize_text(c.name) or "tool" in normalize_text(c.name)
+    ]
+    structured_output = [
+        c for c in m.capabilities.values()
+        if "structured" in normalize_text(c.name) or "json" in normalize_text(c.name)
+    ]
+    agents = [dep for dep in m.deployments.values() if dep.tools_enabled]
+    rag_systems = [dep for dep in m.deployments.values() if dep.rag_enabled]
+    embedding_models = []
+    rerankers = []
+
+    benchmarks = list(m.benchmarks.values())
+    benchmark_versions = {bm.id: bm.version for bm in m.benchmarks.values()}
+    evaluation_harnesses = {bm.id: bm.harness_id for bm in m.benchmarks.values()}
+    eval_results = list(m.eval_results.values())
+    reproductions = {er.id: er.reproduction_state for er in m.eval_results.values()}
+    contamination_risk = {er.id: er.contamination_state.value for er in m.eval_results.values()}
+
+    capability_drift = list(m.drift_observations.values())
+
+    hallucination_context = [
+        st for st in m.safety_tests.values()
+        if st.test_type == SafetyTestType.HALLUCINATION
+    ]
+    calibration = [
+        st for st in m.safety_tests.values()
+        if st.test_type == SafetyTestType.CALIBRATION
+    ]
+    abstention = [
+        st for st in m.safety_tests.values()
+        if st.test_type == SafetyTestType.ABSTENTION
+    ]
+    safety_evals = list(m.safety_tests.values())
+    jailbreak_resilience = [
+        st for st in m.safety_tests.values()
+        if st.test_type == SafetyTestType.JAILBREAK_RESILIENCE
+    ]
+    prompt_injection_resilience = [
+        st for st in m.safety_tests.values()
+        if st.test_type in {
+            SafetyTestType.PROMPT_INJECTION,
+            SafetyTestType.INDIRECT_PROMPT_INJECTION,
+        }
+    ]
+    tool_safety = [
+        st for st in m.safety_tests.values()
+        if st.test_type in {
+            SafetyTestType.TOOL_SAFETY,
+            SafetyTestType.EXCESSIVE_AGENCY,
+        }
+    ]
+
+    privacy_risk = list(m.privacy_risks.values())
+    memorization_risk = [
+        pr for pr in m.privacy_risks.values()
+        if pr.risk_type == PrivacyRiskType.MEMORIZATION
+    ]
+    model_extraction_risk = [
+        pr for pr in m.privacy_risks.values()
+        if pr.risk_type == PrivacyRiskType.MODEL_EXTRACTION
+    ]
+    model_inversion_context = [
+        pr for pr in m.privacy_risks.values()
+        if pr.risk_type == PrivacyRiskType.MODEL_INVERSION
+    ]
+    membership_inference_context = [
+        pr for pr in m.privacy_risks.values()
+        if pr.risk_type == PrivacyRiskType.MEMBERSHIP_INFERENCE
+    ]
+    poisoning_context = [
+        f for f in m.findings.values()
+        if "poison" in normalize_text(f.statement)
+    ]
+    backdoor_context = [
+        f for f in m.findings.values()
+        if "backdoor" in normalize_text(f.statement)
+    ]
+
+    supply_chain_context = {
+        "nodes": list(m.supply_nodes.values()),
+        "edges": list(m.supply_edges.values()),
+        "guardrails": [
+            "Model supply-chain observation is not compromise evidence.",
+            "Runtime CVE applicability belongs to VULNINT.",
+            "Attestation is not absolute truth.",
+        ],
+    }
+
+    runtime_dependencies = [
+        node for node in m.supply_nodes.values()
+        if node.node_type in {
+            SupplyNodeType.INFERENCE_SERVER,
+            SupplyNodeType.TOKENIZER_LIBRARY,
+            SupplyNodeType.CONTAINER_BASE,
+            SupplyNodeType.PACKAGE,
+            SupplyNodeType.RUNTIME,
+        }
+    ]
+
+    deployment_modes = sorted({dep.mode.value for dep in m.deployments.values()})
+    data_retention_context = {
+        dep.id: dep.retention_claim
+        for dep in m.deployments.values()
+        if dep.retention_claim
+    }
+
+    incidents = list(m.incidents.values())
+    risk_dimensions = m.risk_dimensions
+    timeline_updates = build_timeline(m)
+    observations = list(m.evidence.values())
+
+    source_reliability = {sid: src.reliability for sid, src in m.sources.items()}
+    source_bias = {sid: src.notes for sid, src in m.sources.items()}
+    source_limitations = {
+        sid: [src.notes]
+        for sid, src in m.sources.items()
+        if src.notes
+    }
+    source_pedigree = {sid: m.get_source_family(sid) for sid in m.sources}
+    source_independence = {
+        "source_families": source_families,
+        "finding_independence": finding_independence,
+    }
+
+    falsification_results = [
+        {
+            "hypothesis_id": h.id,
+            "statement": h.statement,
+            "kind": h.kind,
+            "status": h.status.value,
+            "confidence": h.confidence,
+            "supporting_finding_ids": h.supporting_finding_ids,
+            "contradicting_finding_ids": h.contradicting_finding_ids,
+            "assumptions": h.assumptions,
+            "predictions": h.predictions,
+            "falsification_conditions": h.falsification_conditions,
+            "limitations": h.limitations,
+        }
+        for h in m.hypotheses
+    ]
+
+    privacy_flags = [
+        PrivacyFlag.CASE_SCOPED.value,
+        PrivacyFlag.AUTHORIZED_MODEL_ONLY.value,
+        PrivacyFlag.NO_WEIGHT_THEFT.value,
+        PrivacyFlag.NO_PROPRIETARY_EXTRACTION.value,
+        PrivacyFlag.NO_API_ABUSE.value,
+        PrivacyFlag.NO_JAILBREAK_OPTIMIZATION.value,
+        PrivacyFlag.NO_POISONING.value,
+        PrivacyFlag.NO_BACKDOOR_CREATION.value,
+        PrivacyFlag.NO_TRAINING_DATA_EXFILTRATION.value,
+        PrivacyFlag.NO_CREDENTIAL_USE.value,
+        PrivacyFlag.NO_UNKNOWN_CODE_EXECUTION.value,
+        PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+    ]
+
+    legal_flags = [
+        "License and training-data disclosure ambiguity requires LEGALINT/counsel review.",
+        "Consequential production model replacement or safety-control changes require human approval.",
+        "Model compromise or provider misconduct allegations require independent evidence and human review.",
+    ]
+
+    unknowns = sorted(set(
+        [g.description for g in m.gaps]
+        + [
+            h.statement
+            for h in m.hypotheses
+            if h.status in {
+                HypothesisStatus.UNRESOLVED,
+                HypothesisStatus.DISPUTED,
+            }
+        ]
+    ))
+
+    limitations = [
+        "Local synthetic demo; no live model provider, API, registry, or inference-server access.",
+        "Defensive authorized model intelligence only.",
+        "No model weights were stolen, extracted, reconstructed, or exfiltrated.",
+        "No API abuse, authentication bypass, rate-limit evasion, or billing evasion was performed.",
+        "No malicious jailbreaks, safety bypasses, poisoning payloads, or backdoors were generated.",
+        "No unknown checkpoint or repository code was executed.",
+        "Model name is not model version.",
+        "Model version is not exact deployed weights.",
+        "Provider claim is not measured capability.",
+        "Benchmark score is not general intelligence.",
+        "Tool/RAG-assisted performance is not native model capability.",
+        "Context-window acceptance is not effective long-context reasoning.",
+        "Behavioral drift is not proof of weight change.",
+        "Synthetic safety failures are environment/version-specific and not universal model defects.",
+    ] + m.validation_errors
+
+    replay_manifest = {
+        "generated_at": now_iso(),
+        "pipeline_version": PIPELINE_VERSION,
+        "graph_version": graph_version_hash(m),
+        "core_principle": (
+            "MODEL REFERENCE -> EXACT MODEL RESOLUTION -> VERSION -> ARTIFACT / PROVIDER -> PROVENANCE -> "
+            "LINEAGE -> DEPLOYMENT CONTEXT -> CLAIMED CAPABILITY -> MEASURED CAPABILITY -> "
+            "SAFETY / RISK EVALUATION -> SOURCE RELIABILITY -> SOURCE INDEPENDENCE -> CONTRADICTIONS -> "
+            "FACT GATE -> DEFENSIBLE MODEL ASSESSMENT"
+        ),
+        "as_of": m.as_of,
+        "identity_rule": "Model name != model version != exact weights != deployed system behavior.",
+        "capability_rule": "Native model capability must be separated from tool, RAG, system-prompt, and orchestration effects.",
+        "evaluation_rule": "Benchmark scores are condition-bound: harness, prompt, sampling, tool use, RAG use, dataset version, and date matter.",
+        "safety_rule": "Authorized synthetic safety testing only; no operational harmful bypass optimization.",
+        "provenance_rule": "Hash/signature/attestation support integrity context, not benignness or absolute trust.",
+        "drift_rule": "Alias/routing/behavior drift is not proof of weight change.",
+        "policy_exclusions": [
+            "No weight theft or proprietary model extraction.",
+            "No training-data exfiltration.",
+            "No private user-data extraction.",
+            "No API abuse or authentication bypass.",
+            "No malicious jailbreak generation or optimization.",
+            "No safety-control disabling without authorization.",
+            "No poisoning of training data, retrieval corpora, or models.",
+            "No backdoor creation.",
+            "No execution of unknown checkpoint/repository code.",
+            "No deployment of untrusted checkpoints.",
+        ],
+        "source_lineage": source_families,
+        "finding_independence": finding_independence,
+    }
+
+    return {
+        "case_id": m.case.case_id,
+        "task_id": m.case.task_id,
+        "objective": m.case.objective,
+        "questions": m.case.questions,
+        "scope": m.case.scope,
+        "authorization": m.case.authorization,
+        "status": status.value,
+        "as_of": m.as_of,
+
+        "source_ids": sorted(m.sources.keys()),
+        "evidence_ids": sorted(m.evidence.keys()),
+
+        "models": list(m.model_versions.values()),
+        "model_families": list(m.model_families.values()),
+        "model_versions": list(m.model_versions.values()),
+        "aliases": aliases,
+        "providers": providers,
+        "publishers": publishers,
+
+        "artifacts": artifacts,
+        "checkpoints": checkpoints,
+        "weight_hashes": weight_hashes,
+        "signatures": signatures,
+        "provenance_states": provenance_states,
+
+        "base_models": base_models,
+        "parent_models": parent_models,
+        "lineage": lineage,
+        "fine_tunes": fine_tunes,
+        "adapters": adapters,
+        "loras": loras,
+        "quantizations": quantizations,
+        "distillation_context": distillation_context,
+
+        "architecture_claims": architecture_claims,
+        "parameter_counts": parameter_counts,
+        "active_parameter_counts": active_parameter_counts,
+        "tokenizers": list(m.tokenizers.values()),
+        "context_windows": context_windows,
+        "output_limits": output_limits,
+        "modalities": modalities,
+        "licenses": licenses,
+        "repositories": repositories,
+
+        "training_data_claims": training_data_claims,
+        "datasets": datasets,
+
+        "native_capabilities": native_capabilities,
+        "system_capabilities": system_capabilities,
+        "tools": tools,
+        "function_calling": function_calling,
+        "structured_output": structured_output,
+        "agents": agents,
+        "rag_systems": rag_systems,
+        "embedding_models": embedding_models,
+        "rerankers": rerankers,
+
+        "benchmarks": benchmarks,
+        "benchmark_versions": benchmark_versions,
+        "evaluation_harnesses": evaluation_harnesses,
+        "eval_results": eval_results,
+        "reproductions": reproductions,
+        "contamination_risk": contamination_risk,
+
+        "capability_drift": capability_drift,
+        "hallucination_context": hallucination_context,
+        "calibration": calibration,
+        "abstention": abstention,
+        "safety_evals": safety_evals,
+        "jailbreak_resilience": jailbreak_resilience,
+        "prompt_injection_resilience": prompt_injection_resilience,
+        "tool_safety": tool_safety,
+
+        "privacy_risk": privacy_risk,
+        "memorization_risk": memorization_risk,
+        "model_extraction_risk": model_extraction_risk,
+        "model_inversion_context": model_inversion_context,
+        "membership_inference_context": membership_inference_context,
+        "poisoning_context": poisoning_context,
+        "backdoor_context": backdoor_context,
+
+        "supply_chain_context": supply_chain_context,
+        "runtime_dependencies": runtime_dependencies,
+        "deployment_modes": deployment_modes,
+        "data_retention_context": data_retention_context,
+        "incidents": incidents,
+        "risk_dimensions": risk_dimensions,
+
+        "timeline_updates": timeline_updates,
+
+        "observations": observations,
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+        "observed_facts": observed_facts,
+
+        "source_reliability": source_reliability,
+        "source_bias": source_bias,
+        "source_limitations": source_limitations,
+        "source_pedigree": source_pedigree,
+        "source_independence": source_independence,
+
+        "contradictions": m.contradictions,
+        "hypotheses": m.hypotheses,
+        "falsification_results": falsification_results,
+
+        "privacy_flags": privacy_flags,
+        "legal_flags": legal_flags,
+
+        "unknowns": unknowns,
+        "knowledge_gaps": m.gaps,
+        "recommended_next_actions": m.actions,
+        "recommendations": m.recommendations,
+        "specialist_handoffs": m.handoffs,
+
+        "limitations": limitations,
+        "analyst_summary": summary,
+        "dual_ai_review": dual,
+        "model_graph": build_model_graph(m),
+        "source_graph": build_source_graph(m),
+        "source_dependency_graph": source_families,
+        "replay_manifest": replay_manifest,
+    }
+
+
+# =====================================================================
+# PIPELINES
+# =====================================================================
+
+def run_sample_pipeline() -> Dict[str, Any]:
+    m = build_sample_modelint()
+    return build_result(m, Status.PARTIAL)
+
+
+def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+    m = ModelInt(case)
+
+    m.gaps.append(KnowledgeGap(
+        id="GAP-NO-MODEL-EVIDENCE",
+        gap_type=GapType.EXACT_VERSION_UNKNOWN,
+        description=(
+            "No configured public/authorized model-intelligence corpus is available. "
+            "No model identity, version, artifact, provenance, capability, safety, privacy, "
+            "supply-chain, or deployment conclusion can be resolved."
+        ),
+        importance="HIGH",
+        recommended_source=(
+            "Provide authorized model cards, provider documentation, release notes, artifact registry metadata, "
+            "signed manifests, independent evaluation reports, red-team reports, runtime metadata, SBOMs, "
+            "license metadata, and incident reports."
+        ),
+        specialist="MODELINT / SUPPLYCHAININT / VULNINT / LEGALINT",
+        expected_information_value=0.95,
+    ))
+
+    m.actions = [
+        NextAction(
+            id="ACT-CONFIGURE-MODEL-EVIDENCE",
+            description=(
+                "Configure lawful public/authorized model-intelligence evidence or supply a sanitized local corpus. "
+                "Do not steal/extract weights, abuse APIs, bypass safety, poison models/data/RAG, create backdoors, "
+                "or execute unknown checkpoint code."
+            ),
+            priority=1,
+            privacy_impact="LOW",
+            expected_gain=0.95,
+            specialist=None,
+            requires_human_approval=False,
+        )
+    ]
+
+    m.handoffs = []
+    m.hypotheses = []
+    m.risk_dimensions = {rd.value: "UNKNOWN" for rd in RiskDimension}
+
+    dual = {
+        "primary_model_analyst": "No evidence available.",
+        "independent_model_skeptic_issues": [
+            "No model sources configured.",
+            "No exact model version can be resolved.",
+            "No artifact/provenance can be verified.",
+            "No capability or safety claim can be made.",
+            "No model identity can be inferred from name alone.",
+        ],
+        "verdict": "INSUFFICIENT_EVIDENCE",
+        "note": "AI agreement is not independent model evidence.",
+    }
+
+    summary = (
+        "MODELINT UNRESOLVED: No configured public/authorized model evidence corpus. "
+        "No model versions, weights, artifacts, capabilities, benchmarks, safety properties, incidents, "
+        "providers, or lineage were fabricated. Provide authorized evidence or run sample mode."
+    )
+
+    result = build_result(m, Status.BLOCKED_CONFIGURATION)
+    result["analyst_summary"] = summary
+    result["dual_ai_review"] = dual
+    return result
+
+
+def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "task_id": case.task_id,
+        "objective": case.objective,
+        "status": Status.BLOCKED_POLICY.value,
+        "policy_violations": violations,
+        "message": (
+            "Prohibited AI model intelligence request detected. MODELINT supports lawful, defensive, "
+            "authorized, evidence-first model intelligence only. It does not steal or extract model weights, "
+            "abuse APIs, bypass authentication/rate limits/billing, exfiltrate training data, generate or optimize "
+            "malicious jailbreaks, disable safety controls, poison models/data/RAG, create backdoors, "
+            "execute unknown checkpoint code, or deploy untrusted artifacts."
+        ),
+        "lawful_alternatives": [
+            "Resolve exact model identity/version from authorized provider metadata and artifact registries.",
+            "Separate provider claims from independently measured capabilities.",
+            "Separate native model capability from tool/RAG/system-prompt effects.",
+            "Run authorized synthetic safety evaluations without publishing harmful bypasses.",
+            "Assess provenance, attestations, signatures, and supply-chain dependencies defensively.",
+            "Route license/training-data/legal questions to LEGALINT.",
+            "Require human review for production model changes, autonomy expansion, or compromise allegations.",
+        ],
+        "privacy_flags": [
+            PrivacyFlag.NO_WEIGHT_THEFT.value,
+            PrivacyFlag.NO_PROPRIETARY_EXTRACTION.value,
+            PrivacyFlag.NO_API_ABUSE.value,
+            PrivacyFlag.NO_JAILBREAK_OPTIMIZATION.value,
+            PrivacyFlag.NO_POISONING.value,
+            PrivacyFlag.NO_BACKDOOR_CREATION.value,
+            PrivacyFlag.NO_TRAINING_DATA_EXFILTRATION.value,
+            PrivacyFlag.NO_CREDENTIAL_USE.value,
+            PrivacyFlag.NO_UNKNOWN_CODE_EXECUTION.value,
+        ],
+        "limitations": [
+            "No model-intelligence analysis performed.",
+            "No models, versions, weights, capabilities, safety properties, or incidents fabricated.",
+            "No weights extracted and no APIs abused.",
+        ],
+    }
+
+
+def run_pipeline(case: Case) -> Dict[str, Any]:
+    text = " ".join(
+        [
+            case.objective,
+            *case.questions,
+            *case.model_names,
+            *case.model_ids,
+            *case.providers,
+            *case.versions,
+            *case.artifacts,
+            *case.repositories,
+            case.authorization or "",
+            " ".join(case.scope),
+        ]
+    )
+
+    violations = policy_guard(text)
+    if violations:
+        return blocked_policy_result(case, violations)
+
+    if case.sample:
+        return run_sample_pipeline()
+
+    return run_unconfigured_pipeline(case)
+
+
+# =====================================================================
+# CLI
+# =====================================================================
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS MODELINT local defensive AI model intelligence pipeline. "
+            "Sample mode uses synthetic authorized model-card/eval/red-team/runtime evidence."
+        )
+    )
+    parser.add_argument("--sample", action="store_true", help="Run built-in synthetic MODELINT sample.")
+    parser.add_argument("--objective", help="Defensive AI model intelligence objective.")
+    parser.add_argument("--question", action="append", default=[], help="Analytic question. Repeatable.")
+    parser.add_argument("--model", action="append", default=[], help="Model name. Repeatable.")
+    parser.add_argument("--model-id", action="append", default=[], help="Model ID. Repeatable.")
+    parser.add_argument("--provider", action="append", default=[], help="Provider name. Repeatable.")
+    parser.add_argument("--version", action="append", default=[], help="Model version. Repeatable.")
+    parser.add_argument("--artifact", action="append", default=[], help="Artifact ID/digest. Repeatable.")
+    parser.add_argument("--repository", action="append", default=[], help="Repository URL/ID. Repeatable.")
+    parser.add_argument("--time-range", help="Time range hint.")
+    parser.add_argument("--as-of", default=DEFAULT_AS_OF, help="Analysis as-of timestamp.")
+
+    args = parser.parse_args()
+
+    if args.sample or not args.objective:
+        case = sample_case()
+    else:
+        case = Case(
+            case_id=new_id("CASE-", args.objective),
+            task_id=new_id("TASK-", args.objective),
+            objective=args.objective,
+            questions=args.question,
+            model_names=args.model,
+            model_ids=args.model_id,
+            providers=args.provider,
+            versions=args.version,
+            artifacts=args.artifact,
+            repositories=args.repository,
+            time_range=args.time_range,
+            as_of=args.as_of,
+            sample=False,
+        )
+
+    result = run_pipeline(case)
+    print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

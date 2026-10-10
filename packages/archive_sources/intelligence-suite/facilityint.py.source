@@ -1,0 +1,3693 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS / FACILITYINT — Local lawful defensive facility & site intelligence pipeline.
+
+IMPORTANT SAFETY / POLICY NOTES:
+- This is a local demo implementation.
+- It does NOT access live property registries, GIS portals, permit systems, satellite imagery,
+  facility-management systems, building-management systems, sensors, or private networks.
+- It does NOT plan physical intrusion, sabotage, targeting, hostile reconnaissance,
+  surveillance evasion, security-control bypass, or utility disruption.
+- It does NOT expose private-person residences, employee routines, guard schedules,
+  camera blind spots, access-control weaknesses, or tactical site exploitation details.
+- It supports authorized, lawful, defensive, evidence-first facility intelligence only.
+- Sample data is synthetic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import unicodedata
+from collections import defaultdict
+from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+PIPELINE_VERSION = "0.1.0-facilityint-defensive-lawful-demo"
+DEFAULT_AS_OF = "2026-10-09T00:00:00Z"
+
+
+# =====================================================================
+# ENUMS
+# =====================================================================
+
+class Status(str, Enum):
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    FACILITY_UNRESOLVED = "FACILITY_UNRESOLVED"
+    SITE_UNRESOLVED = "SITE_UNRESOLVED"
+    OWNER_UNRESOLVED = "OWNER_UNRESOLVED"
+    OPERATOR_UNRESOLVED = "OPERATOR_UNRESOLVED"
+    OCCUPANT_UNRESOLVED = "OCCUPANT_UNRESOLVED"
+    FUNCTION_UNRESOLVED = "FUNCTION_UNRESOLVED"
+    BOUNDARY_UNRESOLVED = "BOUNDARY_UNRESOLVED"
+    CAPACITY_UNVERIFIED = "CAPACITY_UNVERIFIED"
+    DEPENDENCY_UNRESOLVED = "DEPENDENCY_UNRESOLVED"
+    RESILIENCE_UNRESOLVED = "RESILIENCE_UNRESOLVED"
+    IMAGERY_STALE = "IMAGERY_STALE"
+    BLOCKED_SENSITIVE_DETAIL = "BLOCKED_SENSITIVE_DETAIL"
+    BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+    BLOCKED_PERMISSION = "BLOCKED_PERMISSION"
+    BLOCKED_PRIVACY = "BLOCKED_PRIVACY"
+    BLOCKED_LEGAL = "BLOCKED_LEGAL"
+    BLOCKED_POLICY = "BLOCKED_POLICY"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
+class SourceType(str, Enum):
+    OFFICIAL_PROPERTY_RECORD = "OFFICIAL_PROPERTY_RECORD"
+    GOVERNMENT_GIS = "GOVERNMENT_GIS"
+    PERMIT = "PERMIT"
+    REGULATORY_FILING = "REGULATORY_FILING"
+    AUTHORIZED_FACILITY_SYSTEM = "AUTHORIZED_FACILITY_SYSTEM"
+    ORGANIZATION_DISCLOSURE = "ORGANIZATION_DISCLOSURE"
+    LICENSED_IMAGERY = "LICENSED_IMAGERY"
+    PUBLIC_SATELLITE_IMAGERY = "PUBLIC_SATELLITE_IMAGERY"
+    PUBLIC_MAPPING = "PUBLIC_MAPPING"
+    COMPANY_REPORT = "COMPANY_REPORT"
+    NEWS = "NEWS"
+    UTILITY_PUBLIC_RECORD = "UTILITY_PUBLIC_RECORD"
+    EMERGENCY_MANAGEMENT_RECORD = "EMERGENCY_MANAGEMENT_RECORD"
+    INSPECTION_RECORD = "INSPECTION_RECORD"
+    CERTIFICATION_RECORD = "CERTIFICATION_RECORD"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class FacilityType(str, Enum):
+    OFFICE = "OFFICE"
+    HEADQUARTERS = "HEADQUARTERS"
+    FACTORY = "FACTORY"
+    WAREHOUSE = "WAREHOUSE"
+    DISTRIBUTION_CENTER = "DISTRIBUTION_CENTER"
+    DATA_CENTER = "DATA_CENTER"
+    LABORATORY = "LABORATORY"
+    RESEARCH_CENTER = "RESEARCH_CENTER"
+    HOSPITAL = "HOSPITAL"
+    CLINIC = "CLINIC"
+    UNIVERSITY = "UNIVERSITY"
+    SCHOOL = "SCHOOL"
+    CAMPUS = "CAMPUS"
+    GOVERNMENT_OFFICE = "GOVERNMENT_OFFICE"
+    COURTHOUSE = "COURTHOUSE"
+    PUBLIC_SAFETY_SITE = "PUBLIC_SAFETY_SITE"
+    TRANSPORT_FACILITY = "TRANSPORT_FACILITY"
+    PORT_FACILITY = "PORT_FACILITY"
+    AIRPORT_FACILITY = "AIRPORT_FACILITY"
+    RAIL_FACILITY = "RAIL_FACILITY"
+    ENERGY_FACILITY = "ENERGY_FACILITY"
+    WATER_FACILITY = "WATER_FACILITY"
+    TELECOM_FACILITY = "TELECOM_FACILITY"
+    RETAIL = "RETAIL"
+    HOTEL = "HOTEL"
+    RESIDENTIAL_COMPLEX = "RESIDENTIAL_COMPLEX"
+    INDUSTRIAL_SITE = "INDUSTRIAL_SITE"
+    MIXED_USE = "MIXED_USE"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class FunctionState(str, Enum):
+    OFFICIALLY_DECLARED = "OFFICIALLY_DECLARED"
+    SUPPORTED = "SUPPORTED"
+    OBSERVED = "OBSERVED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class OperatingStatus(str, Enum):
+    OPERATIONAL = "OPERATIONAL"
+    PARTIALLY_OPERATIONAL = "PARTIALLY_OPERATIONAL"
+    DEGRADED = "DEGRADED"
+    TEMPORARILY_CLOSED = "TEMPORARILY_CLOSED"
+    CLOSED = "CLOSED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ConstructionState(str, Enum):
+    PROPOSED = "PROPOSED"
+    PERMITTED = "PERMITTED"
+    UNDER_CONSTRUCTION = "UNDER_CONSTRUCTION"
+    SUBSTANTIALLY_COMPLETE = "SUBSTANTIALLY_COMPLETE"
+    OPERATIONAL = "OPERATIONAL"
+    RENOVATING = "RENOVATING"
+    PARTIALLY_CLOSED = "PARTIALLY_CLOSED"
+    CLOSED = "CLOSED"
+    DEMOLISHED = "DEMOLISHED"
+    UNKNOWN = "UNKNOWN"
+
+
+class GeospatialPrecision(str, Enum):
+    COUNTRY = "COUNTRY"
+    REGION = "REGION"
+    CITY = "CITY"
+    SITE = "SITE"
+    BUILDING = "BUILDING"
+    AUTHORIZED_EXACT = "AUTHORIZED_EXACT"
+    UNKNOWN = "UNKNOWN"
+
+
+class DependencyType(str, Enum):
+    POWER = "POWER"
+    WATER = "WATER"
+    TELECOM = "TELECOM"
+    GAS = "GAS"
+    FUEL = "FUEL"
+    LOGISTICS = "LOGISTICS"
+    ROAD = "ROAD"
+    RAIL = "RAIL"
+    PORT = "PORT"
+    AIR = "AIR"
+    CLOUD = "CLOUD"
+    NETWORK = "NETWORK"
+    SUPPLIER = "SUPPLIER"
+    STAFFING = "STAFFING"
+    FACILITY_SERVICE = "FACILITY_SERVICE"
+    WASTE = "WASTE"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class ResilienceState(str, Enum):
+    DOCUMENTED = "DOCUMENTED"
+    TESTED_REPORTED = "TESTED_REPORTED"
+    AUTHORIZED_VERIFIED = "AUTHORIZED_VERIFIED"
+    UNKNOWN = "UNKNOWN"
+
+
+class HazardType(str, Enum):
+    FLOOD = "FLOOD"
+    EARTHQUAKE = "EARTHQUAKE"
+    WILDFIRE = "WILDFIRE"
+    STORM = "STORM"
+    HEAT = "HEAT"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class HazardExposure(str, Enum):
+    REGIONAL_RISK = "REGIONAL_RISK"
+    SITE_EXPOSURE_CANDIDATE = "SITE_EXPOSURE_CANDIDATE"
+    DOCUMENTED_SITE_IMPACT = "DOCUMENTED_SITE_IMPACT"
+    UNKNOWN = "UNKNOWN"
+
+
+class VerificationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    OBSERVED = "OBSERVED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DISPUTED = "DISPUTED"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class FindingType(str, Enum):
+    FACILITY_IDENTITY_RESOLVED = "FACILITY_IDENTITY_RESOLVED"
+    FACILITY_IDENTITY_PARTIALLY_RESOLVED = "FACILITY_IDENTITY_PARTIALLY_RESOLVED"
+    OWNER_SUPPORT = "OWNER_SUPPORT"
+    OPERATOR_SUPPORT = "OPERATOR_SUPPORT"
+    OCCUPANT_SUPPORT = "OCCUPANT_SUPPORT"
+    FUNCTION_SUPPORT = "FUNCTION_SUPPORT"
+    FUNCTION_CANDIDATE = "FUNCTION_CANDIDATE"
+    DEPENDENCY_OBSERVED = "DEPENDENCY_OBSERVED"
+    RESILIENCE_DOCUMENTED = "RESILIENCE_DOCUMENTED"
+    RESILIENCE_UNVERIFIED = "RESILIENCE_UNVERIFIED"
+    HAZARD_EXPOSURE_OBSERVED = "HAZARD_EXPOSURE_OBSERVED"
+    INCIDENT_OBSERVED = "INCIDENT_OBSERVED"
+    CHANGE_OBSERVED = "CHANGE_OBSERVED"
+    IMAGERY_STALE = "IMAGERY_STALE"
+    SOURCE_DEPENDENCY = "SOURCE_DEPENDENCY"
+    CONTRADICTION_OBSERVED = "CONTRADICTION_OBSERVED"
+    SENSITIVE_DETAIL_WITHHELD = "SENSITIVE_DETAIL_WITHHELD"
+    NO_INTRUSION_PLANNING = "NO_INTRUSION_PLANNING"
+    NO_SABOTAGE_PLANNING = "NO_SABOTAGE_PLANNING"
+    NO_TARGETING = "NO_TARGETING"
+    PRIVATE_RESIDENCE_BOUNDARY_ENFORCED = "PRIVATE_RESIDENCE_BOUNDARY_ENFORCED"
+    NO_PHYSICAL_ACTION = "NO_PHYSICAL_ACTION"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
+class GapType(str, Enum):
+    FACILITY_IDENTITY_UNRESOLVED = "FACILITY_IDENTITY_UNRESOLVED"
+    SITE_BOUNDARY_UNCERTAIN = "SITE_BOUNDARY_UNCERTAIN"
+    OWNER_UNKNOWN = "OWNER_UNKNOWN"
+    OPERATOR_UNKNOWN = "OPERATOR_UNKNOWN"
+    OCCUPANCY_UNCLEAR = "OCCUPANCY_UNCLEAR"
+    FUNCTION_UNCERTAIN = "FUNCTION_UNCERTAIN"
+    BUILDING_DATE_UNKNOWN = "BUILDING_DATE_UNKNOWN"
+    CAPACITY_UNVERIFIED = "CAPACITY_UNVERIFIED"
+    PERMIT_STATUS_UNCLEAR = "PERMIT_STATUS_UNCLEAR"
+    UTILITY_DEPENDENCY_UNCLEAR = "UTILITY_DEPENDENCY_UNCLEAR"
+    RESILIENCE_UNVERIFIED = "RESILIENCE_UNVERIFIED"
+    IMAGERY_STALE = "IMAGERY_STALE"
+    INCIDENT_RECOVERY_UNKNOWN = "INCIDENT_RECOVERY_UNKNOWN"
+    ALTERNATE_SITE_UNKNOWN = "ALTERNATE_SITE_UNKNOWN"
+
+
+class PrivacyFlag(str, Enum):
+    CASE_SCOPED = "CASE_SCOPED"
+    NO_PRIVATE_PERSON_LOCATION = "NO_PRIVATE_PERSON_LOCATION"
+    NO_EMPLOYEE_ROUTINE = "NO_EMPLOYEE_ROUTINE"
+    NO_REALTIME_OCCUPANCY = "NO_REALTIME_OCCUPANCY"
+    PURPOSE_LIMITATION = "PURPOSE_LIMITATION"
+    LOCAL_ONLY_DEFAULT = "LOCAL_ONLY_DEFAULT"
+
+
+class SensitivityFlag(str, Enum):
+    NON_PUBLIC_PLANS_RESTRICTED = "NON_PUBLIC_PLANS_RESTRICTED"
+    SECURITY_CONTROL_DETAILS_WITHHELD = "SECURITY_CONTROL_DETAILS_WITHHELD"
+    CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY = "CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY"
+    PRIVATE_RESIDENCE_EXCLUDED = "PRIVATE_RESIDENCE_EXCLUDED"
+    TACTICAL_ROUTE_ANALYSIS_WITHHELD = "TACTICAL_ROUTE_ANALYSIS_WITHHELD"
+
+
+class LegalFlag(str, Enum):
+    PROPERTY_RECORD_REVIEW_REQUIRED = "PROPERTY_RECORD_REVIEW_REQUIRED"
+    PERMIT_INTERPRETATION_LEGALINT = "PERMIT_INTERPRETATION_LEGALINT"
+    REGULATORY_LEGAL_REVIEW = "REGULATORY_LEGAL_REVIEW"
+    HUMAN_REVIEW_FOR_CRITICAL_INFRA = "HUMAN_REVIEW_FOR_CRITICAL_INFRA"
+
+
+class HypothesisStatus(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    UNRESOLVED = "UNRESOLVED"
+    DISPUTED = "DISPUTED"
+    REJECTED = "REJECTED"
+
+
+# =====================================================================
+# POLICY GUARD
+# =====================================================================
+
+PROHIBITED_PATTERNS = [
+    (
+        "PHYSICAL_INTRUSION_OR_BYPASS",
+        re.compile(
+            r"\b(plan|recommend|show|explain how to|provide|optimize|support|help me)\s+"
+            r"(physical intrusion|break[- ]in|covert entry|lock bypass|badge bypass|"
+            r"access control bypass|alarm bypass|camera blind spot|guard evasion|"
+            r"perimeter breach|tailgating|impersonate maintenance|rooftop intrusion|"
+            r"tunnel intrusion|drainage intrusion)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "SABOTAGE_OR_DISRUPTION",
+        re.compile(
+            r"\b(plan|recommend|show|explain how to|provide|optimize|support|help me)\s+"
+            r"(sabotage|power disruption|water disruption|telecom disruption|HVAC sabotage|"
+            r"fire system tampering|generator sabotage|explosive placement|arson|"
+            r"disable safety system|control system attack|OT attack|disruption sequence)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "TARGETING_OR_HOSTILE_RECONNAISSANCE",
+        re.compile(
+            r"\b(attack plan|targeting coordinates|weapon targeting|hostile reconnaissance|"
+            r"critical infrastructure attack|chokepoint for attack|surveillance evasion|"
+            r"track employee routine|track guard schedule|low-security window)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "PRIVATE_RESIDENCE_OR_PERSON_TRACKING",
+        re.compile(
+            r"\b(private residence tracking|home layout exposure|occupancy routine|"
+            r"person movement pattern|stalking|identify anonymous critic at facility)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "SENSITIVE_CONTROL_EVASION_OR_COMMAND",
+        re.compile(
+            r"\b(disable alarm|open door|send floor plan|expose security weakness|"
+            r"ignore policy and enter|bypass building management)\b",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+# =====================================================================
+# UTILITIES
+# =====================================================================
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id(prefix: str, seed: str) -> str:
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:10]
+    return f"{prefix}{h}"
+
+
+def stable_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_short(text: str) -> str:
+    return stable_hash(text)[:16]
+
+
+def jsonable(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: jsonable(getattr(obj, f.name)) for f in fields(obj)}
+    if isinstance(obj, (list, tuple, set)):
+        return [jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): jsonable(v) for k, v in obj.items()}
+    return obj
+
+
+def normalize_text(value: str) -> str:
+    s = unicodedata.normalize("NFKC", value or "")
+    s = s.lower().strip()
+    s = re.sub(r"[^\w\s\-'.:/@]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def dt_or_min(value: Optional[str]) -> datetime:
+    dt = parse_dt(value)
+    return dt if dt else datetime.min.replace(tzinfo=timezone.utc)
+
+
+def days_since(date_str: Optional[str], as_of: str) -> Optional[int]:
+    dt = parse_dt(date_str)
+    ref = parse_dt(as_of) or datetime.now(timezone.utc)
+    if not dt:
+        return None
+    return (ref - dt).days
+
+
+def policy_guard(text: str) -> List[Dict[str, str]]:
+    violations: List[Dict[str, str]] = []
+    for rule, rx in PROHIBITED_PATTERNS:
+        m = rx.search(text or "")
+        if m:
+            violations.append({"rule": rule, "matched": m.group(0)})
+    return violations
+
+
+# =====================================================================
+# DATACLASSES
+# =====================================================================
+
+@dataclass
+class Source:
+    id: str
+    title: str
+    url: str
+    source_type: SourceType
+    independence_group: str = "UNKNOWN"
+    reliability: float = 0.5
+    derived_from: Optional[str] = None
+    published_at: Optional[str] = None
+    retrieved_at: Optional[str] = None
+    notes: str = ""
+
+
+@dataclass
+class Evidence:
+    id: str
+    source_id: str
+    artifact_type: str
+    excerpt: str
+    observed_at: Optional[str] = None
+    content_hash: str = ""
+    parsed_fields: Dict[str, Any] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Address:
+    source_original: str = ""
+    normalized: str = ""
+    street: str = ""
+    city: str = ""
+    region: str = ""
+    postal_code: str = ""
+    country: str = ""
+    precision: GeospatialPrecision = GeospatialPrecision.UNKNOWN
+
+
+@dataclass
+class Coordinate:
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    precision: GeospatialPrecision = GeospatialPrecision.UNKNOWN
+    source: str = ""
+    vertical_datum: str = ""
+
+
+@dataclass
+class Parcel:
+    id: str
+    jurisdiction: str = ""
+    identifier: str = ""
+    legal_owner_candidate: str = ""
+    geometry: str = ""
+    land_use: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    effective_dates: Dict[str, str] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Building:
+    id: str
+    site_id: str = ""
+    name: str = ""
+    building_type: str = ""
+    function: str = ""
+    construction_date_candidate: Optional[str] = None
+    renovation_dates: List[str] = field(default_factory=list)
+    floor_count: Optional[int] = None
+    floor_area: Optional[float] = None
+    status: ConstructionState = ConstructionState.UNKNOWN
+    occupants: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Site:
+    id: str
+    name: str = ""
+    facility_ids: List[str] = field(default_factory=list)
+    parcel_ids: List[str] = field(default_factory=list)
+    boundary_geometry: str = ""
+    address: Optional[Address] = None
+    coordinates: List[Coordinate] = field(default_factory=list)
+    land_use: str = ""
+    site_area: Optional[float] = None
+    access_classification: str = "UNKNOWN"
+    public_transport_context: str = ""
+    logistics_context: str = ""
+    environmental_context: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class CapacityClaim:
+    id: str
+    facility_id: str
+    capacity_type: str
+    value: Optional[float] = None
+    unit: str = ""
+    basis: str = "UNKNOWN"
+    state: str = "SOURCE_CLAIMED"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Dependency:
+    id: str
+    facility_id: str
+    dep_type: DependencyType
+    provider: str = ""
+    service_scope: str = ""
+    redundancy_state: str = "UNKNOWN"
+    evidence_state: VerificationState = VerificationState.INCONCLUSIVE
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ResilienceEvidence:
+    id: str
+    facility_id: str
+    control_type: str
+    state: ResilienceState = ResilienceState.UNKNOWN
+    description: str = ""
+    tested: bool = False
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Hazard:
+    id: str
+    facility_id: str
+    hazard_type: HazardType
+    exposure: HazardExposure = HazardExposure.UNKNOWN
+    source: str = ""
+    valid_from: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Incident:
+    id: str
+    facility_id: str
+    incident_type: str
+    summary: str
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    damage_state: str = "UNKNOWN"
+    recovery_status: str = "UNKNOWN"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Change:
+    id: str
+    facility_id: str
+    change_type: str
+    old_state: str = ""
+    new_state: str = ""
+    observed_at: Optional[str] = None
+    effective_at: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Permit:
+    id: str
+    facility_id: str
+    permit_type: str
+    authority: str = ""
+    status: str = "UNKNOWN"
+    issued_at: Optional[str] = None
+    effective_from: Optional[str] = None
+    effective_to: Optional[str] = None
+    scope_summary: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Inspection:
+    id: str
+    facility_id: str
+    inspection_type: str
+    authority: str = ""
+    date: Optional[str] = None
+    outcome: str = "UNKNOWN"
+    findings_summary: str = ""
+    remediation_status: str = "UNKNOWN"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Certification:
+    id: str
+    facility_id: str
+    certification_type: str
+    issuer: str = ""
+    status: str = "UNKNOWN"
+    issued_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    scope_summary: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Facility:
+    id: str
+    name: str = ""
+    aliases: List[str] = field(default_factory=list)
+    facility_type: FacilityType = FacilityType.UNKNOWN
+    organization_ids: List[str] = field(default_factory=list)
+    owner_candidates: List[str] = field(default_factory=list)
+    operator_candidates: List[str] = field(default_factory=list)
+    occupants: List[str] = field(default_factory=list)
+    tenants: List[str] = field(default_factory=list)
+    site_id: str = ""
+    parcel_ids: List[str] = field(default_factory=list)
+    building_ids: List[str] = field(default_factory=list)
+    addresses: List[Address] = field(default_factory=list)
+    coordinates: List[Coordinate] = field(default_factory=list)
+    function: str = ""
+    function_state: FunctionState = FunctionState.UNKNOWN
+    operating_status: OperatingStatus = OperatingStatus.UNKNOWN
+    opening_date: Optional[str] = None
+    closing_date: Optional[str] = None
+    site_area: Optional[float] = None
+    floor_area: Optional[float] = None
+    capacity_claims: List[CapacityClaim] = field(default_factory=list)
+    dependencies: List[Dependency] = field(default_factory=list)
+    hazards: List[Hazard] = field(default_factory=list)
+    incidents: List[Incident] = field(default_factory=list)
+    changes: List[Change] = field(default_factory=list)
+    permits: List[Permit] = field(default_factory=list)
+    inspections: List[Inspection] = field(default_factory=list)
+    certifications: List[Certification] = field(default_factory=list)
+    resilience_evidence: List[ResilienceEvidence] = field(default_factory=list)
+    imagery_observations: List[Dict[str, Any]] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Finding:
+    id: str
+    finding_type: FindingType
+    subject_id: str
+    statement: str
+    verification_state: VerificationState = VerificationState.INCONCLUSIVE
+    confidence: float = 0.0
+    facility_id: Optional[str] = None
+    risk_dimension: str = "EVIDENCE_CONFIDENCE"
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    sensitivity_flags: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    specialist_handoff: Optional[str] = None
+
+
+@dataclass
+class Hypothesis:
+    id: str
+    statement: str
+    kind: str
+    supporting_finding_ids: List[str] = field(default_factory=list)
+    contradicting_finding_ids: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    predictions: List[str] = field(default_factory=list)
+    falsification_conditions: List[str] = field(default_factory=list)
+    status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    id: str
+    contradiction_type: str
+    description: str
+    subject_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    severity: str = "MEDIUM"
+    status: str = "OPEN"
+    recommended_resolution: str = ""
+
+
+@dataclass
+class KnowledgeGap:
+    id: str
+    gap_type: GapType
+    description: str
+    about_subject_ids: List[str] = field(default_factory=list)
+    about_finding_ids: List[str] = field(default_factory=list)
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: Optional[str] = None
+    expected_information_value: float = 0.0
+
+
+@dataclass
+class NextAction:
+    id: str
+    description: str
+    priority: int = 1
+    privacy_impact: str = "LOW_IF_AUTHORIZED"
+    expected_gain: float = 0.0
+    specialist: Optional[str] = None
+    requires_human_approval: bool = False
+
+
+@dataclass
+class Recommendation:
+    id: str
+    category: str
+    action: str
+    target: str
+    rationale: str
+    evidence_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    approval: str = "HUMAN_APPROVAL_REQUIRED"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Case:
+    case_id: str
+    task_id: str
+    objective: str
+    questions: List[str] = field(default_factory=list)
+    scope: List[str] = field(default_factory=lambda: [
+        "lawful_authorized_defensive_facility_intelligence",
+        "evidence_first",
+        "no_intrusion_planning",
+        "no_sabotage_planning",
+        "no_targeting",
+        "privacy_aware",
+    ])
+    authorization: str = "demo_authorized_facility_intelligence"
+    facility_names: List[str] = field(default_factory=list)
+    organization_names: List[str] = field(default_factory=list)
+    addresses: List[str] = field(default_factory=list)
+    coordinates: List[str] = field(default_factory=list)
+    parcels: List[str] = field(default_factory=list)
+    buildings: List[str] = field(default_factory=list)
+    campuses: List[str] = field(default_factory=list)
+    time_range: Optional[str] = None
+    as_of: str = DEFAULT_AS_OF
+    sample: bool = False
+
+
+# =====================================================================
+# FACILITYINT ENGINE
+# =====================================================================
+
+class FacilityInt:
+    def __init__(self, case: Case) -> None:
+        self.case = case
+        self.as_of = case.as_of or DEFAULT_AS_OF
+
+        self.sources: Dict[str, Source] = {}
+        self.evidence: Dict[str, Evidence] = {}
+        self.facilities: Dict[str, Facility] = {}
+        self.sites: Dict[str, Site] = {}
+        self.parcels: Dict[str, Parcel] = {}
+        self.buildings: Dict[str, Building] = {}
+        self.findings: Dict[str, Finding] = {}
+        self.contradictions: List[Contradiction] = []
+        self.hypotheses: List[Hypothesis] = []
+        self.gaps: List[KnowledgeGap] = []
+        self.actions: List[NextAction] = []
+        self.recommendations: List[Recommendation] = []
+        self.handoffs: List[Dict[str, str]] = []
+        self.validation_errors: List[str] = []
+
+    # -----------------------------------------------------------------
+    # Adders
+    # -----------------------------------------------------------------
+
+    def add_source(self, source: Source) -> Source:
+        self.sources[source.id] = source
+        return source
+
+    def add_evidence(self, evidence: Evidence) -> Evidence:
+        if not evidence.content_hash:
+            evidence.content_hash = stable_hash("|".join([
+                evidence.source_id,
+                evidence.artifact_type,
+                evidence.excerpt,
+            ]))
+        self.evidence[evidence.id] = evidence
+        return evidence
+
+    def add_facility(self, facility: Facility) -> Facility:
+        self.facilities[facility.id] = facility
+        return facility
+
+    def add_site(self, site: Site) -> Site:
+        self.sites[site.id] = site
+        return site
+
+    def add_parcel(self, parcel: Parcel) -> Parcel:
+        self.parcels[parcel.id] = parcel
+        return parcel
+
+    def add_building(self, building: Building) -> Building:
+        self.buildings[building.id] = building
+        return building
+
+    def add_finding(self, finding: Finding) -> Finding:
+        if finding.id in self.findings:
+            return self.findings[finding.id]
+        self.findings[finding.id] = finding
+        return finding
+
+    def add_contradiction(self, contradiction: Contradiction) -> Contradiction:
+        if any(c.description == contradiction.description for c in self.contradictions):
+            return self.contradictions[0]
+        self.contradictions.append(contradiction)
+        return contradiction
+
+    # -----------------------------------------------------------------
+    # Source lineage / independence
+    # -----------------------------------------------------------------
+
+    def get_source_family(self, source_id: str) -> Optional[str]:
+        src = self.sources.get(source_id)
+        if not src:
+            return None
+        seen: Set[str] = set()
+        cur = src
+        while (
+            cur
+            and cur.derived_from
+            and cur.derived_from in self.sources
+            and cur.id not in seen
+        ):
+            seen.add(cur.id)
+            cur = self.sources[cur.derived_from]
+        if cur and cur.independence_group and cur.independence_group != "UNKNOWN":
+            return cur.independence_group
+        return cur.id if cur else source_id
+
+    def source_families(self, source_ids: List[str]) -> Set[str]:
+        families: Set[str] = set()
+        for sid in source_ids:
+            fam = self.get_source_family(sid)
+            families.add(fam or sid)
+        return families
+
+    def independence_state(self, source_ids: List[str]) -> str:
+        if not source_ids:
+            return "UNKNOWN"
+        families = self.source_families(source_ids)
+        if len(source_ids) == 1:
+            return "SINGLE_SOURCE"
+        if len(families) == 1:
+            return "DEPENDENT"
+        if len(families) == len(source_ids):
+            return "INDEPENDENT"
+        return "PARTIALLY_DEPENDENT"
+
+    # -----------------------------------------------------------------
+    # Analysis stages
+    # -----------------------------------------------------------------
+
+    def resolve_identity(self) -> None:
+        for fac in self.facilities.values():
+            missing: List[str] = []
+            if not fac.site_id:
+                missing.append("site")
+            if not fac.addresses:
+                missing.append("address")
+            if not fac.coordinates:
+                missing.append("coordinate")
+            if not fac.building_ids:
+                missing.append("buildings")
+            if fac.facility_type == FacilityType.UNKNOWN:
+                missing.append("facility type")
+            if fac.function_state == FunctionState.UNKNOWN:
+                missing.append("function")
+
+            if missing:
+                self.add_finding(Finding(
+                    id=new_id("FIND-ID-", fac.id),
+                    finding_type=FindingType.FACILITY_IDENTITY_PARTIALLY_RESOLVED,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility {fac.id} is partially resolved; missing identity evidence: {', '.join(missing)}.",
+                    verification_state=VerificationState.PARTIALLY_SUPPORTED,
+                    risk_dimension="IDENTITY_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Facility is not a single building.",
+                        "Address is not facility identity.",
+                        "Registered office may not be operational facility.",
+                        "Coordinate precision must not exceed evidence.",
+                    ],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-IDOK-", fac.id),
+                    finding_type=FindingType.FACILITY_IDENTITY_RESOLVED,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility {fac.id} has site, address, coordinate, building, type, and function evidence.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension="IDENTITY_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Resolved identity is time-bound and source-bound.",
+                        "Do not treat geocoder point as exact building entrance without evidence.",
+                    ],
+                ))
+
+    def separate_owner_operator_occupant(self) -> None:
+        for fac in self.facilities.values():
+            owners = sorted(set(fac.owner_candidates))
+            operators = sorted(set(fac.operator_candidates))
+            occupants = sorted(set(fac.occupants + fac.tenants))
+
+            if owners:
+                state = VerificationState.PARTIALLY_SUPPORTED if len(owners) > 1 else VerificationState.SUPPORTED
+                self.add_finding(Finding(
+                    id=new_id("FIND-OWNER-", fac.id),
+                    finding_type=FindingType.OWNER_SUPPORT,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Property owner candidates: {owners}. Owner must not be merged with operator or occupant.",
+                    verification_state=state,
+                    risk_dimension="OWNERSHIP_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Legal owner may lease site to another organization.",
+                        "Parcel ownership does not automatically identify facility operator.",
+                    ],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-OWNERUNK-", fac.id),
+                    finding_type=FindingType.FACILITY_IDENTITY_PARTIALLY_RESOLVED,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement="Property owner is unresolved.",
+                    verification_state=VerificationState.INCONCLUSIVE,
+                    risk_dimension="OWNERSHIP_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=["Do not infer owner from facility name or signage alone."],
+                ))
+
+            if operators:
+                state = VerificationState.PARTIALLY_SUPPORTED if len(operators) > 1 else VerificationState.SUPPORTED
+                self.add_finding(Finding(
+                    id=new_id("FIND-OPERATOR-", fac.id),
+                    finding_type=FindingType.OPERATOR_SUPPORT,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility operator candidates: {operators}. Operator must not be merged with owner or occupant.",
+                    verification_state=state,
+                    risk_dimension="OPERATION_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Operator may manage site while multiple tenants occupy portions.",
+                        "Company website or signage is operator evidence context, not legal ownership.",
+                    ],
+                ))
+            else:
+                self.add_finding(Finding(
+                    id=new_id("FIND-OPERUNK-", fac.id),
+                    finding_type=FindingType.FACILITY_IDENTITY_PARTIALLY_RESOLVED,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement="Facility operator is unresolved. Do not infer operator from property owner.",
+                    verification_state=VerificationState.INCONCLUSIVE,
+                    risk_dimension="OPERATION_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=["Owner != operator."],
+                ))
+
+            if occupants:
+                self.add_finding(Finding(
+                    id=new_id("FIND-OCC-", fac.id),
+                    finding_type=FindingType.OCCUPANT_SUPPORT,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Occupant/tenant candidates: {occupants}.",
+                    verification_state=VerificationState.PARTIALLY_SUPPORTED,
+                    risk_dimension="OCCUPANCY_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Occupancy is time-bound.",
+                        "Historical occupant is not current occupant.",
+                        "Multi-tenant campus may contain multiple organizations.",
+                    ],
+                ))
+
+            if owners and operators and set(owners) == set(operators):
+                self.add_finding(Finding(
+                    id=new_id("FIND-OWNERSAME-", fac.id),
+                    finding_type=FindingType.OWNER_SUPPORT,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement="Owner and operator candidates currently match, but relationships remain represented separately.",
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension="OWNERSHIP_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=["Matching names do not erase legal distinction between owner and operator."],
+                ))
+
+    def assess_function(self) -> None:
+        for fac in self.facilities.values():
+            if fac.function_state in {FunctionState.OFFICIALLY_DECLARED, FunctionState.SUPPORTED}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-FUNC-", fac.id),
+                    finding_type=FindingType.FUNCTION_SUPPORT,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility function is supported: {fac.function}.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension="FUNCTION_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=[
+                        "Facility type is not exact function.",
+                        "Declared function may be broad or outdated.",
+                        "No internal process detail is inferred.",
+                    ],
+                ))
+            elif fac.function_state in {FunctionState.OBSERVED, FunctionState.PROBABLE, FunctionState.POSSIBLE}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-FUNCC-", fac.id),
+                    finding_type=FindingType.FUNCTION_CANDIDATE,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility function is candidate only: {fac.function}; state={fac.function_state.value}.",
+                    verification_state=VerificationState.CANDIDATE,
+                    risk_dimension="FUNCTION_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=["Do not convert visual or type evidence into exact production/process function."],
+                ))
+            elif fac.function_state == FunctionState.DISPUTED:
+                self.add_finding(Finding(
+                    id=new_id("FIND-FUNCD-", fac.id),
+                    finding_type=FindingType.FUNCTION_CANDIDATE,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=f"Facility function is disputed: {fac.function}.",
+                    verification_state=VerificationState.DISPUTED,
+                    risk_dimension="FUNCTION_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    limitations=["Preserve competing functional interpretations."],
+                ))
+
+    def assess_dependencies(self) -> None:
+        critical_types = {
+            DependencyType.POWER,
+            DependencyType.WATER,
+            DependencyType.TELECOM,
+            DependencyType.NETWORK,
+            DependencyType.FUEL,
+        }
+
+        for fac in self.facilities.values():
+            for dep in fac.dependencies:
+                if dep.evidence_state in {
+                    VerificationState.SUPPORTED,
+                    VerificationState.PARTIALLY_SUPPORTED,
+                    VerificationState.OBSERVED,
+                }:
+                    vstate = dep.evidence_state
+                else:
+                    vstate = VerificationState.CANDIDATE
+
+                self.add_finding(Finding(
+                    id=new_id("FIND-DEP-", dep.id),
+                    finding_type=FindingType.DEPENDENCY_OBSERVED,
+                    subject_id=dep.id,
+                    facility_id=fac.id,
+                    statement=(
+                        f"High-level dependency observed: type={dep.dep_type.value}, provider={dep.provider}, "
+                        f"scope={dep.service_scope}, redundancy={dep.redundancy_state}."
+                    ),
+                    verification_state=vstate,
+                    risk_dimension="DEPENDENCY_RISK",
+                    source_ids=dep.source_ids,
+                    evidence_ids=dep.evidence_ids,
+                    limitations=[
+                        "Dependency is for resilience/business continuity only.",
+                        "Do not convert dependency into attack vector.",
+                        "Provider relationship may be regional rather than facility-specific.",
+                    ],
+                ))
+
+                if dep.dep_type in critical_types and dep.redundancy_state in {"NONE_DOCUMENTED", "UNKNOWN"}:
+                    self.add_finding(Finding(
+                        id=new_id("FIND-SPOF-", dep.id),
+                        finding_type=FindingType.RESILIENCE_UNVERIFIED,
+                        subject_id=dep.id,
+                        facility_id=fac.id,
+                        statement=(
+                            f"Single documented dependency candidate for {dep.dep_type.value}; "
+                            "resilience review required. This is not an attack recommendation."
+                        ),
+                        verification_state=VerificationState.CANDIDATE,
+                        risk_dimension="RESILIENCE_RISK",
+                        source_ids=dep.source_ids,
+                        evidence_ids=dep.evidence_ids,
+                        sensitivity_flags=[SensitivityFlag.CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY.value],
+                        limitations=[
+                            "SPOF analysis is for risk reduction only.",
+                            "Never optimize disruption or targeting.",
+                            "Redundancy may exist but be undocumented.",
+                        ],
+                        specialist_handoff="SUPPLYCHAININT / FACILITY MANAGEMENT / HUMAN REVIEW",
+                    ))
+
+    def assess_resilience(self) -> None:
+        for fac in self.facilities.values():
+            for res in fac.resilience_evidence:
+                if res.state == ResilienceState.DOCUMENTED:
+                    vstate = VerificationState.OBSERVED
+                    stmt = f"Resilience control documented but not independently verified: {res.control_type}. {res.description}"
+                elif res.state == ResilienceState.TESTED_REPORTED:
+                    vstate = VerificationState.PARTIALLY_SUPPORTED
+                    stmt = f"Resilience control tested/reported: {res.control_type}. {res.description}"
+                elif res.state == ResilienceState.AUTHORIZED_VERIFIED:
+                    vstate = VerificationState.SUPPORTED
+                    stmt = f"Resilience control authorized-verified: {res.control_type}. {res.description}"
+                else:
+                    vstate = VerificationState.INCONCLUSIVE
+                    stmt = f"Resilience control state unknown: {res.control_type}. {res.description}"
+
+                self.add_finding(Finding(
+                    id=new_id("FIND-RES-", res.id),
+                    finding_type=(
+                        FindingType.RESILIENCE_DOCUMENTED
+                        if res.state != ResilienceState.UNKNOWN
+                        else FindingType.RESILIENCE_UNVERIFIED
+                    ),
+                    subject_id=res.id,
+                    facility_id=fac.id,
+                    statement=stmt,
+                    verification_state=vstate,
+                    risk_dimension="RESILIENCE_RISK",
+                    source_ids=res.source_ids,
+                    evidence_ids=res.evidence_ids,
+                    limitations=[
+                        "Documented resilience is not tested resilience.",
+                        "Generator/UPS/redundancy claims require authorized validation.",
+                        "No bypass or disruption guidance is provided.",
+                    ],
+                ))
+
+    def assess_hazards(self) -> None:
+        for fac in self.facilities.values():
+            for hz in fac.hazards:
+                self.add_finding(Finding(
+                    id=new_id("FIND-HAZ-", hz.id),
+                    finding_type=FindingType.HAZARD_EXPOSURE_OBSERVED,
+                    subject_id=hz.id,
+                    facility_id=fac.id,
+                    statement=(
+                        f"Natural/environmental hazard context: type={hz.hazard_type.value}, "
+                        f"exposure={hz.exposure.value}, source={hz.source}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension="HAZARD_RISK",
+                    source_ids=hz.source_ids,
+                    evidence_ids=hz.evidence_ids,
+                    limitations=[
+                        "Hazard exposure is not facility failure.",
+                        "Mitigation may exist.",
+                        "Regional risk does not determine exact building performance.",
+                    ],
+                ))
+
+    def assess_incidents(self) -> None:
+        for fac in self.facilities.values():
+            for inc in fac.incidents:
+                current_impact = (
+                    "NO_CURRENT_DISRUPTION_EVIDENCED"
+                    if inc.recovery_status == "COMPLETE"
+                    else "UNKNOWN_OR_POTENTIAL_IMPACT"
+                )
+                self.add_finding(Finding(
+                    id=new_id("FIND-INC-", inc.id),
+                    finding_type=FindingType.INCIDENT_OBSERVED,
+                    subject_id=inc.id,
+                    facility_id=fac.id,
+                    statement=(
+                        f"Incident observed: {inc.incident_type}; summary={inc.summary}; "
+                        f"damage={inc.damage_state}; recovery={inc.recovery_status}; current_impact={current_impact}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension="INCIDENT_RISK",
+                    source_ids=inc.source_ids,
+                    evidence_ids=inc.evidence_ids,
+                    limitations=[
+                        "Historical incident is not current disruption.",
+                        "Visual damage state is not engineering certification.",
+                        "Recovery status requires authoritative source.",
+                    ],
+                ))
+
+    def assess_changes(self) -> None:
+        for fac in self.facilities.values():
+            for ch in fac.changes:
+                self.add_finding(Finding(
+                    id=new_id("FIND-CHG-", ch.id),
+                    finding_type=FindingType.CHANGE_OBSERVED,
+                    subject_id=ch.id,
+                    facility_id=fac.id,
+                    statement=(
+                        f"Facility change observed: type={ch.change_type}; old={ch.old_state}; "
+                        f"new={ch.new_state}; effective={ch.effective_at}; observed={ch.observed_at}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    risk_dimension="CHANGE_RISK",
+                    source_ids=ch.source_ids,
+                    evidence_ids=ch.evidence_ids,
+                    limitations=[
+                        "Ownership change is not operator change.",
+                        "Operator change is not function change.",
+                        "Tenant change is not facility repurpose.",
+                        "Construction start is not completion.",
+                    ],
+                ))
+
+    def assess_imagery(self) -> None:
+        for fac in self.facilities.values():
+            for idx, obs in enumerate(fac.imagery_observations):
+                capture = obs.get("capture_date")
+                age = days_since(capture, self.as_of)
+                if age is None or age > 365:
+                    self.add_finding(Finding(
+                        id=new_id("FIND-IMG-", f"{fac.id}-{idx}"),
+                        finding_type=FindingType.IMAGERY_STALE,
+                        subject_id=fac.id,
+                        facility_id=fac.id,
+                        statement=(
+                            f"Imagery observation capture_date={capture} is stale or undated relative to as_of={self.as_of}. "
+                            "Do not describe archived imagery as current or real-time."
+                        ),
+                        verification_state=VerificationState.SUPPORTED,
+                        risk_dimension="IMAGERY_RISK",
+                        source_ids=fac.source_ids,
+                        evidence_ids=fac.evidence_ids,
+                        limitations=[
+                            "Imagery age must be preserved.",
+                            "Visible change does not establish internal function or capacity.",
+                        ],
+                    ))
+
+    def detect_source_dependencies(self) -> None:
+        for src in self.sources.values():
+            if src.derived_from and src.derived_from in self.sources:
+                self.add_finding(Finding(
+                    id=new_id("FIND-SRCDEP-", src.id),
+                    finding_type=FindingType.SOURCE_DEPENDENCY,
+                    subject_id=src.id,
+                    statement=(
+                        f"Source {src.id} derives from {src.derived_from}; "
+                        "downstream copies are not independent corroboration."
+                    ),
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension="EVIDENCE_CONFIDENCE",
+                    source_ids=[src.id, src.derived_from],
+                    evidence_ids=[],
+                    limitations=[
+                        "Property record -> commercial database -> mapping portal is one pedigree.",
+                        "Do not count dependent sources as multiple confirmations.",
+                    ],
+                ))
+
+    def detect_contradictions(self) -> None:
+        existing = {c.description for c in self.contradictions}
+
+        for fac in self.facilities.values():
+            owners = sorted(set(fac.owner_candidates))
+            if len(owners) > 1:
+                desc = f"Conflicting property owner candidates for {fac.id}: {owners}."
+                if desc not in existing:
+                    fid = new_id("FIND-CONOWNER-", fac.id)
+                    self.add_finding(Finding(
+                        id=fid,
+                        finding_type=FindingType.CONTRADICTION_OBSERVED,
+                        subject_id=fac.id,
+                        facility_id=fac.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        risk_dimension="OWNERSHIP_RISK",
+                        source_ids=fac.source_ids,
+                        evidence_ids=fac.evidence_ids,
+                        limitations=[
+                            "Do not silently pick one owner.",
+                            "Stale mapping, sale, lease, or database lag may explain conflict.",
+                            "Owner != operator.",
+                        ],
+                    ))
+                    self.add_contradiction(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="OWNER_CONFLICT",
+                        description=desc,
+                        subject_ids=[fac.id],
+                        finding_ids=[fid],
+                        evidence_ids=fac.evidence_ids,
+                        source_ids=fac.source_ids,
+                        severity="HIGH",
+                        status="OPEN",
+                        recommended_resolution="Retrieve current official property/parcel record and preserve historical ownership timeline.",
+                    ))
+                    existing.add(desc)
+
+            operators = sorted(set(fac.operator_candidates))
+            if len(operators) > 1:
+                desc = f"Conflicting facility operator candidates for {fac.id}: {operators}."
+                if desc not in existing:
+                    fid = new_id("FIND-CONOPER-", fac.id)
+                    self.add_finding(Finding(
+                        id=fid,
+                        finding_type=FindingType.CONTRADICTION_OBSERVED,
+                        subject_id=fac.id,
+                        facility_id=fac.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        risk_dimension="OPERATION_RISK",
+                        source_ids=fac.source_ids,
+                        evidence_ids=fac.evidence_ids,
+                        limitations=["Operator change may be temporal; preserve control era."],
+                    ))
+                    self.add_contradiction(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="OPERATOR_CONFLICT",
+                        description=desc,
+                        subject_ids=[fac.id],
+                        finding_ids=[fid],
+                        evidence_ids=fac.evidence_ids,
+                        source_ids=fac.source_ids,
+                        severity="MEDIUM",
+                        status="OPEN",
+                        recommended_resolution="Verify current operator through authorized facility management, permits, and organization disclosures.",
+                    ))
+                    existing.add(desc)
+
+            groups: Dict[Tuple[str, str], List[CapacityClaim]] = defaultdict(list)
+            for cc in fac.capacity_claims:
+                groups[(cc.capacity_type, cc.unit)].append(cc)
+            for key, items in groups.items():
+                values = [float(x.value) for x in items if x.value is not None]
+                if len(values) >= 2 and max(values) > 0 and (max(values) - min(values)) / max(values) > 0.10:
+                    desc = f"Conflicting capacity claims for {fac.id} {key}: {values}."
+                    if desc not in existing:
+                        fid = new_id("FIND-CONCAP-", fac.id + key[0])
+                        self.add_finding(Finding(
+                            id=fid,
+                            finding_type=FindingType.CONTRADICTION_OBSERVED,
+                            subject_id=fac.id,
+                            facility_id=fac.id,
+                            statement=desc,
+                            verification_state=VerificationState.DISPUTED,
+                            risk_dimension="CAPACITY_RISK",
+                            source_ids=sorted({sid for x in items for sid in x.source_ids}),
+                            evidence_ids=sorted({eid for x in items for eid in x.evidence_ids}),
+                            limitations=[
+                                "Design, licensed, installed, available, and utilized capacity are different.",
+                                "Do not average incompatible capacity claims.",
+                            ],
+                        ))
+                        self.add_contradiction(Contradiction(
+                            id=new_id("CON-", desc),
+                            contradiction_type="CAPACITY_CONFLICT",
+                            description=desc,
+                            subject_ids=[x.id for x in items],
+                            finding_ids=[fid],
+                            evidence_ids=sorted({eid for x in items for eid in x.evidence_ids}),
+                            source_ids=sorted({sid for x in items for sid in x.source_ids}),
+                            severity="MEDIUM",
+                            status="OPEN",
+                            recommended_resolution="Separate capacity basis and verify with authorized operational records.",
+                        ))
+                        existing.add(desc)
+
+    def withhold_sensitive_detail(self) -> None:
+        sensitive_types = {
+            FacilityType.DATA_CENTER,
+            FacilityType.ENERGY_FACILITY,
+            FacilityType.WATER_FACILITY,
+            FacilityType.TELECOM_FACILITY,
+            FacilityType.PUBLIC_SAFETY_SITE,
+            FacilityType.GOVERNMENT_OFFICE,
+            FacilityType.LABORATORY,
+            FacilityType.RESEARCH_CENTER,
+            FacilityType.HOSPITAL,
+        }
+        critical_types = {
+            FacilityType.DATA_CENTER,
+            FacilityType.ENERGY_FACILITY,
+            FacilityType.WATER_FACILITY,
+            FacilityType.TELECOM_FACILITY,
+            FacilityType.PUBLIC_SAFETY_SITE,
+            FacilityType.TRANSPORT_FACILITY,
+            FacilityType.PORT_FACILITY,
+            FacilityType.AIRPORT_FACILITY,
+            FacilityType.RAIL_FACILITY,
+        }
+
+        for fac in self.facilities.values():
+            if fac.facility_type in sensitive_types:
+                self.add_finding(Finding(
+                    id=new_id("FIND-SENS-", fac.id),
+                    finding_type=FindingType.SENSITIVE_DETAIL_WITHHELD,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement=(
+                        f"Facility type {fac.facility_type.value} is treated as sensitive. "
+                        "Detailed security controls, cage/rack layouts, access-control locations, "
+                        "guard positions, camera coverage, internal process topology, and disruption sequences are withheld."
+                    ),
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension="SENSITIVITY_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    sensitivity_flags=[
+                        SensitivityFlag.SECURITY_CONTROL_DETAILS_WITHHELD.value,
+                        SensitivityFlag.CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY.value,
+                        SensitivityFlag.NON_PUBLIC_PLANS_RESTRICTED.value,
+                    ],
+                    limitations=[
+                        "High-level public/authorized defensive context only.",
+                        "No tactical security map is produced.",
+                    ],
+                ))
+
+            if fac.facility_type in critical_types:
+                self.add_finding(Finding(
+                    id=new_id("FIND-HR-", fac.id),
+                    finding_type=FindingType.HUMAN_REVIEW_REQUIRED,
+                    subject_id=fac.id,
+                    facility_id=fac.id,
+                    statement="Critical or sensitive facility assessment requires qualified human review before consequential operational, legal, or safety decisions.",
+                    verification_state=VerificationState.SUPPORTED,
+                    risk_dimension="GOVERNANCE_RISK",
+                    source_ids=fac.source_ids,
+                    evidence_ids=fac.evidence_ids,
+                    sensitivity_flags=[SensitivityFlag.CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY.value],
+                    limitations=["AI assists; humans govern consequential actions."],
+                    specialist_handoff="HUMAN_FACILITY_SAFETY / LEGALINT / OPERATIONS",
+                ))
+
+    def add_governance_findings(self) -> None:
+        governance = [
+            (
+                "FIND-GOV-NOINTRUSION",
+                FindingType.NO_INTRUSION_PLANNING,
+                "No physical intrusion, covert entry, lock/badge/alarm bypass, camera-blind-spot mapping, guard evasion, tailgating, or impersonation is planned or recommended.",
+            ),
+            (
+                "FIND-GOV-NOSABOTAGE",
+                FindingType.NO_SABOTAGE_PLANNING,
+                "No sabotage, power/water/telecom disruption, HVAC/fire-system tampering, generator sabotage, explosive placement, or safety-system defeat is planned or recommended.",
+            ),
+            (
+                "FIND-GOV-NOTARGETING",
+                FindingType.NO_TARGETING,
+                "No weapon targeting, hostile reconnaissance, attack path optimization, or critical-infrastructure attack planning is produced.",
+            ),
+            (
+                "FIND-GOV-PRIVATE",
+                FindingType.PRIVATE_RESIDENCE_BOUNDARY_ENFORCED,
+                "Private-person residences, employee routines, guard schedules, and individual movement patterns are excluded.",
+            ),
+            (
+                "FIND-GOV-NOPHYSICAL",
+                FindingType.NO_PHYSICAL_ACTION,
+                "FACILITYINT analyzes and recommends only; it does not unlock doors, change access control, disable alarms, operate building systems, dispatch personnel, or enter property.",
+            ),
+        ]
+        for fid, ftype, stmt in governance:
+            self.add_finding(Finding(
+                id=fid,
+                finding_type=ftype,
+                subject_id="GOVERNANCE",
+                statement=stmt,
+                verification_state=VerificationState.SUPPORTED,
+                confidence=0.99,
+                risk_dimension="POLICY_RISK",
+                limitations=["Defensive lawful facility intelligence boundary."],
+            ))
+
+    def fact_gate_findings(self) -> None:
+        policy_supported = {
+            FindingType.NO_INTRUSION_PLANNING,
+            FindingType.NO_SABOTAGE_PLANNING,
+            FindingType.NO_TARGETING,
+            FindingType.PRIVATE_RESIDENCE_BOUNDARY_ENFORCED,
+            FindingType.NO_PHYSICAL_ACTION,
+            FindingType.SENSITIVE_DETAIL_WITHHELD,
+            FindingType.HUMAN_REVIEW_REQUIRED,
+        }
+
+        for f in self.findings.values():
+            if f.finding_type in policy_supported:
+                f.verification_state = VerificationState.SUPPORTED
+                f.confidence = 0.99
+                continue
+
+            srcs = [self.sources[sid] for sid in f.source_ids if sid in self.sources]
+            if not srcs:
+                f.confidence = 0.0
+                if f.verification_state == VerificationState.OBSERVED:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                f.limitations.append("No mapped source for fact gate.")
+                continue
+
+            families = self.source_families(f.source_ids)
+            max_rel = max((s.reliability for s in srcs), default=0.5)
+            base = max_rel
+
+            if len(families) >= 2:
+                base = min(0.99, base * 1.05)
+            elif len(families) == 1 and len(f.source_ids) > 1:
+                base *= 0.90
+                f.limitations.append("Multiple sources share one upstream source family.")
+
+            ft = f.finding_type
+            if ft == FindingType.FACILITY_IDENTITY_RESOLVED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.75 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Identity is time-bound and source-bound.")
+
+            elif ft == FindingType.FACILITY_IDENTITY_PARTIALLY_RESOLVED:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED if base >= 0.60 else VerificationState.INCONCLUSIVE
+                f.limitations.append("Do not infer missing facility identity from name alone.")
+
+            elif ft == FindingType.OWNER_SUPPORT:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.75 else VerificationState.PARTIALLY_SUPPORTED
+                base = min(base, 0.88)
+                f.limitations.append("Owner is legal property context, not operator or occupant.")
+
+            elif ft == FindingType.OPERATOR_SUPPORT:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.PARTIALLY_SUPPORTED
+                base = min(base, 0.84)
+                f.limitations.append("Operator evidence may be organizational rather than property-legal.")
+
+            elif ft == FindingType.OCCUPANT_SUPPORT:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                base = min(base, 0.80)
+                f.limitations.append("Occupancy is time-bound and may be multi-tenant.")
+
+            elif ft == FindingType.FUNCTION_SUPPORT:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.PARTIALLY_SUPPORTED
+                base = min(base, 0.86)
+                f.limitations.append("Function is high-level; no internal process topology is inferred.")
+
+            elif ft == FindingType.FUNCTION_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.65)
+                f.limitations.append("Function candidate is not verified function.")
+
+            elif ft == FindingType.DEPENDENCY_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED if base >= 0.65 else VerificationState.CANDIDATE
+                base = min(base, 0.82)
+                f.limitations.append("Dependency is resilience context, not attack vector.")
+
+            elif ft == FindingType.RESILIENCE_DOCUMENTED:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.74)
+                f.limitations.append("Documented resilience is not tested resilience.")
+
+            elif ft == FindingType.RESILIENCE_UNVERIFIED:
+                f.verification_state = VerificationState.INCONCLUSIVE
+                base = min(base, 0.62)
+                f.limitations.append("Resilience requires authorized validation.")
+
+            elif ft == FindingType.HAZARD_EXPOSURE_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.78)
+                f.limitations.append("Hazard exposure is not facility failure.")
+
+            elif ft == FindingType.INCIDENT_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.82)
+                f.limitations.append("Historical incident is not current disruption.")
+
+            elif ft == FindingType.CHANGE_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.80)
+                f.limitations.append("Change type must preserve owner/operator/occupant/function distinctions.")
+
+            elif ft == FindingType.IMAGERY_STALE:
+                f.verification_state = VerificationState.SUPPORTED
+                base = 0.95
+                f.limitations.append("Imagery is not real-time.")
+
+            elif ft == FindingType.SOURCE_DEPENDENCY:
+                f.verification_state = VerificationState.SUPPORTED
+                base = 0.90
+                f.limitations.append("Dependent sources are one evidence family.")
+
+            elif ft == FindingType.CONTRADICTION_OBSERVED:
+                f.verification_state = VerificationState.DISPUTED
+                base = min(base, 0.82)
+                f.limitations.append("Preserve competing records; do not average incompatible facts.")
+
+            else:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                elif base >= 0.60:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                elif base >= 0.40:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                else:
+                    f.verification_state = VerificationState.UNSUPPORTED
+
+            f.confidence = round(max(0.0, min(0.99, base)), 3)
+
+    def build_hypotheses(self) -> None:
+        fac = next(iter(self.facilities.values()), None)
+        if not fac:
+            self.hypotheses = []
+            return
+
+        owner = fac.owner_candidates[0] if fac.owner_candidates else "UNKNOWN"
+        operator = fac.operator_candidates[0] if fac.operator_candidates else "UNKNOWN"
+        has_owner_conflict = len(set(fac.owner_candidates)) > 1
+        has_operator = bool(fac.operator_candidates)
+        has_construction = any(ch.change_type == "CONSTRUCTION_START" for ch in fac.changes)
+
+        self.hypotheses = [
+            Hypothesis(
+                id="H-ACTIVE-FACILITY",
+                statement=f"{fac.name or fac.id} is an active facility operated by {operator}.",
+                kind="FACILITY_IDENTITY",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.FACILITY_IDENTITY_RESOLVED,
+                    FindingType.OPERATOR_SUPPORT,
+                    FindingType.FUNCTION_SUPPORT,
+                }],
+                contradicting_finding_ids=[f.id for f in self.findings.values() if f.finding_type == FindingType.CONTRADICTION_OBSERVED],
+                assumptions=["Current operator evidence is valid as of as_of date."],
+                predictions=["Authorized facility records and organization disclosures would agree on current operation."],
+                falsification_conditions=[
+                    "Current operator is different.",
+                    "Facility is leased to another operator.",
+                    "Function has changed historically.",
+                ],
+                status=HypothesisStatus.PROBABLE if has_operator else HypothesisStatus.UNRESOLVED,
+                confidence=0.68 if has_operator else 0.35,
+                limitations=["Operator evidence is not property ownership evidence."],
+            ),
+            Hypothesis(
+                id="H-OWNER-LEASES-OPERATOR",
+                statement=f"{owner} owns the parcel but {operator} operates the facility under lease/management arrangement.",
+                kind="OWNERSHIP_OPERATION",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.OWNER_SUPPORT,
+                    FindingType.OPERATOR_SUPPORT,
+                }],
+                assumptions=["Owner and operator are distinct legal/operational roles."],
+                predictions=["Property record and facility management records would show separate entities."],
+                falsification_conditions=[
+                    "Same entity owns and operates with documented legal unity.",
+                    "Operator evidence is stale.",
+                    "Mapping database misassociates owner and operator.",
+                ],
+                status=HypothesisStatus.POSSIBLE,
+                confidence=0.60,
+                limitations=["Owner != operator must remain explicit."],
+            ),
+            Hypothesis(
+                id="H-STALE-MAPPING",
+                statement="Conflicting owner candidate arises from stale commercial mapping/database lag.",
+                kind="SOURCE_QUALITY",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type in {
+                    FindingType.CONTRADICTION_OBSERVED,
+                    FindingType.SOURCE_DEPENDENCY,
+                }],
+                assumptions=["Official property record is more current than aggregator mapping."],
+                predictions=["Current parcel record would resolve owner to one entity for as_of date."],
+                falsification_conditions=[
+                    "Official record shows recent sale to alternate owner.",
+                    "Multiple legal parcels explain different owner labels.",
+                ],
+                status=HypothesisStatus.POSSIBLE if has_owner_conflict else HypothesisStatus.UNRESOLVED,
+                confidence=0.55 if has_owner_conflict else 0.30,
+                limitations=["Do not silently choose one source."],
+            ),
+            Hypothesis(
+                id="H-CONSTRUCTION-CAPACITY",
+                statement="Observed construction will increase facility capacity or change function.",
+                kind="CHANGE_INTERPRETATION",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type == FindingType.CHANGE_OBSERVED],
+                assumptions=["Permitted construction reaches completion and is put into service."],
+                predictions=["Completion certificate, authorized inventory, or current imagery would confirm operational change."],
+                falsification_conditions=[
+                    "Construction is paused or cancelled.",
+                    "New structure is support/utility only.",
+                    "Function remains unchanged.",
+                    "Capacity claim is design rather than actual.",
+                ],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.40 if has_construction else 0.20,
+                limitations=[
+                    "Permit is not completion.",
+                    "Visible footprint change does not establish internal function or capacity.",
+                ],
+            ),
+        ]
+
+    def build_knowledge_gaps(self) -> None:
+        existing = {g.description for g in self.gaps}
+
+        for fac in self.facilities.values():
+            if not fac.owner_candidates:
+                desc = f"Property owner for {fac.id} is unknown."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-OWNER-", fac.id),
+                        gap_type=GapType.OWNER_UNKNOWN,
+                        description=desc,
+                        about_subject_ids=[fac.id],
+                        importance="HIGH",
+                        recommended_source="Official property/land registry or authorized legal record",
+                        specialist="FACILITYINT / CORPINT / OWNERSHIPINT / LEGALINT",
+                        expected_information_value=0.85,
+                    ))
+                    existing.add(desc)
+
+            if not fac.operator_candidates:
+                desc = f"Facility operator for {fac.id} is unknown."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-OPER-", fac.id),
+                        gap_type=GapType.OPERATOR_UNKNOWN,
+                        description=desc,
+                        about_subject_ids=[fac.id],
+                        importance="HIGH",
+                        recommended_source="Authorized facility management system, permits, organization disclosure",
+                        specialist="FACILITYINT / ORGINT",
+                        expected_information_value=0.85,
+                    ))
+                    existing.add(desc)
+
+            if fac.function_state in {FunctionState.UNKNOWN, FunctionState.POSSIBLE, FunctionState.DISPUTED}:
+                desc = f"Facility function for {fac.id} is uncertain or disputed."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-FUNC-", fac.id),
+                        gap_type=GapType.FUNCTION_UNCERTAIN,
+                        description=desc,
+                        about_subject_ids=[fac.id],
+                        importance="MEDIUM",
+                        recommended_source="Official organization disclosure, permit scope, authorized operational record",
+                        specialist="FACILITYINT / TECHINT",
+                        expected_information_value=0.70,
+                    ))
+                    existing.add(desc)
+
+            for cc in fac.capacity_claims:
+                if cc.basis in {"DESIGN", "LICENSED", "SOURCE_CLAIMED", "UNKNOWN"}:
+                    desc = f"Capacity claim {cc.id} is {cc.basis} and not verified actual utilization."
+                    if desc not in existing:
+                        self.gaps.append(KnowledgeGap(
+                            id=new_id("GAP-CAP-", cc.id),
+                            gap_type=GapType.CAPACITY_UNVERIFIED,
+                            description=desc,
+                            about_subject_ids=[cc.id, fac.id],
+                            importance="MEDIUM",
+                            recommended_source="Authorized operational records or engineering/facility management verification",
+                            specialist="FACILITYINT / TECHINT",
+                            expected_information_value=0.70,
+                        ))
+                        existing.add(desc)
+
+            for dep in fac.dependencies:
+                if dep.evidence_state in {VerificationState.INCONCLUSIVE, VerificationState.CANDIDATE}:
+                    desc = f"Dependency {dep.id} evidence is unresolved."
+                    if desc not in existing:
+                        self.gaps.append(KnowledgeGap(
+                            id=new_id("GAP-DEP-", dep.id),
+                            gap_type=GapType.UTILITY_DEPENDENCY_UNCLEAR,
+                            description=desc,
+                            about_subject_ids=[dep.id, fac.id],
+                            importance="MEDIUM",
+                            recommended_source="Authorized utility/provider record or facility service contract metadata",
+                            specialist="FACILITYINT / SUPPLYCHAININT",
+                            expected_information_value=0.70,
+                        ))
+                        existing.add(desc)
+
+            for res in fac.resilience_evidence:
+                if res.state in {ResilienceState.DOCUMENTED, ResilienceState.UNKNOWN}:
+                    desc = f"Resilience evidence {res.id} is documented/unverified rather than tested/authorized-verified."
+                    if desc not in existing:
+                        self.gaps.append(KnowledgeGap(
+                            id=new_id("GAP-RES-", res.id),
+                            gap_type=GapType.RESILIENCE_UNVERIFIED,
+                            description=desc,
+                            about_subject_ids=[res.id, fac.id],
+                            importance="HIGH",
+                            recommended_source="Authorized test record, maintenance log, or facility management verification",
+                            specialist="FACILITYINT / INCIDENTINT",
+                            expected_information_value=0.80,
+                        ))
+                        existing.add(desc)
+
+            for ch in fac.changes:
+                if ch.change_type == "CONSTRUCTION_START":
+                    desc = f"Construction change {ch.id} lacks completion/operational evidence."
+                    if desc not in existing:
+                        self.gaps.append(KnowledgeGap(
+                            id=new_id("GAP-CONST-", ch.id),
+                            gap_type=GapType.PERMIT_STATUS_UNCLEAR,
+                            description=desc,
+                            about_subject_ids=[ch.id, fac.id],
+                            importance="MEDIUM",
+                            recommended_source="Current permit status, completion certificate, authorized inspection record",
+                            specialist="FACILITYINT / LEGALINT",
+                            expected_information_value=0.75,
+                        ))
+                        existing.add(desc)
+
+            for obs in fac.imagery_observations:
+                capture = obs.get("capture_date")
+                age = days_since(capture, self.as_of)
+                if age is None or age > 365:
+                    desc = f"Imagery observation dated {capture} is stale for {fac.id}."
+                    if desc not in existing:
+                        self.gaps.append(KnowledgeGap(
+                            id=new_id("GAP-IMG-", fac.id + str(capture)),
+                            gap_type=GapType.IMAGERY_STALE,
+                            description=desc,
+                            about_subject_ids=[fac.id],
+                            importance="MEDIUM",
+                            recommended_source="Current authorized/public imagery with capture metadata",
+                            specialist="SATINT / IMINT / FACILITYINT",
+                            expected_information_value=0.65,
+                        ))
+                        existing.add(desc)
+
+    def build_next_actions(self) -> None:
+        fac = next(iter(self.facilities.values()), None)
+        actions: List[NextAction] = [
+            NextAction(
+                id="ACT-NO-PHYSICAL-TESTING",
+                description="Do not test physical access, probe guards, walk perimeter deceptively, map blind spots, disable systems, or enter property.",
+                priority=99,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.0,
+                specialist=None,
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-MAINTAIN-SEPARATION",
+                description="Maintain separate records for owner, operator, occupant, tenant, facility type, and function.",
+                priority=1,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="FACILITYINT / ORGINT / CORPINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-TEMPORAL-VALIDATION",
+                description="Attach valid_from/valid_to and as_of dates to every facility relationship and change event.",
+                priority=2,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="FACILITYINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-RESILIENCE-REVIEW",
+                description="Review documented resilience evidence through authorized testing/maintenance records; do not provide disruption paths.",
+                priority=3,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="FACILITY MANAGEMENT / INCIDENTINT",
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-HAZARD-MITIGATION",
+                description="Compare hazard exposure with mitigation, emergency plan, and inspection records.",
+                priority=4,
+                privacy_impact="LOW",
+                expected_gain=0.75,
+                specialist="FACILITYINT / EMERGENCY MANAGEMENT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-SENSITIVE-HUMAN-REVIEW",
+                description="Route sensitive/critical facility conclusions to qualified human review before operational, legal, or safety decisions.",
+                priority=5,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.90,
+                specialist="HUMAN_FACILITY_SAFETY / LEGALINT",
+                requires_human_approval=True,
+            ),
+        ]
+
+        if fac:
+            if len(set(fac.owner_candidates)) > 1 or not fac.owner_candidates:
+                actions.insert(0, NextAction(
+                    id="ACT-RETRIEVE-PARCEL",
+                    description="Retrieve current official parcel/property record and preserve ownership history.",
+                    priority=0,
+                    privacy_impact="LOW",
+                    expected_gain=0.90,
+                    specialist="FACILITYINT / OWNERSHIPINT / LEGALINT",
+                    requires_human_approval=False,
+                ))
+            if not fac.operator_candidates:
+                actions.insert(0, NextAction(
+                    id="ACT-VERIFY-OPERATOR",
+                    description="Verify current operator through authorized facility management, permits, and organization disclosures.",
+                    priority=0,
+                    privacy_impact="LOW",
+                    expected_gain=0.90,
+                    specialist="FACILITYINT / ORGINT",
+                    requires_human_approval=False,
+                ))
+            if any(ch.change_type == "CONSTRUCTION_START" for ch in fac.changes):
+                actions.insert(0, NextAction(
+                    id="ACT-VERIFY-COMPLETION",
+                    description="Retrieve current permit status and completion/inspection evidence before treating construction as operational.",
+                    priority=0,
+                    privacy_impact="LOW",
+                    expected_gain=0.85,
+                    specialist="FACILITYINT / LEGALINT",
+                    requires_human_approval=False,
+                ))
+            if any(res.state == ResilienceState.DOCUMENTED for res in fac.resilience_evidence):
+                actions.insert(0, NextAction(
+                    id="ACT-VALIDATE-BACKUP",
+                    description="Validate backup power/network/water resilience through authorized test records only.",
+                    priority=0,
+                    privacy_impact="LOW",
+                    expected_gain=0.88,
+                    specialist="FACILITY MANAGEMENT",
+                    requires_human_approval=True,
+                ))
+
+        self.actions = actions
+
+    def build_recommendations(self) -> None:
+        self.recommendations = [
+            Recommendation(
+                id="REC-UPDATE-INVENTORY",
+                category="FACILITY_MANAGEMENT",
+                action="Update authorized facility inventory with time-bound owner/operator/occupant/function records.",
+                target="Facility records",
+                rationale="Prevents historical-to-current contamination and owner/operator merge errors.",
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["Do not expose non-public plans outside authorized systems."],
+            ),
+            Recommendation(
+                id="REC-LOCAL-ONLY",
+                category="PRIVACY",
+                action="Keep non-public floor plans, schematics, access-control data, BMS data, and emergency-site details in LOCAL_ONLY restricted storage.",
+                target="Sensitive facility documents",
+                rationale="Cloud routing may expose sensitive physical infrastructure context.",
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["Only public/sanitized/aggregated data may be routed externally under policy."],
+            ),
+            Recommendation(
+                id="REC-RESILIENCE-TEST",
+                category="RESILIENCE",
+                action="Convert documented resilience claims into tested/authorized-verified evidence through authorized maintenance and exercise programs.",
+                target="Backup power/network/water controls",
+                rationale="Documented redundancy is not proven resilience.",
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["No disruption or bypass guidance is provided."],
+            ),
+            Recommendation(
+                id="REC-ENGINEERING-REVIEW",
+                category="SAFETY",
+                action="Commission qualified engineering review for structural safety, capacity, or hazard-mitigation conclusions.",
+                target="Buildings/site structures",
+                rationale="Imagery and public records cannot certify structural condition.",
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["FACILITYINT does not make definitive engineering safety judgments."],
+            ),
+            Recommendation(
+                id="REC-LEGAL-REVIEW",
+                category="LEGAL",
+                action="Route property rights, permit interpretation, zoning, and regulatory obligations to LEGALINT where consequential.",
+                target="Ownership/permit records",
+                rationale="FACILITYINT identifies evidence, not final legal determinations.",
+                approval="HUMAN_APPROVAL_REQUIRED",
+                limitations=["Legal interpretation requires qualified counsel."],
+            ),
+        ]
+
+    def build_handoffs(self) -> None:
+        self.handoffs = [
+            {"specialist": "GEOINT", "reason": "Administrative boundaries, terrain, travel corridors, environmental layers without private-person locations."},
+            {"specialist": "MAPINT", "reason": "Roads, land use, mapped features, and map-version context."},
+            {"specialist": "SATINT", "reason": "Satellite imagery, remote sensing, and change observation."},
+            {"specialist": "IMINT", "reason": "Individual image evidence and visual object/scene observations."},
+            {"specialist": "ORGINT", "reason": "Organizational units and responsibilities associated with facility."},
+            {"specialist": "CORPINT", "reason": "Legal company/entity resolution."},
+            {"specialist": "OWNERSHIPINT", "reason": "Property ownership, transfers, and corporate ownership context."},
+            {"specialist": "SUPPLYCHAININT", "reason": "Supplier, vendor, logistics, and critical third-party dependencies."},
+            {"specialist": "TRANSPORTINT", "reason": "Transport movement and logistics network context."},
+            {"specialist": "TRADEINT", "reason": "Port/trade dependency context."},
+            {"specialist": "NETINT", "reason": "Network dependency deeper analysis; no scanning or intrusion."},
+            {"specialist": "INFRAINT", "reason": "Internet-facing infrastructure context; no exploitation."},
+            {"specialist": "OTINT", "reason": "Operational technology context; no control-system attack."},
+            {"specialist": "INCIDENTINT", "reason": "Incident reconstruction and recovery verification."},
+            {"specialist": "LEGALINT", "reason": "Property, permit, zoning, regulatory, and liability review."},
+            {"specialist": "DOCINT / MALINT", "reason": "Safe ingestion of facility documents/CAD/GIS/images; no macro/script execution."},
+        ]
+
+    def dual_ai_review(self) -> Dict[str, Any]:
+        issues: List[str] = []
+
+        if any(g.gap_type in {
+            GapType.OWNER_UNKNOWN,
+            GapType.OPERATOR_UNKNOWN,
+            GapType.FUNCTION_UNCERTAIN,
+            GapType.CAPACITY_UNVERIFIED,
+        } for g in self.gaps):
+            issues.append("Core facility identity, ownership, operation, function, or capacity remains unresolved.")
+
+        if self.contradictions:
+            issues.append(f"{len(self.contradictions)} contradiction(s) remain open.")
+
+        if any(f.finding_type == FindingType.RESILIENCE_DOCUMENTED for f in self.findings.values()):
+            issues.append("Resilience is documented but not independently tested/verified in this corpus.")
+
+        if any(f.finding_type == FindingType.HAZARD_EXPOSURE_OBSERVED for f in self.findings.values()):
+            issues.append("Natural/environmental hazard exposure is present but does not establish facility failure.")
+
+        if any(f.finding_type == FindingType.IMAGERY_STALE for f in self.findings.values()):
+            issues.append="Some imagery is stale or undated; current-state claims are constrained."
+
+        if any(f.finding_type == FindingType.SENSITIVE_DETAIL_WITHHELD for f in self.findings.values()):
+            issues.append="Sensitive facility details are withheld; assessment is high-level defensive only.")
+
+        if any(f.finding_type == FindingType.SOURCE_DEPENDENCY for f in self.findings.values()):
+            issues.append="Some sources are dependent and must not be counted as independent corroboration.")
+
+        if not issues:
+            verdict = "AGREE"
+        elif len(issues) <= 5:
+            verdict = "PARTIAL_AGREEMENT"
+        else:
+            verdict = "INSUFFICIENT_EVIDENCE"
+
+        return {
+            "primary_facility_analyst": (
+                "Synthetic authorized corpus supports partial identity for Helios Northbridge Campus: "
+                "parcel owner candidate is Northgate Property Trust, operator candidate is Helios Compute Services, "
+                "occupants include Helios and Aurora Analytics. Function is supported at high level as data-processing/colocation support. "
+                "Dependencies and resilience are documented but not fully tested. Regional flood/heat hazard context exists without established site failure. "
+                "Construction change is permitted/observed but not completion-verified. Sensitive security/control topology is withheld."
+            ),
+            "independent_facility_skeptic_issues": issues,
+            "verdict": verdict,
+            "adversarial_checks": [
+                "Are owner and operator confused? No; kept separate.",
+                "Is address treated as operational facility? No; resolved with site/parcel/building evidence.",
+                "Is imagery treated as real-time? No; capture dates and staleness checked.",
+                "Is visible change treated as exact function/capacity? No.",
+                "Are dependencies converted into attack vectors? No.",
+                "Are security observations converted into weaknesses? No.",
+                "Are historical states overwritten? No; temporal changes preserved.",
+                "Was tactical intrusion/sabotage/targeting produced? No.",
+            ],
+            "note": "AI agreement is analytical agreement, not independent facility corroboration.",
+        }
+
+    def analyst_summary(self, dual: Dict[str, Any]) -> str:
+        fac = next(iter(self.facilities.values()), None)
+        if not fac:
+            return (
+                "FACILITYINT UNRESOLVED: No configured authorized/public facility corpus. "
+                "No facility, site, parcel, building, owner, operator, occupant, function, dependency, "
+                "hazard, incident, or resilience claim was fabricated."
+            )
+
+        owner = ", ".join(fac.owner_candidates) if fac.owner_candidates else "UNKNOWN"
+        operator = ", ".join(fac.operator_candidates) if fac.operator_candidates else "UNKNOWN"
+        occupants = ", ".join(sorted(set(fac.occupants + fac.tenants))) if (fac.occupants or fac.tenants) else "UNKNOWN"
+        deps = ", ".join(sorted({d.dep_type.value for d in fac.dependencies})) if fac.dependencies else "UNKNOWN"
+        hazards = ", ".join(sorted({h.hazard_type.value for h in fac.hazards})) if fac.hazards else "UNKNOWN"
+        resilience_states = ", ".join(sorted({r.state.value for r in fac.resilience_evidence})) if fac.resilience_evidence else "UNKNOWN"
+
+        lines = [
+            f"FACILITY: {fac.name or fac.id}",
+            f"SITE / CAMPUS: {fac.site_id or 'UNKNOWN'}",
+            f"ADDRESS / LOCATION: {fac.addresses[0].normalized if fac.addresses else 'UNKNOWN'}",
+            f"GEOSPATIAL PRECISION: {fac.coordinates[0].precision.value if fac.coordinates else 'UNKNOWN'}",
+            f"FACILITY TYPE: {fac.facility_type.value}",
+            f"PROPERTY OWNER CANDIDATES: {owner}",
+            f"OPERATOR CANDIDATES: {operator}",
+            f"OCCUPANTS / TENANTS: {occupants}",
+            f"PRIMARY FUNCTION: {fac.function or 'UNKNOWN'} ({fac.function_state.value})",
+            f"OPERATING STATUS: {fac.operating_status.value}",
+            f"BUILDINGS: {', '.join(fac.building_ids) if fac.building_ids else 'UNKNOWN'}",
+            f"CAPACITY CLAIMS: {', '.join(f'{c.capacity_type}={c.value}{c.unit} ({c.basis})' for c in fac.capacity_claims) if fac.capacity_claims else 'UNKNOWN'}",
+            f"UTILITY / SERVICE DEPENDENCIES: {deps}",
+            f"ENVIRONMENTAL / NATURAL HAZARDS: {hazards}",
+            f"RESILIENCE EVIDENCE STATES: {resilience_states}",
+            f"RECENT CHANGES: {', '.join(ch.change_type for ch in fac.changes) if fac.changes else 'UNKNOWN'}",
+            "",
+            "ASSESSMENT:",
+            "- OWNER, OPERATOR, AND OCCUPANT ARE REPRESENTED SEPARATELY.",
+            "- FUNCTION IS HIGH-LEVEL ONLY; NO INTERNAL PROCESS TOPOLOGY IS INFERRED.",
+            "- HAZARD EXPOSURE IS NOT FACILITY FAILURE.",
+            "- DOCUMENTED RESILIENCE IS NOT TESTED RESILIENCE.",
+            "- IMAGERY IS TIME-BOUND AND NOT REAL-TIME.",
+            "- SENSITIVE SECURITY/CONTROL DETAILS ARE WITHHELD.",
+            "",
+            "NOT ESTABLISHED:",
+            "- Exact current legal owner if conflicting records remain.",
+            "- Exact internal function or capacity of new construction.",
+            "- Tested backup power/network/water resilience.",
+            "- Current structural safety or engineering condition.",
+            "- Any tactical access, bypass, sabotage, or targeting information.",
+            "",
+            f"DUAL-AI REVIEW: {dual['verdict']}.",
+            "PRIVACY/SENSITIVITY: No private-person location, employee routine, guard schedule, camera blind spot, access-control bypass, or real-time occupancy exposure.",
+            "NEXT ACTION: Retrieve current parcel/operator records, verify construction completion, validate resilience through authorized tests, review hazard mitigation, and route sensitive/critical conclusions to human review.",
+        ]
+        return "\n".join(lines)
+
+    def prepare(self) -> None:
+        self.resolve_identity()
+        self.separate_owner_operator_occupant()
+        self.assess_function()
+        self.assess_dependencies()
+        self.assess_resilience()
+        self.assess_hazards()
+        self.assess_incidents()
+        self.assess_changes()
+        self.assess_imagery()
+        self.detect_source_dependencies()
+        self.detect_contradictions()
+        self.withhold_sensitive_detail()
+        self.add_governance_findings()
+        self.fact_gate_findings()
+        self.build_hypotheses()
+        self.build_knowledge_gaps()
+        self.build_next_actions()
+        self.build_recommendations()
+        self.build_handoffs()
+
+
+# =====================================================================
+# SAMPLE DATA
+# =====================================================================
+
+def sample_case() -> Case:
+    return Case(
+        case_id="SAMPLE-FACILITYINT-001",
+        task_id="TASK-FACILITYINT-001",
+        objective=(
+            "Authorized defensive facility and site intelligence for synthetic Helios Northbridge Campus. "
+            "Resolve facility/site/parcel/building identity, separate owner/operator/occupant, assess high-level function, "
+            "dependencies, hazards, resilience, incidents, and changes using public/authorized-style evidence only."
+        ),
+        questions=[
+            "What facility/site/parcel/building relationships are evidenced?",
+            "Who is the property owner candidate?",
+            "Who is the facility operator candidate?",
+            "Who occupies or tenants the site?",
+            "What high-level function is supported?",
+            "What utility/service/logistics dependencies are documented?",
+            "What natural/environmental hazard context applies?",
+            "What resilience evidence is documented versus tested?",
+            "What incidents and changes occurred over time?",
+            "What remains unknown and what defensive next actions are appropriate?",
+        ],
+        scope=[
+            "lawful_authorized_defensive_facility_intelligence",
+            "evidence_first",
+            "high_level_only",
+            "no_intrusion_planning",
+            "no_sabotage_planning",
+            "no_targeting",
+            "privacy_aware",
+        ],
+        authorization="demo_authorized_facility_intelligence",
+        facility_names=["Helios Northbridge Campus"],
+        organization_names=["Helios Compute Services", "Northgate Property Trust", "Aurora Analytics"],
+        addresses=["Northbridge Industrial Park, Sector 7"],
+        time_range="2019-01-01/2026-10-09",
+        as_of=DEFAULT_AS_OF,
+        sample=True,
+    )
+
+
+def build_sample_facilityint() -> FacilityInt:
+    h = FacilityInt(sample_case())
+    retrieved = now_iso()
+
+    # Sources
+    h.add_source(Source(
+        id="SRC-PROPERTY",
+        title="Synthetic official property/parcel record",
+        url="https://property.example/parcel/NB-P-001",
+        source_type=SourceType.OFFICIAL_PROPERTY_RECORD,
+        independence_group="PROPERTY_ROOT",
+        reliability=0.92,
+        published_at="2024-03-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Legal property context; does not establish operator.",
+    ))
+    h.add_source(Source(
+        id="SRC-GIS",
+        title="Synthetic government GIS portal",
+        url="https://gis.example/site/HELIOS-1",
+        source_type=SourceType.GOVERNMENT_GIS,
+        independence_group="GIS_ROOT",
+        reliability=0.88,
+        published_at="2026-09-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Site boundary and land-use context; may lag property transactions.",
+    ))
+    h.add_source(Source(
+        id="SRC-PERMIT",
+        title="Synthetic planning portal permit record",
+        url="https://permits.example/annex-2026",
+        source_type=SourceType.PERMIT,
+        independence_group="PERMIT_ROOT",
+        reliability=0.90,
+        published_at="2026-02-10T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Permit authorization context; not completion evidence.",
+    ))
+    h.add_source(Source(
+        id="SRC-COMPANY",
+        title="Synthetic company facility page and annual report",
+        url="https://helios.example/facilities/northbridge",
+        source_type=SourceType.ORGANIZATION_DISCLOSURE,
+        independence_group="COMPANY_ROOT",
+        reliability=0.78,
+        published_at="2026-04-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Operator/function context; promotional bias possible.",
+    ))
+    h.add_source(Source(
+        id="SRC-NEWS",
+        title="Synthetic news article citing company release",
+        url="https://news.example/helios-expansion",
+        source_type=SourceType.NEWS,
+        independence_group="COMPANY_ROOT",
+        reliability=0.62,
+        derived_from="SRC-COMPANY",
+        published_at="2026-04-03T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Dependent source; not independent corroboration.",
+    ))
+    h.add_source(Source(
+        id="SRC-IMAGERY",
+        title="Synthetic licensed imagery provider",
+        url="https://imagery.example/capture/2026-08-01",
+        source_type=SourceType.LICENSED_IMAGERY,
+        independence_group="IMAGERY_ROOT",
+        reliability=0.86,
+        published_at="2026-08-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Imagery capture date preserved; not real-time.",
+    ))
+    h.add_source(Source(
+        id="SRC-MAPPING",
+        title="Synthetic commercial mapping aggregator",
+        url="https://map.example/helios-campus",
+        source_type=SourceType.PUBLIC_MAPPING,
+        independence_group="GIS_ROOT",
+        reliability=0.70,
+        derived_from="SRC-GIS",
+        published_at="2022-01-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Potentially stale owner attribution.",
+    ))
+    h.add_source(Source(
+        id="SRC-UTILITY",
+        title="Synthetic utility/public service record",
+        url="https://utility.example/service/northbridge",
+        source_type=SourceType.UTILITY_PUBLIC_RECORD,
+        independence_group="UTILITY_ROOT",
+        reliability=0.84,
+        published_at="2026-05-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="High-level service dependency; not disruption planning.",
+    ))
+    h.add_source(Source(
+        id="SRC-EMERGENCY",
+        title="Synthetic emergency-management hazard map",
+        url="https://emergency.example/hazard/northbridge",
+        source_type=SourceType.EMERGENCY_MANAGEMENT_RECORD,
+        independence_group="HAZARD_ROOT",
+        reliability=0.88,
+        published_at="2026-01-15T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Regional hazard context; not facility failure prediction.",
+    ))
+    h.add_source(Source(
+        id="SRC-FACILITY-MGMT",
+        title="Synthetic authorized facility-management summary",
+        url="https://fm.example/helios/cmdb",
+        source_type=SourceType.AUTHORIZED_FACILITY_SYSTEM,
+        independence_group="INTERNAL_ROOT",
+        reliability=0.90,
+        published_at="2026-09-15T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Authorized internal context; sensitive details withheld from output.",
+    ))
+    h.add_source(Source(
+        id="SRC-INSPECTION",
+        title="Synthetic inspection authority record",
+        url="https://inspection.example/fire/2026",
+        source_type=SourceType.INSPECTION_RECORD,
+        independence_group="INSPECTION_ROOT",
+        reliability=0.88,
+        published_at="2026-01-20T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Inspection outcome context; old finding != current deficiency.",
+    ))
+
+    # Evidence
+    h.add_evidence(Evidence(
+        id="EV-PROPERTY-OWNER",
+        source_id="SRC-PROPERTY",
+        artifact_type="parcel_record",
+        excerpt="Parcel NB-P-001 lists Northgate Property Trust as legal owner effective 2024-03-01.",
+        observed_at="2024-03-01T00:00:00Z",
+        parsed_fields={"legal_owner_candidate": "Northgate Property Trust", "effective_from": "2024-03-01"},
+        limitations=["Ownership record does not establish facility operator or occupant."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-GIS-SITE",
+        source_id="SRC-GIS",
+        artifact_type="gis_site_summary",
+        excerpt="GIS shows approximate site boundary, two operational buildings, industrial/commercial land use, and northern construction footprint.",
+        observed_at="2026-09-01T00:00:00Z",
+        parsed_fields={"land_use": "industrial/commercial", "building_count_visible": 3},
+        limitations=["GIS boundary is approximate and may differ from legal parcel boundary."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-PERMIT-ANNEX",
+        source_id="SRC-PERMIT",
+        artifact_type="permit_record",
+        excerpt="Planning permit approved 2026-02-10 for northern annex structural envelope; no internal process detail retained.",
+        observed_at="2026-02-10T00:00:00Z",
+        parsed_fields={"permit_status": "APPROVED", "scope": "structural envelope"},
+        limitations=["Permit is not completion or operational evidence."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-COMPANY-OPERATOR",
+        source_id="SRC-COMPANY",
+        artifact_type="organization_disclosure",
+        excerpt="Company facility page states Helios Compute Services operates the Northbridge Campus.",
+        observed_at="2026-04-01T00:00:00Z",
+        parsed_fields={"operator_candidate": "Helios Compute Services"},
+        limitations=["Company disclosure is operator context, not property ownership."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-COMPANY-FUNCTION",
+        source_id="SRC-COMPANY",
+        artifact_type="annual_report_excerpt",
+        excerpt="Annual report describes high-level data-processing and colocation support services at Northbridge Campus.",
+        observed_at="2026-04-01T00:00:00Z",
+        parsed_fields={"function": "data processing / colocation support"},
+        limitations=["No internal topology, customer placement, or security detail is inferred."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-MAPPING-OWNER",
+        source_id="SRC-MAPPING",
+        artifact_type="mapping_aggregator_record",
+        excerpt="Commercial mapping aggregator lists Helios Compute Services as owner; record appears stale relative to property record.",
+        observed_at="2022-01-01T00:00:00Z",
+        parsed_fields={"owner_candidate": "Helios Compute Services", "effective_date": "2022-01-01"},
+        limitations=["Aggregator may lag property transaction."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-IMAGERY-2026",
+        source_id="SRC-IMAGERY",
+        artifact_type="licensed_imagery_summary",
+        excerpt="2026-08-01 imagery shows additional building footprint at northern parcel edge.",
+        observed_at="2026-08-01T00:00:00Z",
+        parsed_fields={"capture_date": "2026-08-01", "change_type": "construction_footprint"},
+        limitations=["Visible change does not establish internal function or capacity."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-IMAGERY-2024",
+        source_id="SRC-IMAGERY",
+        artifact_type="licensed_imagery_summary",
+        excerpt="2024-05-01 imagery shows no northern annex footprint.",
+        observed_at="2024-05-01T00:00:00Z",
+        parsed_fields={"capture_date": "2024-05-01", "change_type": "baseline_footprint"},
+        limitations=["Historical imagery; not current state."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-UTILITY-POWER",
+        source_id="SRC-UTILITY",
+        artifact_type="utility_service_record",
+        excerpt="Public utility record indicates grid service from Northbridge Grid Services; company documentation reports backup generator.",
+        observed_at="2026-05-01T00:00:00Z",
+        parsed_fields={"power_provider": "Northbridge Grid Services", "backup_generator_documented": True},
+        limitations=["Backup generator documentation is not tested resilience."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-UTILITY-WATER",
+        source_id="SRC-UTILITY",
+        artifact_type="utility_service_record",
+        excerpt="Municipal water service covers the site; redundancy not documented in public record.",
+        observed_at="2026-05-01T00:00:00Z",
+        parsed_fields={"water_provider": "Northbridge Municipal Water", "redundancy": "UNKNOWN"},
+    ))
+    h.add_evidence(Evidence(
+        id="EV-TELECOM",
+        source_id="SRC-COMPANY",
+        artifact_type="organization_disclosure",
+        excerpt="Company report states two telecom providers serve the campus; detailed paths withheld.",
+        observed_at="2026-04-01T00:00:00Z",
+        parsed_fields={"telecom_redundancy_documented": True},
+        limitations=["Provider diversity claim is not tested failover evidence."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-HAZARD-FLOOD",
+        source_id="SRC-EMERGENCY",
+        artifact_type="hazard_map_summary",
+        excerpt="Emergency-management map places region in moderate flood-risk zone; no documented site flooding in available records.",
+        observed_at="2026-01-15T00:00:00Z",
+        parsed_fields={"hazard": "FLOOD", "exposure": "REGIONAL_RISK"},
+        limitations=["Flood-zone membership is not certain flooding or facility failure."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-HAZARD-HEAT",
+        source_id="SRC-EMERGENCY",
+        artifact_type="climate_health_context",
+        excerpt="Regional heat-risk context applies; data-center cooling resilience not independently verified.",
+        observed_at="2026-01-15T00:00:00Z",
+        parsed_fields={"hazard": "HEAT", "exposure": "REGIONAL_RISK"},
+    ))
+    h.add_evidence(Evidence(
+        id="EV-INCIDENT-STORM",
+        source_id="SRC-EMERGENCY",
+        artifact_type="incident_report",
+        excerpt="2025-11 storm caused minor roof damage; restoration completed 2025-12 according to official summary.",
+        observed_at="2025-12-20T00:00:00Z",
+        parsed_fields={"incident_type": "STORM", "damage_state": "MINOR_VISIBLE_DAMAGE", "recovery_status": "COMPLETE"},
+        limitations=["Historical incident; no current disruption evidenced."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-INSPECTION-FIRE",
+        source_id="SRC-INSPECTION",
+        artifact_type="inspection_record",
+        excerpt="Fire safety inspection passed 2026-01-20; no current deficiency reported in available summary.",
+        observed_at="2026-01-20T00:00:00Z",
+        parsed_fields={"outcome": "PASS"},
+        limitations=["Inspection is time-bound; old result does not prove current condition indefinitely."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-FACILITY-MGMT",
+        source_id="SRC-FACILITY-MGMT",
+        artifact_type="authorized_cmdb_summary",
+        excerpt="Authorized facility-management summary lists buildings A/B, operational status, and high-level design power capacity claim.",
+        observed_at="2026-09-15T00:00:00Z",
+        parsed_fields={"design_power_capacity_mw": 12.0},
+        limitations=["Design capacity is not actual utilization.", "Sensitive internal details withheld."],
+    ))
+
+    # Site / parcel / buildings
+    h.add_site(Site(
+        id="SITE-HELIOS-1",
+        name="Helios Northbridge Site",
+        facility_ids=["FAC-HELIOS-CAMPUS-1"],
+        parcel_ids=["PARCEL-NB-001"],
+        boundary_geometry="approximate polygon from GIS",
+        address=Address(
+            source_original="Northbridge Industrial Park, Sector 7",
+            normalized="Northbridge Industrial Park, Sector 7, Northbridge City, NB 10100, Syntheticland",
+            city="Northbridge City",
+            region="Northbridge",
+            postal_code="10100",
+            country="Syntheticland",
+            precision=GeospatialPrecision.CITY,
+        ),
+        coordinates=[Coordinate(latitude=45.0, longitude=10.0, precision=GeospatialPrecision.SITE, source="SRC-GIS")],
+        land_use="industrial/commercial",
+        site_area=180000.0,
+        access_classification="controlled_public_authorized",
+        public_transport_context="High-level regional road and rail proximity; no tactical route ranking.",
+        logistics_context="Truck access via public industrial road; loading context only.",
+        environmental_context="Near drainage canal; regional flood/heat hazard context.",
+        source_ids=["SRC-GIS", "SRC-EMERGENCY"],
+        evidence_ids=["EV-GIS-SITE", "EV-HAZARD-FLOOD", "EV-HAZARD-HEAT"],
+        confidence=0.86,
+        limitations=[
+            "Site boundary is approximate.",
+            "Site boundary is not legal parcel boundary.",
+            "No private-person location is exposed.",
+        ],
+    ))
+    h.add_parcel(Parcel(
+        id="PARCEL-NB-001",
+        jurisdiction="Northbridge",
+        identifier="NB-P-001",
+        legal_owner_candidate="Northgate Property Trust",
+        geometry="parcel polygon",
+        land_use="industrial",
+        source_ids=["SRC-PROPERTY", "SRC-GIS"],
+        evidence_ids=["EV-PROPERTY-OWNER", "EV-GIS-SITE"],
+        effective_dates={"owner_valid_from": "2024-03-01"},
+        limitations=[
+            "Parcel ownership does not automatically identify operator.",
+            "One site may span multiple parcels; one parcel may contain multiple facilities.",
+        ],
+    ))
+    h.add_building(Building(
+        id="BLDG-A",
+        site_id="SITE-HELIOS-1",
+        name="Helios Building A",
+        building_type="primary operations building",
+        function="high-level data-processing support",
+        construction_date_candidate="2019-06-01",
+        renovation_dates=["2023-03-01"],
+        floor_count=3,
+        floor_area=40000.0,
+        status=ConstructionState.OPERATIONAL,
+        occupants=["Helios Compute Services"],
+        source_ids=["SRC-GIS", "SRC-FACILITY-MGMT"],
+        evidence_ids=["EV-GIS-SITE", "EV-FACILITY-MGMT"],
+        confidence=0.86,
+        limitations=["Floor count may vary by basement/mezzanine/roof definitions."],
+    ))
+    h.add_building(Building(
+        id="BLDG-B",
+        site_id="SITE-HELIOS-1",
+        name="Helios Building B",
+        building_type="support/operations building",
+        function="support operations",
+        construction_date_candidate="2021-09-01",
+        renovation_dates=[],
+        floor_count=2,
+        floor_area=25000.0,
+        status=ConstructionState.OPERATIONAL,
+        occupants=["Helios Compute Services", "Aurora Analytics"],
+        source_ids=["SRC-GIS", "SRC-FACILITY-MGMT"],
+        evidence_ids=["EV-GIS-SITE", "EV-FACILITY-MGMT"],
+        confidence=0.84,
+        limitations=["Multi-tenant occupancy is time-bound."],
+    ))
+    h.add_building(Building(
+        id="BLDG-ANNEX-UC",
+        site_id="SITE-HELIOS-1",
+        name="Northern Annex",
+        building_type="annex under construction",
+        function="UNKNOWN",
+        construction_date_candidate=None,
+        renovation_dates=[],
+        floor_count=None,
+        floor_area=None,
+        status=ConstructionState.UNDER_CONSTRUCTION,
+        occupants=[],
+        source_ids=["SRC-PERMIT", "SRC-IMAGERY"],
+        evidence_ids=["EV-PERMIT-ANNEX", "EV-IMAGERY-2026"],
+        confidence=0.70,
+        limitations=[
+            "Permit and visible footprint do not establish completion, function, or capacity.",
+            "No internal layout detail is inferred.",
+        ],
+    ))
+
+    # Facility
+    fac = Facility(
+        id="FAC-HELIOS-CAMPUS-1",
+        name="Helios Northbridge Campus",
+        aliases=["Helios Campus NB"],
+        facility_type=FacilityType.DATA_CENTER,
+        organization_ids=["ORG-HELIOS", "ORG-NORTHGATE", "ORG-AURORA"],
+        owner_candidates=["Northgate Property Trust", "Helios Compute Services"],
+        operator_candidates=["Helios Compute Services"],
+        occupants=["Helios Compute Services", "Aurora Analytics"],
+        tenants=["Helios Compute Services", "Aurora Analytics"],
+        site_id="SITE-HELIOS-1",
+        parcel_ids=["PARCEL-NB-001"],
+        building_ids=["BLDG-A", "BLDG-B", "BLDG-ANNEX-UC"],
+        addresses=[Address(
+            source_original="Northbridge Industrial Park, Sector 7",
+            normalized="Northbridge Industrial Park, Sector 7, Northbridge City, NB 10100, Syntheticland",
+            city="Northbridge City",
+            region="Northbridge",
+            postal_code="10100",
+            country="Syntheticland",
+            precision=GeospatialPrecision.CITY,
+        )],
+        coordinates=[Coordinate(latitude=45.0, longitude=10.0, precision=GeospatialPrecision.SITE, source="SRC-GIS")],
+        function="data processing / colocation support",
+        function_state=FunctionState.SUPPORTED,
+        operating_status=OperatingStatus.OPERATIONAL,
+        opening_date="2019-06-01",
+        site_area=180000.0,
+        floor_area=65000.0,
+        capacity_claims=[CapacityClaim(
+            id="CAP-POWER-DESIGN-12MW",
+            facility_id="FAC-HELIOS-CAMPUS-1",
+            capacity_type="design_power_capacity",
+            value=12.0,
+            unit="MW",
+            basis="DESIGN",
+            state="SOURCE_CLAIMED",
+            source_ids=["SRC-FACILITY-MGMT", "SRC-COMPANY"],
+            evidence_ids=["EV-FACILITY-MGMT"],
+            limitations=["Design capacity is not actual utilization or tested resilience."],
+        )],
+        dependencies=[
+            Dependency(
+                id="DEP-POWER",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                dep_type=DependencyType.POWER,
+                provider="Northbridge Grid Services",
+                service_scope="regional grid service",
+                redundancy_state="BACKUP_GENERATOR_DOCUMENTED",
+                evidence_state=VerificationState.PARTIALLY_SUPPORTED,
+                source_ids=["SRC-UTILITY", "SRC-COMPANY"],
+                evidence_ids=["EV-UTILITY-POWER"],
+                limitations=["Backup generator documented but not tested in this corpus."],
+            ),
+            Dependency(
+                id="DEP-WATER",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                dep_type=DependencyType.WATER,
+                provider="Northbridge Municipal Water",
+                service_scope="municipal water service",
+                redundancy_state="UNKNOWN",
+                evidence_state=VerificationState.PARTIALLY_SUPPORTED,
+                source_ids=["SRC-UTILITY"],
+                evidence_ids=["EV-UTILITY-WATER"],
+                limitations=["Water redundancy not documented; resilience review required."],
+            ),
+            Dependency(
+                id="DEP-TELECOM",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                dep_type=DependencyType.TELECOM,
+                provider="Two telecom providers documented",
+                service_scope="campus connectivity context",
+                redundancy_state="DUAL_PROVIDERS_DOCUMENTED",
+                evidence_state=VerificationState.PARTIALLY_SUPPORTED,
+                source_ids=["SRC-COMPANY"],
+                evidence_ids=["EV-TELECOM"],
+                limitations=["Provider diversity is documented, not tested failover."],
+            ),
+            Dependency(
+                id="DEP-ROAD",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                dep_type=DependencyType.ROAD,
+                provider="Public industrial road network",
+                service_scope="logistics/access context",
+                redundancy_state="UNKNOWN",
+                evidence_state=VerificationState.OBSERVED,
+                source_ids=["SRC-GIS"],
+                evidence_ids=["EV-GIS-SITE"],
+                limitations=["No covert approach or escape route analysis is produced."],
+            ),
+        ],
+        hazards=[
+            Hazard(
+                id="HAZ-FLOOD",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                hazard_type=HazardType.FLOOD,
+                exposure=HazardExposure.REGIONAL_RISK,
+                source="SRC-EMERGENCY",
+                valid_from="2026-01-15",
+                source_ids=["SRC-EMERGENCY"],
+                evidence_ids=["EV-HAZARD-FLOOD"],
+                limitations=["Regional flood risk is not site flooding or facility failure."],
+            ),
+            Hazard(
+                id="HAZ-HEAT",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                hazard_type=HazardType.HEAT,
+                exposure=HazardExposure.REGIONAL_RISK,
+                source="SRC-EMERGENCY",
+                valid_from="2026-01-15",
+                source_ids=["SRC-EMERGENCY"],
+                evidence_ids=["EV-HAZARD-HEAT"],
+                limitations=["Heat risk requires cooling resilience verification."],
+            ),
+        ],
+        incidents=[
+            Incident(
+                id="INC-STORM-2025",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                incident_type="STORM",
+                summary="Minor roof damage during 2025-11 storm; restoration completed 2025-12.",
+                started_at="2025-11-10T00:00:00Z",
+                ended_at="2025-12-20T00:00:00Z",
+                damage_state="MINOR_VISIBLE_DAMAGE",
+                recovery_status="COMPLETE",
+                source_ids=["SRC-EMERGENCY"],
+                evidence_ids=["EV-INCIDENT-STORM"],
+                limitations=["Historical incident; no current disruption evidenced."],
+            ),
+        ],
+        changes=[
+            Change(
+                id="CHG-OWNER-2024",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                change_type="OWNERSHIP_CHANGE",
+                old_state="Prior owner unknown in sample",
+                new_state="Northgate Property Trust",
+                observed_at="2024-03-01T00:00:00Z",
+                effective_at="2024-03-01T00:00:00Z",
+                source_ids=["SRC-PROPERTY"],
+                evidence_ids=["EV-PROPERTY-OWNER"],
+                confidence=0.88,
+                limitations=["Ownership change is not operator change."],
+            ),
+            Change(
+                id="CHG-TENANT-2025",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                change_type="TENANT_ADDITION",
+                old_state="Helios occupancy",
+                new_state="Helios + Aurora Analytics occupancy",
+                observed_at="2025-06-01T00:00:00Z",
+                effective_at="2025-06-01T00:00:00Z",
+                source_ids=["SRC-FACILITY-MGMT"],
+                evidence_ids=["EV-FACILITY-MGMT"],
+                confidence=0.80,
+                limitations=["Tenant change is not facility repurpose."],
+            ),
+            Change(
+                id="CHG-CONSTRUCTION-2026",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                change_type="CONSTRUCTION_START",
+                old_state="No northern annex footprint",
+                new_state="Annex under construction",
+                observed_at="2026-08-01T00:00:00Z",
+                effective_at="2026-02-10T00:00:00Z",
+                source_ids=["SRC-PERMIT", "SRC-IMAGERY"],
+                evidence_ids=["EV-PERMIT-ANNEX", "EV-IMAGERY-2026"],
+                confidence=0.78,
+                limitations=["Construction start is not completion or capacity change."],
+            ),
+        ],
+        permits=[
+            Permit(
+                id="PERM-ANNEX-2026",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                permit_type="construction_annex",
+                authority="Northbridge Planning Portal",
+                status="APPROVED",
+                issued_at="2026-02-10T00:00:00Z",
+                effective_from="2026-02-10T00:00:00Z",
+                scope_summary="Northern annex structural envelope; no internal process detail retained.",
+                source_ids=["SRC-PERMIT"],
+                evidence_ids=["EV-PERMIT-ANNEX"],
+                limitations=["Permit is not completion evidence."],
+            ),
+        ],
+        inspections=[
+            Inspection(
+                id="INSP-FIRE-2026",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                inspection_type="fire_safety",
+                authority="Northbridge Fire Safety Authority",
+                date="2026-01-20T00:00:00Z",
+                outcome="PASS",
+                findings_summary="No current deficiency reported in available summary.",
+                remediation_status="NOT_REQUIRED_PER_SUMMARY",
+                source_ids=["SRC-INSPECTION"],
+                evidence_ids=["EV-INSPECTION-FIRE"],
+                limitations=["Inspection is time-bound."],
+            ),
+        ],
+        certifications=[
+            Certification(
+                id="CERT-FM-BCP",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                certification_type="facility_management_business_continuity_context",
+                issuer="Synthetic Certification Body",
+                status="ACTIVE",
+                issued_at="2025-01-01T00:00:00Z",
+                expires_at="2027-01-01T00:00:00Z",
+                scope_summary="High-level facility management / business continuity context.",
+                source_ids=["SRC-COMPANY"],
+                evidence_ids=["EV-COMPANY-FUNCTION"],
+                limitations=["Certification is not zero risk."],
+            ),
+        ],
+        resilience_evidence=[
+            ResilienceEvidence(
+                id="RES-BACKUP-POWER",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                control_type="backup_power",
+                state=ResilienceState.DOCUMENTED,
+                description="Backup generator documented in utility/company context.",
+                tested=False,
+                source_ids=["SRC-UTILITY", "SRC-COMPANY"],
+                evidence_ids=["EV-UTILITY-POWER"],
+                limitations=["Documented generator is not tested runtime resilience."],
+            ),
+            ResilienceEvidence(
+                id="RES-TELECOM-DUAL",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                control_type="telecom_redundancy",
+                state=ResilienceState.DOCUMENTED,
+                description="Two telecom providers documented; paths withheld.",
+                tested=False,
+                source_ids=["SRC-COMPANY"],
+                evidence_ids=["EV-TELECOM"],
+                limitations=["Diversity claim is not failover test evidence."],
+            ),
+            ResilienceEvidence(
+                id="RES-WATER-STORAGE",
+                facility_id="FAC-HELIOS-CAMPUS-1",
+                control_type="water_storage",
+                state=ResilienceState.UNKNOWN,
+                description="No public/authorized water storage redundancy evidenced.",
+                tested=False,
+                source_ids=["SRC-UTILITY"],
+                evidence_ids=["EV-UTILITY-WATER"],
+                limitations=["Do not invent redundancy."],
+            ),
+        ],
+        imagery_observations=[
+            {
+                "observation_id": "IMG-2026-08",
+                "capture_date": "2026-08-01T00:00:00Z",
+                "provider": "SRC-IMAGERY",
+                "summary": "Additional building footprint visible at northern parcel edge.",
+                "change_type": "construction_footprint",
+                "limitations": [
+                    "Imagery is not real-time.",
+                    "Visible change does not establish internal function or capacity.",
+                ],
+            },
+            {
+                "observation_id": "IMG-2024-05",
+                "capture_date": "2024-05-01T00:00:00Z",
+                "provider": "SRC-IMAGERY",
+                "summary": "No annex footprint.",
+                "change_type": "baseline_footprint",
+                "limitations": ["Historical imagery; not current state."],
+            },
+        ],
+        source_ids=[
+            "SRC-PROPERTY", "SRC-GIS", "SRC-PERMIT", "SRC-COMPANY",
+            "SRC-IMAGERY", "SRC-MAPPING", "SRC-UTILITY", "SRC-EMERGENCY",
+            "SRC-FACILITY-MGMT", "SRC-INSPECTION",
+        ],
+        evidence_ids=[
+            "EV-PROPERTY-OWNER", "EV-GIS-SITE", "EV-PERMIT-ANNEX",
+            "EV-COMPANY-OPERATOR", "EV-COMPANY-FUNCTION", "EV-MAPPING-OWNER",
+            "EV-IMAGERY-2026", "EV-IMAGERY-2024", "EV-UTILITY-POWER",
+            "EV-UTILITY-WATER", "EV-TELECOM", "EV-HAZARD-FLOOD",
+            "EV-HAZARD-HEAT", "EV-INCIDENT-STORM", "EV-INSPECTION-FIRE",
+            "EV-FACILITY-MGMT",
+        ],
+        confidence=0.82,
+        valid_from="2024-03-01T00:00:00Z",
+        limitations=[
+            "Sensitive internal layout/security details withheld.",
+            "Owner/operator/occupant relationships are time-bound.",
+            "Design capacity is not actual utilization.",
+        ],
+    )
+    h.add_facility(fac)
+
+    h.prepare()
+    return h
+
+
+# =====================================================================
+# RESULT BUILDER
+# =====================================================================
+
+def graph_version_hash(h: FacilityInt) -> str:
+    seed_obj = {
+        "facilities": sorted(
+            (
+                fid,
+                f.name,
+                f.facility_type.value,
+                f.function_state.value,
+                f.operating_status.value,
+                tuple(sorted(f.owner_candidates)),
+                tuple(sorted(f.operator_candidates)),
+            )
+            for fid, f in h.facilities.items()
+        ),
+        "sites": sorted((sid, s.name, s.land_use, s.site_area or 0.0) for sid, s in h.sites.items()),
+        "parcels": sorted((pid, p.identifier, p.legal_owner_candidate, p.land_use) for pid, p in h.parcels.items()),
+        "buildings": sorted((bid, b.site_id, b.name, b.status.value, b.floor_count or 0) for bid, b in h.buildings.items()),
+        "findings": sorted(
+            (fid, f.finding_type.value, f.subject_id, f.verification_state.value, round(float(f.confidence), 3))
+            for fid, f in h.findings.items()
+        ),
+    }
+    return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+
+
+def build_source_graph(h: FacilityInt) -> Dict[str, Any]:
+    edges = []
+    for src in h.sources.values():
+        if src.derived_from:
+            edges.append({"source": src.derived_from, "target": src.id, "relationship_type": "DERIVED_FROM"})
+    return {"nodes": [s.id for s in h.sources.values()], "edges": edges}
+
+
+def build_source_dependency_graph(h: FacilityInt) -> Dict[str, List[str]]:
+    families: Dict[str, List[str]] = defaultdict(list)
+    for sid in h.sources:
+        fam = h.get_source_family(sid) or "UNKNOWN"
+        families[fam].append(sid)
+    return {k: sorted(v) for k, v in families.items()}
+
+
+def build_facility_graph(h: FacilityInt) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+    for fac in h.facilities.values():
+        nodes.append({
+            "id": fac.id,
+            "type": "Facility",
+            "name": fac.name,
+            "facility_type": fac.facility_type.value,
+            "function_state": fac.function_state.value,
+            "operating_status": fac.operating_status.value,
+        })
+        for owner in fac.owner_candidates:
+            nodes.append({"id": f"OWNER-{owner}", "type": "Owner", "name": owner})
+            edges.append({"source": fac.id, "target": f"OWNER-{owner}", "relationship_type": "OWNED_BY_CANDIDATE"})
+        for oper in fac.operator_candidates:
+            nodes.append({"id": f"OPERATOR-{oper}", "type": "Operator", "name": oper})
+            edges.append({"source": fac.id, "target": f"OPERATOR-{oper}", "relationship_type": "OPERATED_BY_CANDIDATE"})
+        for occ in set(fac.occupants + fac.tenants):
+            nodes.append({"id": f"OCCUPANT-{occ}", "type": "Occupant/Tenant", "name": occ})
+            edges.append({"source": fac.id, "target": f"OCCUPANT-{occ}", "relationship_type": "OCCUPIED_BY_OR_TENANT"})
+        if fac.site_id:
+            edges.append({"source": fac.id, "target": fac.site_id, "relationship_type": "PART_OF_SITE"})
+        for pid in fac.parcel_ids:
+            edges.append({"source": fac.id, "target": pid, "relationship_type": "LOCATED_ON_PARCEL"})
+        for bid in fac.building_ids:
+            edges.append({"source": fac.id, "target": bid, "relationship_type": "USES_BUILDING"})
+        for dep in fac.dependencies:
+            nodes.append({"id": dep.id, "type": "Dependency", "dep_type": dep.dep_type.value, "provider": dep.provider})
+            edges.append({"source": fac.id, "target": dep.id, "relationship_type": "DEPENDS_ON"})
+        for hz in fac.hazards:
+            nodes.append({"id": hz.id, "type": "Hazard", "hazard_type": hz.hazard_type.value, "exposure": hz.exposure.value})
+            edges.append({"source": fac.id, "target": hz.id, "relationship_type": "EXPOSED_TO_HAZARD"})
+        for inc in fac.incidents:
+            nodes.append({"id": inc.id, "type": "Incident", "incident_type": inc.incident_type, "recovery_status": inc.recovery_status})
+            edges.append({"source": fac.id, "target": inc.id, "relationship_type": "AFFECTED_BY"})
+        for ch in fac.changes:
+            nodes.append({"id": ch.id, "type": "Change", "change_type": ch.change_type, "new_state": ch.new_state})
+            edges.append({"source": fac.id, "target": ch.id, "relationship_type": "CHANGED_BY"})
+
+    for site in h.sites.values():
+        nodes.append({"id": site.id, "type": "Site", "name": site.name, "land_use": site.land_use})
+    for parcel in h.parcels.values():
+        nodes.append({"id": parcel.id, "type": "Parcel", "identifier": parcel.identifier, "legal_owner_candidate": parcel.legal_owner_candidate})
+        for fid in h.facilities:
+            if parcel.id in h.facilities[fid].parcel_ids:
+                edges.append({"source": fid, "target": parcel.id, "relationship_type": "LOCATED_ON_PARCEL"})
+    for b in h.buildings.values():
+        nodes.append({"id": b.id, "type": "Building", "name": b.name, "status": b.status.value})
+        edges.append({"source": b.id, "target": b.site_id, "relationship_type": "PART_OF_SITE"})
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "guardrails": [
+            "Facility, site, parcel, and building are distinct node types.",
+            "Owner, operator, occupant, and tenant relationships are separate.",
+            "Dependencies and hazards are resilience context, not attack vectors.",
+            "No tactical security-control map is represented.",
+        ],
+    }
+
+
+def build_timeline(h: FacilityInt) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = []
+
+    for fac in h.facilities.values():
+        for ch in fac.changes:
+            t = ch.effective_at or ch.observed_at
+            if t:
+                events.append({
+                    "time": t,
+                    "type": "FACILITY_CHANGE",
+                    "subject_id": ch.id,
+                    "description": f"{ch.change_type}: {ch.old_state} -> {ch.new_state}",
+                    "source_ids": ch.source_ids,
+                    "evidence_ids": ch.evidence_ids,
+                })
+        for inc in fac.incidents:
+            if inc.started_at:
+                events.append({
+                    "time": inc.started_at,
+                    "type": "INCIDENT",
+                    "subject_id": inc.id,
+                    "description": f"{inc.incident_type}: {inc.summary}; recovery={inc.recovery_status}",
+                    "source_ids": inc.source_ids,
+                    "evidence_ids": inc.evidence_ids,
+                })
+        for p in fac.permits:
+            if p.issued_at:
+                events.append({
+                    "time": p.issued_at,
+                    "type": "PERMIT",
+                    "subject_id": p.id,
+                    "description": f"Permit {p.permit_type} status={p.status}; scope={p.scope_summary}",
+                    "source_ids": p.source_ids,
+                    "evidence_ids": p.evidence_ids,
+                })
+        for insp in fac.inspections:
+            if insp.date:
+                events.append({
+                    "time": insp.date,
+                    "type": "INSPECTION",
+                    "subject_id": insp.id,
+                    "description": f"{insp.inspection_type} outcome={insp.outcome}",
+                    "source_ids": insp.source_ids,
+                    "evidence_ids": insp.evidence_ids,
+                })
+        for obs in fac.imagery_observations:
+            t = obs.get("capture_date")
+            if t:
+                events.append({
+                    "time": t,
+                    "type": "IMAGERY_OBSERVATION",
+                    "subject_id": obs.get("observation_id", fac.id),
+                    "description": obs.get("summary", ""),
+                    "source_ids": [obs.get("provider", "")],
+                    "evidence_ids": [],
+                })
+
+    return sorted(events, key=lambda e: dt_or_min(e.get("time")))
+
+
+def build_facts_by_state(h: FacilityInt) -> Dict[str, List[Finding]]:
+    out: Dict[str, List[Finding]] = defaultdict(list)
+    for f in h.findings.values():
+        out[f.verification_state.value].append(f)
+    return {k: v for k, v in out.items()}
+
+
+def build_result(h: FacilityInt, status: Status) -> Dict[str, Any]:
+    dual = h.dual_ai_review()
+    summary = h.analyst_summary(dual)
+    source_families = build_source_dependency_graph(h)
+    facts_by_state = build_facts_by_state(h)
+
+    finding_independence = {
+        fid: h.independence_state(f.source_ids)
+        for fid, f in h.findings.items()
+    }
+
+    supported_facts = facts_by_state.get(VerificationState.SUPPORTED.value, [])
+    partial_facts = facts_by_state.get(VerificationState.PARTIALLY_SUPPORTED.value, [])
+    candidate_facts = facts_by_state.get(VerificationState.CANDIDATE.value, [])
+    disputed_facts = facts_by_state.get(VerificationState.DISPUTED.value, [])
+    observed_facts = facts_by_state.get(VerificationState.OBSERVED.value, [])
+
+    dependencies = [d for f in h.facilities.values() for d in f.dependencies]
+    hazards = [x for f in h.facilities.values() for x in f.hazards]
+    incidents = [x for f in h.facilities.values() for x in f.incidents]
+    changes = [x for f in h.facilities.values() for x in f.changes]
+    permits = [x for f in h.facilities.values() for x in f.permits]
+    inspections = [x for f in h.facilities.values() for x in f.inspections]
+    certifications = [x for f in h.facilities.values() for x in f.certifications]
+    resilience = [x for f in h.facilities.values() for x in f.resilience_evidence]
+    capacity_claims = [x for f in h.facilities.values() for x in f.capacity_claims]
+    imagery = [x for f in h.facilities.values() for x in f.imagery_observations]
+
+    addresses = [a for f in h.facilities.values() for a in f.addresses]
+    coordinates = [c for f in h.facilities.values() for c in f.coordinates]
+
+    sensitivity_flags = sorted({
+        flag
+        for f in h.findings.values()
+        for flag in f.sensitivity_flags
+    } | {
+        SensitivityFlag.NON_PUBLIC_PLANS_RESTRICTED.value,
+        SensitivityFlag.PRIVATE_RESIDENCE_EXCLUDED.value,
+        SensitivityFlag.TACTICAL_ROUTE_ANALYSIS_WITHHELD.value,
+    })
+
+    privacy_flags = [
+        PrivacyFlag.CASE_SCOPED.value,
+        PrivacyFlag.NO_PRIVATE_PERSON_LOCATION.value,
+        PrivacyFlag.NO_EMPLOYEE_ROUTINE.value,
+        PrivacyFlag.NO_REALTIME_OCCUPANCY.value,
+        PrivacyFlag.PURPOSE_LIMITATION.value,
+        PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+    ]
+
+    legal_flags = [
+        LegalFlag.PROPERTY_RECORD_REVIEW_REQUIRED.value,
+        LegalFlag.PERMIT_INTERPRETATION_LEGALINT.value,
+        LegalFlag.REGULATORY_LEGAL_REVIEW.value,
+        LegalFlag.HUMAN_REVIEW_FOR_CRITICAL_INFRA.value,
+    ]
+
+    limitations = [
+        "Local synthetic demo; no live property, GIS, permit, imagery, facility-management, or sensor access.",
+        "Lawful authorized defensive facility intelligence only.",
+        "No physical intrusion, bypass, sabotage, targeting, hostile reconnaissance, or security-control evasion was planned.",
+        "No private-person residence, employee routine, guard schedule, camera blind spot, or real-time occupancy was exposed.",
+        "Facility is not building; site is not parcel; address is not facility identity.",
+        "Owner is not operator; operator is not occupant; tenant is not property owner.",
+        "Permit is not completion; design capacity is not actual utilization.",
+        "Imagery is not real-time; visible change does not establish internal function.",
+        "Hazard exposure is not facility failure; documented resilience is not tested resilience.",
+        "Dependency analysis is for resilience/business continuity, not attack optimization.",
+        "Sensitive/critical facility details are withheld and require human review.",
+    ] + h.validation_errors
+
+    replay_manifest = {
+        "generated_at": now_iso(),
+        "pipeline_version": PIPELINE_VERSION,
+        "graph_version": graph_version_hash(h),
+        "core_principle": (
+            "FACILITY REFERENCE -> SITE RESOLUTION -> LOCATION VALIDATION -> OWNER / OPERATOR / OCCUPANT RESOLUTION -> "
+            "FACILITY TYPE -> FUNCTION -> SITE / BUILDING RELATIONSHIPS -> AUTHORIZED PHYSICAL CONTEXT -> DEPENDENCIES -> "
+            "ENVIRONMENTAL / RESILIENCE CONTEXT -> TEMPORAL VALIDATION -> SOURCE RELIABILITY -> SOURCE INDEPENDENCE -> "
+            "FACT GATE -> DEFENSIBLE FACILITY ASSESSMENT"
+        ),
+        "as_of": h.as_of,
+        "identity_rule": "Facility != building; site != parcel; address != facility; registered office != operational site.",
+        "relationship_rule": "Owner, operator, occupant, and tenant are separate time-bound relationships.",
+        "function_rule": "Facility type and imagery do not establish exact internal function or process topology.",
+        "temporal_rule": "Historical owner/operator/occupant/function/footprint must not contaminate current state.",
+        "imagery_rule": "Imagery capture date and staleness are preserved; archived imagery is not real-time.",
+        "dependency_rule": "Dependencies are modeled for resilience and business continuity, never as attack vectors.",
+        "hazard_rule": "Hazard exposure is not facility failure; mitigation and engineering evidence matter.",
+        "resilience_rule": "Documented resilience is not tested resilience.",
+        "security_rule": "Security observations are not converted into weaknesses, bypasses, blind spots, or targeting.",
+        "privacy_rule": "No private-person residence, employee routine, guard schedule, or real-time occupancy exposure.",
+        "policy_exclusions": [
+            "No physical intrusion planning.",
+            "No lock/badge/alarm/camera/guard bypass.",
+            "No sabotage or utility disruption planning.",
+            "No weapon targeting or hostile reconnaissance.",
+            "No private residence/person tracking.",
+            "No autonomous building-system control or physical action.",
+        ],
+        "source_lineage": source_families,
+        "finding_independence": finding_independence,
+    }
+
+    return {
+        "case_id": h.case.case_id,
+        "task_id": h.case.task_id,
+        "objective": h.case.objective,
+        "questions": h.case.questions,
+        "scope": h.case.scope,
+        "authorization": h.case.authorization,
+        "status": status.value,
+        "as_of": h.as_of,
+
+        "source_ids": sorted(h.sources.keys()),
+        "evidence_ids": sorted(h.evidence.keys()),
+
+        "facilities": list(h.facilities.values()),
+        "sites": list(h.sites.values()),
+        "campuses": [s for s in h.sites.values() if len(s.facility_ids) > 1],
+        "parcels": list(h.parcels.values()),
+        "buildings": list(h.buildings.values()),
+
+        "addresses": addresses,
+        "coordinates": coordinates,
+        "geospatial_precision": sorted({c.precision.value for c in coordinates}) if coordinates else [],
+
+        "facility_types": sorted({f.facility_type.value for f in h.facilities.values()}),
+        "property_owners": sorted({o for f in h.facilities.values() for o in f.owner_candidates}),
+        "operators": sorted({o for f in h.facilities.values() for o in f.operator_candidates}),
+        "occupants": sorted({o for f in h.facilities.values() for o in f.occupants}),
+        "tenants": sorted({t for f in h.facilities.values() for t in f.tenants}),
+
+        "facility_functions": {f.id: f.function for f in h.facilities.values()},
+        "functional_zones": {
+            "policy": "High-level functional zones only; no intrusion-routing, least-protected-route, or asset-access guidance."
+        },
+        "operating_status": {f.id: f.operating_status.value for f in h.facilities.values()},
+        "site_boundaries": {s.id: s.boundary_geometry for s in h.sites.values()},
+        "building_relationships": [
+            {"building_id": b.id, "site_id": b.site_id, "relationship": "PART_OF_SITE"}
+            for b in h.buildings.values()
+        ],
+        "site_areas": {s.id: s.site_area for s in h.sites.values()},
+        "floor_areas": {b.id: b.floor_area for b in h.buildings.values()},
+        "floor_counts": {b.id: b.floor_count for b in h.buildings.values()},
+        "capacity_claims": capacity_claims,
+
+        "construction_history": [ch for ch in changes if ch.change_type in {"CONSTRUCTION_START", "RENOVATION", "EXPANSION", "DEMOLITION"}],
+        "permit_context": permits,
+        "renovations": [ch for ch in changes if ch.change_type == "RENOVATION"],
+        "expansions": [ch for ch in changes if ch.change_type in {"EXPANSION", "CONSTRUCTION_START"}],
+        "demolitions": [ch for ch in changes if ch.change_type == "DEMOLITION"],
+        "facility_lifecycle": {
+            f.id: {
+                "opening_date": f.opening_date,
+                "closing_date": f.closing_date,
+                "operating_status": f.operating_status.value,
+                "changes": [ch.change_type for ch in f.changes],
+            }
+            for f in h.facilities.values()
+        },
+
+        "imagery_observations": imagery,
+        "satellite_observations": [x for x in imagery if "satellite" in str(x).lower()],
+        "change_detection": [ch for ch in changes if ch.change_type in {"CONSTRUCTION_START", "DEMOLITION", "EXPANSION", "RENOVATION"}],
+
+        "transport_context": {s.id: s.public_transport_context for s in h.sites.values()},
+        "logistics_context": {s.id: s.logistics_context for s in h.sites.values()},
+        "utility_dependencies": [d for d in dependencies if d.dep_type in {
+            DependencyType.POWER, DependencyType.WATER, DependencyType.TELECOM, DependencyType.GAS, DependencyType.FUEL
+        }],
+        "power_context": [d for d in dependencies if d.dep_type == DependencyType.POWER],
+        "water_context": [d for d in dependencies if d.dep_type == DependencyType.WATER],
+        "telecom_context": [d for d in dependencies if d.dep_type == DependencyType.TELECOM],
+        "network_context": [d for d in dependencies if d.dep_type == DependencyType.NETWORK],
+        "supplier_context": [d for d in dependencies if d.dep_type == DependencyType.SUPPLIER],
+        "asset_context": {
+            "policy": "Authorized asset context remains high-level; sensitive exact placement is withheld."
+        },
+        "capability_context": {
+            "policy": "Capability claims are source-bound; equipment presence does not prove operational capability."
+        },
+
+        "environmental_context": {s.id: s.environmental_context for s in h.sites.values()},
+        "natural_hazard_context": hazards,
+        "flood_context": [x for x in hazards if x.hazard_type == HazardType.FLOOD],
+        "earthquake_context": [x for x in hazards if x.hazard_type == HazardType.EARTHQUAKE],
+        "wildfire_context": [x for x in hazards if x.hazard_type == HazardType.WILDFIRE],
+        "storm_context": [x for x in hazards if x.hazard_type == HazardType.STORM],
+        "heat_context": [x for x in hazards if x.hazard_type == HazardType.HEAT],
+
+        "business_continuity_context": [r for r in resilience if r.control_type in {"alternate_site", "disaster_recovery", "backup_power", "telecom_redundancy"}],
+        "resilience_context": resilience,
+        "redundancy_context": [d.redundancy_state for d in dependencies],
+
+        "inspection_context": inspections,
+        "certification_context": certifications,
+        "incident_context": incidents,
+        "damage_context": [i.damage_state for i in incidents],
+        "recovery_context": [i.recovery_status for i in incidents],
+
+        "timeline_updates": build_timeline(h),
+        "observations": list(h.evidence.values()),
+
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+        "observed_facts": observed_facts,
+
+        "source_reliability": {sid: src.reliability for sid, src in h.sources.items()},
+        "source_bias": {sid: src.notes for sid, src in h.sources.items()},
+        "source_limitations": {sid: [src.notes] for sid, src in h.sources.items() if src.notes},
+        "source_pedigree": {sid: h.get_source_family(sid) for sid in h.sources},
+        "source_independence": {
+            "source_families": source_families,
+            "finding_independence": finding_independence,
+        },
+
+        "contradictions": h.contradictions,
+        "hypotheses": h.hypotheses,
+        "falsification_results": [
+            {
+                "hypothesis_id": hy.id,
+                "statement": hy.statement,
+                "kind": hy.kind,
+                "status": hy.status.value,
+                "confidence": hy.confidence,
+                "supporting_finding_ids": hy.supporting_finding_ids,
+                "contradicting_finding_ids": hy.contradicting_finding_ids,
+                "assumptions": hy.assumptions,
+                "predictions": hy.predictions,
+                "falsification_conditions": hy.falsification_conditions,
+                "limitations": hy.limitations,
+            }
+            for hy in h.hypotheses
+        ],
+
+        "sensitivity_flags": sensitivity_flags,
+        "privacy_flags": privacy_flags,
+        "legal_flags": legal_flags,
+
+        "unknowns": sorted(set(
+            [g.description for g in h.gaps]
+            + [hy.statement for hy in h.hypotheses if hy.status in {HypothesisStatus.UNRESOLVED, HypothesisStatus.DISPUTED}]
+        )),
+        "knowledge_gaps": h.gaps,
+        "recommended_next_actions": h.actions,
+        "specialist_handoffs": h.handoffs,
+        "recommendations": h.recommendations,
+        "limitations": limitations,
+
+        "analyst_summary": summary,
+        "dual_ai_review": dual,
+        "facility_graph": build_facility_graph(h),
+        "source_graph": build_source_graph(h),
+        "source_dependency_graph": source_families,
+        "replay_manifest": replay_manifest,
+    }
+
+
+# =====================================================================
+# PIPELINES
+# =====================================================================
+
+def run_sample_pipeline() -> Dict[str, Any]:
+    h = build_sample_facilityint()
+    return build_result(h, Status.PARTIAL)
+
+
+def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+    h = FacilityInt(case)
+
+    h.gaps.append(KnowledgeGap(
+        id="GAP-NO-FACILITY-EVIDENCE",
+        gap_type=GapType.FACILITY_IDENTITY_UNRESOLVED,
+        description=(
+            "No configured authorized/public facility corpus is available. "
+            "No facility, site, parcel, building, owner, operator, occupant, function, dependency, "
+            "hazard, incident, change, or resilience claim can be resolved."
+        ),
+        importance="HIGH",
+        recommended_source=(
+            "Provide authorized/public property records, GIS metadata, permits, organization disclosures, "
+            "licensed/public imagery, utility records, emergency-management hazard maps, inspection records, "
+            "and authorized facility-management summaries."
+        ),
+        specialist="FACILITYINT / GEOINT / CORPINT / OWNERSHIPINT / LEGALINT",
+        expected_information_value=0.95,
+    ))
+
+    h.actions = [NextAction(
+        id="ACT-CONFIGURE-FACILITY-EVIDENCE",
+        description=(
+            "Configure lawful public/authorized facility evidence or sanitized local corpus. "
+            "Do not plan intrusion, bypass, sabotage, targeting, hostile reconnaissance, private-person tracking, "
+            "or security-control evasion."
+        ),
+        priority=1,
+        privacy_impact="LOW",
+        expected_gain=0.95,
+        specialist=None,
+        requires_human_approval=False,
+    )]
+
+    h.handoffs = []
+    h.recommendations = []
+    h.hypotheses = []
+    h.contradictions = []
+
+    dual = {
+        "primary_facility_analyst": "No evidence available.",
+        "independent_facility_skeptic_issues": [
+            "No facility corpus configured.",
+            "No site/parcel/building resolved.",
+            "No owner/operator/occupant relationship can be assessed.",
+            "No dependency, hazard, incident, change, or resilience claim can be made.",
+            "No tactical security detail may be fabricated.",
+        ],
+        "verdict": "INSUFFICIENT_EVIDENCE",
+        "note": "AI agreement is not independent facility corroboration.",
+    }
+
+    summary = (
+        "FACILITYINT UNRESOLVED: No configured authorized/public facility corpus. "
+        "No facility, site, parcel, building, owner, operator, occupant, function, capacity, dependency, "
+        "hazard, incident, resilience, intrusion route, sabotage plan, or targeting data was fabricated. "
+        "Provide lawful evidence or run sample mode."
+    )
+
+    result = build_result(h, Status.BLOCKED_CONFIGURATION)
+    result["analyst_summary"] = summary
+    result["dual_ai_review"] = dual
+    return result
+
+
+def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "task_id": case.task_id,
+        "objective": case.objective,
+        "questions": case.questions,
+        "status": Status.BLOCKED_POLICY.value,
+        "policy_violations": violations,
+        "message": (
+            "Prohibited facility-intelligence request detected. FACILITYINT supports lawful, authorized, "
+            "defensive, evidence-first facility and site intelligence only. It does not plan physical intrusion, "
+            "covert entry, lock/badge/alarm/camera/guard bypass, sabotage, power/water/telecom disruption, "
+            "weapon targeting, hostile reconnaissance, private-person tracking, or security-control evasion."
+        ),
+        "lawful_alternatives": [
+            "Resolve facility/site/parcel/building identity from public/authorized records.",
+            "Separate owner, operator, occupant, and tenant relationships.",
+            "Assess high-level function, capacity basis, construction lifecycle, and temporal changes.",
+            "Analyze utility/logistics dependencies for resilience and business continuity only.",
+            "Compare hazard exposure with mitigation, inspections, and emergency planning.",
+            "Use imagery for change detection with capture-date discipline; do not treat as real-time.",
+            "Withhold sensitive security/control topology and route critical/sensitive cases to human review.",
+            "Hand network/OT/supply-chain/legal questions to appropriate specialists.",
+        ],
+        "sensitivity_flags": [
+            SensitivityFlag.SECURITY_CONTROL_DETAILS
+            def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "task_id": case.task_id,
+        "objective": case.objective,
+        "questions": case.questions,
+        "scope": case.scope,
+        "authorization": case.authorization,
+        "status": Status.BLOCKED_POLICY.value,
+        "as_of": case.as_of,
+
+        "policy_violations": violations,
+        "message": (
+            "Prohibited facility-intelligence request detected. FACILITYINT supports lawful, authorized, "
+            "defensive, evidence-first facility and site intelligence only. It does not plan physical intrusion, "
+            "covert entry, lock/badge/alarm/camera/guard bypass, sabotage, power/water/telecom disruption, "
+            "weapon targeting, hostile reconnaissance, private-person tracking, or security-control evasion."
+        ),
+
+        "lawful_alternatives": [
+            "Resolve facility/site/parcel/building identity from public or authorized records.",
+            "Separate owner, operator, occupant, and tenant relationships.",
+            "Assess high-level function, capacity basis, construction lifecycle, and temporal changes.",
+            "Analyze utility/logistics dependencies for resilience and business continuity only.",
+            "Compare hazard exposure with mitigation, inspections, and emergency planning.",
+            "Use imagery for change detection with capture-date discipline; do not treat archived imagery as real-time.",
+            "Withhold sensitive security/control topology and route critical/sensitive cases to human review.",
+            "Hand network/OT/supply-chain/legal questions to appropriate specialists.",
+        ],
+
+        "sensitivity_flags": [
+            SensitivityFlag.SECURITY_CONTROL_DETAILS_WITHHELD.value,
+            SensitivityFlag.CRITICAL_INFRASTRUCTURE_HIGH_LEVEL_ONLY.value,
+            SensitivityFlag.NON_PUBLIC_PLANS_RESTRICTED.value,
+            SensitivityFlag.PRIVATE_RESIDENCE_EXCLUDED.value,
+            SensitivityFlag.TACTICAL_ROUTE_ANALYSIS_WITHHELD.value,
+        ],
+
+        "privacy_flags": [
+            PrivacyFlag.CASE_SCOPED.value,
+            PrivacyFlag.NO_PRIVATE_PERSON_LOCATION.value,
+            PrivacyFlag.NO_EMPLOYEE_ROUTINE.value,
+            PrivacyFlag.NO_REALTIME_OCCUPANCY.value,
+            PrivacyFlag.PURPOSE_LIMITATION.value,
+            PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+        ],
+
+        "legal_flags": [
+            LegalFlag.PROPERTY_RECORD_REVIEW_REQUIRED.value,
+            LegalFlag.PERMIT_INTERPRETATION_LEGALINT.value,
+            LegalFlag.REGULATORY_LEGAL_REVIEW.value,
+            LegalFlag.HUMAN_REVIEW_FOR_CRITICAL_INFRA.value,
+        ],
+
+        "unknowns": [
+            "No facility-intelligence analysis was performed because the request violated lawful defensive boundaries.",
+            "No facility, site, parcel, building, owner, operator, occupant, function, dependency, hazard, incident, or resilience claim was fabricated.",
+        ],
+
+        "knowledge_gaps": [
+            {
+                "id": "GAP-POLICY-BLOCK",
+                "gap_type": GapType.FACILITY_IDENTITY_UNRESOLVED.value,
+                "description": "Request blocked due to prohibited physical-intrusion, sabotage, targeting, or security-evasion intent.",
+                "about_subject_ids": [],
+                "about_finding_ids": [],
+                "importance": "HIGH",
+                "recommended_source": "Lawful authorized defensive facility records only.",
+                "specialist": "FACILITYINT / HUMAN_REVIEW",
+                "expected_information_value": 0.0,
+            }
+        ],
+
+        "recommended_next_actions": [
+            {
+                "id": "ACT-LAWFUL-FACILITY-SCOPE",
+                "description": "Restate the objective as lawful defensive facility identity, resilience, compliance, safety, or business-continuity analysis.",
+                "priority": 1,
+                "privacy_impact": "LOW",
+                "expected_gain": 0.90,
+                "specialist": "FACILITYINT",
+                "requires_human_approval": False,
+            },
+            {
+                "id": "ACT-NO-PHYSICAL-TESTING",
+                "description": "Do not test physical access, probe guards, walk perimeter deceptively, map blind spots, disable systems, or enter property.",
+                "priority": 99,
+                "privacy_impact": "PROTECTIVE",
+                "expected_gain": 0.0,
+                "specialist": None,
+                "requires_human_approval": False,
+            },
+        ],
+
+        "specialist_handoffs": [
+            {"specialist": "LEGALINT", "reason": "Property, permit, zoning, regulatory, and liability review where consequential."},
+            {"specialist": "HUMAN_FACILITY_SAFETY", "reason": "Critical or sensitive facility decisions require qualified human review."},
+        ],
+
+        "limitations": [
+            "No facility-intelligence analysis performed.",
+            "No facility, site, parcel, building, owner, operator, occupant, function, capacity, dependency, hazard, incident, or resilience claim was fabricated.",
+            "No physical intrusion, bypass, sabotage, targeting, hostile reconnaissance, private-person tracking, or security-control evasion was planned.",
+            "No non-public floor plan, access-control detail, guard schedule, camera blind spot, or tactical route was exposed.",
+        ],
+
+        "analyst_summary": (
+            "FACILITYINT POLICY BLOCKED: Request involved prohibited physical-intrusion, sabotage, targeting, "
+            "privacy-violating, or security-evasion intent. Safe lawful defensive facility intelligence remains available: "
+            "facility identity, site/parcel/building resolution, owner/operator/occupant separation, high-level function, "
+            "dependencies for resilience, hazard exposure, incident history, change detection, and human-governed safety/compliance analysis."
+        ),
+
+        "dual_ai_review": {
+            "primary_facility_analyst": "Request blocked by policy guard.",
+            "independent_facility_skeptic_issues": [
+                "No lawful defensive facility analysis can proceed under prohibited intent.",
+                "No tactical security detail may be produced.",
+                "No private-person location or routine may be exposed.",
+                "No dependency analysis may be converted into disruption guidance.",
+            ],
+            "verdict": "BLOCKED_POLICY",
+            "note": "AI agreement is irrelevant when the request violates lawful defensive boundaries.",
+        },
+
+        "replay_manifest": {
+            "generated_at": now_iso(),
+            "pipeline_version": PIPELINE_VERSION,
+            "core_principle": (
+                "LAWFUL AUTHORIZED DEFENSIVE FACILITY INTELLIGENCE ONLY: "
+                "resolve identity, separate relationships, verify function, preserve time, model resilience, "
+                "withhold tactical detail, and route consequential decisions to humans."
+            ),
+            "as_of": case.as_of,
+            "policy_exclusions": [
+                "No physical intrusion planning.",
+                "No lock/badge/alarm/camera/guard bypass.",
+                "No sabotage or utility disruption planning.",
+                "No weapon targeting or hostile reconnaissance.",
+                "No private residence/person tracking.",
+                "No autonomous building-system control or physical action.",
+            ],
+        },
+    }
+
+
+def run_pipeline(case: Case) -> Dict[str, Any]:
+    text = " ".join(
+        [
+            case.objective,
+            *case.questions,
+            *case.facility_names,
+            *case.organization_names,
+            *case.addresses,
+            *case.coordinates,
+            *case.parcels,
+            *case.buildings,
+            *case.campuses,
+            case.time_range or "",
+            case.authorization or "",
+            " ".join(case.scope),
+        ]
+    )
+
+    violations = policy_guard(text)
+    if violations:
+        return blocked_policy_result(case, violations)
+
+    if case.sample:
+        return run_sample_pipeline()
+
+    return run_unconfigured_pipeline(case)
+
+
+# =====================================================================
+# CLI
+# =====================================================================
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS FACILITYINT local lawful defensive facility & site intelligence pipeline. "
+            "Sample mode uses synthetic authorized/public-style facility, parcel, building, imagery, "
+            "utility, hazard, inspection, and facility-management metadata."
+        )
+    )
+    parser.add_argument("--sample", action="store_true", help="Run built-in synthetic FACILITYINT sample.")
+    parser.add_argument("--objective", help="Lawful defensive facility-intelligence objective.")
+    parser.add_argument("--question", action="append", default=[], help="Analytic question. Repeatable.")
+    parser.add_argument("--facility", action="append", default=[], help="Facility name. Repeatable.")
+    parser.add_argument("--organization", action="append", default=[], help="Organization name. Repeatable.")
+    parser.add_argument("--address", action="append", default=[], help="Address hint. Repeatable.")
+    parser.add_argument("--coordinate", action="append", default=[], help="Coordinate hint. Repeatable.")
+    parser.add_argument("--parcel", action="append", default=[], help="Parcel identifier. Repeatable.")
+    parser.add_argument("--building", action="append", default=[], help="Building identifier/name. Repeatable.")
+    parser.add_argument("--campus", action="append", default=[], help="Campus identifier/name. Repeatable.")
+    parser.add_argument("--time-range", help="Time range hint.")
+    parser.add_argument("--as-of", default=DEFAULT_AS_OF, help="Analysis as-of timestamp.")
+
+    args = parser.parse_args()
+
+    if args.sample or not args.objective:
+        case = sample_case()
+    else:
+        case = Case(
+            case_id=new_id("CASE-", args.objective),
+            task_id=new_id("TASK-", args.objective),
+            objective=args.objective,
+            questions=args.question,
+            facility_names=args.facility,
+            organization_names=args.organization,
+            addresses=args.address,
+            coordinates=args.coordinate,
+            parcels=args.parcel,
+            buildings=args.building,
+            campuses=args.campus,
+            time_range=args.time_range,
+            as_of=args.as_of,
+            sample=False,
+        )
+
+    result = run_pipeline(case)
+    print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+    

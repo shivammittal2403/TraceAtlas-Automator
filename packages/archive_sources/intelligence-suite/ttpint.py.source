@@ -1,0 +1,4365 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+import json
+import re
+import csv
+import hashlib
+import uuid
+
+from collections import defaultdict, Counter
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+
+APP_TITLE = "TraceAtlas TTPINT AI Employee — Defensive / Authorized TTP Intelligence Panel"
+APP_VERSION = "TraceAtlas TTPINT Panel v0.1"
+
+
+FIELDS = [
+    ("case_id", "Case ID", "entry"),
+    ("task_id", "Task ID", "entry"),
+    ("objective", "Objective", "text"),
+    ("target", "Target / Behavior / Report / ATT&CK Context", "entry"),
+    ("target_type", "Target Type", "combo"),
+    ("questions", "TTPINT Questions", "text"),
+
+    ("report_paths", "General Threat / Behavior Report Paths", "text"),
+    ("incident_report_paths", "Incident Report Paths", "text"),
+    ("malware_report_paths", "Malware Report Paths", "text"),
+    ("actor_report_paths", "Actor / Campaign Report Paths", "text"),
+    ("campaign_report_paths", "Campaign / Operation Report Paths", "text"),
+    ("tool_report_paths", "Tool / Utility Report Paths", "text"),
+    ("telemetry_paths", "Authorized Telemetry / Log Export Paths", "text"),
+    ("detection_rule_paths", "Detection Rule / Alert Export Paths", "text"),
+    ("sigma_paths", "Sigma Rule Paths", "text"),
+    ("yara_paths", "YARA Rule / Metadata Paths", "text"),
+    ("mitre_attack_data_paths", "MITRE ATT&CK Dataset / Mapping Paths", "text"),
+    ("stix_paths", "STIX Package Paths", "text"),
+    ("misp_paths", "MISP Event Paths", "text"),
+
+    ("attack_techniques", "Known ATT&CK Technique / Sub-technique IDs", "text"),
+    ("attack_version", "ATT&CK Version", "entry"),
+    ("time_range", "Time Range", "text"),
+    ("jurisdiction", "Jurisdiction", "entry"),
+    ("scope", "Scope / Allowed Sources", "text"),
+    ("authorization", "Authorization Basis", "text"),
+    ("source_limits", "Source Limits / Safety Limits", "text"),
+    ("budget", "Budget", "entry"),
+    ("deadline", "Deadline", "entry"),
+    ("configured_connectors", "Configured Connectors (ATT&CK/STIX/TAXII/MISP/SIEM/EDR/NDR/etc.)", "text"),
+]
+
+
+TARGET_TYPES = [
+    "behavior_report",
+    "procedure_report",
+    "attck_mapping",
+    "mitre_dataset",
+    "telemetry_export",
+    "detection_rule",
+    "sigma_rule",
+    "yara_rule",
+    "incident_report",
+    "malware_report",
+    "actor_report",
+    "campaign_report",
+    "tool_report",
+    "stix_package",
+    "misp_event",
+    "unknown",
+]
+
+
+LIST_FIELDS = {
+    "questions",
+    "report_paths",
+    "incident_report_paths",
+    "malware_report_paths",
+    "actor_report_paths",
+    "campaign_report_paths",
+    "tool_report_paths",
+    "telemetry_paths",
+    "detection_rule_paths",
+    "sigma_paths",
+    "yara_paths",
+    "mitre_attack_data_paths",
+    "stix_paths",
+    "misp_paths",
+    "attack_techniques",
+    "source_limits",
+    "configured_connectors",
+}
+
+
+DICT_FIELDS = {
+    "scope",
+    "authorization",
+    "time_range",
+}
+
+
+SENSITIVE_TARGET_TYPES = {
+    "incident_report",
+    "malware_report",
+    "actor_report",
+    "campaign_report",
+    "telemetry_export",
+    "detection_rule",
+    "sigma_rule",
+    "yara_rule",
+    "stix_package",
+    "misp_event",
+}
+
+
+POLICY_BLOCK_PATTERNS = [
+    r"\b(?:generate|create|provide|write|develop|build|design)\b[^\n]{0,120}\b(?:attack playbook|intrusion procedure|target-specific attack sequence|credential theft procedure|persistence deployment procedure|privilege escalation procedure|defense evasion optimization|edr bypass|av bypass|sandbox evasion|log clearing|log destruction|malware|phishing operation|destructive procedure|c2 deployment)\b",
+    r"\b(?:execute|run|perform|deploy|implement)\b[^\n]{0,100}\b(?:technique|attack|exploit|malware|payload|c2|persistence|credential theft|privilege escalation|defense evasion)\b",
+    r"\b(?:unauthorized|illegal|covert|without authorization)\b[^\n]{0,100}\b(?:testing|scan|scan target|intrusion|exploitation|enumeration)\b",
+    r"\b(?:bypass|defeat|disable|evade)\b[^\n]{0,100}\b(?:edr|av|antivirus|sandbox|detection|logging|audit|monitoring|security control)\b",
+    r"\b(?:clear|delete|wipe|destroy)\b[^\n]{0,100}\b(?:log|logs|event log|audit trail|telemetry)\b",
+    r"\b(?:attack chain|kill chain)\b[^\n]{0,100}\b(?:execute|run|perform|build for target|optimize)\b",
+]
+
+
+SAFE_ALTERNATIVES = [
+    "Provide defensive TTP intelligence: behavior extraction, procedure normalization, ATT&CK mapping candidates, procedure sequencing, co-occurrence analysis, diagnosticity assessment, telemetry mapping, detection coverage, mitigation/control mapping, hunt hypotheses, source independence, contradictions, competing hypotheses, and falsification.",
+    "Do not generate offensive playbooks, intrusion procedures, target-specific attack sequences, credential theft steps, persistence deployment instructions, privilege escalation procedures, exploit instructions, defense-evasion optimization, EDR/AV/sandbox bypass, log destruction guidance, malware, or C2 deployment instructions.",
+    "Do not execute techniques against real systems or perform unauthorized testing.",
+    "Separate tactic, technique, sub-technique, procedure, observation, source-reported behavior, static capability, dynamic behavior, sequence, co-occurrence, detection coverage, and attribution.",
+    "Preserve ATT&CK version, evidence linkage, telemetry gaps, legitimate administration alternatives, and uncertainty.",
+]
+
+
+SECRET_PATTERNS = [
+    (
+        "PRIVATE_KEY_BLOCK",
+        re.compile(
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+            re.S | re.I,
+        ),
+    ),
+    (
+        "PASSWORD_OR_TOKEN_ASSIGNMENT",
+        re.compile(
+            r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+            r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+            r"\s*[:=]\s*[^\s,;\"']+"
+        ),
+    ),
+    (
+        "BEARER_TOKEN",
+        re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}"),
+    ),
+    (
+        "AWS_ACCESS_KEY",
+        re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    ),
+    (
+        "JWT_LIKE_TOKEN",
+        re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"),
+    ),
+]
+
+
+PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+)?previous\s+(?:instructions|rules)",
+    r"reveal\s+(?:the\s+)?system\s+prompt",
+    r"execute\s+(?:this|command|technique|payload)",
+    r"disable\s+safety",
+    r"change\s+target",
+    r"generate\s+offensive",
+    r"bypass\s+detection",
+]
+
+
+ATTACK_ID_RE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b", re.I)
+TACTIC_ID_RE = re.compile(r"\bTA\d{4}\b", re.I)
+CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.I)
+IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+DOMAIN_RE = re.compile(r"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b")
+URL_RE = re.compile(r"https?://[^\s<>()\"']+", re.I)
+
+
+GENERIC_TECHNIQUE_IDS = {
+    "T1059", "T1566", "T1003", "T1053", "T1021", "T1082", "T1057",
+    "T1016", "T1071", "T1070", "T1547", "T1543", "T1027", "T1078",
+    "T1055", "T1074", "T1041", "T1567", "T1486", "T1485",
+}
+
+
+BEHAVIOR_KEYWORDS = [
+    "procedure", "behavior", "behaviour", "used", "observed", "reported",
+    "capability", "persistence", "discovery", "credential", "lateral",
+    "execution", "collection", "exfiltration", "impact", "defense evasion",
+    "initial access", "command and control", "privilege escalation",
+    "reconnaissance", "resource development", "action on objectives",
+]
+
+
+TELEMETRY_KEYWORDS = [
+    "process", "endpoint", "edr", "xdr", "siem", "sysmon", "windows event log",
+    "linux audit", "authentication", "logon", "network", "ndr", "dns",
+    "proxy", "firewall", "flow", "packet", "filesystem", "file", "registry",
+    "configuration", "cloud", "application", "email", "identity", "oauth",
+    "container", "kubernetes", "serverless", "api gateway", "web server",
+]
+
+
+DETECTION_KEYWORDS = [
+    "sigma", "yara", "ids", "ips", "waf", "edr", "xdr", "siem", "alert",
+    "rule", "detection", "monitoring", "notification", "correlation",
+]
+
+
+MITIGATION_KEYWORDS = [
+    "mfa", "multi-factor", "segmentation", "network segmentation",
+    "application control", "allowlisting", "least privilege", "hardening",
+    "patching", "patch management", "logging", "audit", "email security",
+    "identity protection", "conditional access", " privileged access management",
+    "endpoint protection", "dns filtering", "proxy filtering", "backup",
+    "recovery", "incident response", "vulnerability management",
+]
+
+
+BINARY_SUFFIXES = {
+    ".exe", ".dll", ".sys", ".elf", ".so", ".dylib", ".bin", ".fw", ".img",
+    ".iso", ".apk", ".jar", ".class", ".zip", ".gz", ".tar", ".7z", ".rar",
+    ".pcap", ".pcapng", ".cap", ".msi", ".cab",
+}
+
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def normalize_key(value: Any) -> str:
+    s = str(value or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    return s.strip("_")
+
+
+def safe_str(value: Any, limit: int = 200) -> str:
+    return redact_secrets(str(value or ""))[0].strip()[:limit]
+
+
+def parse_list(value: str) -> List[Any]:
+    value = str(value or "").strip()
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return [parsed]
+    except Exception:
+        pass
+
+    normalized = value.replace(",", "\n")
+    parts = [p.strip() for p in normalized.splitlines()]
+    return [p for p in parts if p]
+
+
+def parse_dict(value: str) -> Dict[str, Any]:
+    value = str(value or "").strip()
+    if not value:
+        return {}
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    result: Dict[str, Any] = {}
+    for line in value.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        result[key.strip()] = val.strip()
+    return result
+
+
+def listify(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    return [value]
+
+
+def first(items: List[Any]) -> Optional[Any]:
+    return items[0] if items else None
+
+
+def unique_preserve_order(items: List[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        key = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str) if isinstance(item, (dict, list)) else str(item)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def truncate_list(items: List[Any], limit: int) -> Tuple[List[Any], bool]:
+    if len(items) <= limit:
+        return items, False
+    return items[:limit], True
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def redact_secrets(text: str) -> Tuple[str, List[str]]:
+    flags: List[str] = []
+    if not text:
+        return "", flags
+
+    out = text
+    for name, rx in SECRET_PATTERNS:
+        if rx.search(out):
+            flags.append(name)
+            out = rx.sub("[REDACTED_SECRET]", out)
+
+    return out, sorted(set(flags))
+
+
+def detect_prompt_injection(text: str) -> List[str]:
+    flags: List[str] = []
+    low = normalize_text(text)
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        if re.search(pattern, low, re.I):
+            flags.append(pattern)
+    return sorted(set(flags))
+
+
+def valid_attack_id(value: Any) -> bool:
+    return bool(ATTACK_ID_RE.fullmatch(str(value or "").strip().upper()))
+
+
+def valid_tactic_id(value: Any) -> bool:
+    return bool(TACTIC_ID_RE.fullmatch(str(value or "").strip().upper()))
+
+
+def normalize_attack_id(value: Any) -> Optional[str]:
+    s = str(value or "").strip().upper()
+    return s if valid_attack_id(s) else None
+
+
+def normalize_tactic_id(value: Any) -> Optional[str]:
+    s = str(value or "").strip().upper()
+    return s if valid_tactic_id(s) else None
+
+
+def extract_attack_ids(text: str) -> Tuple[List[str], List[str], List[str]]:
+    ids = [m.upper() for m in ATTACK_ID_RE.findall(text or "")]
+    techniques: List[str] = []
+    subtechniques: List[str] = []
+
+    for item in unique_preserve_order(ids):
+        if "." in item:
+            subtechniques.append(item)
+        else:
+            techniques.append(item)
+
+    tactics = [m.upper() for m in TACTIC_ID_RE.findall(text or "")]
+    return techniques, subtechniques, unique_preserve_order(tactics)
+
+
+def parse_datetime(value: Any) -> Optional[datetime]:
+    if value in (None, ""):
+        return None
+
+    s = str(value).strip()
+    if not s:
+        return None
+
+    s = s.replace("Z", "+00:00")
+
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+        except Exception:
+            pass
+
+    return None
+
+
+def get_field(rec: Dict[str, Any], keys: List[str]) -> Any:
+    if not isinstance(rec, dict):
+        return None
+
+    lower = {normalize_key(k): v for k, v in rec.items()}
+    for key in keys:
+        nk = normalize_key(key)
+        if nk in lower and lower[nk] not in (None, ""):
+            val = lower[nk]
+            if isinstance(val, list):
+                return val[0] if val else None
+            return val
+    return None
+
+
+def extract_temporal(rec: Dict[str, Any]) -> Dict[str, str]:
+    temporal: Dict[str, str] = {}
+    mappings = {
+        "first_seen": ["first_seen", "firstseen", "first_observed", "created", "start_time", "start"],
+        "last_seen": ["last_seen", "lastseen", "last_observed", "updated", "end_time", "end", "modified"],
+        "observed_at": ["observed_at", "observedat", "timestamp", "time", "observed"],
+        "published_at": ["published_at", "publishedat", "publication_date", "published"],
+        "retrieved_at": ["retrieved_at", "retrievedat", "collected_at"],
+    }
+
+    for canonical, aliases in mappings.items():
+        val = get_field(rec, aliases)
+        if val not in (None, ""):
+            temporal[canonical] = str(val)
+
+    return temporal
+
+
+def collect_tags(rec: Dict[str, Any]) -> List[str]:
+    tags: List[str] = []
+
+    for key in ["tags", "labels", "markings", "x_misp_tags", "tag", "label"]:
+        val = rec.get(key)
+        for item in listify(val):
+            if isinstance(item, dict):
+                name = item.get("name") or item.get("value") or item.get("label")
+                if name:
+                    tags.append(str(name))
+            elif item not in (None, ""):
+                tags.append(str(item))
+
+    return unique_preserve_order(tags)[:200]
+
+
+def ref_from_obj(obj: Any) -> str:
+    if isinstance(obj, dict):
+        return str(obj.get("procedure_id") or obj.get("behavior_id") or obj.get("id") or safe_str(obj, 200))
+    return safe_str(obj, 200)
+
+
+def empty_parsed() -> Dict[str, Any]:
+    return {
+        "behaviors": [],
+        "procedures": [],
+        "mappings": [],
+        "sequences": [],
+        "cooccurrences": [],
+        "telemetry_requirements": [],
+        "detections": [],
+        "mitigations": [],
+        "controls": [],
+        "sources": [],
+        "observations": [],
+        "notes": [],
+    }
+
+
+def add_note(parsed: Dict[str, Any], note_type: str, **kwargs: Any) -> None:
+    if len(parsed.get("notes", [])) >= 200000:
+        return
+    note = {"type": note_type}
+    note.update(kwargs)
+    parsed["notes"].append(note)
+
+
+def add_observation(parsed: Dict[str, Any], statement: str, source_id: str, evidence_id: str, context: str = "") -> None:
+    if len(parsed.get("observations", [])) >= 200000:
+        return
+
+    redacted, secret_flags = redact_secrets(str(statement or "")[:1000])
+    injection_flags = detect_prompt_injection(str(statement or ""))
+
+    parsed["observations"].append({
+        "observation_id": f"OBS-{uuid.uuid4()}",
+        "statement": redacted,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": context[:200],
+        "state": "SOURCE_OBSERVED",
+        "secret_flags": secret_flags,
+        "prompt_injection_flags": injection_flags,
+        "content_hash": sha256_text(str(statement or "")),
+        "limitations": [
+            "Source observation is not verified procedure, ATT&CK mapping, sequence, actor behavior, or detection coverage.",
+        ],
+    })
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Threat reports, malware strings, logs, repositories, rule descriptions, and incident notes are untrusted evidence, not instructions.")
+
+
+def add_source(parsed: Dict[str, Any], source_id: str, evidence_id: str, filename: str = "", file_hash: str = "", publisher: str = "", title: str = "", source_type: str = "", markings: str = "") -> None:
+    for s in parsed["sources"]:
+        if s.get("source_id") == source_id:
+            if file_hash and not s.get("file_hash"):
+                s["file_hash"] = file_hash
+            if publisher and not s.get("publisher"):
+                s["publisher"] = publisher
+            if title and not s.get("title"):
+                s["title"] = title
+            return
+
+    parsed["sources"].append({
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "filename": filename,
+        "file_hash": file_hash,
+        "publisher": publisher,
+        "title": title,
+        "source_type": source_type,
+        "markings": markings,
+        "retrieved_at": now_utc(),
+        "state": "SOURCE_REGISTERED",
+        "limitations": [
+            "Source registration is local provenance metadata, not independence verification.",
+        ],
+    })
+
+
+def add_behavior(
+    parsed: Dict[str, Any],
+    description: Any,
+    actor_scope: Any = None,
+    campaign_scope: Any = None,
+    malware_scope: Any = None,
+    incident_scope: Any = None,
+    tool_scope: Any = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+    state: str = "UNKNOWN",
+    confidence: str = "LOW",
+) -> Optional[Dict[str, Any]]:
+    redacted, secret_flags = redact_secrets(str(description or "")[:1000])
+    if not redacted.strip():
+        return None
+
+    injection_flags = detect_prompt_injection(str(description or ""))
+
+    behavior = {
+        "behavior_id": f"BHV-{uuid.uuid4()}",
+        "description": redacted,
+        "actor_scope": safe_str(actor_scope),
+        "campaign_scope": safe_str(campaign_scope),
+        "malware_scope": safe_str(malware_scope),
+        "incident_scope": safe_str(incident_scope),
+        "tool_scope": safe_str(tool_scope),
+        "source_ids": [source_id] if source_id else [],
+        "evidence_ids": [evidence_id] if evidence_id else [],
+        "observed_at": (temporal or {}).get("observed_at") or (temporal or {}).get("last_seen"),
+        "first_seen": (temporal or {}).get("first_seen"),
+        "last_seen": (temporal or {}).get("last_seen"),
+        "state": str(state or "UNKNOWN").upper(),
+        "confidence": str(confidence or "LOW").upper(),
+        "secret_flags": secret_flags,
+        "prompt_injection_flags": injection_flags,
+        "content_hash": sha256_text(redacted),
+        "limitations": [
+            "Behavior description is source-derived and may be textual, reported, inferred, or capability-level.",
+            "Behavior is not automatically an observed procedure, ATT&CK mapping, actor behavior, or incident fact.",
+        ],
+    }
+
+    parsed["behaviors"].append(behavior)
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context="behavior")
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context="behavior")
+
+    return behavior
+
+
+def add_procedure(
+    parsed: Dict[str, Any],
+    summary: Any,
+    behavior_id: Optional[str] = None,
+    subject_entity: Any = None,
+    action: Any = None,
+    object_entity: Any = None,
+    environment: Any = None,
+    preconditions: Any = None,
+    result: Any = None,
+    actor_scope: Any = None,
+    campaign_scope: Any = None,
+    malware_scope: Any = None,
+    incident_scope: Any = None,
+    tool_scope: Any = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+    state: str = "SOURCE_REPORTED",
+    confidence: str = "LOW",
+) -> Optional[Dict[str, Any]]:
+    redacted_summary, secret_flags = redact_secrets(str(summary or "")[:500])
+    if not redacted_summary.strip():
+        return None
+
+    injection_flags = detect_prompt_injection(str(summary or ""))
+
+    procedure = {
+        "procedure_id": f"PRC-{uuid.uuid4()}",
+        "behavior_id": behavior_id,
+        "procedure_summary": redacted_summary,
+        "subject_entity": safe_str(subject_entity),
+        "action": safe_str(action),
+        "object_entity": safe_str(object_entity),
+        "environment": safe_str(environment),
+        "preconditions": safe_str(preconditions),
+        "result": safe_str(result),
+        "actor_scope": safe_str(actor_scope),
+        "campaign_scope": safe_str(campaign_scope),
+        "malware_scope": safe_str(malware_scope),
+        "incident_scope": safe_str(incident_scope),
+        "tool_scope": safe_str(tool_scope),
+        "source_ids": [source_id] if source_id else [],
+        "evidence_ids": [evidence_id] if evidence_id else [],
+        "time": (temporal or {}).get("observed_at") or (temporal or {}).get("last_seen"),
+        "first_seen": (temporal or {}).get("first_seen"),
+        "last_seen": (temporal or {}).get("last_seen"),
+        "state": str(state or "SOURCE_REPORTED").upper(),
+        "confidence": str(confidence or "LOW").upper(),
+        "secret_flags": secret_flags,
+        "prompt_injection_flags": injection_flags,
+        "content_hash": sha256_text(redacted_summary),
+        "limitations": [
+            "Procedure summary is evidence-linked behavioral abstraction, not offensive instruction.",
+            "Procedure does not automatically prove actor, campaign, malware variant, incident execution, or sequence.",
+        ],
+    }
+
+    parsed["procedures"].append(procedure)
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context="procedure")
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context="procedure")
+
+    return procedure
+
+
+def add_mapping(
+    parsed: Dict[str, Any],
+    procedure_id: Optional[str] = None,
+    procedure_summary: Any = None,
+    tactic_id: Any = None,
+    tactic_name: Any = None,
+    technique_id: Any = None,
+    technique_name: Any = None,
+    subtechnique_id: Any = None,
+    subtechnique_name: Any = None,
+    matrix: Any = "Enterprise",
+    attack_version: Any = "UNKNOWN",
+    mapping_status: Any = "CANDIDATE",
+    confidence: Any = "LOW",
+    rationale: Any = "",
+    evidence_ids: Optional[List[str]] = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    tech = normalize_attack_id(technique_id)
+    sub = normalize_attack_id(subtechnique_id)
+    tact = normalize_tactic_id(tactic_id)
+
+    if sub and not tech:
+        tech = sub.split(".")[0]
+
+    raw_technique = safe_str(technique_id, 50)
+    raw_subtechnique = safe_str(subtechnique_id, 50)
+    raw_tactic = safe_str(tactic_id, 50)
+
+    status = str(mapping_status or "CANDIDATE").upper()
+    notes: List[str] = []
+
+    if technique_id and not tech:
+        status = "UNSUPPORTED"
+        notes.append("Invalid ATT&CK technique ID syntax.")
+    if subtechnique_id and not sub:
+        status = "UNSUPPORTED"
+        notes.append("Invalid ATT&CK sub-technique ID syntax.")
+    if tactic_id and not tact:
+        notes.append("Tactic ID not validated; preserved as raw context.")
+
+    mapping = {
+        "mapping_id": f"MAP-{uuid.uuid4()}",
+        "procedure_id": procedure_id,
+        "procedure_summary": safe_str(procedure_summary, 300),
+        "matrix": safe_str(matrix, 50) or "Enterprise",
+        "tactic_id": tact,
+        "tactic_raw": raw_tactic,
+        "tactic_name": safe_str(tactic_name, 200),
+        "technique_id": tech,
+        "technique_raw": raw_technique,
+        "technique_name": safe_str(technique_name, 200),
+        "subtechnique_id": sub,
+        "subtechnique_raw": raw_subtechnique,
+        "subtechnique_name": safe_str(subtechnique_name, 200),
+        "attack_version": safe_str(attack_version, 50) or "UNKNOWN",
+        "mapping_status": status,
+        "confidence": str(confidence or "LOW").upper(),
+        "rationale": safe_str(rationale, 500),
+        "evidence_ids": evidence_ids or ([evidence_id] if evidence_id else []),
+        "source_id": source_id,
+        "temporal": temporal or {},
+        "validation_notes": notes,
+        "limitations": [
+            "ATT&CK mapping is analytical and evidence-dependent.",
+            "Technique ID presence alone is not procedure evidence.",
+            "Sub-technique mapping requires specificity evidence; otherwise broader mapping is preferred.",
+            "ATT&CK version must be preserved.",
+        ],
+    }
+
+    parsed["mappings"].append(mapping)
+    return mapping
+
+
+def add_sequence(
+    parsed: Dict[str, Any],
+    before: Any,
+    after: Any,
+    relation: Any = "PRECEDES",
+    scope: Any = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+    confidence: Any = "LOW",
+    state: Any = "INFERRED_SEQUENCE",
+) -> Optional[Dict[str, Any]]:
+    before_ref = ref_from_obj(before)
+    after_ref = ref_from_obj(after)
+
+    if not before_ref or not after_ref:
+        return None
+
+    sequence = {
+        "sequence_id": f"SEQ-{uuid.uuid4()}",
+        "before_procedure": before_ref,
+        "after_procedure": after_ref,
+        "relation": str(relation or "PRECEDES").upper(),
+        "scope": safe_str(scope, 200),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "confidence": str(confidence or "LOW").upper(),
+        "state": str(state or "INFERRED_SEQUENCE").upper(),
+        "limitations": [
+            "Sequence requires temporal or incident evidence.",
+            "ATT&CK tactic order is not incident timeline.",
+            "Co-occurrence is not sequence.",
+        ],
+    }
+
+    parsed["sequences"].append(sequence)
+    return sequence
+
+
+def add_cooccurrence(
+    parsed: Dict[str, Any],
+    technique_a: Any,
+    technique_b: Any,
+    scope: Any = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+    confidence: Any = "LOW",
+) -> Optional[Dict[str, Any]]:
+    a = normalize_attack_id(technique_a)
+    b = normalize_attack_id(technique_b)
+
+    if not a or not b or a == b:
+        return None
+
+    cooc = {
+        "cooccurrence_id": f"COO-{uuid.uuid4()}",
+        "technique_a": a,
+        "technique_b": b,
+        "scope": safe_str(scope, 200),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "confidence": str(confidence or "LOW").upper(),
+        "state": "CO_OCCURS_WITH",
+        "limitations": [
+            "Co-occurrence is not sequence.",
+            "Shared ATT&CK technique overlap may be generic and weak for actor/campaign linking.",
+        ],
+    }
+
+    parsed["cooccurrences"].append(cooc)
+    return cooc
+
+
+def add_telemetry_requirement(
+    parsed: Dict[str, Any],
+    procedure_ref: Any = None,
+    technique_id: Any = None,
+    data_source: Any = None,
+    available: Any = "UNKNOWN",
+    quality: Any = "UNKNOWN",
+    retention: Any = "UNKNOWN",
+    coverage: Any = "UNKNOWN",
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    ds = safe_str(data_source, 200)
+    if not ds:
+        return None
+
+    req = {
+        "telemetry_id": f"TEL-{uuid.uuid4()}",
+        "procedure_ref": ref_from_obj(procedure_ref) if procedure_ref else None,
+        "technique_id": normalize_attack_id(technique_id),
+        "data_source": ds,
+        "available": str(available or "UNKNOWN").upper(),
+        "quality": str(quality or "UNKNOWN").upper(),
+        "retention": str(retention or "UNKNOWN").upper(),
+        "coverage": str(coverage or "UNKNOWN").upper(),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "state": "TELEMETRY_REQUIREMENT_CANDIDATE",
+        "limitations": [
+            "Required telemetry mapping is defensive and may be incomplete.",
+            "Missing telemetry does not prove behavior absence.",
+        ],
+    }
+
+    parsed["telemetry_requirements"].append(req)
+    return req
+
+
+def add_detection(
+    parsed: Dict[str, Any],
+    procedure_ref: Any = None,
+    technique_id: Any = None,
+    detection_source: Any = None,
+    rule_id: Any = None,
+    title: Any = None,
+    log_source: Any = None,
+    defensive_description: Any = None,
+    coverage: Any = "UNKNOWN",
+    false_positive_note: Any = None,
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    det = {
+        "detection_id": f"DET-{uuid.uuid4()}",
+        "procedure_ref": ref_from_obj(procedure_ref) if procedure_ref else None,
+        "technique_id": normalize_attack_id(technique_id),
+        "detection_source": safe_str(detection_source, 200),
+        "rule_id": safe_str(rule_id, 200),
+        "title": safe_str(title, 300),
+        "log_source": safe_str(log_source, 200),
+        "defensive_description": safe_str(defensive_description, 500),
+        "coverage": str(coverage or "UNKNOWN").upper(),
+        "false_positive_note": safe_str(false_positive_note, 300),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "state": "DETECTION_CANDIDATE",
+        "limitations": [
+            "Detection mapping is defensive and requires authorized review before deployment.",
+            "Signature hit is not proof of procedure execution, compromise, or actor identity.",
+        ],
+    }
+
+    if not any([det["detection_source"], det["rule_id"], det["title"], det["log_source"], det["defensive_description"]]):
+        return None
+
+    parsed["detections"].append(det)
+    return det
+
+
+def add_mitigation(
+    parsed: Dict[str, Any],
+    technique_id: Any = None,
+    procedure_ref: Any = None,
+    mitigation: Any = None,
+    status: Any = "UNKNOWN",
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    m = safe_str(mitigation, 300)
+    if not m:
+        return None
+
+    item = {
+        "mitigation_id": f"MIT-{uuid.uuid4()}",
+        "technique_id": normalize_attack_id(technique_id),
+        "procedure_ref": ref_from_obj(procedure_ref) if procedure_ref else None,
+        "mitigation": m,
+        "status": str(status or "UNKNOWN").upper(),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "state": "MITIGATION_CANDIDATE",
+        "limitations": [
+            "Mitigation existence does not prove implementation or effectiveness.",
+            "Operational changes require authorized workflow.",
+        ],
+    }
+
+    parsed["mitigations"].append(item)
+    return item
+
+
+def add_control(
+    parsed: Dict[str, Any],
+    technique_id: Any = None,
+    procedure_ref: Any = None,
+    control: Any = None,
+    status: Any = "UNKNOWN",
+    source_id: str = "",
+    evidence_id: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    c = safe_str(control, 300)
+    if not c:
+        return None
+
+    item = {
+        "control_id": f"CTL-{uuid.uuid4()}",
+        "technique_id": normalize_attack_id(technique_id),
+        "procedure_ref": ref_from_obj(procedure_ref) if procedure_ref else None,
+        "control": c,
+        "status": str(status or "UNKNOWN").upper(),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "temporal": temporal or {},
+        "state": "CONTROL_CANDIDATE",
+        "limitations": [
+            "Control mapping is defensive and high-level.",
+            "Control presence does not prove coverage or effectiveness.",
+        ],
+    }
+
+    parsed["controls"].append(item)
+    return item
+
+
+def infer_behavior_state(text: str) -> str:
+    low = normalize_text(text)
+
+    if re.search(r"\bnot observed\b|\bno evidence\b|\bnot seen\b", low):
+        return "NOT_OBSERVED"
+    if re.search(r"\bobserved\b|\bseen\b|\bdetected\b|\bexecuted\b|\boccurred\b", low):
+        return "OBSERVED"
+    if re.search(r"\breported\b|\breport\b|\badvisory\b|\bcti\b|\bvendor\b", low):
+        return "SOURCE_REPORTED"
+    if re.search(r"\bcapability\b|\bcan\b|\bmay\b|\bpotential\b|\bsupports\b", low):
+        return "CAPABILITY_CANDIDATE"
+    return "UNKNOWN"
+
+
+def process_text_block(
+    text: str,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+    temporal: Optional[Dict[str, Any]] = None,
+    actor_scope: Any = None,
+    campaign_scope: Any = None,
+    malware_scope: Any = None,
+    incident_scope: Any = None,
+    tool_scope: Any = None,
+) -> None:
+    raw = str(text or "")
+    if not raw.strip():
+        return
+
+    redacted, secret_flags = redact_secrets(raw)
+    injection_flags = detect_prompt_injection(raw)
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Embedded instructions in TTP evidence are ignored.")
+
+    state = infer_behavior_state(redacted)
+    behavior = add_behavior(
+        parsed,
+        redacted[:500],
+        actor_scope=actor_scope,
+        campaign_scope=campaign_scope,
+        malware_scope=malware_scope,
+        incident_scope=incident_scope,
+        tool_scope=tool_scope,
+        source_id=source_id,
+        evidence_id=evidence_id,
+        temporal=temporal,
+        state=state,
+        confidence="MODERATE" if state == "OBSERVED" else "LOW",
+    )
+
+    sentences = re.split(r"(?<=[.!?])\s+", redacted)
+    for sentence in sentences[:200]:
+        s = sentence.strip()
+        if not s:
+            continue
+
+        techs, subs, tacts = extract_attack_ids(s)
+        low_s = normalize_text(s)
+        has_behavior_keyword = any(k in low_s for k in BEHAVIOR_KEYWORDS)
+
+        if not (techs or subs or tacts or has_behavior_keyword):
+            continue
+
+        proc = add_procedure(
+            parsed,
+            s[:300],
+            behavior_id=behavior.get("behavior_id") if behavior else None,
+            actor_scope=actor_scope,
+            campaign_scope=campaign_scope,
+            malware_scope=malware_scope,
+            incident_scope=incident_scope,
+            tool_scope=tool_scope,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+            state=state,
+            confidence="MODERATE" if state == "OBSERVED" else "LOW",
+        )
+
+        mapping_status = "PARTIALLY_SUPPORTED" if state == "OBSERVED" else "CANDIDATE"
+        mapping_confidence = "MODERATE" if state == "OBSERVED" else "LOW"
+
+        for tid in techs[:50]:
+            add_mapping(
+                parsed,
+                procedure_id=proc.get("procedure_id") if proc else None,
+                procedure_summary=s[:300],
+                technique_id=tid,
+                mapping_status=mapping_status,
+                confidence=mapping_confidence,
+                rationale="Text contains ATT&CK technique ID with behavioral context keyword.",
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+            )
+
+        for sid in subs[:50]:
+            base = sid.split(".")[0]
+            add_mapping(
+                parsed,
+                procedure_id=proc.get("procedure_id") if proc else None,
+                procedure_summary=s[:300],
+                technique_id=base,
+                subtechnique_id=sid,
+                mapping_status=mapping_status,
+                confidence=mapping_confidence,
+                rationale="Text contains ATT&CK sub-technique ID with behavioral context keyword.",
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+            )
+
+        for tact in tacts[:50]:
+            add_mapping(
+                parsed,
+                procedure_id=proc.get("procedure_id") if proc else None,
+                procedure_summary=s[:300],
+                tactic_id=tact,
+                mapping_status="CANDIDATE",
+                confidence="LOW",
+                rationale="Text contains ATT&CK tactic ID; technique/sub-technique specificity unresolved.",
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+            )
+
+    low_all = normalize_text(redacted)
+
+    for ds in unique_preserve_order([k for k in TELEMETRY_KEYWORDS if k in low_all])[:30]:
+        add_telemetry_requirement(
+            parsed,
+            procedure_ref=behavior.get("behavior_id") if behavior else None,
+            data_source=ds,
+            available="UNKNOWN",
+            coverage="UNKNOWN",
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    for ds in unique_preserve_order([k for k in DETECTION_KEYWORDS if k in low_all])[:30]:
+        add_detection(
+            parsed,
+            procedure_ref=behavior.get("behavior_id") if behavior else None,
+            detection_source=ds,
+            coverage="UNKNOWN",
+            defensive_description="Defensive detection source mentioned in evidence; rule mapping requires authorized review.",
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    for m in unique_preserve_order([k for k in MITIGATION_KEYWORDS if k in low_all])[:30]:
+        add_mitigation(
+            parsed,
+            procedure_ref=behavior.get("behavior_id") if behavior else None,
+            mitigation=m,
+            status="UNKNOWN",
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+        add_control(
+            parsed,
+            procedure_ref=behavior.get("behavior_id") if behavior else None,
+            control=m,
+            status="UNKNOWN",
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+
+def classify_json_payload(data: Any, filename: str = "") -> str:
+    if isinstance(data, list):
+        return "JSON_ARRAY"
+    if not isinstance(data, dict):
+        return "GENERIC_JSON"
+
+    keys = {normalize_key(k) for k in data.keys()}
+    low = json.dumps(data, ensure_ascii=False, default=str)[:20000].lower()
+    fname = normalize_text(filename)
+
+    if data.get("type") == "bundle" or "objects" in keys:
+        return "STIX_PACKAGE"
+    if "Event" in data or "Attribute" in data or "Object" in data or "misp" in fname:
+        return "MISP_EVENT"
+    if "attack_pattern" in low or "x_mitre" in low or "technique" in keys or "tactic" in keys or "mitre" in fname or "attack" in fname:
+        return "MITRE_ATTCK_DATA"
+    if "sigma" in fname or "sigma" in keys or "detection" in keys:
+        return "DETECTION_RULE"
+    if "yara" in fname or "yara" in keys:
+        return "YARA_METADATA"
+    if "telemetry" in fname or "log" in fname or "event" in keys or "process" in keys:
+        return "TELEMETRY_EXPORT"
+    if "incident" in fname or "incident" in keys:
+        return "INCIDENT_REPORT"
+    if "malware" in fname or "malware" in keys or "family" in keys:
+        return "MALWARE_REPORT"
+    if "actor" in fname or "campaign" in fname or "operation" in fname:
+        return "ACTOR_CAMPAIGN_REPORT"
+    if "tool" in fname or "utility" in keys:
+        return "TOOL_REPORT"
+    if "procedure" in keys or "behavior" in keys or "ttp" in fname:
+        return "TTP_BEHAVIOR_REPORT"
+
+    return "GENERIC_JSON"
+
+
+def process_json_record(
+    rec: Dict[str, Any],
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+    attack_version_default: str = "UNKNOWN",
+) -> None:
+    if not isinstance(rec, dict):
+        return
+
+    temporal = extract_temporal(rec)
+    tags = collect_tags(rec)
+    rec_context = context or "json_record"
+
+    stix_type = normalize_text(rec.get("type"))
+
+    actor_scope = get_field(rec, ["actor_label", "threat_actor", "actor", "group", "cluster"])
+    campaign_scope = get_field(rec, ["campaign", "campaign_name", "operation", "operation_name"])
+    malware_scope = get_field(rec, ["malware", "malware_family", "family", "malware_variant"])
+    incident_scope = get_field(rec, ["incident", "incident_id", "case_incident"])
+    tool_scope = get_field(rec, ["tool", "utility", "software"])
+
+    behavior_desc = get_field(rec, ["behavior", "description", "summary", "text", "evidence", "finding"])
+    procedure_summary = get_field(rec, ["procedure", "procedure_summary", "behavior", "description"])
+
+    explicit_state = safe_str(get_field(rec, ["state", "behavior_state", "observation_state"]), 50).upper()
+    if explicit_state in {"OBSERVED", "INFERRED", "SOURCE_REPORTED", "NOT_OBSERVED", "CAPABILITY_CANDIDATE", "UNKNOWN"}:
+        state = explicit_state
+    else:
+        state = infer_behavior_state(json.dumps(rec, ensure_ascii=False, default=str)[:3000])
+
+    behavior = None
+    if behavior_desc:
+        behavior = add_behavior(
+            parsed,
+            behavior_desc,
+            actor_scope=actor_scope,
+            campaign_scope=campaign_scope,
+            malware_scope=malware_scope,
+            incident_scope=incident_scope,
+            tool_scope=tool_scope,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+            state=state,
+            confidence="MODERATE" if state == "OBSERVED" else "LOW",
+        )
+
+    procedure = None
+    if procedure_summary:
+        procedure = add_procedure(
+            parsed,
+            procedure_summary,
+            behavior_id=behavior.get("behavior_id") if behavior else None,
+            subject_entity=get_field(rec, ["subject", "process", "actor_entity", "user", "account"]),
+            action=get_field(rec, ["action", "verb"]),
+            object_entity=get_field(rec, ["object", "target_object", "artifact", "file", "registry", "mutext"]),
+            environment=get_field(rec, ["environment", "platform", "os"]),
+            preconditions=get_field(rec, ["precondition", "requirement"]),
+            result=get_field(rec, ["result", "outcome", "effect"]),
+            actor_scope=actor_scope,
+            campaign_scope=campaign_scope,
+            malware_scope=malware_scope,
+            incident_scope=incident_scope,
+            tool_scope=tool_scope,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+            state=state,
+            confidence="MODERATE" if state == "OBSERVED" else "LOW",
+        )
+
+    tactic_id = get_field(rec, ["tactic_id", "tactic"])
+    tactic_name = get_field(rec, ["tactic_name"])
+    technique_id = get_field(rec, ["technique_id", "attack_technique", "technique"])
+    technique_name = get_field(rec, ["technique_name", "name"])
+    subtechnique_id = get_field(rec, ["subtechnique_id", "sub_technique", "subtechnique"])
+    subtechnique_name = get_field(rec, ["subtechnique_name"])
+    matrix = get_field(rec, ["matrix", "attack_matrix"]) or "Enterprise"
+    attack_version = get_field(rec, ["attack_version", "mitre_version", "version"]) or attack_version_default
+    mapping_status = get_field(rec, ["mapping_status", "status"]) or "CANDIDATE"
+    mapping_confidence = get_field(rec, ["mapping_confidence", "confidence"]) or "LOW"
+    rationale = get_field(rec, ["rationale", "mapping_rationale", "reason"])
+
+    if tactic_id or technique_id or subtechnique_id:
+        add_mapping(
+            parsed,
+            procedure_id=procedure.get("procedure_id") if procedure else None,
+            procedure_summary=procedure_summary or behavior_desc,
+            tactic_id=tactic_id,
+            tactic_name=tactic_name,
+            technique_id=technique_id,
+            technique_name=technique_name,
+            subtechnique_id=subtechnique_id,
+            subtechnique_name=subtechnique_name,
+            matrix=matrix,
+            attack_version=attack_version,
+            mapping_status=mapping_status,
+            confidence=mapping_confidence,
+            rationale=rationale,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    before = get_field(rec, ["before", "preceding_procedure", "procedure_before", "prior_behavior"])
+    after = get_field(rec, ["after", "following_procedure", "procedure_after", "later_behavior"])
+    relation = get_field(rec, ["relation", "sequence_relation"]) or "PRECEDES"
+    sequence_state = get_field(rec, ["sequence_state"]) or "INFERRED_SEQUENCE"
+
+    if before and after:
+        add_sequence(
+            parsed,
+            before=before,
+            after=after,
+            relation=relation,
+            scope=campaign_scope or actor_scope or incident_scope or malware_scope,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+            confidence=mapping_confidence,
+            state=sequence_state,
+        )
+
+    co = get_field(rec, ["co_occurs_with", "cooccurrence", "related_techniques", "common_techniques"])
+    self_tech = technique_id or subtechnique_id
+    if co and self_tech:
+        for other in listify(co)[:50]:
+            add_cooccurrence(
+                parsed,
+                technique_a=self_tech,
+                technique_b=other,
+                scope=campaign_scope or actor_scope or incident_scope or malware_scope,
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+                confidence=mapping_confidence,
+            )
+
+    telemetry = get_field(rec, ["telemetry", "data_source", "required_telemetry", "log_source", "logs"])
+    if telemetry:
+        for item in listify(telemetry)[:50]:
+            add_telemetry_requirement(
+                parsed,
+                procedure_ref=procedure.get("procedure_id") if procedure else (behavior.get("behavior_id") if behavior else None),
+                technique_id=technique_id or subtechnique_id,
+                data_source=item,
+                available=get_field(rec, ["telemetry_available", "available"]) or "UNKNOWN",
+                quality=get_field(rec, ["telemetry_quality", "quality"]) or "UNKNOWN",
+                retention=get_field(rec, ["retention"]) or "UNKNOWN",
+                coverage=get_field(rec, ["telemetry_coverage", "coverage"]) or "UNKNOWN",
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+            )
+
+    detection_source = get_field(rec, ["detection", "detection_source", "rule_source", "alert_source"])
+    rule_id = get_field(rec, ["rule_id", "sigma_id", "yara_rule", "detection_rule_id", "id"])
+    title = get_field(rec, ["title", "rule_title", "name"])
+    log_source = get_field(rec, ["log_source", "source", "category"])
+    defensive_description = get_field(rec, ["defensive_description", "detection_description", "condition_summary"])
+    false_positive_note = get_field(rec, ["false_positive", "false_positive_note", "fp_note"])
+
+    if detection_source or rule_id or title or defensive_description:
+        add_detection(
+            parsed,
+            procedure_ref=procedure.get("procedure_id") if procedure else (behavior.get("behavior_id") if behavior else None),
+            technique_id=technique_id or subtechnique_id,
+            detection_source=detection_source,
+            rule_id=rule_id,
+            title=title,
+            log_source=log_source,
+            defensive_description=defensive_description,
+            coverage=get_field(rec, ["detection_coverage", "coverage"]) or "UNKNOWN",
+            false_positive_note=false_positive_note,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    mitigation = get_field(rec, ["mitigation", "defensive_mitigation"])
+    control = get_field(rec, ["control", "security_control", "defensive_control"])
+    control_status = get_field(rec, ["mitigation_status", "control_status", "status"]) or "UNKNOWN"
+
+    if mitigation:
+        add_mitigation(
+            parsed,
+            technique_id=technique_id or subtechnique_id,
+            procedure_ref=procedure.get("procedure_id") if procedure else None,
+            mitigation=mitigation,
+            status=control_status,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    if control:
+        add_control(
+            parsed,
+            technique_id=technique_id or subtechnique_id,
+            procedure_ref=procedure.get("procedure_id") if procedure else None,
+            control=control,
+            status=control_status,
+            source_id=source_id,
+            evidence_id=evidence_id,
+            temporal=temporal,
+        )
+
+    if stix_type == "relationship":
+        rel_type = normalize_text(rec.get("relationship_type"))
+        src = rec.get("source_ref") or rec.get("source")
+        tgt = rec.get("target_ref") or rec.get("target")
+        if rel_type in {"precedes", "follows", "sequence"}:
+            add_sequence(
+                parsed,
+                before=src,
+                after=tgt,
+                relation=rel_type.upper(),
+                scope=campaign_scope or actor_scope or incident_scope,
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+                confidence="LOW",
+                state="INFERRED_SEQUENCE",
+            )
+        elif rel_type in {"co-occurs", "cooccurs", "related-to"}:
+            add_cooccurrence(
+                parsed,
+                technique_a=src,
+                technique_b=tgt,
+                scope=campaign_scope or actor_scope or incident_scope,
+                source_id=source_id,
+                evidence_id=evidence_id,
+                temporal=temporal,
+                confidence="LOW",
+            )
+
+    rec_text = json.dumps(rec, ensure_ascii=False, default=str)[:5000]
+    process_text_block(
+        rec_text,
+        source_id,
+        evidence_id,
+        parsed,
+        context=f"json:{rec_context}",
+        temporal=temporal,
+        actor_scope=actor_scope,
+        campaign_scope=campaign_scope,
+        malware_scope=malware_scope,
+        incident_scope=incident_scope,
+        tool_scope=tool_scope,
+    )
+
+
+def walk_json(
+    data: Any,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    depth: int = 0,
+    path: str = "",
+    attack_version_default: str = "UNKNOWN",
+) -> None:
+    if depth > 14 or len(parsed.get("observations", [])) > 200000:
+        return
+
+    if isinstance(data, dict):
+        process_json_record(data, source_id, evidence_id, parsed, context=path or "json", attack_version_default=attack_version_default)
+        for k, v in data.items():
+            new_path = f"{path}.{k}" if path else str(k)
+            walk_json(v, source_id, evidence_id, parsed, depth + 1, new_path, attack_version_default)
+    elif isinstance(data, list):
+        for item in data[:100000]:
+            walk_json(item, source_id, evidence_id, parsed, depth + 1, path, attack_version_default)
+    elif isinstance(data, str):
+        process_text_block(data, source_id, evidence_id, parsed, context=path or "json_string")
+
+
+def process_json_file(path: Path, source_id: str, evidence_id: str, attack_version_default: str = "UNKNOWN") -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+    data = json.loads(raw)
+    kind = classify_json_payload(data, path.name)
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+    )
+
+    walk_json(data, source_id, evidence_id, parsed, attack_version_default=attack_version_default)
+    return kind, parsed
+
+
+def process_csv_file(path: Path, source_id: str, evidence_id: str, attack_version_default: str = "UNKNOWN") -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    kind = "CSV_TTP_DATA"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+    )
+
+    with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
+        sample = f.read(1_000_000)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t| ")
+        except csv.Error:
+            dialect = csv.excel
+
+        reader = csv.DictReader(f, dialect=dialect)
+        for idx, row in enumerate(reader):
+            if idx >= 200000:
+                break
+            process_json_record(row, source_id, evidence_id, parsed, context=f"csv_row_{idx}", attack_version_default=attack_version_default)
+
+    return kind, parsed
+
+
+def process_text_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:10_000_000]
+
+    kind = "TEXT_TTP_REPORT"
+    low = raw.lower()[:20000]
+    if "att&ck" in low or "attack" in low or re.search(r"\bt\d{4}\b", low):
+        kind = "TEXT_ATTCK_MAPPING"
+    elif "incident" in low:
+        kind = "TEXT_INCIDENT_REPORT"
+    elif "malware" in low:
+        kind = "TEXT_MALWARE_REPORT"
+    elif "campaign" in low or "actor" in low:
+        kind = "TEXT_ACTOR_CAMPAIGN_REPORT"
+    elif "sigma" in low or "yara" in low or "detection" in low:
+        kind = "TEXT_DETECTION_RULE"
+    elif "telemetry" in low or "log" in low:
+        kind = "TEXT_TELEMETRY_EXPORT"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+    )
+
+    for line_no, line in enumerate(raw.splitlines()[:200000]):
+        if line.strip():
+            process_text_block(line, source_id, evidence_id, parsed, context=f"text_line_{line_no}")
+
+    return kind, parsed
+
+
+def detect_format(path: Path) -> Dict[str, str]:
+    suffix = path.suffix.lower()
+
+    try:
+        with path.open("rb") as f:
+            head = f.read(256)
+    except Exception as exc:
+        return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream", "format_error": str(exc)}
+
+    if suffix in BINARY_SUFFIXES:
+        return {"format_detected": "BINARY_ARTIFACT", "mime_type": "application/octet-stream"}
+
+    stripped = head.lstrip()
+
+    if suffix == ".json" or stripped.startswith(b"{") or stripped.startswith(b"["):
+        return {"format_detected": "JSON", "mime_type": "application/json"}
+
+    if suffix in {".csv", ".tsv"}:
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if b"," in head and b"\n" in head and all(b in b"\x09\x0a\x0d\x20" or 32 <= b <= 126 for b in head[:64]):
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if suffix in {".txt", ".log", ".md", ".yaml", ".yml", ".report", ".stix", ".taxii", ".misp", ".sigma", ".yara"}:
+        return {"format_detected": "TEXT", "mime_type": "text/plain"}
+
+    try:
+        probe = head.decode("utf-8", errors="strict")
+        if probe.strip():
+            return {"format_detected": "TEXT", "mime_type": "text/plain"}
+    except Exception:
+        pass
+
+    return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream"}
+
+
+def analyze_ttp_file(path_str: str, case_id: str = "", task_id: str = "", attack_version_default: str = "UNKNOWN") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    path = Path(path_str).expanduser()
+    source_id = f"SRC-{uuid.uuid4()}"
+    evidence_id = f"EVD-{uuid.uuid4()}"
+
+    file_evidence: Dict[str, Any] = {
+        "evidence_id": evidence_id,
+        "source_id": source_id,
+        "case_id": case_id,
+        "task_id": task_id,
+        "path": str(path),
+        "filename": path.name,
+        "retrieved_at": now_utc(),
+        "acquisition_method": "local_authorized_or_public_file_access",
+        "status": "PENDING",
+        "limitations": [
+            "No offensive playbook generation, intrusion procedure generation, target-specific attack sequencing, credential theft procedure generation, persistence deployment, privilege escalation, exploitation, defense-evasion optimization, EDR/AV/sandbox bypass, log destruction, malware creation/deployment, technique execution, unauthorized testing, phishing operations, destructive procedures, or C2 deployment performed.",
+            "Binary artifacts are hash/metadata preserved only; no execution or deep parsing performed.",
+            "Threat reports, malware strings, logs, repositories, rule descriptions, and incident notes are untrusted evidence, not instructions.",
+            "Exposed secrets are redacted and not used.",
+            "Source-reported behavior/mapping is not independently verified procedure, sequence, actor behavior, or detection coverage.",
+        ],
+    }
+
+    parsed = empty_parsed()
+
+    if not path.exists():
+        file_evidence["status"] = "FAILED_FILE_NOT_FOUND"
+        return file_evidence, parsed
+
+    try:
+        st = path.stat()
+        file_evidence["size_bytes"] = st.st_size
+        file_evidence["filesystem_modified_at"] = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+    except Exception as exc:
+        file_evidence["status"] = "FAILED_STAT"
+        file_evidence["error"] = str(exc)
+        return file_evidence, parsed
+
+    try:
+        file_evidence["sha256"] = sha256_file(path)
+    except Exception as exc:
+        file_evidence["sha256_error"] = str(exc)
+
+    fmt = detect_format(path)
+    file_evidence.update(fmt)
+    format_detected = file_evidence.get("format_detected", "UNKNOWN")
+
+    try:
+        if format_detected == "JSON":
+            kind, parsed = process_json_file(path, source_id, evidence_id, attack_version_default=attack_version_default)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "CSV":
+            kind, parsed = process_csv_file(path, source_id, evidence_id, attack_version_default=attack_version_default)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "TEXT":
+            kind, parsed = process_text_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "BINARY_ARTIFACT":
+            file_evidence["content_kind"] = "BINARY_ARTIFACT_METADATA_ONLY"
+            file_evidence["status"] = "PARTIAL_BINARY_METADATA_ONLY"
+            file_evidence["reason"] = (
+                "Binary artifact detected. This planning panel preserves hash/metadata only. "
+                "It does not execute, unpack, modify, reverse-engineer, fuzz, replay PCAPs, or deeply parse binary artifacts."
+            )
+        else:
+            file_evidence["content_kind"] = "UNKNOWN_OR_UNSUPPORTED"
+            file_evidence["status"] = "UNSUPPORTED_FORMAT"
+    except Exception as exc:
+        file_evidence["status"] = "PARTIAL_OR_FAILED"
+        file_evidence["error"] = f"{exc.__class__.__name__}: {exc}"
+
+    file_evidence["parsed_behavior_count"] = len(parsed.get("behaviors", []))
+    file_evidence["parsed_procedure_count"] = len(parsed.get("procedures", []))
+    file_evidence["parsed_mapping_count"] = len(parsed.get("mappings", []))
+    file_evidence["parsed_sequence_count"] = len(parsed.get("sequences", []))
+    file_evidence["parsed_telemetry_count"] = len(parsed.get("telemetry_requirements", []))
+    file_evidence["parsed_detection_count"] = len(parsed.get("detections", []))
+
+    return file_evidence, parsed
+
+
+def aggregate_parsed(parsed_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    agg = empty_parsed()
+    for p in parsed_list:
+        for key in agg.keys():
+            if isinstance(agg[key], list) and isinstance(p.get(key), list):
+                agg[key].extend(p[key])
+        for key in agg.keys():
+            if isinstance(agg[key], list):
+                agg[key] = agg[key][:200000]
+    return agg
+
+
+def build_technique_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    mappings = parsed.get("mappings", [])
+
+    tech_counter: Counter = Counter()
+    sub_counter: Counter = Counter()
+    tactic_counter: Counter = Counter()
+    status_counter: Counter = Counter()
+    generic_ids: List[str] = []
+    discriminating_ids: List[str] = []
+
+    for m in mappings:
+        tid = m.get("technique_id")
+        sid = m.get("subtechnique_id")
+        tact = m.get("tactic_id") or m.get("tactic_raw")
+
+        if tid:
+            tech_counter[tid] += 1
+            if tid in GENERIC_TECHNIQUE_IDS:
+                if tid not in generic_ids:
+                    generic_ids.append(tid)
+            else:
+                if tid not in discriminating_ids:
+                    discriminating_ids.append(tid)
+
+        if sid:
+            sub_counter[sid] += 1
+
+        if tact:
+            tactic_counter[str(tact)] += 1
+
+        status_counter[m.get("mapping_status", "UNKNOWN")] += 1
+
+    return {
+        "mapping_count": len(mappings),
+        "technique_counts": dict(tech_counter.most_common(500)),
+        "subtechnique_counts": dict(sub_counter.most_common(500)),
+        "tactic_counts": dict(tactic_counter.most_common(500)),
+        "mapping_status_counts": dict(status_counter.most_common(500)),
+        "generic_technique_ids": sorted(generic_ids)[:500],
+        "discriminating_technique_ids": sorted(discriminating_ids)[:500],
+        "top_mappings": mappings[:300],
+        "limitations": [
+            "Technique counts reflect parsed evidence and source reporting, not true prevalence.",
+            "Generic ATT&CK technique overlap is weak actor/campaign attribution evidence.",
+            "ATT&CK version and mapping status must be preserved.",
+        ],
+    }
+
+
+def build_procedure_profiles(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    procedures = parsed.get("procedures", [])
+    mappings_by_proc: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+    for m in parsed.get("mappings", []):
+        pid = m.get("procedure_id")
+        if pid:
+            mappings_by_proc[pid].append(m)
+
+    profiles = []
+    for proc in procedures:
+        pid = proc.get("procedure_id")
+        linked = mappings_by_proc.get(pid, [])
+        techs = sorted({m.get("technique_id") for m in linked if m.get("technique_id")})
+        subs = sorted({m.get("subtechnique_id") for m in linked if m.get("subtechnique_id")})
+        statuses = sorted({m.get("mapping_status") for m in linked if m.get("mapping_status")})
+
+        profiles.append({
+            "procedure_id": pid,
+            "summary": proc.get("procedure_summary"),
+            "state": proc.get("state"),
+            "confidence": proc.get("confidence"),
+            "actor_scope": proc.get("actor_scope"),
+            "campaign_scope": proc.get("campaign_scope"),
+            "malware_scope": proc.get("malware_scope"),
+            "incident_scope": proc.get("incident_scope"),
+            "tool_scope": proc.get("tool_scope"),
+            "first_seen": proc.get("first_seen"),
+            "last_seen": proc.get("last_seen"),
+            "technique_ids": techs,
+            "subtechnique_ids": subs,
+            "mapping_statuses": statuses,
+            "mapping_count": len(linked),
+            "source_ids": proc.get("source_ids", []),
+            "evidence_ids": proc.get("evidence_ids", []),
+            "limitations": proc.get("limitations", []) + [
+                "Procedure profile is evidence-linked and may be source-reported, inferred, or capability-level.",
+            ],
+        })
+
+    profiles.sort(key=lambda x: str(x.get("procedure_id") or ""))
+    return profiles[:5000]
+
+
+def build_scope_profiles(parsed: Dict[str, Any], scope_key: str) -> List[Dict[str, Any]]:
+    procedures = parsed.get("procedures", [])
+    mappings_by_proc: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+    for m in parsed.get("mappings", []):
+        pid = m.get("procedure_id")
+        if pid:
+            mappings_by_proc[pid].append(m)
+
+    profiles: Dict[str, Dict[str, Any]] = {}
+
+    for proc in procedures:
+        scope_val = safe_str(proc.get(scope_key), 200)
+        if not scope_val:
+            continue
+
+        if scope_val not in profiles:
+            profiles[scope_val] = {
+                "scope": scope_val,
+                "scope_key": scope_key,
+                "procedures": [],
+                "techniques": set(),
+                "subtechniques": set(),
+                "mapping_statuses": set(),
+                "behavior_states": set(),
+                "source_ids": set(),
+                "evidence_ids": set(),
+                "first_seen": None,
+                "last_seen": None,
+            }
+
+        p = profiles[scope_val]
+        pid = proc.get("procedure_id")
+        p["procedures"].append({
+            "procedure_id": pid,
+            "summary": proc.get("procedure_summary"),
+            "state": proc.get("state"),
+            "confidence": proc.get("confidence"),
+            "first_seen": proc.get("first_seen"),
+            "last_seen": proc.get("last_seen"),
+        })
+
+        for m in mappings_by_proc.get(pid, []):
+            if m.get("technique_id"):
+                p["techniques"].add(m["technique_id"])
+            if m.get("subtechnique_id"):
+                p["subtechniques"].add(m["subtechnique_id"])
+            if m.get("mapping_status"):
+                p["mapping_statuses"].add(m["mapping_status"])
+
+        if proc.get("state"):
+            p["behavior_states"].add(proc["state"])
+        for sid in proc.get("source_ids", []):
+            p["source_ids"].add(str(sid))
+        for eid in proc.get("evidence_ids", []):
+            p["evidence_ids"].add(str(eid))
+
+        first_dt = parse_datetime(proc.get("first_seen"))
+        last_dt = parse_datetime(proc.get("last_seen"))
+
+        if first_dt:
+            current = parse_datetime(p["first_seen"])
+            if current is None or first_dt < current:
+                p["first_seen"] = proc.get("first_seen")
+
+        if last_dt:
+            current = parse_datetime(p["last_seen"])
+            if current is None or last_dt > current:
+                p["last_seen"] = proc.get("last_seen")
+
+    out = []
+    for p in profiles.values():
+        finalized = dict(p)
+        for k, v in finalized.items():
+            if isinstance(v, set):
+                finalized[k] = sorted(v)
+        finalized["procedure_count"] = len(finalized.get("procedures", []))
+        finalized["technique_count"] = len(finalized.get("techniques", []))
+        finalized["source_count"] = len(finalized.get("source_ids", []))
+        finalized["state"] = "SOURCE_OBSERVED_SCOPE_PROFILE"
+        finalized["limitations"] = [
+            "Scope profile is source-dependent and may be incomplete.",
+            "Profile does not prove actor identity, campaign ownership, malware variant behavior, incident execution, or sequence.",
+        ]
+        out.append(finalized)
+
+    out.sort(key=lambda x: str(x.get("scope", "")))
+    return out[:5000]
+
+
+def build_sequence_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    seqs = parsed.get("sequences", [])
+    state_counter = Counter(str(s.get("state", "UNKNOWN")).upper() for s in seqs)
+
+    return {
+        "sequence_count": len(seqs),
+        "state_counts": dict(state_counter.most_common(500)),
+        "sequences": seqs[:500],
+        "limitations": [
+            "Sequence requires temporal or incident evidence.",
+            "Co-occurrence is not sequence.",
+            "ATT&CK tactic order is not incident timeline.",
+        ],
+    }
+
+
+def build_cooccurrence_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    coocs = parsed.get("cooccurrences", [])
+    pair_counter: Counter = Counter()
+
+    for c in coocs:
+        a = c.get("technique_a")
+        b = c.get("technique_b")
+        if a and b:
+            pair = tuple(sorted([a, b]))
+            pair_counter[pair] += 1
+
+    return {
+        "cooccurrence_count": len(coocs),
+        "top_pairs": [{"technique_a": p[0], "technique_b": p[1], "count": n} for p, n in pair_counter.most_common(500)],
+        "cooccurrences": coocs[:500],
+        "limitations": [
+            "Co-occurrence is not sequence.",
+            "Shared technique overlap may be generic and weak for actor/campaign linking.",
+        ],
+    }
+
+
+def build_telemetry_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    reqs = parsed.get("telemetry_requirements", [])
+    source_counter = Counter(str(r.get("data_source", "UNKNOWN")).lower() for r in reqs)
+    coverage_counter = Counter(str(r.get("coverage", "UNKNOWN")).upper() for r in reqs)
+    gaps = [r for r in reqs if str(r.get("coverage", "")).upper() in {"TELEMETRY_MISSING", "NO_COVERAGE", "UNKNOWN"}]
+
+    return {
+        "telemetry_requirement_count": len(reqs),
+        "data_source_counts": dict(source_counter.most_common(500)),
+        "coverage_counts": dict(coverage_counter.most_common(500)),
+        "telemetry_gaps": gaps[:500],
+        "limitations": [
+            "Missing telemetry does not prove behavior absence.",
+            "Telemetry mapping is defensive and may be incomplete.",
+        ],
+    }
+
+
+def build_detection_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    dets = parsed.get("detections", [])
+    source_counter = Counter(str(d.get("detection_source", "UNKNOWN")).lower() for d in dets)
+    coverage_counter = Counter(str(d.get("coverage", "UNKNOWN")).upper() for d in dets)
+
+    return {
+        "detection_count": len(dets),
+        "detection_source_counts": dict(source_counter.most_common(500)),
+        "coverage_counts": dict(coverage_counter.most_common(500)),
+        "detections": dets[:500],
+        "limitations": [
+            "Detection mapping is defensive and requires authorized review before deployment.",
+            "Signature hit is not proof of procedure execution, compromise, or actor identity.",
+        ],
+    }
+
+
+def build_behavioral_drift(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    drift = []
+
+    for scope_key in ["campaign_scope", "actor_scope", "malware_scope", "incident_scope", "tool_scope"]:
+        profiles = build_scope_profiles(parsed, scope_key)
+        for p in profiles:
+            techs = p.get("techniques", [])
+            states = p.get("behavior_states", [])
+            first_dt = parse_datetime(p.get("first_seen"))
+            last_dt = parse_datetime(p.get("last_seen"))
+            span_days = abs((last_dt - first_dt).days) if first_dt and last_dt else None
+
+            if len(techs) > 1 and span_days and span_days > 90:
+                state = "BEHAVIORAL_DRIFT_CANDIDATE"
+                reason = "Multiple techniques observed across non-trivial time span."
+            elif "OBSERVED" in states and "CAPABILITY_CANDIDATE" in states:
+                state = "BEHAVIORAL_DRIFT_CANDIDATE"
+                reason = "Mixed observed and capability-level behavior parsed."
+            elif span_days and span_days <= 30 and len(techs) <= 1:
+                state = "NO_SIGNIFICANT_DRIFT"
+                reason = "Short temporal window and limited technique variation."
+            else:
+                state = "UNKNOWN"
+                reason = "Insufficient temporal/procedure variation to assess drift."
+
+            drift.append({
+                "drift_id": f"DRF-{uuid.uuid4()}",
+                "scope_key": scope_key,
+                "scope": p.get("scope"),
+                "state": state,
+                "reason": reason,
+                "techniques": techs[:100],
+                "behavior_states": states[:100],
+                "first_seen": p.get("first_seen"),
+                "last_seen": p.get("last_seen"),
+                "span_days": span_days,
+                "limitations": [
+                    "Behavioral drift is analytical and corpus/time-window dependent.",
+                    "Drift does not prove actor evolution, campaign change, or deception.",
+                ],
+            })
+
+    drift.sort(key=lambda x: str(x.get("scope", "")))
+    return drift[:5000]
+
+
+def build_contradictions(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    contradictions = []
+
+    mapping_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for m in parsed.get("mappings", []):
+        key = m.get("procedure_id") or normalize_text(m.get("procedure_summary", ""))
+        if key:
+            mapping_groups[key].append(m)
+
+    for key, group in mapping_groups.items():
+        tech_values = sorted({m.get("technique_id") for m in group if m.get("technique_id")})
+        sub_values = sorted({m.get("subtechnique_id") for m in group if m.get("subtechnique_id")})
+        statuses = sorted({m.get("mapping_status") for m in group if m.get("mapping_status")})
+
+        if len(tech_values) > 1 or len(sub_values) > 1:
+            contradictions.append({
+                "contradiction_id": f"CON-{uuid.uuid4()}",
+                "type": "TECHNIQUE_MAPPING_DISAGREEMENT",
+                "subject": key,
+                "values": {
+                    "technique_ids": tech_values[:100],
+                    "subtechnique_ids": sub_values[:100],
+                    "mapping_statuses": statuses[:100],
+                },
+                "possible_explanations": [
+                    "different ATT&CK version",
+                    "different procedure granularity",
+                    "source simplification",
+                    "multiple plausible techniques",
+                    "analyst interpretation",
+                    "malware variant difference",
+                ],
+                "resolution_status": "UNRESOLVED",
+                "caution": "Do not silently merge mappings or force one technique label.",
+            })
+
+    proc_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for p in parsed.get("procedures", []):
+        key = normalize_text(p.get("procedure_summary", ""))
+        if key:
+            proc_groups[key].append(p)
+
+    for key, group in proc_groups.items():
+        states = sorted({p.get("state") for p in group if p.get("state")})
+        if {"OBSERVED", "CAPABILITY_CANDIDATE"} <= set(states):
+            contradictions.append({
+                "contradiction_id": f"CON-{uuid.uuid4()}",
+                "type": "OBSERVED_VS_CAPABILITY_CONFLICT",
+                "subject": key[:300],
+                "values": states[:100],
+                "possible_explanations": [
+                    "static capability reported alongside dynamic observation",
+                    "source wording ambiguity",
+                    "different malware variants",
+                    "different incident contexts",
+                ],
+                "resolution_status": "UNRESOLVED",
+                "caution": "Static capability is not observed TTP.",
+            })
+
+        first_dates = [parse_datetime(p.get("first_seen")) for p in group if p.get("first_seen")]
+        last_dates = [parse_datetime(p.get("last_seen")) for p in group if p.get("last_seen")]
+        first_dates = [d for d in first_dates if d]
+        last_dates = [d for d in last_dates if d]
+
+        if first_dates and last_dates and min(first_dates) > max(last_dates):
+            contradictions.append({
+                "contradiction_id": f"CON-{uuid.uuid4()}",
+                "type": "TIMELINE_CONFLICT",
+                "subject": key[:300],
+                "values": [min(first_dates).isoformat(), max(last_dates).isoformat()],
+                "possible_explanations": ["source date error", "timezone parsing issue", "mixed campaign windows"],
+                "resolution_status": "UNRESOLVED",
+                "caution": "Do not treat inconsistent timeline as reliable sequence or evolution.",
+            })
+
+    contradictions, _ = truncate_list(contradictions, 5000)
+    return contradictions
+
+
+def build_hypotheses(parsed: Dict[str, Any], contradictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    hyps = []
+
+    procedures = parsed.get("procedures", [])
+    mappings = parsed.get("mappings", [])
+    sequences = parsed.get("sequences", [])
+    telemetry = parsed.get("telemetry_requirements", [])
+
+    if not procedures and not mappings:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Current local deterministic evidence is insufficient to establish procedures, ATT&CK mappings, sequences, telemetry coverage, or behavioral relationships.",
+            "supporting_facts": ["No procedures or mappings parsed."],
+            "opposing_facts": [],
+            "assumptions": ["Evidence may be missing, unsupported, binary-only, or unavailable."],
+            "unknowns": ["behavior", "procedure", "technique", "sub-technique", "sequence", "telemetry", "detection coverage"],
+            "falsification_conditions": ["New authorized incident/malware/actor/campaign/telemetry/detection evidence changes assessment."],
+            "next_test": "Attach threat/incident/malware/actor/campaign/tool/telemetry/detection/ATT&CK/STIX/MISP evidence.",
+            "status": "OPEN",
+        })
+        return hyps[:1000]
+
+    ambiguous = [m for m in mappings if m.get("mapping_status") in {"CANDIDATE", "DISPUTED", "INCONCLUSIVE", "UNSUPPORTED"}]
+    if ambiguous:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Some ATT&CK mappings remain ambiguous and may require procedure-level adjudication.",
+            "supporting_facts": [f"{len(ambiguous)} ambiguous/disputed/unsupported mapping candidate(s)."],
+            "opposing_facts": ["Some mappings may become supported with primary evidence."],
+            "unknowns": ["correct technique", "correct sub-technique", "procedure specificity"],
+            "falsification_conditions": ["Primary behavior evidence supports one mapping and contradicts alternatives."],
+            "next_test": "Compare procedure text, telemetry, and ATT&CK version; avoid forced precision.",
+            "status": "OPEN",
+        })
+
+    inferred_sequences = [s for s in sequences if str(s.get("state", "")).upper() in {"INFERRED_SEQUENCE", "UNKNOWN_ORDER"}]
+    if inferred_sequences:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Observed procedure ordering may be inferred rather than temporally verified.",
+            "supporting_facts": [f"{len(inferred_sequences)} inferred/unknown-order sequence candidate(s)."],
+            "opposing_facts": ["Incident timeline evidence may confirm sequence."],
+            "unknowns": ["actual execution order", "parallelism", "repeat behavior"],
+            "falsification_conditions": ["Endpoint/network timeline shows different order or no overlap."],
+            "next_test": "Obtain authorized endpoint/process timeline before asserting ordered procedure chain.",
+            "status": "OPEN",
+        })
+
+    generic_techs = [m for m in mappings if m.get("technique_id") in GENERIC_TECHNIQUE_IDS]
+    if generic_techs:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Some technique overlap may reflect common/generic behavior rather than discriminating actor/campaign procedure.",
+            "supporting_facts": [f"{len(generic_techs)} generic technique mapping candidate(s)."],
+            "opposing_facts": ["Procedure-level implementation may still be distinctive."],
+            "unknowns": ["procedure rarity", "implementation traits", "sequence context"],
+            "falsification_conditions": ["Rare procedure fingerprint or unique implementation links behavior."],
+            "next_test": "Weight procedure-level rarity and implementation similarity over generic ATT&CK overlap.",
+            "status": "OPEN",
+        })
+
+    telemetry_gaps = [t for t in telemetry if str(t.get("coverage", "")).upper() in {"TELEMETRY_MISSING", "NO_COVERAGE", "UNKNOWN"}]
+    if telemetry_gaps:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Behavior absence may reflect telemetry gaps rather than non-occurrence.",
+            "supporting_facts": [f"{len(telemetry_gaps)} telemetry gap candidate(s)."],
+            "opposing_facts": ["Available telemetry may genuinely show no behavior."],
+            "unknowns": ["sensor coverage", "retention", "log source availability"],
+            "falsification_conditions": ["Required telemetry is confirmed available, retained, and queried."],
+            "next_test": "Map required data sources and review telemetry coverage before claiming NOT_OBSERVED.",
+            "status": "OPEN",
+        })
+
+    if contradictions:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Observed TTP contradictions may reflect ATT&CK version differences, procedure granularity, source simplification, malware variants, or incomplete telemetry.",
+            "supporting_facts": [f"{len(contradictions)} contradiction candidate(s) detected."],
+            "opposing_facts": ["Source error remains possible."],
+            "unknowns": ["which mapping is current", "which procedure evidence is primary"],
+            "falsification_conditions": ["Independent primary evidence resolves mapping/timeline conflicts."],
+            "next_test": "Perform source-independence and procedure-level adjudication.",
+            "status": "OPEN",
+        })
+
+    hyps, _ = truncate_list(hyps, 1000)
+    return hyps
+
+
+def build_knowledge_gaps(payload: Dict[str, Any], files: List[Dict[str, Any]], parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    gaps = []
+
+    if not files:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What authorized/public TTP evidence exists?",
+            "missing_evidence": "No local TTP evidence file supplied.",
+            "likely_source": "MITRE ATT&CK, government advisory, vendor CTI, incident report, malware report, telemetry, detection rule, STIX/MISP.",
+            "specialist_owner": "TTPINT AI Employee",
+            "priority": "HIGH",
+            "expected_information_value": "Enables behavior/procedure/mapping planning.",
+            "safety_boundary": "Defensive only. No offensive playbook, exploitation, evasion, malware, or unauthorized testing.",
+        })
+
+    if not parsed.get("procedures"):
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Which procedures are supported by evidence?",
+            "missing_evidence": "No procedure records parsed.",
+            "likely_source": "Primary incident evidence, malware dynamic report, vendor behavioral reporting, ATT&CK procedures.",
+            "specialist_owner": "TTPINT / INCIDENTINT / MALINT",
+            "priority": "HIGH",
+            "expected_information_value": "Establishes procedure baseline.",
+            "safety_boundary": "Do not invent procedures or generate offensive steps.",
+        })
+
+    if parsed.get("procedures") and not parsed.get("mappings"):
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "How do procedures map to tactics/techniques/sub-techniques?",
+            "missing_evidence": "Procedures parsed but no ATT&CK mappings.",
+            "likely_source": "MITRE ATT&CK dataset, vendor mapping, independent analyst mapping.",
+            "specialist_owner": "TTPINT AI Employee",
+            "priority": "HIGH",
+            "expected_information_value": "Supports behavioral classification and detection mapping.",
+            "safety_boundary": "No keyword-only mapping; preserve ambiguity.",
+        })
+
+    if parsed.get("mappings") and not parsed.get("telemetry_requirements"):
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What telemetry is required to observe these behaviors?",
+            "missing_evidence": "Mappings parsed but no telemetry requirements.",
+            "likely_source": "ATT&CK data sources, authorized SIEM/EDR/NDR telemetry inventory, detection engineering.",
+            "specialist_owner": "TTPINT / LOGINT / detection engineering",
+            "priority": "HIGH",
+            "expected_information_value": "Enables detection-gap and hunt planning.",
+            "safety_boundary": "Missing telemetry does not prove behavior absence.",
+        })
+
+    if parsed.get("sequences"):
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Are procedure sequences temporally verified rather than inferred?",
+            "missing_evidence": "Sequence candidates parsed, but temporal evidence may be incomplete.",
+            "likely_source": "Incident timeline, EDR process tree, SIEM event ordering, authorized forensic timeline.",
+            "specialist_owner": "TTPINT / INCIDENTINT / LOGINT",
+            "priority": "HIGH_IF_SEQUENCE_CONSEQUENTIAL",
+            "expected_information_value": "Prevents false procedure-chain claims.",
+            "safety_boundary": "ATT&CK tactic order is not incident timeline.",
+        })
+
+    gaps, _ = truncate_list(gaps, 500)
+    return gaps
+
+
+def build_specialist_handoffs(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    handoffs = []
+
+    procedures = parsed.get("procedures", [])
+    mappings = parsed.get("mappings", [])
+    detections = parsed.get("detections", [])
+    telemetry = parsed.get("telemetry_requirements", [])
+
+    if any(p.get("actor_scope") or p.get("campaign_scope") for p in procedures):
+        handoffs.append({
+            "specialist": "THREATACTORINT",
+            "reason": "Actor/campaign-scoped behavior detected.",
+            "expected_output": "Actor/campaign attribution support using behavior plus other evidence, not TTP alone.",
+            "question": "Do procedure-level behaviors support actor/campaign hypotheses without overclaiming attribution?",
+        })
+
+    if any(p.get("malware_scope") for p in procedures):
+        handoffs.append({
+            "specialist": "MALINT",
+            "reason": "Malware-scoped behavior detected.",
+            "expected_output": "Malware capability vs observed behavior context without executing malware.",
+            "question": "Which malware behaviors are static capability, dynamic observation, or incident-supported?",
+        })
+
+    if any(p.get("incident_scope") for p in procedures):
+        handoffs.append({
+            "specialist": "INCIDENTINT / LOGINT",
+            "reason": "Incident-scoped behavior detected.",
+            "expected_output": "Case-specific evidence validation and timeline reconstruction.",
+            "question": "Which procedures are observed in the incident environment, and what telemetry supports them?",
+        })
+
+    if telemetry:
+        handoffs.append({
+            "specialist": "LOGINT / detection engineering / SOC",
+            "reason": "Telemetry requirements detected.",
+            "expected_output": "Telemetry coverage, retention, and detection-gap assessment.",
+            "question": "Which required data sources are available, retained, and queryable?",
+        })
+
+    if detections:
+        handoffs.append({
+            "specialist": "detection engineering workflow",
+            "reason": "Detection candidates detected.",
+            "expected_output": "Authorized rule review, tuning, and deployment decision.",
+            "question": "Which detection candidates are defensible, low false-positive, and aligned with telemetry?",
+        })
+
+    if any(m.get("technique_id") for m in mappings):
+        handoffs.append({
+            "specialist": "TTPINT Manager / human reviewer",
+            "reason": "ATT&CK mapping candidates detected.",
+            "expected_output": "Human review of ambiguous/disputed mappings before consequential use.",
+            "question": "Are mappings supported by procedure evidence and correct ATT&CK version?",
+        })
+
+    if not handoffs:
+        handoffs.append({
+            "specialist": "TTPINT Manager",
+            "reason": "No specialized handoff triggered from current local deterministic evidence alone.",
+            "expected_output": "Review scope, approve authorized connectors, assign behavior/procedure collection tasks.",
+            "question": "What TTP intelligence gap should be filled next?",
+        })
+
+    return handoffs
+
+
+def build_next_best_action(payload: Dict[str, Any], policy: Dict[str, Any], files: List[Dict[str, Any]], parsed: Dict[str, Any]) -> Dict[str, str]:
+    if policy.get("status") == "POLICY_BLOCKED":
+        return {
+            "action": "Revise task to remove prohibited offensive playbook/intrusion procedure generation, exploitation, evasion, malware, unauthorized testing, or destructive behavior.",
+            "reason": "TTPINT is defensive behavioral threat intelligence, not offensive procedure generation.",
+            "owner": "TTP Intelligence Manager",
+            "expected_output": "Policy-compliant defensive TTPINT scope and question set.",
+        }
+
+    if policy.get("status") == "HUMAN_REVIEW_REQUIRED":
+        return {
+            "action": "Route to human TTPINT reviewer before consequential attribution, incident-response interpretation, public reporting, detection deployment, or control changes.",
+            "reason": "TTP findings can drive attribution and operational decisions.",
+            "owner": "TTP Intelligence Manager",
+            "expected_output": "Approved defensive behavior analysis, evidence gaps, and handoffs.",
+        }
+
+    if not files:
+        return {
+            "action": "Attach authorized/public threat, incident, malware, actor, campaign, tool, telemetry, detection, ATT&CK, STIX, or MISP evidence before collection.",
+            "reason": "No TTPINT evidence artifact is available for local deterministic analysis.",
+            "owner": "TTPINT AI Employee",
+            "expected_output": "TTP evidence inventory with hashes and provenance.",
+        }
+
+    if not parsed.get("procedures"):
+        return {
+            "action": "Retrieve primary behavior/procedure evidence from incident reports, malware dynamic reports, vendor CTI, or ATT&CK procedure references.",
+            "reason": "No procedure records parsed.",
+            "owner": "TTPINT / INCIDENTINT / MALINT",
+            "expected_output": "Evidence-linked procedure candidates.",
+        }
+
+    if not parsed.get("mappings"):
+        return {
+            "action": "Map procedures to tactics/techniques/sub-techniques using validated ATT&CK version and procedure evidence.",
+            "reason": "Procedures parsed but ATT&CK mapping unresolved.",
+            "owner": "TTPINT AI Employee",
+            "expected_output": "Mapping candidates with status and confidence.",
+        }
+
+    if not parsed.get("telemetry_requirements"):
+        return {
+            "action": "Map required telemetry/data sources before claiming behavior absence or detection coverage.",
+            "reason": "Missing telemetry does not prove behavior absence.",
+            "owner": "TTPINT / LOGINT / detection engineering",
+            "expected_output": "Telemetry requirements and coverage gaps.",
+        }
+
+    if parsed.get("sequences"):
+        return {
+            "action": "Verify procedure sequences with incident timeline/endpoint telemetry before asserting ordered attack paths.",
+            "reason": "Co-occurrence and ATT&CK tactic order are not incident sequence.",
+            "owner": "TTPINT / INCIDENTINT / LOGINT",
+            "expected_output": "Observed/partial/inferred sequence confidence.",
+        }
+
+    return {
+        "action": "Proceed with defensive detection/hunting mapping, source-independence review, competing hypotheses, falsification, and specialist handoffs.",
+        "reason": "Local behavior evidence exists, but mappings/sequences/coverage remain evidence-dependent.",
+        "owner": "TTPINT / THREATACTORINT / MALINT / INCIDENTINT / detection engineering",
+        "expected_output": "Evidence-linked TTP intelligence report with limitations and next actions.",
+    }
+
+
+def build_collection_plan(
+    payload: Dict[str, Any],
+    questions: List[Any],
+    files: List[Dict[str, Any]],
+    parsed: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    plan = []
+    priority = 1
+    questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+
+    has_files = bool(files)
+    has_procedures = bool(parsed.get("procedures"))
+    has_mappings = bool(parsed.get("mappings"))
+    has_sequences = bool(parsed.get("sequences"))
+    has_telemetry = bool(parsed.get("telemetry_requirements"))
+    has_detections = bool(parsed.get("detections"))
+    has_mitre = any("MITRE" in str(f.get("content_kind", "")) for f in files) or any("mitre" in str(p).lower() for p in payload.get("mitre_attack_data_paths", []))
+    has_stix = any("STIX" in str(f.get("content_kind", "")) for f in files) or any("stix" in str(p).lower() for p in payload.get("stix_paths", []))
+    has_misp = any("MISP" in str(f.get("content_kind", "")) for f in files) or any("misp" in str(p).lower() for p in payload.get("misp_paths", []))
+
+    configured_connectors = payload.get("configured_connectors") or []
+    has_connectors = bool(configured_connectors) and not any("None configured" in str(x) for x in configured_connectors)
+
+    def add(
+        operation: str,
+        tool: str,
+        purpose: str,
+        status: str,
+        expected_output: str,
+        safety_risk: str = "LOW",
+        policy_note: str = "Defensive / authorized / evidence-first TTP intelligence only.",
+    ) -> None:
+        nonlocal priority
+        plan.append({
+            "question": questions_limited[0] if questions_limited else "General TTPINT collection planning",
+            "operation": operation,
+            "tool_or_provider": tool,
+            "purpose": purpose,
+            "status": status,
+            "expected_output": expected_output,
+            "priority": priority,
+            "safety_risk": safety_risk,
+            "policy_note": policy_note,
+            "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+            "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+        })
+        priority += 1
+
+    add(
+        "define_ttpint_questions_scope",
+        "TTPINT Manager / TTPINT AI Employee",
+        "Convert objective into behavior/procedure questions, allowed sources, temporal scope, ATT&CK version, and safety boundaries.",
+        "COMPLETED_LOCAL" if payload.get("questions") else "REQUIRED_BEFORE_COLLECTION",
+        "Requirement-driven defensive TTP collection plan.",
+        policy_note="Do not generate offensive playbooks, intrusion procedures, exploitation, evasion, malware, or unauthorized testing.",
+    )
+
+    add(
+        "preserve_original_ttp_evidence",
+        "local evidence store",
+        "Store original threat/incident/malware/actor/campaign/tool/telemetry/detection/ATT&CK/STIX/MISP artifacts and hashes.",
+        "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+        "TtpEvidenceObject with SHA256 and provenance fields.",
+    )
+
+    add(
+        "behavior_procedure_extraction_normalization",
+        "local deterministic parser",
+        "Extract behaviors and procedures from authorized/public reports without reproducing offensive operational detail.",
+        "COMPLETED_LOCAL" if has_procedures else "PLANNED_REQUIRES_EVIDENCE",
+        "Behavior/procedure records with state, scope, time, source, and limitations.",
+        safety_risk="HIGH_IF_OFFENSIVE_DETAIL_REPRODUCTION",
+        policy_note="Procedure summaries are defensive behavioral abstractions, not attack instructions.",
+    )
+
+    add(
+        "attck_mapping_validation",
+        "MITRE ATT&CK dataset / analyst mapping",
+        "Validate tactic/technique/sub-technique IDs, preserve ATT&CK version, and avoid keyword-only mapping.",
+        "COMPLETED_LOCAL" if has_mappings else "PLANNED_REQUIRES_ATTCK_EVIDENCE",
+        "Mapping objects with status, confidence, rationale, and version.",
+        safety_risk="HIGH_IF_FALSE_TECHNIQUE_MAPPING",
+        policy_note="False precision is worse than correct broader mapping.",
+    )
+
+    add(
+        "procedure_sequence_and_cooccurrence_analysis",
+        "incident timeline / telemetry / analyst correlation",
+        "Separate observed sequence, partial sequence, inferred sequence, and co-occurrence.",
+        "COMPLETED_LOCAL" if has_sequences else "PLANNED_REQUIRES_TEMPORAL_EVIDENCE",
+        "Sequence and co-occurrence records with confidence.",
+        safety_risk="HIGH_IF_FALSE_SEQUENCE",
+        policy_note="Co-occurrence is not sequence. ATT&CK tactic order is not incident timeline.",
+    )
+
+    add(
+        "telemetry_detection_coverage_mapping",
+        "ATT&CK data sources / SIEM / EDR / NDR / Sigma / YARA / authorized telemetry",
+        "Map required telemetry, detection candidates, coverage states, and telemetry gaps.",
+        "COMPLETED_LOCAL" if (has_telemetry or has_detections) else "PLANNED_ANALYTIC",
+        "Telemetry requirements, detection candidates, coverage gaps.",
+        policy_note="Missing telemetry does not prove behavior absence.",
+    )
+
+    add(
+        "stix_misp_mitre_metadata_parsing",
+        "STIX / MISP / MITRE ATT&CK local parser",
+        "Parse STIX/MISP/ATT&CK-like metadata locally and preserve IDs, versions, markings, and relationships.",
+        "COMPLETED_LOCAL" if (has_mitre or has_stix or has_misp) else ("BLOCKED_CONFIGURATION" if not has_connectors else "PLANNED_REQUIRES_CONNECTOR"),
+        "Normalized TTP records from structured threat intelligence formats.",
+        policy_note="Do not fabricate connector success. Preserve source markings.",
+    )
+
+    add(
+        "source_reliability_bias_independence",
+        "TTPINT analyst + report provenance",
+        "Assess primary incident evidence, vendor CTI, government advisory, sandbox, research, community sources, and copied mappings.",
+        "PLANNED_ANALYTIC",
+        "INDEPENDENT / PARTIALLY_DEPENDENT / DEPENDENT / UNKNOWN states.",
+        safety_risk="HIGH_IF_SOURCE_DEPENDENCY_ERROR",
+        policy_note="Five ATT&CK tables copied from one report are one behavioral evidence family.",
+    )
+
+    add(
+        "contradiction_competing_hypothesis_falsification",
+        "Primary TTP Analyst + Independent TTP Skeptic",
+        "Detect mapping disagreements, timeline conflicts, capability-vs-observed conflicts, and generate competing hypotheses.",
+        "PLANNED_ANALYTIC",
+        "AGREE / SEMANTIC_AGREEMENT / PARTIAL_AGREEMENT / DISAGREE / INSUFFICIENT_EVIDENCE.",
+        safety_risk="HIGH_IF_CONFIRMATION_BIAS",
+        policy_note="Challenge mapping. Attribute last.",
+    )
+
+    return plan
+
+
+def policy_screen(payload: Dict[str, Any]) -> Dict[str, Any]:
+    scanned_text = " ".join(
+        [
+            str(payload.get("objective", "")),
+            " ".join(str(q) for q in payload.get("questions", [])),
+            str(payload.get("target", "")),
+            " ".join(str(s) for s in payload.get("attack_techniques", [])),
+            str(payload.get("attack_version", "")),
+        ]
+    ).lower()
+
+    blocked_reasons = [p for p in POLICY_BLOCK_PATTERNS if re.search(p, scanned_text, re.IGNORECASE)]
+
+    human_review_required = False
+    safety_notes: List[str] = []
+
+    if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+        human_review_required = True
+        safety_notes.append(
+            "Sensitive TTP/incident/malware/actor/campaign/telemetry/detection context detected. Analysis must remain defensive, authorized, and evidence-first. "
+            "No offensive playbook generation, intrusion procedure generation, target-specific attack sequencing, credential theft procedures, persistence deployment, privilege escalation, exploitation, defense-evasion optimization, EDR/AV/sandbox bypass, log destruction, malware creation/deployment, technique execution, unauthorized testing, phishing operations, destructive procedures, or C2 deployment."
+        )
+
+    if payload.get("incident_report_paths") or payload.get("malware_report_paths") or payload.get("actor_report_paths") or payload.get("campaign_report_paths"):
+        human_review_required = True
+        safety_notes.append(
+            "Incident/malware/actor/campaign evidence detected. Behavior/mapping conclusions remain source-dependent until independently verified."
+        )
+
+    if payload.get("telemetry_paths") or payload.get("detection_rule_paths") or payload.get("sigma_paths") or payload.get("yara_paths"):
+        human_review_required = True
+        safety_notes.append(
+            "Telemetry/detection evidence detected. Detection mapping is defensive and requires authorized review before deployment."
+        )
+
+    if blocked_reasons:
+        return {
+            "status": "POLICY_BLOCKED",
+            "reasons": sorted(set(blocked_reasons)),
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "The requested task appears to require offensive playbook/intrusion procedure generation, target-specific attack sequencing, credential theft, persistence deployment, "
+                "privilege escalation, exploitation, defense-evasion optimization, EDR/AV/sandbox bypass, log destruction, malware creation/deployment, technique execution, "
+                "unauthorized testing, phishing operations, destructive procedures, or C2 deployment."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    if human_review_required:
+        return {
+            "status": "HUMAN_REVIEW_REQUIRED",
+            "reasons": [],
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "No obvious hard policy violation detected, but sensitive TTP, incident, malware, actor, campaign, telemetry, or detection context applies. "
+                "Conclusions must remain defensive, evidence-linked, versioned, and human-reviewed before consequential attribution, detection deployment, or control changes."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    return {
+        "status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+        "reasons": [],
+        "human_review_required": False,
+        "safety_notes": [],
+        "explanation": (
+            "No obvious policy violation detected. Execution remains planning-only unless authorized/public ATT&CK/STIX/MISP/incident/malware/telemetry/detection connectors or artifacts are configured."
+        ),
+        "safe_alternatives": [],
+    }
+
+
+def validate_payload(payload: Dict[str, Any]) -> List[str]:
+    warnings: List[str] = []
+
+    required = ["case_id", "task_id", "objective", "target", "target_type"]
+    for field in required:
+        if not payload.get(field):
+            warnings.append(f"Missing required field: {field}")
+
+    if not payload.get("questions"):
+        warnings.append("No TTPINT questions provided. Default questions will be inferred.")
+
+    evidence_keys = [
+        "report_paths",
+        "incident_report_paths",
+        "malware_report_paths",
+        "actor_report_paths",
+        "campaign_report_paths",
+        "tool_report_paths",
+        "telemetry_paths",
+        "detection_rule_paths",
+        "sigma_paths",
+        "yara_paths",
+        "mitre_attack_data_paths",
+        "stix_paths",
+        "misp_paths",
+        "attack_techniques",
+    ]
+
+    if not any(payload.get(k) for k in evidence_keys):
+        warnings.append("No TTP/ATT&CK/incident/malware/actor/campaign/telemetry/detection evidence provided. Output remains planning-only.")
+
+    if not payload.get("attack_version"):
+        warnings.append("No ATT&CK version provided. Technique definitions, data sources, relationships, and IDs can evolve.")
+
+    if not payload.get("time_range"):
+        warnings.append("No time range provided. Behavior, procedure evolution, sequence, and detection coverage are temporal.")
+
+    if not payload.get("configured_connectors"):
+        warnings.append("No ATT&CK/STIX/TAXII/MISP/SIEM/EDR/NDR connectors configured. External correlation remains planning-only.")
+
+    if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+        warnings.append(
+            "Sensitive TTP/incident/malware/actor/campaign/telemetry/detection context triggers defensive/safety controls. "
+            "No offensive playbook generation, intrusion procedure generation, exploitation, evasion, malware, unauthorized testing, or destructive behavior is permitted."
+        )
+
+    return warnings
+
+
+def default_questions(payload: Dict[str, Any]) -> List[str]:
+    return [
+        "What behaviors are actually supported by evidence?",
+        "Which tactics, techniques, and sub-techniques apply, and under which ATT&CK version?",
+        "What exact procedures were observed, reported, inferred, or only capability-level?",
+        "Which mappings are weak, ambiguous, disputed, or unsupported?",
+        "Which procedures are actor/campaign/malware/incident/tool-specific versus generic?",
+        "Which behaviors changed over time, and what behavioral drift candidates exist?",
+        "Which techniques commonly co-occur, and which sequences are temporally supported?",
+        "What telemetry is required, what is available, and where are coverage gaps?",
+        "What detections cover these behaviors, and what is detection coverage confidence?",
+        "Which behavior relationships are source-dependent or copied from one upstream report?",
+        "What contradictions exist among mappings, timelines, scopes, or behavior states?",
+        "What defensive investigation, hunting, detection, or mitigation should happen next?",
+    ]
+
+
+class TraceAtlasTTPINTPanel(tk.Tk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title(APP_TITLE)
+        self.geometry("1380x940")
+        self.minsize(1100, 760)
+
+        self.entries: Dict[str, Any] = {}
+        self.last_result: Dict[str, Any] = {}
+
+        self.analyzed_files: List[Dict[str, Any]] = []
+        self.parsed: Dict[str, Any] = empty_parsed()
+
+        self._configure_style()
+        self._build_ui()
+        self._set_defaults()
+
+    def _configure_style(self) -> None:
+        style = ttk.Style(self)
+
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        self.configure(bg="#0b0f19")
+
+        style.configure("TFrame", background="#0b0f19")
+        style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+        style.configure(
+            "Header.TLabel",
+            background="#0b0f19",
+            foreground="#34d399",
+            font=("Segoe UI", 17, "bold"),
+        )
+        style.configure(
+            "Subheader.TLabel",
+            background="#0b0f19",
+            foreground="#94a3b8",
+            font=("Segoe UI", 9),
+        )
+        style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+        style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+
+        style.configure(
+            "TEntry",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            insertcolor="#ffffff",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TCombobox",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            arrowcolor="#e5e7eb",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TButton",
+            padding=7,
+            font=("Segoe UI", 10, "bold"),
+            background="#1f2937",
+            foreground="#e5e7eb",
+            bordercolor="#475569",
+            lightcolor="#475569",
+            darkcolor="#475569",
+        )
+
+        style.map(
+            "TButton",
+            background=[("active", "#334155")],
+            foreground=[("active", "#ffffff")],
+        )
+
+        style.configure(
+            "Vertical.TScrollbar",
+            background="#1f2937",
+            troughcolor="#0b0f19",
+            arrowcolor="#e5e7eb",
+        )
+
+    def _build_ui(self) -> None:
+        header = ttk.Frame(self)
+        header.pack(fill="x", padx=16, pady=(14, 8))
+
+        ttk.Label(header, text="TraceAtlas TTPINT AI Employee", style="Header.TLabel").pack(anchor="w")
+
+        ttk.Label(
+            header,
+            text=(
+                "Defensive / authorized / evidence-first TTP intelligence • Planning-only by default • "
+                "Local deterministic JSON/CSV/TXT behavior/procedure/ATT&CK/telemetry/detection parsing only • "
+                "No offensive playbook / intrusion procedure / exploitation / evasion / malware / unauthorized testing / destructive behavior • "
+                "Tactic != technique != sub-technique != procedure • capability != observed TTP • co-occurrence != sequence"
+            ),
+            style="Subheader.TLabel",
+            wraplength=1280,
+            justify="left",
+        ).pack(anchor="w", pady=(2, 0))
+
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+
+        self.input_tab = ttk.Frame(self.notebook)
+        self.output_tab = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.input_tab, text="TTPINT Task Input")
+        self.notebook.add(self.output_tab, text="Output / TTPINT Plan / Evidence")
+
+        self._build_input_tab()
+        self._build_output_tab()
+
+    def _build_input_tab(self) -> None:
+        container = ttk.Frame(self.input_tab)
+        container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+        self.form = ttk.Frame(self.canvas)
+
+        self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        row = 0
+
+        for key, label, kind in FIELDS:
+            ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+
+            if kind == "entry":
+                widget = ttk.Entry(self.form, width=102)
+
+            elif kind == "combo":
+                widget = ttk.Combobox(
+                    self.form,
+                    values=TARGET_TYPES if key == "target_type" else [],
+                    width=100,
+                    state="readonly",
+                )
+
+            else:
+                widget = tk.Text(
+                    self.form,
+                    height=3,
+                    width=102,
+                    bg="#111827",
+                    fg="#e5e7eb",
+                    insertbackground="white",
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#334155",
+                    font=("Segoe UI", 10),
+                    wrap="word",
+                )
+
+            widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+            self.entries[key] = widget
+            row += 1
+
+        self.form.columnconfigure(1, weight=1)
+
+        buttons1 = ttk.Frame(self.input_tab)
+        buttons1.pack(fill="x", padx=10, pady=(12, 4))
+
+        buttons2 = ttk.Frame(self.input_tab)
+        buttons2.pack(fill="x", padx=10, pady=(0, 12))
+
+        ttk.Button(buttons1, text="Add Behavior Reports", command=self.add_behavior_reports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Incident Reports", command=self.add_incident_reports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Malware Reports", command=self.add_malware_reports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Actor / Campaign Reports", command=self.add_actor_campaign_reports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Tool Reports", command=self.add_tool_reports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Telemetry Exports", command=self.add_telemetry_exports).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Detection / Sigma / YARA", command=self.add_detection_sigma_yara).pack(side="left", padx=4)
+
+        ttk.Button(buttons2, text="Add MITRE ATT&CK Data", command=self.add_mitre_attack_data).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Add STIX / MISP", command=self.add_stix_misp).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Analyze Local TTPINT Evidence", command=self.analyze_local_ttpint).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Generate TTPINT Plan", command=self.generate_plan).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+
+    def _build_output_tab(self) -> None:
+        container = ttk.Frame(self.output_tab)
+        container.pack(fill="both", expand=True)
+
+        self.output = tk.Text(
+            container,
+            wrap="word",
+            bg="#020617",
+            fg="#bbf7d0",
+            insertbackground="white",
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#334155",
+            font=("Consolas", 11),
+        )
+
+        output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+        self.output.configure(yscrollcommand=output_scroll.set)
+
+        self.output.pack(side="left", fill="both", expand=True)
+        output_scroll.pack(side="right", fill="y")
+
+    def _set_defaults(self) -> None:
+        self.set_widget_value("case_id", "TTPINT-CASE-001")
+        self.set_widget_value("task_id", "TTPINT-TASK-001")
+        self.set_widget_value(
+            "objective",
+            "Analyze authorized or publicly documented adversary behavior intelligence using defensive, evidence-first TTPINT methods. "
+            "Preserve originals, parse safe behavior/procedure/ATT&CK/telemetry/detection metadata deterministically, extract procedures before mapping, "
+            "validate ATT&CK IDs/version, separate tactic/technique/sub-technique/procedure, distinguish observed behavior from source-reported/capability-level behavior, "
+            "preserve sequences and co-occurrences separately, map telemetry/detection/mitigation/controls defensively, assess diagnosticity, preserve contradictions, "
+            "generate competing hypotheses and falsification, and produce defensible behavioral intelligence without offensive playbook generation, intrusion procedures, "
+            "exploitation, evasion, malware, unauthorized testing, or destructive behavior.",
+        )
+        self.set_widget_value("target", "Illustrative example.com / authorized TTP context")
+        self.set_widget_value("target_type", "behavior_report")
+        self.set_widget_value(
+            "questions",
+            "\n".join(default_questions({})),
+        )
+
+        for field in [
+            "report_paths",
+            "incident_report_paths",
+            "malware_report_paths",
+            "actor_report_paths",
+            "campaign_report_paths",
+            "tool_report_paths",
+            "telemetry_paths",
+            "detection_rule_paths",
+            "sigma_paths",
+            "yara_paths",
+            "mitre_attack_data_paths",
+            "stix_paths",
+            "misp_paths",
+            "attack_techniques",
+        ]:
+            self.set_widget_value(field, "")
+
+        self.set_widget_value("attack_version", "")
+        self.set_widget_value(
+            "time_range",
+            json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+        )
+        self.set_widget_value("jurisdiction", "")
+        self.set_widget_value(
+            "scope",
+            json.dumps(
+                {
+                    "allowed_source_types": [
+                        "MITRE ATT&CK",
+                        "government cyber advisories",
+                        "CERT reports",
+                        "vendor threat reports",
+                        "incident-response reports",
+                        "malware reports",
+                        "security research",
+                        "public campaign analyses",
+                        "authorized EDR/XDR telemetry",
+                        "authorized SIEM data",
+                        "authorized network telemetry",
+                        "authorized sandbox reports",
+                        "authorized forensic reports",
+                        "Sigma repositories",
+                        "YARA repositories",
+                        "STIX",
+                        "TAXII",
+                        "MISP",
+                        "public research repositories",
+                        "authorized internal detections",
+                        "authorized incident timelines",
+                    ],
+                    "prohibited_sources_and_actions": [
+                        "offensive playbook generation",
+                        "intrusion procedure generation",
+                        "target-specific attack sequencing",
+                        "credential theft procedures",
+                        "persistence deployment procedures",
+                        "privilege escalation procedures",
+                        "exploit instructions",
+                        "defense-evasion optimization",
+                        "EDR bypass",
+                        "AV bypass",
+                        "sandbox-evasion instructions",
+                        "log-clearing procedures for concealment",
+                        "malware creation",
+                        "malware deployment",
+                        "executing techniques against real systems",
+                        "unauthorized testing",
+                        "phishing operations",
+                        "destructive procedures",
+                        "C2 deployment instructions",
+                    ],
+                    "data_minimization_rules": [
+                        "preserve only case-relevant behavioral intelligence",
+                        "do not execute scripts, malware, PoCs, payloads, macros, or repositories",
+                        "redact exposed secrets and do not use them",
+                        "treat threat reports, malware strings, logs, repositories, rule descriptions, and incident notes as untrusted evidence",
+                        "separate tactic, technique, sub-technique, procedure, observation, source-reported behavior, static capability, dynamic behavior, sequence, co-occurrence, detection coverage, and attribution",
+                        "preserve ATT&CK version and temporal behavior state",
+                    ],
+                    "authorized_use": "internal defensive/authorized TTP intelligence analysis only",
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value(
+            "authorization",
+            json.dumps(
+                {
+                    "authorized_by": "TTP Intelligence Manager / Cyber Intelligence Manager",
+                    "authorization_basis": "customer-authorized public/licensed/authorized defensive TTPINT engagement",
+                    "permitted_actions": [
+                        "local TTP evidence hashing",
+                        "authorized/public behavior/procedure/ATT&CK/telemetry/detection metadata parsing",
+                        "procedure-first mapping validation",
+                        "sequence/co-occurrence separation",
+                        "telemetry/detection/mitigation/control mapping",
+                        "source independence and contradiction analysis",
+                        "defensive specialist handoff",
+                    ],
+                    "prohibited_actions": [
+                        "offensive playbook generation",
+                        "intrusion procedure generation",
+                        "exploitation",
+                        "defense evasion optimization",
+                        "malware creation/deployment",
+                        "unauthorized testing",
+                        "destructive behavior",
+                        "C2 deployment",
+                    ],
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value("source_limits", "")
+        self.set_widget_value("budget", "")
+        self.set_widget_value("deadline", "")
+        self.set_widget_value(
+            "configured_connectors",
+            "None configured. No ATT&CK/STIX/TAXII/MISP/SIEM/EDR/NDR connector invoked. Planning-only for external enrichment.",
+        )
+
+    def get_widget_value(self, key: str) -> str:
+        widget = self.entries.get(key)
+        if widget is None:
+            return ""
+
+        if isinstance(widget, tk.Text):
+            return widget.get("1.0", "end-1c").strip()
+
+        if isinstance(widget, ttk.Combobox):
+            return widget.get().strip()
+
+        if isinstance(widget, ttk.Entry):
+            return widget.get().strip()
+
+        return ""
+
+    def set_widget_value(self, key: str, value: str) -> None:
+        widget = self.entries.get(key)
+        if widget is None:
+            return
+
+        if isinstance(widget, tk.Text):
+            widget.delete("1.0", "end")
+            widget.insert("1.0", value)
+        elif isinstance(widget, ttk.Combobox):
+            widget.set(value)
+        elif isinstance(widget, ttk.Entry):
+            widget.delete(0, "end")
+            widget.insert(0, value)
+
+    def collect_payload(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {}
+
+        for key, _, _ in FIELDS:
+            raw = self.get_widget_value(key)
+
+            if key in LIST_FIELDS:
+                payload[key] = parse_list(raw)
+            elif key in DICT_FIELDS:
+                payload[key] = parse_dict(raw)
+            else:
+                payload[key] = raw
+
+        payload["generated_at"] = now_utc()
+        payload["panel_version"] = APP_VERSION
+        payload["operating_mode"] = "PLANNING_ONLY_DEFENSIVE_EVIDENCE_FIRST"
+        payload["source_boundary"] = "DEFENSIVE_AUTHORIZED_EVIDENCE_FIRST_TTPINT_ONLY"
+        return payload
+
+    def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
+        if not paths:
+            return
+
+        current = self.get_widget_value(field)
+        added = "\n".join(paths)
+        new_value = current + ("\n" if current else "") + added
+        self.set_widget_value(field, new_value)
+        messagebox.showinfo(title, f"{len(paths)} path(s) added to {field}.")
+
+    def _add_paths_to_fields(self, fields: List[str], paths: Tuple[str, ...], title: str) -> None:
+        if not paths:
+            return
+
+        for field in fields:
+            current = self.get_widget_value(field)
+            added = "\n".join(paths)
+            new_value = current + ("\n" if current else "") + added
+            self.set_widget_value(field, new_value)
+
+        messagebox.showinfo(title, f"{len(paths)} path(s) added to: {', '.join(fields)}.")
+
+    def add_behavior_reports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select behavior / TTP report files",
+            filetypes=[
+                ("TTP reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("report_paths", paths, "Behavior / TTP Report Files Added")
+
+    def add_incident_reports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select incident report files",
+            filetypes=[
+                ("Incident reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("incident_report_paths", paths, "Incident Report Files Added")
+
+    def add_malware_reports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select malware report files",
+            filetypes=[
+                ("Malware reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("malware_report_paths", paths, "Malware Report Files Added")
+
+    def add_actor_campaign_reports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select actor / campaign report files",
+            filetypes=[
+                ("Actor / campaign reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._add_paths_to_fields(["actor_report_paths", "campaign_report_paths"], paths, "Actor / Campaign Report Files Added")
+
+    def add_tool_reports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select tool / utility report files",
+            filetypes=[
+                ("Tool reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("tool_report_paths", paths, "Tool Report Files Added")
+
+    def add_telemetry_exports(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select authorized telemetry / log export files",
+            filetypes=[
+                ("Telemetry exports", "*.json *.csv *.tsv *.txt *.log"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("telemetry_paths", paths, "Telemetry Export Files Added")
+
+    def add_detection_sigma_yara(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select detection / Sigma / YARA files",
+            filetypes=[
+                ("Detection / Sigma / YARA", "*.json *.csv *.tsv *.txt *.log *.yml *.yaml *.sigma *.yara"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._add_paths_to_fields(["detection_rule_paths", "sigma_paths", "yara_paths"], paths, "Detection / Sigma / YARA Files Added")
+
+    def add_mitre_attack_data(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select MITRE ATT&CK dataset / mapping files",
+            filetypes=[
+                ("MITRE ATT&CK data", "*.json *.csv *.tsv *.txt *.stix"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("mitre_attack_data_paths", paths, "MITRE ATT&CK Data Files Added")
+
+    def add_stix_misp(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select STIX / MISP files",
+            filetypes=[
+                ("STIX / MISP", "*.json *.xml *.csv *.tsv *.txt *.stix *.taxii *.misp"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._add_paths_to_fields(["stix_paths", "misp_paths"], paths, "STIX / MISP Files Added")
+
+    def run_policy_screen(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        result = {
+            "mode": "POLICY_SCREEN_ONLY",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "payload_preview": {
+                "case_id": payload.get("case_id"),
+                "task_id": payload.get("task_id"),
+                "objective": payload.get("objective"),
+                "target": payload.get("target"),
+                "target_type": payload.get("target_type"),
+                "has_report_paths": bool(payload.get("report_paths")),
+                "has_incident_reports": bool(payload.get("incident_report_paths")),
+                "has_malware_reports": bool(payload.get("malware_report_paths")),
+                "has_actor_reports": bool(payload.get("actor_report_paths")),
+                "has_campaign_reports": bool(payload.get("campaign_report_paths")),
+                "has_tool_reports": bool(payload.get("tool_report_paths")),
+                "has_telemetry": bool(payload.get("telemetry_paths")),
+                "has_detection_rules": bool(payload.get("detection_rule_paths")),
+                "has_sigma": bool(payload.get("sigma_paths")),
+                "has_yara": bool(payload.get("yara_paths")),
+                "has_mitre_attack_data": bool(payload.get("mitre_attack_data_paths")),
+                "has_stix": bool(payload.get("stix_paths")),
+                "has_misp": bool(payload.get("misp_paths")),
+                "has_attack_techniques": bool(payload.get("attack_techniques")),
+                "has_attack_version": bool(payload.get("attack_version")),
+            },
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            messagebox.showwarning(
+                "Policy Blocked",
+                "This TTPINT request is policy-blocked.\n\n"
+                + "\n".join(policy["reasons"])
+                + "\n\nUse only defensive/authorized alternatives.",
+            )
+        elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            messagebox.showwarning(
+                "Human Review Required",
+                "No hard policy block detected, but sensitive TTP/incident/malware/actor/campaign/telemetry/detection context applies.",
+            )
+        else:
+            messagebox.showinfo(
+                "Policy Screen",
+                "No obvious policy violation detected. Planning-only mode remains active.",
+            )
+
+    def analyze_local_ttpint(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "evidence_inventory": [],
+                "procedure_preview": [],
+                "mapping_preview": [],
+                "sequence_preview": [],
+                "telemetry_preview": [],
+                "detection_preview": [],
+                "observations": [],
+                "candidate_facts": [],
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning("Policy Blocked", "Local TTPINT evidence analysis blocked by policy screen.")
+            return
+
+        path_fields = [
+            "report_paths",
+            "incident_report_paths",
+            "malware_report_paths",
+            "actor_report_paths",
+            "campaign_report_paths",
+            "tool_report_paths",
+            "telemetry_paths",
+            "detection_rule_paths",
+            "sigma_paths",
+            "yara_paths",
+            "mitre_attack_data_paths",
+            "stix_paths",
+            "misp_paths",
+        ]
+
+        all_paths: List[str] = []
+        seen = set()
+
+        for field in path_fields:
+            for p in payload.get(field, []):
+                sp = str(p).strip()
+                if sp and sp not in seen:
+                    seen.add(sp)
+                    all_paths.append(sp)
+
+        if not all_paths:
+            messagebox.showwarning("No TTPINT Evidence", "Add local authorized/public TTP evidence files first.")
+            return
+
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", "Analyzing local authorized/public TTPINT evidence. Hashing and parsing may take time...\n")
+        self.notebook.select(self.output_tab)
+
+        files: List[Dict[str, Any]] = []
+        parsed_list: List[Dict[str, Any]] = []
+        attack_version_default = str(payload.get("attack_version") or "UNKNOWN")
+
+        for p in all_paths[:30]:
+            f, parsed = analyze_ttp_file(p, payload.get("case_id", ""), payload.get("task_id", ""), attack_version_default=attack_version_default)
+            files.append(f)
+            parsed_list.append(parsed)
+
+        aggregated = finalize_parsed(aggregate_parsed(parsed_list))
+
+        self.analyzed_files = files
+        self.parsed = aggregated
+
+        report = self._build_local_analysis_report(
+            files=files,
+            parsed=aggregated,
+            payload=payload,
+            policy=policy,
+        )
+
+        self.last_result = report
+        self._write_output(report)
+
+        succeeded = sum(1 for f in files if str(f.get("status", "")).startswith("SUCCEEDED"))
+        messagebox.showinfo(
+            "Local TTPINT Evidence Analysis Complete",
+            f"Processed {len(files)} evidence file(s).\n"
+            f"Succeeded/partial: {succeeded}\n"
+            f"Behaviors: {len(aggregated.get('behaviors', []))}\n"
+            f"Procedures: {len(aggregated.get('procedures', []))}\n"
+            f"Mappings: {len(aggregated.get('mappings', []))}\n"
+            f"Sequences: {len(aggregated.get('sequences', []))}\n"
+            f"Telemetry requirements: {len(aggregated.get('telemetry_requirements', []))}\n"
+            f"Detections: {len(aggregated.get('detections', []))}\n"
+            "Review output for limitations and next actions.",
+        )
+
+    def generate_plan(self) -> None:
+        payload = self.collect_payload()
+        warnings = validate_payload(payload)
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "warnings": warnings,
+                "payload": payload,
+                "ttpint_collection_plan": [],
+                "next_best_action": {
+                    "action": "Revise task to remove prohibited offensive playbook/intrusion procedure generation, exploitation, evasion, malware, unauthorized testing, or destructive behavior.",
+                    "owner": "TTP Intelligence Manager",
+                    "expected_output": "Policy-compliant defensive TTPINT scope and question set.",
+                },
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning(
+                "Policy Blocked",
+                "TTPINT plan not generated because the request is policy-blocked.",
+            )
+            return
+
+        questions = payload.get("questions") or default_questions(payload)
+
+        if not self.parsed.get("procedures") and not self.parsed.get("mappings"):
+            self.parsed = finalize_parsed(empty_parsed())
+
+        files = self.analyzed_files
+        parsed = self.parsed
+
+        contradictions = parsed.get("contradictions", [])
+        hypotheses = parsed.get("hypotheses", [])
+        knowledge_gaps = parsed.get("knowledge_gaps", [])
+        handoffs = parsed.get("specialist_handoffs", [])
+        next_action = build_next_best_action(payload, policy, files, parsed)
+
+        overall_status = "PLANNING_ONLY"
+        if policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            overall_status = "HUMAN_REVIEW_REQUIRED"
+        if files or parsed.get("procedures") or parsed.get("mappings"):
+            overall_status = "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE"
+
+        result = {
+            "mode": overall_status,
+            "panel_version": APP_VERSION,
+            "policy": (
+                "This output does not generate offensive playbooks, intrusion procedures, target-specific attack sequences, credential theft procedures, "
+                "persistence deployment procedures, privilege escalation procedures, exploit instructions, defense-evasion optimization, EDR/AV/sandbox bypass, "
+                "log-clearing/destruction guidance, malware, C2 deployment instructions, or execute techniques against real systems. "
+                "Local deterministic analysis is limited to hashing, safe JSON/CSV/TXT behavior/procedure/ATT&CK/telemetry/detection/STIX/MISP metadata parsing, "
+                "ATT&CK ID/version validation, procedure-first mapping, sequence/co-occurrence separation, telemetry/detection/mitigation/control mapping, "
+                "diagnosticity assessment, source independence, contradiction detection, competing hypotheses, falsification, secret redaction, prompt-injection flagging, "
+                "and defensive specialist handoff planning. "
+                "Live ATT&CK/STIX/TAXII/MISP/SIEM/EDR/NDR enrichment, authorized testing, detection deployment, and consequential attribution remain planning-only unless configured/authorized/human-reviewed."
+            ),
+            "policy_screen": policy,
+            "warnings": warnings,
+            "payload": payload,
+            "intelligence_questions": questions,
+            "evidence_inventory": files,
+            "behavior_preview": parsed.get("behaviors", [])[:300],
+            "procedure_preview": parsed.get("procedures", [])[:300],
+            "mapping_preview": parsed.get("mappings", [])[:300],
+            "sequence_preview": parsed.get("sequences", [])[:300],
+            "cooccurrence_preview": parsed.get("cooccurrences", [])[:300],
+            "telemetry_preview": parsed.get("telemetry_requirements", [])[:300],
+            "detection_preview": parsed.get("detections", [])[:300],
+            "mitigation_preview": parsed.get("mitigations", [])[:300],
+            "control_preview": parsed.get("controls", [])[:300],
+            "technique_summary": parsed.get("technique_summary", {}),
+            "procedure_profiles": parsed.get("procedure_profiles", [])[:300],
+            "campaign_profiles": parsed.get("campaign_profiles", [])[:300],
+            "actor_profiles": parsed.get("actor_profiles", [])[:300],
+            "malware_profiles": parsed.get("malware_profiles", [])[:300],
+            "incident_profiles": parsed.get("incident_profiles", [])[:300],
+            "tool_profiles": parsed.get("tool_profiles", [])[:300],
+            "sequence_summary": parsed.get("sequence_summary", {}),
+            "cooccurrence_summary": parsed.get("cooccurrence_summary", {}),
+            "telemetry_summary": parsed.get("telemetry_summary", {}),
+            "detection_summary": parsed.get("detection_summary", {}),
+            "behavioral_drift": parsed.get("behavioral_drift", [])[:300],
+            "contradictions": contradictions[:1000],
+            "hypotheses": hypotheses[:1000],
+            "knowledge_gaps": knowledge_gaps[:500],
+            "specialist_handoffs": handoffs[:500],
+            "next_best_action": next_action,
+            "ttpint_collection_plan": build_collection_plan(payload, questions, files, parsed),
+            **self._policy_sections(),
+            **self._schemas(),
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if warnings:
+            messagebox.showwarning(
+                "Validation Warnings",
+                "TTPINT plan generated with warnings:\n\n" + "\n".join(warnings),
+            )
+
+    def _build_local_analysis_report(
+        self,
+        files: List[Dict[str, Any]],
+        parsed: Dict[str, Any],
+        payload: Dict[str, Any],
+        policy: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        contradictions = parsed.get("contradictions", [])
+        hypotheses = parsed.get("hypotheses", [])
+        knowledge_gaps = parsed.get("knowledge_gaps", [])
+        handoffs = parsed.get("specialist_handoffs", [])
+        next_action = build_next_best_action(payload, policy, files, parsed)
+
+        observations: List[Dict[str, Any]] = []
+
+        for f in files:
+            observations.append({
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"A local authorized/public TTPINT evidence file was accessed and hashed: {f.get('filename')}.",
+                "evidence_id": f.get("evidence_id"),
+                "source_id": f.get("source_id"),
+                "observed_at": now_utc(),
+                "extraction_method": "local_deterministic_file_hash",
+                "limitations": "File hash does not prove behavior, procedure, ATT&CK mapping, sequence, detection coverage, or attribution.",
+            })
+
+        observations.extend([
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(files)} TTPINT evidence file(s) were parsed locally.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "safe_json_csv_text_ttpint_parser",
+                "limitations": "Parser output is normalized evidence, not verified external reality.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(parsed.get('behaviors', []))} behavior record(s) and {len(parsed.get('procedures', []))} procedure record(s) were extracted.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_BEHAVIOR_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "behavior_procedure_extraction_normalization",
+                "limitations": "Behavior/procedure records may be source-reported, inferred, or capability-level.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(parsed.get('mappings', []))} ATT&CK mapping candidate(s) were generated with ID/version validation.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_ATTCK_MAPPER",
+                "observed_at": now_utc(),
+                "extraction_method": "attck_id_validation_mapping_candidate_generation",
+                "limitations": "Technique ID presence alone is not procedure evidence. Ambiguous mappings are preserved.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(parsed.get('sequences', []))} sequence candidate(s) and {len(parsed.get('cooccurrences', []))} co-occurrence candidate(s) were preserved separately.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_SEQUENCE_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "sequence_cooccurrence_separation",
+                "limitations": "Co-occurrence is not sequence. ATT&CK tactic order is not incident timeline.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(parsed.get('telemetry_requirements', []))} telemetry requirement(s) and {len(parsed.get('detections', []))} detection candidate(s) were mapped defensively.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_DETECTION_MAPPER",
+                "observed_at": now_utc(),
+                "extraction_method": "telemetry_detection_coverage_mapping",
+                "limitations": "Missing telemetry does not prove behavior absence. Detection deployment requires authorized review.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": "No offensive playbook generation, intrusion procedure generation, exploitation, defense evasion, malware creation/deployment, unauthorized testing, or destructive behavior was performed.",
+                "evidence_id": "LOCAL_PANEL_POLICY",
+                "source_id": "LOCAL_POLICY_GUARD",
+                "observed_at": now_utc(),
+                "extraction_method": "defensive_evidence_first_policy",
+                "limitations": "Planning/local deterministic panel only.",
+            },
+        ])
+
+        observations, _ = truncate_list(observations, 500)
+
+        candidate_facts: List[Dict[str, Any]] = []
+
+        for f in files:
+            if f.get("sha256"):
+                candidate_facts.append({
+                    "candidate_fact": f"The preserved local TTPINT evidence artifact {f.get('filename')} has SHA256 {f.get('sha256')}.",
+                    "status": "SUPPORTED",
+                    "evidence_ids": [f.get("evidence_id")],
+                    "notes": "Supported by deterministic local hashing. Does not prove behavior, procedure, mapping, sequence, or attribution.",
+                })
+
+        candidate_facts.extend([
+            {
+                "candidate_fact": f"{len(parsed.get('procedures', []))} procedure candidate(s) were extracted.",
+                "status": "SUPPORTED_AS_CANDIDATE_ONLY",
+                "evidence_ids": ["AGGREGATE"],
+                "not_supported": [
+                    "verified actor behavior",
+                    "verified campaign ownership",
+                    "verified incident execution",
+                    "verified sequence",
+                    "verified detection coverage",
+                ],
+            },
+            {
+                "candidate_fact": f"{len(parsed.get('mappings', []))} ATT&CK mapping candidate(s) were generated.",
+                "status": "SUPPORTED_AS_MAPPING_CANDIDATE_ONLY",
+                "evidence_ids": ["AGGREGATE"],
+                "notes": "Mapping status, confidence, ATT&CK version, and procedure evidence remain preserved.",
+            },
+            {
+                "candidate_fact": f"{len(parsed.get('sequences', []))} sequence candidate(s) were preserved separately from co-occurrence.",
+                "status": "SUPPORTED_AS_SEQUENCE_CANDIDATE_ONLY",
+                "evidence_ids": ["AGGREGATE"],
+                "notes": "Sequence requires temporal or incident evidence.",
+            },
+            {
+                "candidate_fact": "No offensive playbook generation, intrusion procedure generation, exploitation, defense evasion, malware creation/deployment, unauthorized testing, or destructive behavior was performed.",
+                "status": "SUPPORTED",
+                "evidence_ids": ["LOCAL_PANEL_POLICY"],
+                "notes": "Defensive/evidence-first planning boundary.",
+            },
+        ])
+
+        candidate_facts, _ = truncate_list(candidate_facts, 200)
+
+        fact_gate = {
+            "status": "LOCAL_DETERMINISTIC_ONLY" if files or parsed.get("procedures") or parsed.get("mappings") else "NO_LOCAL_TTPINT_EVIDENCE",
+            "supported": [
+                "file existence and SHA256 hash",
+                "parsed behavior records",
+                "parsed procedure candidates",
+                "parsed ATT&CK ID/format validation",
+                "parsed mapping candidates with status/confidence/version",
+                "parsed sequence candidates",
+                "parsed co-occurrence candidates",
+                "parsed telemetry requirements",
+                "parsed detection candidates",
+                "parsed mitigation/control candidates",
+                "contradiction candidates",
+                "competing hypotheses",
+                "secret redaction flags",
+                "prompt-injection flags",
+            ],
+            "not_supported": [
+                "verified actor attribution",
+                "verified campaign ownership",
+                "verified incident execution",
+                "verified procedure sequence",
+                "verified detection coverage",
+                "verified mitigation effectiveness",
+                "offensive playbook generation",
+                "intrusion procedure generation",
+                "exploitation",
+                "defense evasion",
+                "malware creation/deployment",
+                "unauthorized testing",
+                "destructive behavior",
+            ],
+            "safety_status": "No offensive playbook generation, intrusion procedure generation, exploitation, defense evasion, malware creation/deployment, unauthorized testing, or destructive behavior performed.",
+        }
+
+        return {
+            "mode": "LOCAL_DETERMINISTIC_TTPINT_ANALYSIS",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "offensive_playbook_generation_performed": False,
+            "intrusion_procedure_generation_performed": False,
+            "exploitation_performed": False,
+            "defense_evasion_optimization_performed": False,
+            "malware_creation_or_deployment_performed": False,
+            "unauthorized_testing_performed": False,
+            "destructive_behavior_performed": False,
+            "evidence_inventory": files,
+            "behavior_preview": parsed.get("behaviors", [])[:300],
+            "procedure_preview": parsed.get("procedures", [])[:300],
+            "mapping_preview": parsed.get("mappings", [])[:300],
+            "sequence_preview": parsed.get("sequences", [])[:300],
+            "cooccurrence_preview": parsed.get("cooccurrences", [])[:300],
+            "telemetry_preview": parsed.get("telemetry_requirements", [])[:300],
+            "detection_preview": parsed.get("detections", [])[:300],
+            "mitigation_preview": parsed.get("mitigations", [])[:300],
+            "control_preview": parsed.get("controls", [])[:300],
+            "technique_summary": parsed.get("technique_summary", {}),
+            "procedure_profiles": parsed.get("procedure_profiles", [])[:300],
+            "campaign_profiles": parsed.get("campaign_profiles", [])[:300],
+            "actor_profiles": parsed.get("actor_profiles", [])[:300],
+            "malware_profiles": parsed.get("malware_profiles", [])[:300],
+            "incident_profiles": parsed.get("incident_profiles", [])[:300],
+            "tool_profiles": parsed.get("tool_profiles", [])[:300],
+            "sequence_summary": parsed.get("sequence_summary", {}),
+            "cooccurrence_summary": parsed.get("cooccurrence_summary", {}),
+            "telemetry_summary": parsed.get("telemetry_summary", {}),
+            "detection_summary": parsed.get("detection_summary", {}),
+            "behavioral_drift": parsed.get("behavioral_drift", [])[:300],
+            "contradictions": contradictions[:1000],
+            "hypotheses": hypotheses[:1000],
+            "observations": observations,
+            "candidate_facts": candidate_facts,
+            "fact_gate": fact_gate,
+            "knowledge_gaps": knowledge_gaps[:500],
+            "specialist_handoffs": handoffs[:500],
+            "recommended_next_actions": next_action,
+            "limitations": [
+                "Only local deterministic checks were performed.",
+                "No network access was performed.",
+                "No offensive playbook generation, intrusion procedure generation, exploitation, defense evasion, malware creation/deployment, unauthorized testing, or destructive behavior was performed.",
+                "Tactic is not technique.",
+                "Technique is not procedure.",
+                "Tool is not technique or actor.",
+                "IOC is not TTP.",
+                "Malware capability is not observed procedure.",
+                "Static capability is not incident execution.",
+                "Common technique is not actor identity.",
+                "Shared ATT&CK profile is not same actor.",
+                "Co-occurrence is not sequence.",
+                "ATT&CK tactic order is not incident timeline.",
+                "Missing telemetry is not absence of behavior.",
+                "Source mapping is not TraceAtlas-verified mapping.",
+                "Multiple copied ATT&CK tables are not independent evidence.",
+                "AI agreement is not source corroboration.",
+                "Exposed secrets were redacted heuristically and not used.",
+                "Threat reports, malware strings, logs, repositories, rule descriptions, and incident notes were treated as untrusted evidence.",
+            ],
+        }
+
+    def finalize_parsed(parsed: Dict[str, Any]) -> Dict[str, Any]:
+        for m in parsed.get("mappings", []):
+            tid = m.get("technique_id")
+            m["generic_technique"] = bool(tid and tid in GENERIC_TECHNIQUE_IDS)
+            if m.get("generic_technique"):
+                m["diagnosticity"] = "LOW"
+            elif m.get("subtechnique_id"):
+                m["diagnosticity"] = "MEDIUM"
+            else:
+                m["diagnosticity"] = "UNKNOWN"
+
+        parsed["technique_summary"] = build_technique_summary(parsed)
+        parsed["procedure_profiles"] = build_procedure_profiles(parsed)
+        parsed["campaign_profiles"] = build_scope_profiles(parsed, "campaign_scope")
+        parsed["actor_profiles"] = build_scope_profiles(parsed, "actor_scope")
+        parsed["malware_profiles"] = build_scope_profiles(parsed, "malware_scope")
+        parsed["incident_profiles"] = build_scope_profiles(parsed, "incident_scope")
+        parsed["tool_profiles"] = build_scope_profiles(parsed, "tool_scope")
+        parsed["sequence_summary"] = build_sequence_summary(parsed)
+        parsed["cooccurrence_summary"] = build_cooccurrence_summary(parsed)
+        parsed["telemetry_summary"] = build_telemetry_summary(parsed)
+        parsed["detection_summary"] = build_detection_summary(parsed)
+        parsed["behavioral_drift"] = build_behavioral_drift(parsed)
+        parsed["contradictions"] = build_contradictions(parsed)
+        parsed["hypotheses"] = build_hypotheses(parsed, parsed["contradictions"])
+        parsed["knowledge_gaps"] = build_knowledge_gaps({}, [], parsed)
+        parsed["specialist_handoffs"] = build_specialist_handoffs(parsed)
+
+        return parsed
+
+    def _write_output(self, result: Dict[str, Any]) -> None:
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2, default=str))
+
+    def _policy_sections(self) -> Dict[str, Any]:
+        return {
+            "role": {
+                "employee": "TTPINT AI Employee",
+                "hierarchy": [
+                    "Chief Intelligence Manager",
+                    "Cyber Intelligence Manager",
+                    "TTP Intelligence Manager",
+                    "TTPINT AI Employee",
+                    "Behavior / Procedure / ATT&CK / Detection / Correlation Skills",
+                ],
+                "not": [
+                    "exploitation agent",
+                    "offensive playbook generator",
+                    "malware development agent",
+                    "evasion optimizer",
+                    "intrusion planner",
+                    "persistence deployment agent",
+                    "credential theft system",
+                    "attack-chain executor",
+                ],
+            },
+            "core_principle": [
+                "RAW BEHAVIOR",
+                "OBSERVATION",
+                "PROCEDURE",
+                "TECHNIQUE CANDIDATE",
+                "SUB-TECHNIQUE CANDIDATE",
+                "TACTIC CONTEXT",
+                "SOURCE VERIFICATION",
+                "TEMPORAL VALIDATION",
+                "FACT GATE",
+                "CORRELATION",
+                "DEFENSIVE INTELLIGENCE",
+            ],
+            "critical_separations": [
+                "tactic != technique",
+                "technique != sub-technique",
+                "sub-technique != procedure",
+                "observation != mapping",
+                "static capability != observed TTP",
+                "sandbox behavior != real incident execution automatically",
+                "source-reported TTP != independently verified behavior",
+                "co-occurrence != sequence",
+                "ATT&CK tactic order != incident timeline",
+                "missing telemetry != behavior absence",
+                "source mapping != TraceAtlas-verified mapping",
+                "multiple copied ATT&CK tables != independent evidence",
+                "AI agreement != source corroboration",
+            ],
+            "hard_restrictions": [
+                "Do not generate attack playbooks.",
+                "Do not generate intrusion procedures.",
+                "Do not provide target-specific attack sequencing.",
+                "Do not provide credential theft steps.",
+                "Do not provide persistence deployment instructions.",
+                "Do not provide privilege-escalation procedures.",
+                "Do not provide exploit instructions.",
+                "Do not provide defense-evasion optimization.",
+                "Do not provide EDR bypass.",
+                "Do not provide AV bypass.",
+                "Do not provide sandbox-evasion instructions.",
+                "Do not provide log-clearing procedures for concealment.",
+                "Do not create malware.",
+                "Do not deploy malware.",
+                "Do not execute techniques against real systems.",
+                "Do not perform unauthorized testing.",
+                "Do not generate phishing operations.",
+                "Do not provide destructive procedures.",
+                "Do not provide C2 deployment instructions.",
+            ],
+            "attck_mapping_states": [
+                "SUPPORTED",
+                "PARTIALLY_SUPPORTED",
+                "CANDIDATE",
+                "DISPUTED",
+                "INCONCLUSIVE",
+                "UNSUPPORTED",
+            ],
+            "behavior_states": [
+                "OBSERVED",
+                "INFERRED",
+                "SOURCE_REPORTED",
+                "NOT_OBSERVED",
+                "CAPABILITY_CANDIDATE",
+                "UNKNOWN",
+            ],
+            "sequence_states": [
+                "OBSERVED_SEQUENCE",
+                "PARTIAL_SEQUENCE",
+                "INFERRED_SEQUENCE",
+                "UNKNOWN_ORDER",
+            ],
+            "coverage_states": [
+                "FULL",
+                "PARTIAL",
+                "WEAK",
+                "NO_COVERAGE",
+                "TELEMETRY_MISSING",
+                "UNKNOWN",
+            ],
+            "diagnosticity_states": [
+                "HIGH",
+                "MEDIUM",
+                "LOW",
+                "UNKNOWN",
+            ],
+            "telemetry_policy": [
+                "Every procedure should map to potential telemetry.",
+                "Missing telemetry does not prove behavior absence.",
+                "Store required data source, availability, quality, retention, and coverage.",
+            ],
+            "detection_policy": [
+                "Map procedure to detection candidate, telemetry, and coverage defensively.",
+                "Do not auto-deploy production rules without authorized review.",
+                "Signature hit is not proof of procedure execution, compromise, or actor identity.",
+            ],
+            "mitigation_policy": [
+                "Map technique/procedure to high-level defensive controls where supported.",
+                "Control existence does not prove implementation or effectiveness.",
+            ],
+            "source_independence_policy": [
+                "Determine whether multiple sources rely on same incident, malware sample, original report, detection vendor, telemetry provider, or government advisory.",
+                "Use INDEPENDENT, PARTIALLY_DEPENDENT, DEPENDENT, UNKNOWN.",
+                "Five ATT&CK tables copied from one report are one behavioral evidence family.",
+            ],
+            "falsification_questions": [
+                "Could behavior be legitimate administration?",
+                "Could same tool explain overlap?",
+                "Could telemetry be incomplete?",
+                "Could mapping fit another technique better?",
+                "Could ATT&CK version change classification?",
+                "Could procedure overlap be common across actors?",
+                "Could campaign evidence derive from one source?",
+            ],
+            "dual_ai_review_policy": {
+                "passes": [
+                    "Primary TTP Analyst",
+                    "Independent TTP Skeptic",
+                ],
+                "outcomes": [
+                    "AGREE",
+                    "SEMANTIC_AGREEMENT",
+                    "PARTIAL_AGREEMENT",
+                    "DISAGREE",
+                    "INSUFFICIENT_EVIDENCE",
+                ],
+                "rule": "AI agreement is not source corroboration.",
+            },
+            "non_negotiable_rules": [
+                "DO NOT GENERATE OFFENSIVE PLAYBOOKS.",
+                "DO NOT GENERATE TARGET-SPECIFIC ATTACK SEQUENCES.",
+                "DO NOT PROVIDE EXPLOITATION PROCEDURES.",
+                "DO NOT PROVIDE CREDENTIAL-THEFT PROCEDURES.",
+                "DO NOT PROVIDE PERSISTENCE DEPLOYMENT PROCEDURES.",
+                "DO NOT PROVIDE PRIVILEGE-ESCALATION PROCEDURES.",
+                "DO NOT PROVIDE DEFENSE-EVASION OPTIMIZATION.",
+                "DO NOT PROVIDE AV/EDR BYPASS.",
+                "DO NOT PROVIDE LOG-DESTRUCTION GUIDANCE.",
+                "DO NOT CREATE MALWARE.",
+                "DO NOT EXECUTE TTPs AGAINST REAL TARGETS.",
+                "DO NOT EQUATE TACTIC WITH TECHNIQUE.",
+                "DO NOT EQUATE TECHNIQUE WITH PROCEDURE.",
+                "DO NOT EQUATE TOOL WITH TECHNIQUE.",
+                "DO NOT EQUATE TOOL WITH ACTOR.",
+                "DO NOT EQUATE IOC WITH TTP.",
+                "DO NOT EQUATE MALWARE CAPABILITY WITH OBSERVED PROCEDURE.",
+                "DO NOT EQUATE STATIC CAPABILITY WITH INCIDENT EXECUTION.",
+                "DO NOT EQUATE COMMON TECHNIQUE WITH ACTOR IDENTITY.",
+                "DO NOT EQUATE SHARED ATT&CK PROFILE WITH SAME ACTOR.",
+                "DO NOT EQUATE CO-OCCURRENCE WITH SEQUENCE.",
+                "DO NOT EQUATE ATT&CK TACTIC ORDER WITH INCIDENT TIMELINE.",
+                "DO NOT EQUATE MISSING TELEMETRY WITH ABSENCE OF BEHAVIOR.",
+                "DO NOT EQUATE SOURCE MAPPING WITH TRACEATLAS-VERIFIED MAPPING.",
+                "DO NOT EQUATE MULTIPLE COPIED ATT&CK TABLES WITH INDEPENDENT EVIDENCE.",
+                "DO NOT EQUATE AI AGREEMENT WITH SOURCE CORROBORATION.",
+                "DO NOT HIDE AMBIGUOUS MAPPINGS.",
+                "DO NOT HIDE TELEMETRY GAPS.",
+                "DO NOT HIDE GENERIC BEHAVIOR.",
+                "DO NOT HIDE LEGITIMATE ADMINISTRATION ALTERNATIVES.",
+                "DO NOT HIDE ATT&CK VERSION DIFFERENCES.",
+                "DO NOT INVENT PROCEDURES.",
+                "DO NOT INVENT SEQUENCES.",
+                "DO NOT INVENT TECHNIQUES.",
+                "DO NOT INVENT SUB-TECHNIQUES.",
+                "DO NOT INVENT ACTOR BEHAVIOR.",
+                "DO NOT LOSE HISTORICAL TTP EVOLUTION.",
+            ],
+        }
+
+        def _schemas(self) -> Dict[str, Any]:
+        return {
+            "ttp_evidence_schema": {
+                "evidence_id": "Unique TTPINT evidence identifier",
+                "case_id": "Case identifier",
+                "source_id": "Source identifier",
+                "source_type": "MITRE ATT&CK / incident / malware / actor / campaign / tool / telemetry / detection / Sigma / YARA / STIX / MISP / public research / etc.",
+                "artifact_id": "Artifact or report identifier if available",
+                "behavior_reference": "Reference to behavior description or record",
+                "procedure_text_reference": "Reference to procedure text or normalized procedure",
+                "observed_at": "Observation timestamp",
+                "published_at": "Publication timestamp",
+                "retrieved_at": "Retrieval timestamp",
+                "attack_version": "ATT&CK version if applicable",
+                "parser_version": "Parser version",
+                "normalizer_version": "Normalizer version",
+                "content_hash": "SHA256 of original artifact/value",
+                "raw_artifact_reference": "Secure path/object storage reference",
+                "authorization_context": "Authorization basis/reference",
+            },
+            "behavior_schema": {
+                "behavior_id": "Unique behavior identifier",
+                "description": "Defensive behavioral description, not offensive instruction",
+                "actor_scope": "Actor label/context if source-reported",
+                "campaign_scope": "Campaign/context if source-reported",
+                "malware_scope": "Malware family/variant/sample context if applicable",
+                "incident_scope": "Incident context if applicable",
+                "tool_scope": "Tool/utility context if applicable",
+                "source_ids": "Source identifiers",
+                "evidence_ids": "Evidence identifiers",
+                "observed_at": "Observation timestamp",
+                "first_seen": "First source-seen timestamp",
+                "last_seen": "Last source-seen timestamp",
+                "state": "OBSERVED / INFERRED / SOURCE_REPORTED / NOT_OBSERVED / CAPABILITY_CANDIDATE / UNKNOWN",
+                "confidence": "LOW / MODERATE / HIGH",
+                "limitations": [
+                    "Behavior description is source-derived and may be textual, reported, inferred, or capability-level.",
+                    "Behavior is not automatically an observed procedure, ATT&CK mapping, actor behavior, or incident fact.",
+                ],
+            },
+            "procedure_schema": {
+                "procedure_id": "Unique procedure identifier",
+                "behavior_id": "Associated behavior identifier",
+                "procedure_summary": "Evidence-linked behavioral abstraction, not operational attack instruction",
+                "subject_entity": "Who/what performed action if supported",
+                "action": "Action verb if supported",
+                "object_entity": "Object/artifact/target if supported",
+                "environment": "Platform/environment if supported",
+                "preconditions": "Conditions required if supported",
+                "result": "Observed/reported result if supported",
+                "actor_scope": "Actor scope",
+                "campaign_scope": "Campaign scope",
+                "malware_scope": "Malware scope",
+                "incident_scope": "Incident scope",
+                "tool_scope": "Tool scope",
+                "source_ids": "Source identifiers",
+                "evidence_ids": "Evidence identifiers",
+                "time": "Observation time",
+                "first_seen": "First source-seen time",
+                "last_seen": "Last source-seen time",
+                "state": "OBSERVED / INFERRED / SOURCE_REPORTED / NOT_OBSERVED / CAPABILITY_CANDIDATE / UNKNOWN",
+                "confidence": "LOW / MODERATE / HIGH",
+                "limitations": [
+                    "Procedure summary is evidence-linked behavioral abstraction, not offensive instruction.",
+                    "Procedure does not automatically prove actor, campaign, malware variant, incident execution, or sequence.",
+                ],
+            },
+            "attck_mapping_schema": {
+                "mapping_id": "Unique ATT&CK mapping identifier",
+                "procedure_id": "Associated procedure identifier",
+                "procedure_summary": "Procedure summary used for mapping rationale",
+                "matrix": "Enterprise / Mobile / ICS / UNKNOWN",
+                "tactic_id": "Validated ATT&CK tactic ID if available",
+                "tactic_raw": "Raw tactic context if not validated",
+                "tactic_name": "Tactic name if available",
+                "technique_id": "Validated ATT&CK technique ID",
+                "technique_raw": "Raw technique context if not validated",
+                "technique_name": "Technique name if available",
+                "subtechnique_id": "Validated ATT&CK sub-technique ID",
+                "subtechnique_raw": "Raw sub-technique context if not validated",
+                "subtechnique_name": "Sub-technique name if available",
+                "attack_version": "ATT&CK version",
+                "mapping_status": "SUPPORTED / PARTIALLY_SUPPORTED / CANDIDATE / DISPUTED / INCONCLUSIVE / UNSUPPORTED",
+                "confidence": "LOW / MODERATE / HIGH",
+                "rationale": "Why mapping was proposed",
+                "evidence_ids": "Evidence identifiers",
+                "source_id": "Source identifier",
+                "temporal": "Temporal metadata",
+                "validation_notes": "ID/version/validation notes",
+                "generic_technique": "Whether technique is considered generic/common",
+                "diagnosticity": "HIGH / MEDIUM / LOW / UNKNOWN for actor/campaign discrimination",
+                "limitations": [
+                    "ATT&CK mapping is analytical and evidence-dependent.",
+                    "Technique ID presence alone is not procedure evidence.",
+                    "Sub-technique mapping requires specificity evidence; otherwise broader mapping is preferred.",
+                    "ATT&CK version must be preserved.",
+                ],
+            },
+            "sequence_schema": {
+                "sequence_id": "Unique sequence identifier",
+                "before_procedure": "Procedure/behavior reference before",
+                "after_procedure": "Procedure/behavior reference after",
+                "relation": "PRECEDES / FOLLOWS / CO_OCCURS_WITH / RELATED_TO",
+                "scope": "Campaign/actor/incident/malware/tool scope",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "confidence": "LOW / MODERATE / HIGH",
+                "state": "OBSERVED_SEQUENCE / PARTIAL_SEQUENCE / INFERRED_SEQUENCE / UNKNOWN_ORDER",
+                "limitations": [
+                    "Sequence requires temporal or incident evidence.",
+                    "ATT&CK tactic order is not incident timeline.",
+                    "Co-occurrence is not sequence.",
+                ],
+            },
+            "cooccurrence_schema": {
+                "cooccurrence_id": "Unique co-occurrence identifier",
+                "technique_a": "ATT&CK technique ID A",
+                "technique_b": "ATT&CK technique ID B",
+                "scope": "Campaign/actor/incident/malware/tool scope",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "confidence": "LOW / MODERATE / HIGH",
+                "state": "CO_OCCURS_WITH",
+                "limitations": [
+                    "Co-occurrence is not sequence.",
+                    "Shared ATT&CK technique overlap may be generic and weak for actor/campaign linking.",
+                ],
+            },
+            "telemetry_schema": {
+                "telemetry_id": "Unique telemetry requirement identifier",
+                "procedure_ref": "Procedure/behavior reference",
+                "technique_id": "Associated ATT&CK technique ID",
+                "data_source": "Required telemetry/data source",
+                "available": "YES / NO / PARTIAL / UNKNOWN",
+                "quality": "HIGH / MEDIUM / LOW / UNKNOWN",
+                "retention": "Retention state if known",
+                "coverage": "FULL / PARTIAL / WEAK / NO_COVERAGE / TELEMETRY_MISSING / UNKNOWN",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "state": "TELEMETRY_REQUIREMENT_CANDIDATE",
+                "limitations": [
+                    "Required telemetry mapping is defensive and may be incomplete.",
+                    "Missing telemetry does not prove behavior absence.",
+                ],
+            },
+            "detection_schema": {
+                "detection_id": "Unique detection candidate identifier",
+                "procedure_ref": "Procedure/behavior reference",
+                "technique_id": "Associated ATT&CK technique ID",
+                "detection_source": "Sigma / SIEM / EDR / NDR / IDS / IPS / WAF / cloud / application / etc.",
+                "rule_id": "Rule identifier if available",
+                "title": "Detection/rule title",
+                "log_source": "Log source/category",
+                "defensive_description": "High-level defensive detection description",
+                "coverage": "FULL / PARTIAL / WEAK / NO_COVERAGE / TELEMETRY_MISSING / UNKNOWN",
+                "false_positive_note": "Known false-positive consideration",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "state": "DETECTION_CANDIDATE",
+                "limitations": [
+                    "Detection mapping is defensive and requires authorized review before deployment.",
+                    "Signature hit is not proof of procedure execution, compromise, or actor identity.",
+                ],
+            },
+            "mitigation_schema": {
+                "mitigation_id": "Unique mitigation identifier",
+                "technique_id": "Associated ATT&CK technique ID",
+                "procedure_ref": "Procedure/behavior reference",
+                "mitigation": "High-level defensive mitigation",
+                "status": "AVAILABLE / IMPLEMENTED_REPORTED / VERIFIED / PARTIAL / NOT_AVAILABLE / UNKNOWN",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "state": "MITIGATION_CANDIDATE",
+                "limitations": [
+                    "Mitigation existence does not prove implementation or effectiveness.",
+                    "Operational changes require authorized workflow.",
+                ],
+            },
+            "control_schema": {
+                "control_id": "Unique security control identifier",
+                "technique_id": "Associated ATT&CK technique ID",
+                "procedure_ref": "Procedure/behavior reference",
+                "control": "High-level defensive control",
+                "status": "AVAILABLE / IMPLEMENTED_REPORTED / VERIFIED / PARTIAL / NOT_AVAILABLE / UNKNOWN",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "temporal": "Temporal metadata",
+                "state": "CONTROL_CANDIDATE",
+                "limitations": [
+                    "Control mapping is defensive and high-level.",
+                    "Control presence does not prove coverage or effectiveness.",
+                ],
+            },
+            "scope_profile_schema": {
+                "scope": "Actor/campaign/malware/incident/tool scope value",
+                "scope_key": "actor_scope / campaign_scope / malware_scope / incident_scope / tool_scope",
+                "procedures": "Procedure records associated with scope",
+                "techniques": "Technique IDs observed/reported for scope",
+                "subtechniques": "Sub-technique IDs observed/reported for scope",
+                "mapping_statuses": "Mapping statuses seen for scope",
+                "behavior_states": "Behavior states seen for scope",
+                "source_ids": "Source identifiers",
+                "evidence_ids": "Evidence identifiers",
+                "first_seen": "Earliest parsed temporal marker",
+                "last_seen": "Latest parsed temporal marker",
+                "procedure_count": "Number of procedure records",
+                "technique_count": "Number of technique IDs",
+                "source_count": "Number of source IDs",
+                "state": "SOURCE_OBSERVED_SCOPE_PROFILE",
+                "limitations": [
+                    "Scope profile is source-dependent and may be incomplete.",
+                    "Profile does not prove actor identity, campaign ownership, malware variant behavior, incident execution, or sequence.",
+                ],
+            },
+            "behavioral_drift_schema": {
+                "drift_id": "Unique behavioral drift identifier",
+                "scope_key": "Scope field evaluated",
+                "scope": "Scope value",
+                "state": "BEHAVIORAL_DRIFT_DETECTED / BEHAVIORAL_DRIFT_CANDIDATE / NO_SIGNIFICANT_DRIFT / UNKNOWN",
+                "reason": "Why drift state was assigned",
+                "techniques": "Techniques observed across scope",
+                "behavior_states": "Behavior states observed across scope",
+                "first_seen": "Earliest temporal marker",
+                "last_seen": "Latest temporal marker",
+                "span_days": "Temporal span in days if computable",
+                "limitations": [
+                    "Behavioral drift is analytical and corpus/time-window dependent.",
+                    "Drift does not prove actor evolution, campaign change, or deception.",
+                ],
+            },
+            "contradiction_schema": {
+                "contradiction_id": "Unique contradiction identifier",
+                "type": "TECHNIQUE_MAPPING_DISAGREEMENT / OBSERVED_VS_CAPABILITY_CONFLICT / TIMELINE_CONFLICT / etc.",
+                "subject": "Procedure/mapping/timeline subject",
+                "values": "Conflicting values",
+                "possible_explanations": [
+                    "different ATT&CK version",
+                    "different procedure granularity",
+                    "source simplification",
+                    "multiple plausible techniques",
+                    "analyst interpretation",
+                    "malware variant difference",
+                    "static capability reported alongside dynamic observation",
+                    "source wording ambiguity",
+                    "different incident contexts",
+                    "source date error",
+                    "timezone parsing issue",
+                    "mixed campaign windows",
+                ],
+                "resolution_status": "UNRESOLVED",
+                "caution": "Do not silently merge mappings, states, or timelines.",
+            },
+            "hypothesis_schema": {
+                "hypothesis_id": "Unique hypothesis identifier",
+                "statement": "Testable TTPINT hypothesis",
+                "supporting_facts": "Evidence-linked supporting facts",
+                "opposing_facts": "Evidence-linked opposing facts",
+                "assumptions": "Assumptions required",
+                "unknowns": "Unknowns",
+                "falsification_conditions": "What would disprove it",
+                "next_test": "Next defensive test/handoff",
+                "status": "OPEN, SUPPORTED, DISPUTED, REJECTED, INCONCLUSIVE",
+            },
+            "knowledge_gap_schema": {
+                "gap_id": "Unique gap identifier",
+                "question": "TTPINT question affected",
+                "missing_evidence": "What evidence is missing",
+                "likely_source": "Source type that could fill the gap",
+                "specialist_owner": "Employee or specialist responsible",
+                "priority": "HIGH, MEDIUM, LOW, HIGH_IF_SEQUENCE_CONSEQUENTIAL, etc.",
+                "expected_information_value": "Expected discriminating value if filled",
+                "safety_boundary": "Any safety or authorization constraint",
+            },
+            "ttpint_result_schema": [
+                "case_id",
+                "task_id",
+                "objective",
+                "questions",
+                "source_ids",
+                "evidence_ids",
+                "behaviors",
+                "procedures",
+                "tactics",
+                "techniques",
+                "subtechniques",
+                "attack_matrix",
+                "attack_version",
+                "mapping_states",
+                "mapping_confidence",
+                "procedure_confidence",
+                "sequence_confidence",
+                "procedure_sequences",
+                "cooccurrence_relationships",
+                "procedure_fingerprints",
+                "procedure_similarity",
+                "diagnosticity",
+                "campaign_ttp_profiles",
+                "actor_ttp_profiles",
+                "malware_ttp_profiles",
+                "tool_ttp_profiles",
+                "incident_ttp_profiles",
+                "behavioral_drift",
+                "telemetry_requirements",
+                "telemetry_gaps",
+                "detection_rules",
+                "detection_coverage",
+                "mitigations",
+                "security_controls",
+                "hunt_hypotheses",
+                "timeline_updates",
+                "observations",
+                "candidate_facts",
+                "supported_facts",
+                "partial_facts",
+                "disputed_facts",
+                "source_reliability",
+                "source_bias",
+                "source_limitations",
+                "source_independence",
+                "contradictions",
+                "hypotheses",
+                "falsification_results",
+                "unknowns",
+                "knowledge_gaps",
+                "recommended_next_actions",
+                "specialist_handoffs",
+                "limitations",
+                "status",
+            ],
+            "required_analyst_summary_format": [
+                "BEHAVIOR SUMMARY",
+                "TACTICS",
+                "TECHNIQUES",
+                "SUB-TECHNIQUES",
+                "PROCEDURES",
+                "ATT&CK VERSION",
+                "PROCEDURE SEQUENCES",
+                "TECHNIQUE CO-OCCURRENCE",
+                "DIAGNOSTICITY",
+                "CAMPAIGN TTP PROFILE",
+                "ACTOR TTP CONTEXT",
+                "MALWARE TTP PROFILE",
+                "BEHAVIORAL SIMILARITY",
+                "TTP EVOLUTION",
+                "TELEMETRY REQUIREMENTS",
+                "TELEMETRY GAPS",
+                "DETECTION COVERAGE",
+                "MITIGATION / CONTROLS",
+                "SOURCE RELIABILITY",
+                "SOURCE INDEPENDENCE",
+                "CONTRADICTIONS",
+                "UNKNOWN",
+                "NEXT ACTION",
+            ],
+            "ttpint_report_sections": [
+                "Objective",
+                "Authorized Scope",
+                "Behavior Inventory",
+                "Procedure Inventory",
+                "Tactics",
+                "Techniques",
+                "Sub-Techniques",
+                "ATT&CK Version",
+                "Mapping Rationale",
+                "Procedure Sequences",
+                "Technique Co-occurrence",
+                "Procedure Fingerprints",
+                "Behavioral Similarity",
+                "Campaign TTP Profile",
+                "Actor TTP Context",
+                "Malware TTP Profile",
+                "Tool TTP Profile",
+                "Incident TTP Profile",
+                "Behavioral Evolution",
+                "Behavioral Drift",
+                "Telemetry Requirements",
+                "Telemetry Gaps",
+                "Detection Coverage",
+                "Sigma / Detection Context",
+                "Mitigations",
+                "Security Control Mapping",
+                "Hunt Hypotheses",
+                "Source Reliability",
+                "Source Bias / Limitations",
+                "Source Independence",
+                "Facts",
+                "Observations",
+                "Contradictions",
+                "Competing Hypotheses",
+                "Falsification",
+                "Unknowns",
+                "Knowledge Gaps",
+                "Next Actions",
+                "Specialist Handoffs",
+                "Limitations",
+                "Evidence / Citations",
+                "Replay Manifest",
+            ],
+            "replay_requirements_policy": {
+                "preserve": [
+                    "original evidence",
+                    "behavior extraction",
+                    "procedure normalization",
+                    "ATT&CK dataset/version",
+                    "mapping candidates",
+                    "mapping decision",
+                    "technique/sub-technique IDs",
+                    "source mapping",
+                    "source-independent remapping",
+                    "telemetry context",
+                    "detection mapping",
+                    "fact-gate result",
+                    "dual-AI result",
+                    "falsification result",
+                    "graph updates",
+                ],
+                "rule": (
+                    "Replay must answer WHAT BEHAVIOR WAS OBSERVED? HOW WAS THE PROCEDURE DERIVED? "
+                    "WHY WAS TECHNIQUE T SELECTED? WHY WAS A SUB-TECHNIQUE NOT SELECTED? "
+                    "WAS THE ORIGINAL SOURCE MAPPING COPIED OR INDEPENDENTLY VERIFIED? "
+                    "WHAT EVIDENCE CONTRADICTED THE MAPPING?"
+                ),
+            },
+            "collection_plan_schema": {
+                "question": "TTPINT question or general collection planning",
+                "operation": "Planned defensive TTPINT operation",
+                "tool_or_provider": "Tool/source/connector",
+                "purpose": "Why this operation matters",
+                "status": "COMPLETED_LOCAL/PLANNED_REQUIRES_EVIDENCE/PLANNED_REQUIRES_ATTCK_EVIDENCE/PLANNED_REQUIRES_TEMPORAL_EVIDENCE/PLANNED_ANALYTIC/BLOCKED_CONFIGURATION/PLANNED_REQUIRES_CONNECTOR/REQUIRED_BEFORE_COLLECTION",
+                "expected_output": "Expected intelligence output",
+                "priority": "Rank",
+                "safety_risk": "LOW/MEDIUM/HIGH",
+                "policy_note": "Defensive/authorized/evidence-first boundary",
+                "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+                "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+            },
+        }
+
+    def export_json(self) -> None:
+        if not self.last_result:
+            self.generate_plan()
+
+        data = self.last_result or self.collect_payload()
+
+        payload_for_name = data.get("payload") or data.get("payload_preview") or data
+        case_id = payload_for_name.get("case_id", "ttpint")
+        task_id = payload_for_name.get("task_id", "task")
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialfile=f"{case_id}_{task_id}.json",
+        )
+
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            messagebox.showinfo("Export Complete", f"TTPINT JSON saved to:\n{path}")
+        except Exception as exc:
+            messagebox.showerror("Export Failed", str(exc))
+
+    def copy_output(self) -> None:
+        text = self.output.get("1.0", "end-1c").strip()
+        if not text:
+            messagebox.showinfo("Copy Output", "No output to copy.")
+            return
+
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Copy Output", "Output copied to clipboard.")
+
+    def clear_form(self) -> None:
+        confirm = messagebox.askyesno(
+            "Clear Form",
+            "Are you sure you want to clear all fields, analyzed TTPINT evidence, and reset defaults?",
+        )
+        if not confirm:
+            return
+
+        self._set_defaults()
+        self.output.delete("1.0", "end")
+        self.last_result = {}
+        self.analyzed_files = []
+        self.parsed = empty_parsed()
+
+
+if __name__ == "__main__":
+    app = TraceAtlasTTPINTPanel()
+    app.mainloop()

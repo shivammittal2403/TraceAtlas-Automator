@@ -1,0 +1,4038 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+import json
+import re
+import csv
+import hashlib
+import uuid
+
+from collections import defaultdict, Counter
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+
+APP_TITLE = "TraceAtlas SUPPLYCHAININT AI Employee — Defensive / Authorized / Evidence-First Supply-Chain Intelligence Panel"
+APP_VERSION = "TraceAtlas SUPPLYCHAININT Panel v0.1"
+
+
+FIELDS = [
+    ("case_id", "Case ID", "entry"),
+    ("task_id", "Task ID", "entry"),
+    ("objective", "Objective", "text"),
+    ("target", "Target / Organization / Vendor / Product Context", "entry"),
+    ("target_type", "Target Type", "combo"),
+    ("questions", "SUPPLYCHAININT Questions", "text"),
+
+    ("organizations", "Organizations / Customers / Tenants", "text"),
+    ("vendors", "Vendors", "text"),
+    ("suppliers", "Suppliers", "text"),
+    ("manufacturers", "Manufacturers", "text"),
+    ("oems", "OEMs", "text"),
+    ("odms", "ODMs", "text"),
+    ("distributors", "Distributors", "text"),
+    ("resellers", "Resellers", "text"),
+    ("contractors", "Contractors", "text"),
+    ("subcontractors", "Subcontractors", "text"),
+    ("nth_parties", "Fourth / Nth Parties", "text"),
+    ("cloud_providers", "Cloud Providers", "text"),
+    ("saas_providers", "SaaS Providers", "text"),
+    ("msps", "MSPs", "text"),
+    ("mssps", "MSSPs", "text"),
+    ("identity_providers", "Identity Providers", "text"),
+    ("network_providers", "Network Providers", "text"),
+    ("dns_providers", "DNS Providers", "text"),
+    ("cdns", "CDNs", "text"),
+    ("payment_processors", "Payment Processors", "text"),
+    ("data_processors", "Data Processors", "text"),
+    ("subprocessors", "Subprocessors", "text"),
+
+    ("products", "Products", "text"),
+    ("services", "Services", "text"),
+    ("components", "Components", "text"),
+    ("packages", "Software Packages", "text"),
+    ("repositories", "Repositories", "text"),
+    ("applications", "Applications", "text"),
+
+    ("sboms", "SBOM Records / CycloneDX / SPDX Notes", "text"),
+    ("vex_records", "VEX Records", "text"),
+    ("build_pipelines", "Build Pipeline Metadata", "text"),
+    ("artifact_registries", "Artifact Registries", "text"),
+
+    ("contracts", "Contracts", "text"),
+    ("slas", "SLAs", "text"),
+    ("procurement_records", "Procurement Records", "text"),
+    ("trade_records", "Trade / Logistics Records", "text"),
+    ("financial_records", "Vendor Financial Health Records", "text"),
+    ("cloud_inventory", "Cloud Inventory", "text"),
+    ("saas_inventory", "SaaS Inventory", "text"),
+    ("asset_inventory", "Asset / CMDB Inventory", "text"),
+    ("identity_integrations", "Identity Integrations", "text"),
+
+    ("incidents", "Vendor / Supplier Incidents", "text"),
+    ("breaches", "Breach Notifications", "text"),
+    ("vulnerabilities", "Vulnerability / CVE Context", "text"),
+    ("sanctions_data", "Sanctions / Regulatory Data", "text"),
+
+    ("vendor_inventory_paths", "Vendor / Supplier Inventory Paths", "text"),
+    ("sbom_paths", "SBOM / VEX / Package Manifest Paths", "text"),
+    ("contract_paths", "Contract / SLA Paths", "text"),
+    ("incident_paths", "Incident / Breach / Advisory Paths", "text"),
+    ("package_paths", "Package / Repository / Lockfile Paths", "text"),
+    ("cloud_paths", "Cloud / SaaS / Identity Inventory Paths", "text"),
+    ("trade_paths", "Trade / Logistics / Procurement Paths", "text"),
+    ("stix_misp_paths", "STIX / MISP Export Paths", "text"),
+
+    ("time_range", "Time Range", "text"),
+    ("jurisdiction", "Jurisdiction", "entry"),
+    ("scope", "Scope / Allowed Sources", "text"),
+    ("authorization", "Authorization Basis", "text"),
+    ("source_limits", "Source Limits / Safety Limits", "text"),
+    ("budget", "Budget", "entry"),
+    ("deadline", "Deadline", "entry"),
+    ("configured_connectors", "Configured Connectors (CMDB/SBOM/Procurement/CTI/etc.)", "text"),
+]
+
+
+TARGET_TYPES = [
+    "vendor_dependency_mapping",
+    "supplier_concentration",
+    "software_supply_chain",
+    "sbom_vex_analysis",
+    "cloud_saas_identity_dependency",
+    "physical_supply_chain",
+    "incident_propagation",
+    "third_party_risk",
+    "business_continuity_resilience",
+    "unknown",
+]
+
+
+LIST_FIELDS = {
+    "questions",
+    "organizations",
+    "vendors",
+    "suppliers",
+    "manufacturers",
+    "oems",
+    "odms",
+    "distributors",
+    "resellers",
+    "contractors",
+    "subcontractors",
+    "nth_parties",
+    "cloud_providers",
+    "saas_providers",
+    "msps",
+    "mssps",
+    "identity_providers",
+    "network_providers",
+    "dns_providers",
+    "cdns",
+    "payment_processors",
+    "data_processors",
+    "subprocessors",
+    "products",
+    "services",
+    "components",
+    "packages",
+    "repositories",
+    "applications",
+    "sboms",
+    "vex_records",
+    "build_pipelines",
+    "artifact_registries",
+    "contracts",
+    "slas",
+    "procurement_records",
+    "trade_records",
+    "financial_records",
+    "cloud_inventory",
+    "saas_inventory",
+    "asset_inventory",
+    "identity_integrations",
+    "incidents",
+    "breaches",
+    "vulnerabilities",
+    "sanctions_data",
+    "vendor_inventory_paths",
+    "sbom_paths",
+    "contract_paths",
+    "incident_paths",
+    "package_paths",
+    "cloud_paths",
+    "trade_paths",
+    "stix_misp_paths",
+    "source_limits",
+    "configured_connectors",
+}
+
+
+DICT_FIELDS = {
+    "scope",
+    "authorization",
+    "time_range",
+}
+
+
+SENSITIVE_TARGET_TYPES = {
+    "vendor_dependency_mapping",
+    "supplier_concentration",
+    "software_supply_chain",
+    "sbom_vex_analysis",
+    "cloud_saas_identity_dependency",
+    "physical_supply_chain",
+    "incident_propagation",
+    "third_party_risk",
+    "business_continuity_resilience",
+}
+
+
+NEGATION_RE = re.compile(
+    r"\b(?:do not|don't|dont|must not|shall not|should not|avoid|without|never|not to|prohibit|policy blocked|safe alternative|defensive only)\b",
+    re.I,
+)
+
+
+POLICY_BLOCK_PATTERNS = [
+    r"\b(?:attack|exploit|breach|intrude|hack)\b[^\n]{0,140}\b(?:vendor|supplier|third[- ]party|provider|package|repository|build pipeline|sbom|logistics)\b",
+    r"\b(?:scan|probe)\b[^\n]{0,140}\b(?:vendor|supplier|third[- ]party|provider)\b[^\n]{0,80}\b(?:without authorization|illegally|covertly|stealthily)\b",
+    r"\b(?:use|apply|utilize)\b[^\n]{0,140}\b(?:vendor credential|stolen credential|api key|token|private key|password)\b",
+    r"\b(?:poison|typosquat|publish malicious|inject malicious|compromise)\b[^\n]{0,140}\b(?:package|dependency|repository|build pipeline|sbom|artifact|update channel)\b",
+    r"\b(?:sabotage|disrupt|interfere with)\b[^\n]{0,140}\b(?:supply chain|logistics|delivery|supplier|vendor|service|identity|cloud)\b",
+    r"\b(?:identify|target|select)\b[^\n]{0,140}\b(?:sabotage chokepoint|attack path|disruption point|failure point for attack)\b",
+    r"\b(?:manipulate|bribe|coerce|blackmail|threaten)\b[^\n]{0,140}\b(?:procurement|supplier|vendor staff|vendor employee|third[- ]party personnel)\b",
+    r"\b(?:design|create|plan|recommend)\b[^\n]{0,140}\b(?:sanctions[- ]evasion supply chain|false[- ]origin supply chain|shell supplier|concealed supplier structure)\b",
+    r"\b(?:steal|exfiltrate|purchase illicit)\b[^\n]{0,140}\b(?:vendor proprietary data|supplier data|contract|sbom|package source)\b",
+]
+
+
+SAFE_ALTERNATIVES = [
+    "Provide defensive/authorized/evidence-first supply-chain intelligence: vendor/supplier/manufacturer resolution, direct and nth-party dependency mapping, criticality and substitutability analysis, concentration and common-mode resilience signals, SBOM/VEX/package dependency context, contract/SLA/BCP context, incident/vulnerability propagation hypotheses, sanctions/regulatory context, and next-best defensive verification actions.",
+    "Do not attack vendors, scan third parties without authorization, exploit supplier systems, use vendor credentials, poison or typosquat packages, compromise build pipelines, tamper with SBOMs, publish malicious dependencies, design supplier sabotage or logistics disruption, turn dependency centrality into attack targeting, manipulate procurement, bribe/coerce/blackmail vendor staff, design sanctions-evasion supply chains, or steal vendor proprietary data.",
+    "Separate vendor from manufacturer, supplier from OEM, reseller from product maker, contract from active use, dependency from ownership/control, single provider from confirmed SPOF, spend from criticality, certification from security, SBOM from deployed reality, package presence from vulnerability, vulnerability from exploitation, vendor incident from customer impact, and vendor breach from customer breach.",
+    "Use deterministic parsing and transparent risk dimensions. Escalate consequential vendor termination, supplier replacement, production architecture change, sanctions/export-control interpretation, fraud allegations, or public attribution to authorized human/legal/compliance review.",
+]
+
+
+SECRET_PATTERNS = [
+    (
+        "PRIVATE_KEY_BLOCK",
+        re.compile(
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+            re.S | re.I,
+        ),
+    ),
+    (
+        "PASSWORD_OR_TOKEN_ASSIGNMENT",
+        re.compile(
+            r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+            r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+            r"\s*[:=]\s*[^\s,;\"']+"
+        ),
+    ),
+    (
+        "BEARER_TOKEN",
+        re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}"),
+    ),
+    (
+        "AWS_ACCESS_KEY",
+        re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    ),
+    (
+        "JWT_LIKE_TOKEN",
+        re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"),
+    ),
+]
+
+
+PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+)?previous\s+(?:instructions|rules)",
+    r"reveal\s+(?:the\s+)?system\s+prompt",
+    r"download\s+(?:this\s+)?(?:binary|package|file)",
+    r"execute\s+(?:this\s+)?(?:command|script|code)",
+    r"install\s+(?:this\s+)?(?:package|dependency)",
+    r"disable\s+(?:security\s+)?controls",
+    r"send\s+(?:credentials|tokens|secrets)",
+]
+
+
+ENTITY_ROLE_KEYS = [
+    "organization",
+    "vendor",
+    "supplier",
+    "manufacturer",
+    "oem",
+    "odm",
+    "distributor",
+    "reseller",
+    "contractor",
+    "subcontractor",
+    "nth_party",
+    "cloud_provider",
+    "saas_provider",
+    "msp",
+    "mssp",
+    "identity_provider",
+    "network_provider",
+    "dns_provider",
+    "cdn",
+    "payment_processor",
+    "data_processor",
+    "subprocessor",
+    "provider",
+    "consumer",
+    "company",
+    "application",
+    "service",
+    "product",
+    "repository",
+]
+
+
+DEPENDENCY_KEYS = [
+    "depends_on",
+    "dependencies",
+    "uses",
+    "hosted_on",
+    "authenticated_by",
+    "processes_data_for",
+    "has_privileged_access_to",
+    "supports_function",
+    "supports_capability",
+    "contains_component",
+    "depends_on_package",
+    "built_from",
+    "published_by",
+    "hosted_in_repository",
+    "affected_by",
+    "impacted_by_incident",
+    "contracted_by",
+    "governed_by_sla",
+    "alternative_to_candidate",
+    "located_in",
+]
+
+
+PACKAGE_KEYS = [
+    "package",
+    "packages",
+    "component",
+    "components",
+    "sbom_component",
+    "artifact",
+]
+
+
+CONTRACT_KEYS = [
+    "contract",
+    "contracts",
+    "sla",
+    "slas",
+]
+
+
+INCIDENT_KEYS = [
+    "incident",
+    "incidents",
+    "outage",
+    "outages",
+    "breach",
+    "breaches",
+    "disruption",
+]
+
+
+VULNERABILITY_KEYS = [
+    "vulnerability",
+    "vulnerabilities",
+    "cve",
+    "cve_id",
+    "advisory",
+    "advisories",
+]
+
+
+CRITICAL_DEP_TYPES = {
+    "IDENTITY_PROVIDER",
+    "DNS_PROVIDER",
+    "CLOUD",
+    "SAAS",
+    "PAAS",
+    "IAAS",
+    "PAYMENT_PROCESSOR",
+    "CODE_SIGNING",
+    "CERTIFICATE_AUTHORITY",
+    "BACKUP_PROVIDER",
+    "MSP",
+    "MSSP",
+    "NETWORK_PROVIDER",
+    "CDN",
+    "DEPENDS_ON_PACKAGE",
+    "CONTAINS_COMPONENT",
+    "BUILT_FROM",
+}
+
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def normalize_key(value: Any) -> str:
+    s = str(value or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    return s.strip("_")
+
+
+def parse_list(value: str) -> List[Any]:
+    value = str(value or "").strip()
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return [parsed]
+    except Exception:
+        pass
+
+    normalized = value.replace(",", "\n")
+    parts = [p.strip() for p in normalized.splitlines()]
+    return [p for p in parts if p]
+
+
+def parse_dict(value: str) -> Dict[str, Any]:
+    value = str(value or "").strip()
+    if not value:
+        return {}
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    result: Dict[str, Any] = {}
+    for line in value.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        result[key.strip()] = val.strip()
+    return result
+
+
+def listify(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    return [value]
+
+
+def unique_preserve_order(items: List[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        key = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str) if isinstance(item, (dict, list)) else str(item)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def truncate_list(items: List[Any], limit: int) -> Tuple[List[Any], bool]:
+    if len(items) <= limit:
+        return items, False
+    return items[:limit], True
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def redact_secrets(text: str) -> Tuple[str, List[str]]:
+    flags: List[str] = []
+    if not text:
+        return "", flags
+
+    out = text
+    for name, rx in SECRET_PATTERNS:
+        if rx.search(out):
+            flags.append(name)
+            out = rx.sub("[REDACTED_SECRET]", out)
+
+    return out, sorted(set(flags))
+
+
+def detect_prompt_injection(text: str) -> List[str]:
+    flags: List[str] = []
+    low = normalize_text(text)
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        if re.search(pattern, low, re.I):
+            flags.append(pattern)
+    return sorted(set(flags))
+
+
+def safe_str(value: Any, limit: int = 300) -> str:
+    return redact_secrets(str(value or ""))[0].strip()[:limit]
+
+
+def content_tokens(text: str) -> List[str]:
+    redacted, _ = redact_secrets(str(text or ""))
+    low = normalize_text(redacted)
+    return re.findall(r"[a-z0-9]+", low)
+
+
+def content_fingerprint(text: str) -> str:
+    tokens = content_tokens(text)
+    if not tokens:
+        return ""
+    return sha256_text(" ".join(sorted(set(tokens))))[:32]
+
+
+def get_field(rec: Dict[str, Any], keys: List[str], as_list: bool = False) -> Any:
+    if not isinstance(rec, dict):
+        return [] if as_list else None
+
+    lower = {normalize_key(k): v for k, v in rec.items()}
+    for key in keys:
+        nk = normalize_key(key)
+        if nk in lower and lower[nk] not in (None, ""):
+            val = lower[nk]
+            if as_list:
+                return listify(val)
+            if isinstance(val, list):
+                return val[0] if val else None
+            return val
+    return [] if as_list else None
+
+
+def empty_parsed() -> Dict[str, Any]:
+    return {
+        "sources": [],
+        "entities": [],
+        "dependencies": [],
+        "packages": [],
+        "sbom_components": [],
+        "contracts": [],
+        "incidents": [],
+        "vulnerabilities": [],
+        "observations": [],
+        "notes": [],
+        "contradictions": [],
+        "hypotheses": [],
+        "knowledge_gaps": [],
+        "specialist_handoffs": [],
+        "concentration_signals": [],
+        "spof_candidates": [],
+        "common_mode_signals": [],
+        "propagation_candidates": [],
+    }
+
+
+def add_note(parsed: Dict[str, Any], note_type: str, **kwargs: Any) -> None:
+    if len(parsed.get("notes", [])) >= 200000:
+        return
+    note = {"type": note_type}
+    note.update(kwargs)
+    parsed["notes"].append(note)
+
+
+def add_observation(parsed: Dict[str, Any], statement: str, source_id: str, evidence_id: str, context: str = "") -> None:
+    if len(parsed.get("observations", [])) >= 200000:
+        return
+
+    redacted, secret_flags = redact_secrets(str(statement or "")[:1000])
+    injection_flags = detect_prompt_injection(str(statement or ""))
+
+    parsed["observations"].append({
+        "observation_id": f"OBS-{uuid.uuid4()}",
+        "statement": redacted,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": context[:200],
+        "state": "SOURCE_OBSERVED",
+        "secret_flags": secret_flags,
+        "prompt_injection_flags": injection_flags,
+        "content_hash": sha256_text(str(statement or "")),
+        "limitations": [
+            "Supply-chain source statement is evidence about dependency/risk context, not verified operational impact.",
+            "Vendor incident does not automatically prove customer compromise.",
+        ],
+    })
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Embedded instructions in vendor/SBOM/package documents are ignored.")
+
+
+def add_source(
+    parsed: Dict[str, Any],
+    source_id: str,
+    evidence_id: str,
+    filename: str = "",
+    file_hash: str = "",
+    publisher: str = "",
+    title: str = "",
+    source_type: str = "",
+    markings: str = "",
+    content_fp: str = "",
+) -> None:
+    for s in parsed["sources"]:
+        if s.get("source_id") == source_id:
+            if file_hash and not s.get("file_hash"):
+                s["file_hash"] = file_hash
+            if publisher and not s.get("publisher"):
+                s["publisher"] = publisher
+            if title and not s.get("title"):
+                s["title"] = title
+            if content_fp and not s.get("content_fingerprint"):
+                s["content_fingerprint"] = content_fp
+            return
+
+    parsed["sources"].append({
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "filename": filename,
+        "file_hash": file_hash,
+        "publisher": publisher,
+        "title": title,
+        "source_type": source_type or "UNKNOWN",
+        "markings": markings,
+        "content_fingerprint": content_fp,
+        "retrieved_at": now_utc(),
+        "state": "SOURCE_REGISTERED",
+        "source_independence_state": "UNKNOWN",
+        "limitations": [
+            "Source registration is local provenance metadata.",
+            "Multiple risk platforms consuming the same vendor advisory/SBOM/registry are not independent sources.",
+        ],
+    })
+
+
+def add_entity(
+    parsed: Dict[str, Any],
+    name: Any,
+    entity_type: Any,
+    role: Any = "",
+    jurisdiction: Any = "",
+    location: Any = "",
+    parent_entity_ref: Any = "",
+    source_id: str = "",
+    evidence_id: str = "",
+    context: str = "",
+) -> Optional[str]:
+    n = safe_str(name, 200)
+    if not n:
+        return None
+
+    norm = normalize_text(n)
+    et = safe_str(entity_type, 100).upper() or "UNKNOWN"
+    r = safe_str(role, 100).upper() or et
+
+    for e in parsed["entities"]:
+        if e.get("normalized_name") == norm and e.get("entity_type") == et:
+            if jurisdiction and not e.get("jurisdiction"):
+                e["jurisdiction"] = safe_str(jurisdiction, 100)
+            if location and not e.get("location"):
+                e["location"] = safe_str(location, 300)
+            if parent_entity_ref and not e.get("parent_entity_ref"):
+                e["parent_entity_ref"] = safe_str(parent_entity_ref, 200)
+            if r and r != "UNKNOWN" and e.get("role") in ("", "UNKNOWN"):
+                e["role"] = r
+            return e.get("entity_id")
+
+    eid = f"ENT-{uuid.uuid4()}"
+    parsed["entities"].append({
+        "entity_id": eid,
+        "name": n,
+        "normalized_name": norm,
+        "entity_type": et,
+        "role": r,
+        "jurisdiction": safe_str(jurisdiction, 100),
+        "location": safe_str(location, 300),
+        "parent_entity_ref": safe_str(parent_entity_ref, 200),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "ENTITY_CANDIDATE",
+        "limitations": [
+            "Entity resolution requires corroboration. Name similarity alone is insufficient.",
+            "Vendor is not automatically manufacturer. Supplier is not automatically OEM. Reseller is not automatically product maker.",
+            "Dependency relationship does not imply ownership or control.",
+        ],
+    })
+    return eid
+
+
+def resolve_entity_value(
+    parsed: Dict[str, Any],
+    value: Any,
+    default_type: str,
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> Optional[str]:
+    if value is None or value == "":
+        return None
+
+    if isinstance(value, dict):
+        name = (
+            value.get("name")
+            or value.get("legal_name")
+            or value.get("display_name")
+            or value.get("entity_name")
+            or value.get("supplier_name")
+            or value.get("vendor_name")
+            or value.get("id")
+        )
+        et = value.get("entity_type") or value.get("type") or value.get("role") or default_type
+        role = value.get("role") or default_type
+        jurisdiction = value.get("jurisdiction") or value.get("country") or value.get("region")
+        location = value.get("location") or value.get("address_summary") or value.get("site")
+        parent = value.get("parent_entity") or value.get("parent") or value.get("parent_company")
+    else:
+        name = str(value)
+        et = default_type
+        role = default_type
+        jurisdiction = ""
+        location = ""
+        parent = ""
+
+    return add_entity(
+        parsed,
+        name,
+        et,
+        role,
+        jurisdiction,
+        location,
+        parent,
+        source_id,
+        evidence_id,
+        context,
+    )
+
+
+def add_dependency(
+    parsed: Dict[str, Any],
+    from_entity_ref: Any,
+    to_entity_ref: Any,
+    dependency_type: Any = "",
+    product_or_service: Any = "",
+    business_function: Any = "",
+    criticality: Any = "",
+    substitutability: Any = "",
+    directness: Any = "",
+    valid_from: Any = "",
+    valid_to: Any = "",
+    source_id: str = "",
+    evidence_id: str = "",
+    context: str = "",
+    derived_from: Optional[List[str]] = None,
+    confidence: str = "SOURCE_REPORTED",
+) -> Optional[str]:
+    f_ref = safe_str(from_entity_ref, 200)
+    t_ref = safe_str(to_entity_ref, 200)
+    if not f_ref or not t_ref:
+        return None
+
+    dt = safe_str(dependency_type, 100).upper() or "UNKNOWN"
+    dir_state = safe_str(directness, 100).upper() or "DIRECT_SOURCE_REPORTED"
+
+    if not criticality:
+        criticality = "HIGH_CANDIDATE" if dt in CRITICAL_DEP_TYPES else "UNKNOWN"
+    if not substitutability:
+        substitutability = "DIFFICULT_TO_SUBSTITUTE_CANDIDATE" if dt in CRITICAL_DEP_TYPES else "UNKNOWN"
+
+    for d in parsed["dependencies"]:
+        if (
+            d.get("from_entity_ref") == f_ref
+            and d.get("to_entity_ref") == t_ref
+            and d.get("dependency_type") == dt
+            and d.get("directness") == dir_state
+        ):
+            if product_or_service and not d.get("product_or_service"):
+                d["product_or_service"] = safe_str(product_or_service, 300)
+            if business_function and not d.get("business_function"):
+                d["business_function"] = safe_str(business_function, 300)
+            return d.get("dependency_id")
+
+    dep_id = f"DEP-{uuid.uuid4()}"
+    parsed["dependencies"].append({
+        "dependency_id": dep_id,
+        "from_entity_ref": f_ref,
+        "to_entity_ref": t_ref,
+        "dependency_type": dt,
+        "product_or_service": safe_str(product_or_service, 300),
+        "business_function": safe_str(business_function, 300),
+        "criticality": safe_str(criticality, 100),
+        "substitutability": safe_str(substitutability, 100),
+        "directness": dir_state,
+        "valid_from": safe_str(valid_from, 100),
+        "valid_to": safe_str(valid_to, 100),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "derived_from": derived_from or [],
+        "confidence": confidence,
+        "state": "DEPENDENCY_CANDIDATE",
+        "limitations": [
+            "Dependency is source-reported until corroborated by contract/inventory/telemetry where authorized.",
+            "Contract does not prove active use. Active use does not prove current contract.",
+            "Single provider does not automatically prove SPOF.",
+            "Dependency does not imply ownership or control.",
+        ],
+    })
+    return dep_id
+
+
+def add_package(
+    parsed: Dict[str, Any],
+    name: Any,
+    version: Any = "",
+    ecosystem: Any = "",
+    purl: Any = "",
+    hash_value: Any = "",
+    source_registry: Any = "",
+    usage: Any = "UNKNOWN",
+    directness: Any = "UNKNOWN",
+    source_id: str = "",
+    evidence_id: str = "",
+    context: str = "",
+) -> Optional[str]:
+    n = safe_str(name, 200)
+    if not n:
+        return None
+
+    v = safe_str(version, 100)
+    display = n if not v else f"{n}@{v}"
+
+    entity_ref = add_entity(
+        parsed,
+        display,
+        "PACKAGE",
+        role="PACKAGE",
+        jurisdiction="",
+        location="",
+        parent_entity_ref="",
+        source_id=source_id,
+        evidence_id=evidence_id,
+        context=context,
+    )
+    if not entity_ref:
+        return None
+
+    pkg_id = f"PKG-{uuid.uuid4()}"
+    parsed["packages"].append({
+        "package_id": pkg_id,
+        "entity_ref": entity_ref,
+        "name": n,
+        "normalized_name": normalize_text(n),
+        "version": v,
+        "ecosystem": safe_str(ecosystem, 100),
+        "purl": safe_str(purl, 300),
+        "hash": safe_str(hash_value, 120),
+        "source_registry": safe_str(source_registry, 200),
+        "usage": safe_str(usage, 100).upper() or "UNKNOWN",
+        "directness": safe_str(directness, 100).upper() or "UNKNOWN",
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "PACKAGE_OBSERVED",
+        "limitations": [
+            "Package presence does not prove vulnerability reachability.",
+            "Manifest range does not prove deployed version. Lockfile/SBOM/deployment inventory may differ.",
+            "Open-source maintainer is not automatically corporate owner.",
+        ],
+    })
+    return entity_ref
+
+
+def add_sbom_component(
+    parsed: Dict[str, Any],
+    package_entity_ref: Any,
+    supplier_ref: Any,
+    licenses: Any,
+    sbom_format: Any,
+    sbom_version: Any,
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> None:
+    p_ref = safe_str(package_entity_ref, 200)
+    if not p_ref:
+        return
+
+    parsed["sbom_components"].append({
+        "sbom_component_id": f"SBOMC-{uuid.uuid4()}",
+        "package_entity_ref": p_ref,
+        "supplier_ref": safe_str(supplier_ref, 200),
+        "licenses": unique_preserve_order(listify(licenses))[:100],
+        "sbom_format": safe_str(sbom_format, 100),
+        "sbom_version": safe_str(sbom_version, 100),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "SBOM_COMPONENT_OBSERVED",
+        "limitations": [
+            "SBOM may be stale, incomplete, build-specific, or generated incorrectly.",
+            "SBOM is not deployed reality without inventory correlation.",
+        ],
+    })
+
+
+def add_contract(
+    parsed: Dict[str, Any],
+    consumer_ref: Any,
+    provider_ref: Any,
+    contract_id: Any,
+    scope: Any,
+    term: Any,
+    renewal: Any,
+    sla_ref: Any,
+    status: Any,
+    valid_from: Any,
+    valid_to: Any,
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> None:
+    c_ref = safe_str(consumer_ref, 200)
+    p_ref = safe_str(provider_ref, 200)
+    if not c_ref or not p_ref:
+        return
+
+    parsed["contracts"].append({
+        "contract_id": safe_str(contract_id, 200) or f"CTR-{uuid.uuid4()}",
+        "consumer_ref": c_ref,
+        "provider_ref": p_ref,
+        "scope": safe_str(scope, 500),
+        "term": safe_str(term, 300),
+        "renewal": safe_str(renewal, 300),
+        "sla_ref": safe_str(sla_ref, 200),
+        "status": safe_str(status, 100).upper() or "UNKNOWN",
+        "valid_from": safe_str(valid_from, 100),
+        "valid_to": safe_str(valid_to, 100),
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "CONTRACT_OBSERVED",
+        "limitations": [
+            "Contract does not prove active operational use.",
+            "SLA commitment is not observed performance.",
+        ],
+    })
+
+
+def add_incident(
+    parsed: Dict[str, Any],
+    entity_ref: Any,
+    incident_id: Any,
+    incident_type: Any,
+    severity: Any,
+    time: Any,
+    impact_state: Any,
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> None:
+    e_ref = safe_str(entity_ref, 200)
+    if not e_ref:
+        return
+
+    parsed["incidents"].append({
+        "incident_record_id": f"INC-{uuid.uuid4()}",
+        "entity_ref": e_ref,
+        "incident_id": safe_str(incident_id, 200),
+        "incident_type": safe_str(incident_type, 100).upper() or "UNKNOWN",
+        "severity": safe_str(severity, 100).upper() or "UNKNOWN",
+        "time": safe_str(time, 100),
+        "impact_state": safe_str(impact_state, 100).upper() or "VENDOR_INCIDENT_OBSERVED",
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "INCIDENT_SOURCE_REPORTED",
+        "limitations": [
+            "Vendor incident does not automatically prove customer impact or compromise.",
+            "Historical incident does not prove current failure.",
+        ],
+    })
+
+
+def add_vulnerability(
+    parsed: Dict[str, Any],
+    package_entity_ref: Any,
+    cve: Any,
+    affected_versions: Any,
+    fixed_versions: Any,
+    exploitability: Any,
+    propagation_state: Any,
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> None:
+    p_ref = safe_str(package_entity_ref, 200)
+    cve_id = safe_str(cve, 200)
+    if not p_ref and not cve_id:
+        return
+
+    parsed["vulnerabilities"].append({
+        "vulnerability_record_id": f"VUL-{uuid.uuid4()}",
+        "package_entity_ref": p_ref,
+        "cve": cve_id,
+        "affected_versions": safe_str(affected_versions, 300),
+        "fixed_versions": safe_str(fixed_versions, 300),
+        "exploitability": safe_str(exploitability, 100).upper() or "UNKNOWN",
+        "propagation_state": safe_str(propagation_state, 100).upper() or "VULNERABILITY_CONTEXT_OBSERVED",
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "VULNERABILITY_SOURCE_REPORTED",
+        "limitations": [
+            "Vulnerability affects component/version; applicability to deployed runtime requires VULNINT reachability analysis.",
+            "CVE is not automatically supply-chain compromise.",
+        ],
+    })
+
+
+def process_json_record(
+    rec: Dict[str, Any],
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+) -> None:
+    if not isinstance(rec, dict):
+        return
+
+    rec_ctx = context or "json_record"
+
+    text_blob = json.dumps(rec, ensure_ascii=False, default=str)[:12000]
+    process_text_block(text_blob, source_id, evidence_id, parsed, context=rec_ctx)
+
+    current_refs: List[str] = []
+
+    for key in ENTITY_ROLE_KEYS:
+        val = get_field(rec, [key])
+        if val:
+            ref = resolve_entity_value(parsed, val, key.upper(), source_id, evidence_id, f"{rec_ctx}/{key}")
+            if ref and ref not in current_refs:
+                current_refs.append(ref)
+
+    name = get_field(rec, ["name", "legal_name", "display_name", "entity_name"])
+    et = get_field(rec, ["entity_type", "type", "role"])
+    if name and et:
+        ref = add_entity(
+            parsed,
+            name,
+            et,
+            get_field(rec, ["role"]) or et,
+            get_field(rec, ["jurisdiction", "country", "region"]),
+            get_field(rec, ["location", "address_summary", "site"]),
+            get_field(rec, ["parent_entity", "parent", "parent_company"]),
+            source_id,
+            evidence_id,
+            rec_ctx,
+        )
+        if ref and ref not in current_refs:
+            current_refs.insert(0, ref)
+
+    from_val = get_field(rec, ["from", "consumer", "organization", "application", "company"])
+    from_ref = resolve_entity_value(parsed, from_val, "ORGANIZATION", source_id, evidence_id, f"{rec_ctx}/from") if from_val else None
+    if not from_ref and current_refs:
+        from_ref = current_refs[0]
+
+    to_val = get_field(rec, ["to", "provider", "vendor", "supplier"])
+    if from_ref and to_val:
+        to_ref = resolve_entity_value(parsed, to_val, "VENDOR", source_id, evidence_id, f"{rec_ctx}/to")
+        if to_ref:
+            add_dependency(
+                parsed,
+                from_ref,
+                to_ref,
+                dependency_type=get_field(rec, ["dependency_type", "type"]) or "DEPENDS_ON",
+                product_or_service=get_field(rec, ["product", "service", "component"]),
+                business_function=get_field(rec, ["business_function", "function", "capability"]),
+                criticality=get_field(rec, ["criticality"]),
+                substitutability=get_field(rec, ["substitutability"]),
+                directness=get_field(rec, ["directness"]) or "DIRECT_SOURCE_REPORTED",
+                valid_from=get_field(rec, ["valid_from", "contract_start", "observed_at"]),
+                valid_to=get_field(rec, ["valid_to", "contract_end"]),
+                source_id=source_id,
+                evidence_id=evidence_id,
+                context=f"{rec_ctx}/explicit_edge",
+            )
+
+    for key in DEPENDENCY_KEYS:
+        vals = get_field(rec, [key], as_list=True)
+        for item in vals:
+            to_ref = resolve_entity_value(parsed, item, key.upper(), source_id, evidence_id, f"{rec_ctx}/{key}")
+            if from_ref and to_ref:
+                add_dependency(
+                    parsed,
+                    from_ref,
+                    to_ref,
+                    dependency_type=key.upper(),
+                    product_or_service=get_field(rec, ["product", "service", "component"]),
+                    business_function=get_field(rec, ["business_function", "function", "capability"]),
+                    criticality=get_field(rec, ["criticality"]),
+                    substitutability=get_field(rec, ["substitutability"]),
+                    directness=get_field(rec, ["directness"]) or "DIRECT_SOURCE_REPORTED",
+                    valid_from=get_field(rec, ["valid_from", "contract_start", "observed_at"]),
+                    valid_to=get_field(rec, ["valid_to", "contract_end"]),
+                    source_id=source_id,
+                    evidence_id=evidence_id,
+                    context=f"{rec_ctx}/{key}",
+                )
+
+    for key in PACKAGE_KEYS:
+        vals = get_field(rec, [key], as_list=True)
+        for item in vals:
+            if isinstance(item, dict):
+                pname = item.get("name") or item.get("package") or item.get("component") or item.get("id")
+                pver = item.get("version") or item.get("resolved_version")
+                peco = item.get("ecosystem") or item.get("package_ecosystem")
+                ppurl = item.get("purl") or item.get("package_url")
+                phash = item.get("hash") or item.get("sha256") or item.get("digest")
+                preg = item.get("registry") or item.get("source_registry")
+                pusage = item.get("usage") or item.get("scope") or item.get("type") or "UNKNOWN"
+                pdir = item.get("directness") or ("DIRECT" if key in {"package", "packages"} else "UNKNOWN")
+                supplier_ref = item.get("supplier") or item.get("vendor") or item.get("publisher")
+
+                pkg_ref = add_package(
+                    parsed,
+                    pname,
+                    pver,
+                    peco,
+                    ppurl,
+                    phash,
+                    preg,
+                    pusage,
+                    pdir,
+                    source_id,
+                    evidence_id,
+                    f"{rec_ctx}/{key}",
+                )
+
+                if pkg_ref:
+                    add_sbom_component(
+                        parsed,
+                        pkg_ref,
+                        supplier_ref,
+                        item.get("licenses") or item.get("license"),
+                        get_field(rec, ["sbom_format", "format", "bom_format"]),
+                        get_field(rec, ["sbom_version", "spec_version", "version"]),
+                        source_id,
+                        evidence_id,
+                        f"{rec_ctx}/{key}/sbom",
+                    )
+
+                    if from_ref:
+                        add_dependency(
+                            parsed,
+                            from_ref,
+                            pkg_ref,
+                            dependency_type="DEPENDS_ON_PACKAGE",
+                            product_or_service=pname,
+                            business_function=get_field(rec, ["business_function", "function", "capability"]),
+                            directness=pdir,
+                            source_id=source_id,
+                            evidence_id=evidence_id,
+                            context=f"{rec_ctx}/{key}/dependency",
+                        )
+            elif item:
+                pkg_ref = add_package(
+                    parsed,
+                    str(item),
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "UNKNOWN",
+                    "UNKNOWN",
+                    source_id,
+                    evidence_id,
+                    f"{rec_ctx}/{key}",
+                )
+                if from_ref and pkg_ref:
+                    add_dependency(
+                        parsed,
+                        from_ref,
+                        pkg_ref,
+                        dependency_type="DEPENDS_ON_PACKAGE",
+                        product_or_service=str(item),
+                        source_id=source_id,
+                        evidence_id=evidence_id,
+                        context=f"{rec_ctx}/{key}/dependency",
+                    )
+
+    contract_id = get_field(rec, ["contract_id", "contract_number", "agreement_id", "sla_id"])
+    if contract_id:
+        consumer = resolve_entity_value(parsed, get_field(rec, ["consumer", "customer", "organization", "buyer"]), "ORGANIZATION", source_id, evidence_id, f"{rec_ctx}/contract_consumer")
+        provider = resolve_entity_value(parsed, get_field(rec, ["provider", "vendor", "supplier", "seller"]), "VENDOR", source_id, evidence_id, f"{rec_ctx}/contract_provider")
+        if consumer and provider:
+            add_contract(
+                parsed,
+                consumer,
+                provider,
+                contract_id,
+                get_field(rec, ["scope", "service_scope", "description"]),
+                get_field(rec, ["term", "duration"]),
+                get_field(rec, ["renewal", "renewal_date"]),
+                get_field(rec, ["sla_ref", "sla_id"]),
+                get_field(rec, ["status", "contract_status"]),
+                get_field(rec, ["valid_from", "contract_start", "effective_date"]),
+                get_field(rec, ["valid_to", "contract_end", "expiry_date"]),
+                source_id,
+                evidence_id,
+                rec_ctx,
+            )
+
+    incident_id = get_field(rec, ["incident_id", "outage_id", "breach_id", "disruption_id"])
+    incident_signal = get_field(rec, INCIDENT_KEYS)
+    if incident_id or incident_signal:
+        entity = resolve_entity_value(
+            parsed,
+            get_field(rec, ["entity", "vendor", "supplier", "provider", "organization"]) or incident_signal,
+            "VENDOR",
+            source_id,
+            evidence_id,
+            f"{rec_ctx}/incident_entity",
+        )
+        if entity:
+            add_incident(
+                parsed,
+                entity,
+                incident_id or incident_signal,
+                get_field(rec, ["incident_type", "type", "category"]) or "VENDOR_INCIDENT",
+                get_field(rec, ["severity", "impact_level"]),
+                get_field(rec, ["time", "incident_time", "detected_at", "published_at"]),
+                get_field(rec, ["impact_state", "customer_impact"]) or "VENDOR_INCIDENT_OBSERVED",
+                source_id,
+                evidence_id,
+                rec_ctx,
+            )
+
+    cve = get_field(rec, VULNERABILITY_KEYS)
+    if cve:
+        pkg_name = get_field(rec, ["package", "component", "product", "affected_package"])
+        pkg_ref = None
+        if pkg_name:
+            pkg_ref = add_package(
+                parsed,
+                pkg_name,
+                get_field(rec, ["version", "affected_version"]),
+                get_field(rec, ["ecosystem"]),
+                get_field(rec, ["purl"]),
+                "",
+                "",
+                "UNKNOWN",
+                "UNKNOWN",
+                source_id,
+                evidence_id,
+                f"{rec_ctx}/vuln_package",
+            )
+        add_vulnerability(
+            parsed,
+            pkg_ref,
+            cve,
+            get_field(rec, ["affected_versions", "affected_range"]),
+            get_field(rec, ["fixed_versions", "patched_version"]),
+            get_field(rec, ["exploitability", "kev", "epss"]),
+            get_field(rec, ["propagation_state", "reachability"]) or "VULNERABILITY_CONTEXT_OBSERVED",
+            source_id,
+            evidence_id,
+            rec_ctx,
+        )
+
+
+def process_text_block(
+    text: str,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+) -> None:
+    raw = str(text or "")
+    if not raw.strip():
+        return
+
+    redacted, secret_flags = redact_secrets(raw)
+    injection_flags = detect_prompt_injection(raw)
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Vendor/SBOM/package/contract documents are untrusted data.")
+
+    add_observation(parsed, redacted[:1000], source_id, evidence_id, context=context)
+
+    low = normalize_text(redacted)
+    signals = []
+
+    if any(k in low for k in ["sbom", "cyclonedx", "spdx", "vex", "bill of materials", "software bill"]):
+        signals.append("SBOM_VEX_CONTEXT")
+    if any(k in low for k in ["cve", "cvss", "vulnerability", "advisory", "kev", "epss"]):
+        signals.append("VULNERABILITY_CONTEXT")
+    if any(k in low for k in ["subprocessor", "fourth party", "fourth-party", "nth party", "nth-party", "depends on"]):
+        signals.append("NTH_PARTY_DEPENDENCY_CONTEXT")
+    if any(k in low for k in ["single point of failure", "spof", "sole source", "only provider"]):
+        signals.append("SPOF_SIGNAL")
+    if any(k in low for k in ["concentration", "vendor concentration", "supplier concentration", "shared dependency", "common mode", "common-mode"]):
+        signals.append("CONCENTRATION_COMMON_MODE_SIGNAL")
+    if any(k in low for k in ["privileged access", "admin access", "remote administration", "service account", "api access", "identity federation"]):
+        signals.append("PRIVILEGED_THIRD_PARTY_ACCESS_CONTEXT")
+    if any(k in low for k in ["outage", "incident", "breach", "compromise", "disruption"]):
+        signals.append("INCIDENT_BREACH_CONTEXT")
+    if any(k in low for k in ["sanctions", "export control", "dual-use", "regulated", "license"]):
+        signals.append("SANCTIONS_REGULATORY_CONTEXT")
+    if any(k in low for k in ["contract", "sla", "renewal", "termination", "subprocessor terms", "incident notification"]):
+        signals.append("CONTRACT_SLA_CONTEXT")
+    if any(k in low for k in ["bcp", "dr", "disaster recovery", "business continuity", "failover", "multi-region", "backup"]):
+        signals.append("BUSINESS_CONTINUITY_CONTEXT")
+
+    if signals:
+        add_note(parsed, "SUPPLY_CHAIN_SIGNAL", signals=unique_preserve_order(signals), source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Signals indicate analytical attention, not verified dependency, impact, or maliciousness.")
+
+
+def classify_json_payload(data: Any, filename: str = "") -> str:
+    if isinstance(data, list):
+        return "JSON_ARRAY"
+    if not isinstance(data, dict):
+        return "GENERIC_JSON"
+
+    keys = {normalize_key(k) for k in data.keys()}
+    low = json.dumps(data, ensure_ascii=False, default=str)[:30000].lower()
+    fname = normalize_text(filename)
+
+    if "sbom" in fname or "cyclonedx" in fname or "spdx" in fname or "bom" in keys or "components" in keys:
+        return "SBOM_OR_BOM_RECORD"
+    if "vex" in fname or "vex" in keys:
+        return "VEX_RECORD"
+    if "package" in fname or "lockfile" in fname or "manifest" in fname or "packages" in keys:
+        return "PACKAGE_OR_LOCKFILE_RECORD"
+    if "contract" in fname or "sla" in fname or "agreement" in low:
+        return "CONTRACT_OR_SLA_RECORD"
+    if "incident" in fname or "outage" in fname or "breach" in fname or "advisory" in fname:
+        return "INCIDENT_OR_ADVISORY_RECORD"
+    if "vendor" in fname or "supplier" in fname or "third_party" in low or "dependency" in low:
+        return "VENDOR_DEPENDENCY_RECORD"
+    if "cloud" in fname or "saas" in fname or "identity" in fname:
+        return "CLOUD_SAAS_IDENTITY_INVENTORY_RECORD"
+
+    return "GENERIC_SUPPLY_CHAIN_DATA"
+
+
+def walk_json(
+    data: Any,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    depth: int = 0,
+    path: str = "",
+) -> None:
+    if depth > 14 or len(parsed.get("observations", [])) > 200000:
+        return
+
+    if isinstance(data, dict):
+        process_json_record(data, source_id, evidence_id, parsed, context=path or "json")
+        for k, v in data.items():
+            new_path = f"{path}.{k}" if path else str(k)
+            walk_json(v, source_id, evidence_id, parsed, depth + 1, new_path)
+    elif isinstance(data, list):
+        for item in data[:100000]:
+            walk_json(item, source_id, evidence_id, parsed, depth + 1, path)
+    elif isinstance(data, str):
+        process_text_block(data, source_id, evidence_id, parsed, context=path or "json_string")
+
+
+def process_json_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+    data = json.loads(raw)
+    kind = classify_json_payload(data, path.name)
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    walk_json(data, source_id, evidence_id, parsed)
+    return kind, parsed
+
+
+def process_csv_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+    kind = "CSV_SUPPLY_CHAIN_DATA"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
+        sample = f.read(1_000_000)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t| ")
+        except csv.Error:
+            dialect = csv.excel
+
+        reader = csv.DictReader(f, dialect=dialect)
+        for idx, row in enumerate(reader):
+            if idx >= 200000:
+                break
+            process_json_record(row, source_id, evidence_id, parsed, context=f"csv_row_{idx}")
+
+    return kind, parsed
+
+
+def process_text_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:10_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+
+    low = redacted_raw.lower()[:30000]
+    if "sbom" in low or "cyclonedx" in low or "spdx" in low:
+        kind = "TEXT_SBOM_NOTE"
+    elif "vendor" in low or "supplier" in low or "dependency" in low:
+        kind = "TEXT_VENDOR_DEPENDENCY_NOTE"
+    elif "contract" in low or "sla" in low:
+        kind = "TEXT_CONTRACT_SLA_NOTE"
+    elif "incident" in low or "breach" in low or "outage" in low:
+        kind = "TEXT_INCIDENT_NOTE"
+    else:
+        kind = "TEXT_SUPPLY_CHAIN_NOTE"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    for line_no, line in enumerate(raw.splitlines()[:200000]):
+        if line.strip():
+            process_text_block(line, source_id, evidence_id, parsed, context=f"text_line_{line_no}")
+
+    return kind, parsed
+
+
+def detect_format(path: Path) -> Dict[str, str]:
+    suffix = path.suffix.lower()
+
+    try:
+        with path.open("rb") as f:
+            head = f.read(256)
+    except Exception as exc:
+        return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream", "format_error": str(exc)}
+
+    binary_suffixes = {
+        ".exe", ".dll", ".sys", ".elf", ".so", ".dylib", ".bin", ".fw", ".img",
+        ".iso", ".apk", ".jar", ".class", ".zip", ".gz", ".tar", ".7z", ".rar",
+        ".pcap", ".pcapng", ".cap", ".msi", ".cab", ".pdf", ".docx", ".xlsx",
+        ".pptx", ".mp3", ".wav", ".mp4", ".avi",
+    }
+
+    if suffix in binary_suffixes:
+        return {"format_detected": "BINARY_ARTIFACT", "mime_type": "application/octet-stream"}
+
+    stripped = head.lstrip()
+
+    if suffix == ".json" or stripped.startswith(b"{") or stripped.startswith(b"["):
+        return {"format_detected": "JSON", "mime_type": "application/json"}
+
+    if suffix in {".csv", ".tsv"}:
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if b"," in head and b"\n" in head and all(b in b"\x09\x0a\x0d\x20" or 32 <= b <= 126 for b in head[:64]):
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if suffix in {".txt", ".log", ".md", ".yaml", ".yml", ".report", ".stix", ".taxii", ".misp", ".snapshot", ".sbom", ".bom", ".spdx", ".cyclonedx"}:
+        return {"format_detected": "TEXT", "mime_type": "text/plain"}
+
+    try:
+        probe = head.decode("utf-8", errors="strict")
+        if probe.strip():
+            return {"format_detected": "TEXT", "mime_type": "text/plain"}
+    except Exception:
+        pass
+
+    return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream"}
+
+
+def analyze_supply_chain_file(path_str: str, case_id: str = "", task_id: str = "") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    path = Path(path_str).expanduser()
+    source_id = f"SRC-{uuid.uuid4()}"
+    evidence_id = f"EVD-{uuid.uuid4()}"
+
+    file_evidence: Dict[str, Any] = {
+        "evidence_id": evidence_id,
+        "source_id": source_id,
+        "case_id": case_id,
+        "task_id": task_id,
+        "path": str(path),
+        "filename": path.name,
+        "retrieved_at": now_utc(),
+        "acquisition_method": "local_authorized_or_public_file_access",
+        "status": "PENDING",
+        "limitations": [
+            "No vendor attack, unauthorized scanning, supplier exploitation, credential use, package poisoning, build compromise, SBOM tampering, sabotage, logistics disruption, procurement manipulation, or evasion design performed.",
+            "Binary artifacts (PDF/XLSX/DOCX/media/archives) are hash/metadata preserved only; no deep parsing/executed content analysis performed in this stdlib-only panel.",
+            "Vendor/SBOM/package/contract documents are untrusted evidence, not instruction.",
+            "Exposed secrets were redacted and not used.",
+            "Dependency/incident/vulnerability records are source-reported until corroborated.",
+        ],
+    }
+
+    parsed = empty_parsed()
+
+    if not path.exists():
+        file_evidence["status"] = "FAILED_FILE_NOT_FOUND"
+        return file_evidence, parsed
+
+    try:
+        st = path.stat()
+        file_evidence["size_bytes"] = st.st_size
+        file_evidence["filesystem_modified_at"] = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+    except Exception as exc:
+        file_evidence["status"] = "FAILED_STAT"
+        file_evidence["error"] = str(exc)
+        return file_evidence, parsed
+
+    try:
+        file_evidence["sha256"] = sha256_file(path)
+    except Exception as exc:
+        file_evidence["sha256_error"] = str(exc)
+
+    fmt = detect_format(path)
+    file_evidence.update(fmt)
+    format_detected = file_evidence.get("format_detected", "UNKNOWN")
+
+    try:
+        if format_detected == "JSON":
+            kind, parsed = process_json_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "CSV":
+            kind, parsed = process_csv_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "TEXT":
+            kind, parsed = process_text_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "BINARY_ARTIFACT":
+            file_evidence["content_kind"] = "BINARY_SUPPLY_CHAIN_DOC_METADATA_ONLY"
+            file_evidence["status"] = "PARTIAL_BINARY_METADATA_ONLY"
+            file_evidence["reason"] = (
+                "Binary supply-chain document detected. This planning panel preserves hash/metadata only. "
+                "It does not execute macros, parse PDF/DOCX/XLSX deeply, open archives, install packages, or access vendor systems."
+            )
+        else:
+            file_evidence["content_kind"] = "UNKNOWN_OR_UNSUPPORTED"
+            file_evidence["status"] = "UNSUPPORTED_FORMAT"
+    except Exception as exc:
+        file_evidence["status"] = "PARTIAL_OR_FAILED"
+        file_evidence["error"] = f"{exc.__class__.__name__}: {exc}"
+
+    file_evidence["parsed_entity_count"] = len(parsed.get("entities", []))
+    file_evidence["parsed_dependency_count"] = len(parsed.get("dependencies", []))
+    file_evidence["parsed_package_count"] = len(parsed.get("packages", []))
+    file_evidence["parsed_contract_count"] = len(parsed.get("contracts", []))
+    file_evidence["parsed_incident_count"] = len(parsed.get("incidents", []))
+    file_evidence["parsed_vulnerability_count"] = len(parsed.get("vulnerabilities", []))
+
+    return file_evidence, parsed
+
+
+def aggregate_parsed(parsed_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    agg = empty_parsed()
+    for p in parsed_list:
+        for key in agg.keys():
+            if isinstance(agg[key], list) and isinstance(p.get(key), list):
+                agg[key].extend(p[key])
+        for key in agg.keys():
+            if isinstance(agg[key], list):
+                agg[key] = unique_preserve_order(agg[key])[:200000]
+    return agg
+
+
+def build_source_independence(parsed: Dict[str, Any]) -> None:
+    sources = parsed.get("sources", [])
+    hash_groups: Dict[str, List[str]] = defaultdict(list)
+    fp_groups: Dict[str, List[str]] = defaultdict(list)
+    publisher_groups: Dict[str, List[str]] = defaultdict(list)
+
+    for s in sources:
+        sid = s.get("source_id")
+        fh = s.get("file_hash")
+        fp = s.get("content_fingerprint")
+        pub = normalize_text(s.get("publisher") or "")
+        if fh:
+            hash_groups[fh].append(sid)
+        if fp:
+            fp_groups[fp].append(sid)
+        if pub:
+            publisher_groups[pub].append(sid)
+
+    for s in sources:
+        fh = s.get("file_hash")
+        fp = s.get("content_fingerprint")
+        pub = normalize_text(s.get("publisher") or "")
+
+        if fh and len(hash_groups.get(fh, [])) > 1:
+            s["source_independence_state"] = "DEPENDENT_COPIES"
+            s["source_family_count"] = 1
+        elif fp and len(fp_groups.get(fp, [])) > 1:
+            s["source_independence_state"] = "DEPENDENT_CONTENT_FAMILY"
+            s["source_family_count"] = 1
+        elif pub and len(publisher_groups.get(pub, [])) > 1:
+            s["source_independence_state"] = "PARTIALLY_DEPENDENT_PENDING_REVIEW"
+            s["source_family_count"] = 1
+        elif len(sources) > 1:
+            s["source_independence_state"] = "UNKNOWN_POTENTIALLY_INDEPENDENT"
+            s["source_family_count"] = len(sources)
+        else:
+            s["source_independence_state"] = "SINGLE_SOURCE"
+            s["source_family_count"] = 1
+
+
+def entity_by_id(parsed: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    return {e.get("entity_id"): e for e in parsed.get("entities", []) if e.get("entity_id")}
+
+
+def infer_indirect_dependencies(parsed: Dict[str, Any]) -> None:
+    deps = parsed.get("dependencies", [])
+    adj: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+    for d in deps:
+        if d.get("from_entity_ref") and d.get("to_entity_ref") and str(d.get("directness", "")).startswith("DIRECT"):
+            adj[d["from_entity_ref"]].append(d)
+
+    existing = {
+        (
+            d.get("from_entity_ref"),
+            d.get("to_entity_ref"),
+            d.get("dependency_type"),
+            d.get("directness"),
+        )
+        for d in deps
+    }
+
+    new_deps: List[Dict[str, Any]] = []
+
+    for a, out_edges in adj.items():
+        for e1 in out_edges[:200]:
+            b = e1.get("to_entity_ref")
+            if not b:
+                continue
+            for e2 in adj.get(b, [])[:200]:
+                c = e2.get("to_entity_ref")
+                if not c or a == c:
+                    continue
+
+                key = (a, c, e2.get("dependency_type", "INDIRECT_DEPENDENCY"), "INDIRECT_CANDIDATE")
+                if key in existing:
+                    continue
+                existing.add(key)
+
+                new_deps.append({
+                    "dependency_id": f"DEP-{uuid.uuid4()}",
+                    "from_entity_ref": a,
+                    "to_entity_ref": c,
+                    "dependency_type": e2.get("dependency_type", "INDIRECT_DEPENDENCY"),
+                    "product_or_service": e2.get("product_or_service", ""),
+                    "business_function": e1.get("business_function") or e2.get("business_function", ""),
+                    "criticality": "UNKNOWN",
+                    "substitutability": "UNKNOWN",
+                    "directness": "INDIRECT_CANDIDATE",
+                    "valid_from": "",
+                    "valid_to": "",
+                    "source_id": "DERIVED",
+                    "evidence_id": "DERIVED",
+                    "context": "Derived from direct dependency chain. Requires verification.",
+                    "derived_from": [e1.get("dependency_id", ""), e2.get("dependency_id", "")],
+                    "confidence": "LOW_DERIVED",
+                    "state": "DEPENDENCY_CANDIDATE",
+                    "limitations": [
+                        "Indirect dependency is inferred from parsed edges and may be incomplete or incorrect.",
+                        "Fourth/nth-party visibility is limited without vendor subprocessor disclosures or authorized telemetry.",
+                    ],
+                })
+
+                if len(new_deps) >= 5000:
+                    break
+            if len(new_deps) >= 5000:
+                break
+        if len(new_deps) >= 5000:
+            break
+
+    if new_deps:
+        parsed["dependencies"] = unique_preserve_order(parsed["dependencies"] + new_deps)[:20000]
+
+
+def analyze_concentration(parsed: Dict[str, Any]) -> None:
+    deps = parsed.get("dependencies", [])
+    provider_counter = Counter(d.get("to_entity_ref") for d in deps if d.get("to_entity_ref"))
+    signals = []
+
+    for provider, count in provider_counter.items():
+        if count >= 3:
+            provider_deps = [d for d in deps if d.get("to_entity_ref") == provider]
+            funcs = {d.get("business_function") for d in provider_deps if d.get("business_function")}
+            crit = {d.get("criticality") for d in provider_deps if d.get("criticality")}
+            types = {d.get("dependency_type") for d in provider_deps if d.get("dependency_type")}
+            signals.append({
+                "signal_id": f"CONCSIG-{uuid.uuid4()}",
+                "type": "VENDOR_OR_SUPPLIER_CONCENTRATION_CANDIDATE",
+                "provider_ref": provider,
+                "dependency_count": count,
+                "business_functions": list(funcs)[:30],
+                "criticality_states": list(crit)[:30],
+                "dependency_types": list(types)[:30],
+                "limitations": [
+                    "Concentration signal is based only on parsed dependency records.",
+                    "Spend is not used and spend does not equal criticality.",
+                    "Alternative suppliers/redundancy may exist but were not evidenced.",
+                ],
+            })
+
+    parsed["concentration_signals"] = signals[:5000]
+
+
+def analyze_spof(parsed: Dict[str, Any]) -> None:
+    deps = parsed.get("dependencies", [])
+    entities = entity_by_id(parsed)
+
+    alternative_providers = set()
+    for d in deps:
+        if d.get("dependency_type") in {"ALTERNATIVE_TO_CANDIDATE", "ALT", "ALTERNATE"}:
+            alternative_providers.add(d.get("to_entity_ref"))
+            alternative_providers.add(d.get("from_entity_ref"))
+
+    spofs = []
+    for d in deps:
+        provider = d.get("to_entity_ref")
+        if not provider:
+            continue
+
+        critical = d.get("criticality") in {"MISSION_CRITICAL", "BUSINESS_CRITICAL", "HIGH", "HIGH_CANDIDATE"}
+        dep_type = d.get("dependency_type", "")
+        if not critical and dep_type not in CRITICAL_DEP_TYPES:
+            continue
+
+        if provider in alternative_providers:
+            continue
+
+        func = d.get("business_function")
+        if not func:
+            continue
+
+        same_func_deps = [x for x in deps if x.get("business_function") == func]
+        providers_for_func = {x.get("to_entity_ref") for x in same_func_deps if x.get("to_entity_ref")}
+
+        if len(providers_for_func) <= 1:
+            ent = entities.get(provider, {})
+            spofs.append({
+                "spof_id": f"SPOF-{uuid.uuid4()}",
+                "provider_ref": provider,
+                "provider_name": ent.get("name", provider),
+                "business_function": func or "",
+                "dependency_type": dep_type,
+                "criticality": d.get("criticality", "UNKNOWN"),
+                "state": "SPOF_CANDIDATE",
+                "limitations": [
+                    "Single provider in parsed evidence is not automatically a confirmed single point of failure.",
+                    "Internal redundancy, alternate supplier, stockpile, manual workaround, or multi-region service may exist but was not evidenced.",
+                ],
+            })
+
+    parsed["spof_candidates"] = unique_preserve_order(spofs)[:5000]
+
+
+def analyze_common_mode(parsed: Dict[str, Any]) -> None:
+    deps = parsed.get("dependencies", [])
+    entities = entity_by_id(parsed)
+
+    provider_consumers: Dict[str, set] = defaultdict(set)
+    provider_types: Dict[str, set] = defaultdict(set)
+
+    for d in deps:
+        provider = d.get("to_entity_ref")
+        consumer = d.get("from_entity_ref")
+        if provider and consumer:
+            provider_consumers[provider].add(consumer)
+            provider_types[provider].add(d.get("dependency_type", "UNKNOWN"))
+
+    signals = []
+    for provider, consumers in provider_consumers.items():
+        if len(consumers) >= 2:
+            types = provider_types.get(provider, set())
+            if types & CRITICAL_DEP_TYPES:
+                ent = entities.get(provider, {})
+                signals.append({
+                    "common_mode_id": f"CMSIG-{uuid.uuid4()}",
+                    "provider_ref": provider,
+                    "provider_name": ent.get("name", provider),
+                    "consumer_count": len(consumers),
+                    "dependency_types": list(types)[:30],
+                    "state": "COMMON_MODE_DEPENDENCY_SIGNAL",
+                    "limitations": [
+                        "Multi-vendor arrangements may still share a common nth-party dependency.",
+                        "This signal is for resilience/governance analysis, not attack targeting.",
+                    ],
+                })
+
+    parsed["common_mode_signals"] = signals[:5000]
+
+
+def build_propagation_candidates(parsed: Dict[str, Any]) -> None:
+    deps = parsed.get("dependencies", [])
+    incidents = parsed.get("incidents", [])
+    vulns = parsed.get("vulnerabilities", [])
+    props = []
+
+    for inc in incidents:
+        provider = inc.get("entity_ref")
+        if not provider:
+            continue
+        for d in deps:
+            if d.get("to_entity_ref") == provider:
+                props.append({
+                    "propagation_id": f"PROP-{uuid.uuid4()}",
+                    "type": "INCIDENT_PROPAGATION_CANDIDATE",
+                    "source_ref": provider,
+                    "affected_consumer_ref": d.get("from_entity_ref"),
+                    "dependency_id": d.get("dependency_id"),
+                    "incident_record_id": inc.get("incident_record_id"),
+                    "state": "POTENTIAL_IMPACT",
+                    "limitations": [
+                        "Vendor incident does not automatically prove customer impact.",
+                        "Affected product/service/version/time/integration must be verified.",
+                    ],
+                })
+
+    for v in vulns:
+        package_ref = v.get("package_entity_ref")
+        if not package_ref:
+            continue
+        for d in deps:
+            if d.get("to_entity_ref") == package_ref:
+                props.append({
+                    "propagation_id": f"PROP-{uuid.uuid4()}",
+                    "type": "VULNERABILITY_PROPAGATION_CANDIDATE",
+                    "source_ref": package_ref,
+                    "affected_consumer_ref": d.get("from_entity_ref"),
+                    "dependency_id": d.get("dependency_id"),
+                    "vulnerability_record_id": v.get("vulnerability_record_id"),
+                    "state": "POTENTIAL_IMPACT",
+                    "limitations": [
+                        "Package presence is not vulnerability reachability.",
+                        "VULNINT must adjudicate affected version, deployment, and exploitable path.",
+                    ],
+                })
+
+    parsed["propagation_candidates"] = unique_preserve_order(props)[:10000]
+
+
+def build_contradictions(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    contradictions = []
+
+    entity_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for e in parsed.get("entities", []):
+        entity_map[e.get("normalized_name", "")].append(e)
+
+    for norm, group in entity_map.items():
+        if len(group) > 1:
+            juris = {g.get("jurisdiction") for g in group if g.get("jurisdiction")}
+            types = {g.get("entity_type") for g in group if g.get("entity_type")}
+            if len(juris) > 1:
+                contradictions.append({
+                    "contradiction_id": f"CON-{uuid.uuid4()}",
+                    "type": "ENTITY_JURISDICTION_CONFLICT",
+                    "subject": norm,
+                    "values": {"jurisdictions": list(juris)[:10], "entity_types": list(types)[:10]},
+                    "possible_explanations": [
+                        "Distinct organizations with similar names",
+                        "Brand/legal entity mismatch",
+                        "Vendor subsidiary vs parent confusion",
+                        "Data-provider merge error",
+                    ],
+                    "resolution_status": "UNRESOLVED",
+                    "caution": "Do not merge vendor/supplier entities solely by name.",
+                })
+
+    pkg_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for p in parsed.get("packages", []):
+        pkg_map[p.get("normalized_name", "")].append(p)
+
+    for norm, group in pkg_map.items():
+        if len(group) > 1:
+            versions = {g.get("version") for g in group if g.get("version")}
+            ecosystems = {g.get("ecosystem") for g in group if g.get("ecosystem")}
+            if len(versions) > 1:
+                contradictions.append({
+                    "contradiction_id": f"CON-{uuid.uuid4()}",
+                    "type": "PACKAGE_VERSION_AMBIGUITY",
+                    "subject": norm,
+                    "values": {"versions": list(versions)[:20], "ecosystems": list(ecosystems)[:20]},
+                    "possible_explanations": [
+                        "Multiple application builds",
+                        "Transitive vs direct version",
+                        "Stale SBOM",
+                        "Different environments",
+                        "Package renamed/moved across ecosystems",
+                    ],
+                    "resolution_status": "UNRESOLVED",
+                    "caution": "Do not assume one deployed version without lockfile/inventory correlation.",
+                })
+
+    contract_map: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+    for c in parsed.get("contracts", []):
+        contract_map[(c.get("consumer_ref", ""), c.get("provider_ref", ""))].append(c)
+
+    for key, group in contract_map.items():
+        if len(group) > 1:
+            statuses = {g.get("status") for g in group if g.get("status")}
+            if len(statuses) > 1:
+                contradictions.append({
+                    "contradiction_id": f"CON-{uuid.uuid4()}",
+                    "type": "CONTRACT_STATUS_CONFLICT",
+                    "subject": key,
+                    "values": list(statuses)[:10],
+                    "possible_explanations": [
+                        "Renewal/superseding agreement",
+                        "Stale contract repository",
+                        "Different scopes/services",
+                        "M&A/rebrand",
+                    ],
+                    "resolution_status": "UNRESOLVED",
+                    "caution": "Do not treat expired contract as active use or active contract as deployed use.",
+                })
+
+    contradictions, _ = truncate_list(contradictions, 5000)
+    return contradictions
+
+
+def build_hypotheses(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    hyps = []
+    entities = parsed.get("entities", [])
+    deps = parsed.get("dependencies", [])
+    packages = parsed.get("packages", [])
+    incidents = parsed.get("incidents", [])
+    vulns = parsed.get("vulnerabilities", [])
+    concentration = parsed.get("concentration_signals", [])
+    spofs = parsed.get("spof_candidates", [])
+    common = parsed.get("common_mode_signals", [])
+    props = parsed.get("propagation_candidates", [])
+
+    if not entities and not deps and not packages:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Current local deterministic evidence is insufficient to assess supply-chain dependencies, third-party risk, software supply chain, or resilience.",
+            "supporting_facts": ["No vendor/supplier/package/dependency records parsed."],
+            "opposing_facts": [],
+            "assumptions": ["Evidence may be missing, binary-only, unsupported, unauthorized, or unavailable."],
+            "unknowns": ["vendor inventory", "dependency graph", "SBOM", "contracts", "incidents", "vulnerabilities"],
+            "falsification_conditions": ["New authorized/public supply-chain evidence changes assessment."],
+            "next_test": "Attach vendor inventory, SBOM/VEX, package lockfiles, contracts/SLAs, incident notices, or CMDB/cloud/SaaS inventory exports.",
+            "status": "OPEN",
+        })
+        return hyps[:1000]
+
+    if concentration:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Parsed dependencies suggest vendor/supplier concentration that may affect operational resilience.",
+            "supporting_facts": [f"{len(concentration)} concentration signal(s) detected."],
+            "opposing_facts": ["Concentration may be normal enterprise architecture with managed redundancy."],
+            "unknowns": ["alternative suppliers", "internal redundancy", "contractual flow-down", "observed performance"],
+            "falsification_conditions": ["Verified alternatives, multi-provider architecture, or stockpiles reduce dependency concentration."],
+            "next_test": "Review vendor inventory, contracts, BCP/DR evidence, and alternative supplier validation. Do not turn concentration into attack targeting.",
+            "status": "OPEN",
+        })
+
+    if spofs:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "One or more providers/components may be candidate single points of failure for critical functions.",
+            "supporting_facts": [f"{len(spofs)} SPOF candidate record(s) parsed/derived."],
+            "opposing_facts": ["Single provider in evidence does not prove absence of redundancy."],
+            "unknowns": ["failover", "alternate supplier", "manual workaround", "multi-region architecture"],
+            "falsification_conditions": ["Authorized architecture/BCP evidence shows verified redundancy or substitution path."],
+            "next_test": "Verify failover/alternative supplier evidence before declaring confirmed SPOF.",
+            "status": "OPEN",
+        })
+
+    if common:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Multiple consumers may share common nth-party dependencies, creating common-mode failure exposure.",
+            "supporting_facts": [f"{len(common)} common-mode signal(s) detected."],
+            "opposing_facts": ["Shared services may be intentionally centralized with strong controls."],
+            "unknowns": ["subprocessor list", "cloud region concentration", "identity provider dependency", "DNS/CDN/network dependency"],
+            "falsification_conditions": ["Independent providers/regions/identity paths are evidenced."],
+            "next_test": "Map fourth/nth-party dependencies through subprocessor disclosures, cloud inventory, identity integrations, and authorized telemetry.",
+            "status": "OPEN",
+        })
+
+    if incidents or props:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Vendor/supplier incident context may propagate to dependent services, but customer impact is not established.",
+            "supporting_facts": [f"{len(incidents)} incident record(s); {len(props)} propagation candidate(s)."],
+            "opposing_facts": ["Vendor incident may have no effect on customer if affected product/version/service is not used."],
+            "unknowns": ["affected versions", "customer deployment", "privileged access", "data exposure", "remediation status"],
+            "falsification_conditions": ["Affected component/service is not deployed or is mitigated/replaced."],
+            "next_test": "Correlate incident scope with asset/CMDB/SaaS/cloud inventory and authorized logs. Handoff active incident response to INCIDENTINT.",
+            "status": "OPEN",
+        })
+
+    if vulns or packages:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Software supply-chain components may introduce vulnerability or continuity exposure, but reachability/deployment is unresolved.",
+            "supporting_facts": [f"{len(packages)} package record(s); {len(vulns)} vulnerability record(s)."],
+            "opposing_facts": ["Package presence does not prove vulnerable code path is reachable or deployed."],
+            "unknowns": ["deployed version", "runtime usage", "transitive depth", "VEX status", "fix availability"],
+            "falsification_conditions": ["VEX/patched version/unreachable code path/inventory correlation shows no applicable exposure."],
+            "next_test": "Obtain current SBOM/lockfile/deployment inventory and handoff applicability analysis to VULNINT/PACKAGEINT.",
+            "status": "OPEN",
+        })
+
+    hyps, _ = truncate_list(hyps, 1000)
+    return hyps
+
+
+def build_knowledge_gaps(payload: Dict[str, Any], files: List[Dict[str, Any]], parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    gaps = []
+    entities = parsed.get("entities", [])
+    deps = parsed.get("dependencies", [])
+    packages = parsed.get("packages", [])
+    sboms = parsed.get("sbom_components", [])
+    contracts = parsed.get("contracts", [])
+    incidents = parsed.get("incidents", [])
+    vulns = parsed.get("vulnerabilities", [])
+    spofs = parsed.get("spof_candidates", [])
+
+    if not files:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What lawful/authorized supply-chain evidence exists?",
+            "missing_evidence": "No local SUPPLYCHAININT artifact supplied.",
+            "likely_source": "Vendor inventory, CMDB, SaaS/cloud inventory, SBOM/VEX, lockfile, contract/SLA, incident notice, subprocessor list.",
+            "specialist_owner": "SUPPLYCHAININT AI Employee",
+            "priority": "HIGH",
+            "expected_information_value": "Enables baseline dependency and third-party risk planning.",
+            "safety_boundary": "No vendor attack, unauthorized scanning, credential use, package poisoning, sabotage, or procurement manipulation.",
+        })
+
+    if not entities:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Which vendors/suppliers/manufacturers/providers are involved?",
+            "missing_evidence": "No entity records parsed.",
+            "likely_source": "Vendor register, procurement system, contract repository, cloud/SaaS inventory.",
+            "specialist_owner": "SUPPLYCHAININT / CORPINT",
+            "priority": "HIGH",
+            "expected_information_value": "Establishes third-party inventory.",
+            "safety_boundary": "Do not invent vendors or manufacturers.",
+        })
+
+    if entities and not deps:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What business capabilities or systems actually depend on these third parties?",
+            "missing_evidence": "Dependency edges missing.",
+            "likely_source": "CMDB, application inventory, SaaS inventory, cloud inventory, identity integrations, contract scope.",
+            "specialist_owner": "SUPPLYCHAININT / ORGINT",
+            "priority": "HIGH",
+            "expected_information_value": "Converts vendor list into operational dependency graph.",
+            "safety_boundary": "Procurement list is not supply-chain dependency evidence.",
+        })
+
+    if deps and not contracts:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What contractual/SLA terms govern critical dependencies?",
+            "missing_evidence": "Contract/SLA records missing.",
+            "likely_source": "Contract repository, procurement system, vendor agreement, subprocessor terms.",
+            "specialist_owner": "SUPPLYCHAININT / PROCUREMENTINT / LEGALINT",
+            "priority": "MEDIUM_HIGH",
+            "expected_information_value": "Supports renewal, liability, incident notification, audit rights, and flow-down analysis.",
+            "safety_boundary": "Contract does not prove active use.",
+        })
+
+    if packages and not sboms:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Is the software bill of materials current and correlated to deployed builds?",
+            "missing_evidence": "SBOM component records missing or incomplete.",
+            "likely_source": "CycloneDX/SPDX SBOM, lockfile, build metadata, artifact registry.",
+            "specialist_owner": "SUPPLYCHAININT / PACKAGEINT / REPOINT",
+            "priority": "HIGH_IF_SOFTWARE_SUPPLY_CHAIN_RELEVANT",
+            "expected_information_value": "Improves component/version/provenance visibility.",
+            "safety_boundary": "SBOM is not deployed reality without inventory correlation.",
+        })
+
+    if incidents:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Did vendor incident actually affect customer systems/data/services?",
+            "missing_evidence": "Customer impact evidence missing.",
+            "likely_source": "Affected product/version list, asset inventory, logs, vendor notification, incident report.",
+            "specialist_owner": "SUPPLYCHAININT / INCIDENTINT / BREACHINT",
+            "priority": "HIGH",
+            "expected_information_value": "Distinguishes vendor incident from customer impact.",
+            "safety_boundary": "Do not assert customer compromise without evidence.",
+        })
+
+    if vulns:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Is the vulnerable component deployed and reachable in production?",
+            "missing_evidence": "Reachability/applicability evidence missing.",
+            "likely_source": "Current SBOM, lockfile, deployed version inventory, VEX, runtime telemetry.",
+            "specialist_owner": "VULNINT / PACKAGEINT / SUPPLYCHAININT",
+            "priority": "HIGH",
+            "expected_information_value": "Prevents false vulnerability propagation.",
+            "safety_boundary": "Package presence is not vulnerability reachability.",
+        })
+
+    if spofs:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Are alternatives, redundancy, stockpiles, or manual workarounds verified?",
+            "missing_evidence": "Substitutability/resilience evidence missing.",
+            "likely_source": "BCP/DR documents, architecture diagrams, alternate supplier validation, failover tests.",
+            "specialist_owner": "SUPPLYCHAININT / ORGINT",
+            "priority": "HIGH",
+            "expected_information_value": "Confirms or falsifies SPOF candidacy.",
+            "safety_boundary": "Do not generate disruption or sabotage guidance.",
+        })
+
+    gaps, _ = truncate_list(gaps, 500)
+    return gaps
+
+
+def build_specialist_handoffs(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    handoffs = []
+    entities = parsed.get("entities", [])
+    deps = parsed.get("dependencies", [])
+    packages = parsed.get("packages", [])
+    contracts = parsed.get("contracts", [])
+    incidents = parsed.get("incidents", [])
+    vulns = parsed.get("vulnerabilities", [])
+    notes = parsed.get("notes", [])
+
+    if any(e.get("entity_type") in {"VENDOR", "SUPPLIER", "MANUFACTURER", "COMPANY", "ORGANIZATION"} for e in entities):
+        handoffs.append({
+            "specialist": "CORPINT",
+            "reason": "Legal entity/ownership context may be needed for vendor/supplier resolution.",
+            "expected_output": "Legal entity resolution, parent/subsidiary context, directors/shareholders where public/authorized.",
+            "question": "Is the vendor brand tied to the correct legal entity and ownership structure?",
+        })
+
+    if any(d.get("business_function") for d in deps):
+        handoffs.append({
+            "specialist": "ORGINT",
+            "reason": "Business function/capability mapping detected.",
+            "expected_output": "Internal function ownership, criticality context, organizational dependency mapping.",
+            "question": "Which internal units/functions/capabilities depend on this third party?",
+        })
+
+    if contracts:
+        handoffs.append({
+            "specialist": "PROCUREMENTINT / LEGALINT",
+            "reason": "Contract/SLA records detected.",
+            "expected_output": "Contract lifecycle, renewal, flow-down, audit rights, subprocessor terms, legal interpretation.",
+            "question": "Do contract terms support operational dependency, incident notification, audit, and substitution requirements?",
+        })
+
+    if packages or any(d.get("dependency_type") in {"DEPENDS_ON_PACKAGE", "CONTAINS_COMPONENT", "BUILT_FROM"} for d in deps):
+        handoffs.append({
+            "specialist": "PACKAGEINT / REPOINT / VULNINT",
+            "reason": "Software package/repository dependency context detected.",
+            "expected_output": "Package ecosystem intelligence, repository provenance, vulnerability applicability, malicious package triage.",
+            "question": "Are package versions deployed, reachable, maintained, and free from known malicious compromise?",
+        })
+
+    if vulns:
+        handoffs.append({
+            "specialist": "VULNINT",
+            "reason": "Vulnerability context detected.",
+            "expected_output": "CVE applicability, affected/fixed versions, reachability, KEV/EPSS context, remediation priority.",
+            "question": "Which vulnerable components are actually deployed and reachable in production?",
+        })
+
+    if incidents:
+        handoffs.append({
+            "specialist": "INCIDENTINT / BREACHINT / CREDINT",
+            "reason": "Vendor incident/breach context detected.",
+            "expected_output": "Impact scoping, credential exposure review, IOC correlation, customer notification assessment.",
+            "question": "Did vendor incident affect customer systems, data, credentials, or services?",
+        })
+
+    if any(n.get("type") == "SECRET_REDACTION" for n in notes):
+        handoffs.append({
+            "specialist": "CREDINT",
+            "reason": "Secret-like material was detected and redacted in source records.",
+            "expected_output": "Authorized secret rotation/remediation workflow, credential exposure assessment.",
+            "question": "Are exposed credentials/tokens/keys rotated through authorized workflow?",
+        })
+
+    if any("sanctions" in normalize_text(str(e.get("context", ""))) for e in entities):
+        handoffs.append({
+            "specialist": "SANCTIONSINT / TRADEINT / LEGALINT",
+            "reason": "Sanctions/export-control context candidate detected.",
+            "expected_output": "Sanctions list matching, jurisdictional applicability, export-control interpretation.",
+            "question": "Does any vendor/subsupplier/country/product relationship trigger sanctions or export-control review?",
+        })
+
+    if not handoffs:
+        handoffs.append({
+            "specialist": "SUPPLYCHAININT Manager",
+            "reason": "No immediate specialist trigger detected from current local deterministic evidence alone.",
+            "expected_output": "Review scope, approve authorized connectors, assign dependency/SBOM/contract collection tasks.",
+            "question": "What supply-chain intelligence gap should be filled next?",
+        })
+
+    return handoffs
+
+
+def finalize_parsed(parsed: Dict[str, Any], payload: Optional[Dict[str, Any]] = None, files: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    build_source_independence(parsed)
+    infer_indirect_dependencies(parsed)
+    analyze_concentration(parsed)
+    analyze_spof(parsed)
+    analyze_common_mode(parsed)
+    build_propagation_candidates(parsed)
+    parsed["contradictions"] = build_contradictions(parsed)
+    parsed["hypotheses"] = build_hypotheses(parsed)
+    parsed["knowledge_gaps"] = build_knowledge_gaps(payload or {}, files or [], parsed)
+    parsed["specialist_handoffs"] = build_specialist_handoffs(parsed)
+    return parsed
+
+
+def build_next_best_action(
+    payload: Dict[str, Any],
+    policy: Dict[str, Any],
+    files: List[Dict[str, Any]],
+    parsed: Dict[str, Any],
+) -> Dict[str, str]:
+    entities = parsed.get("entities", [])
+    deps = parsed.get("dependencies", [])
+    packages = parsed.get("packages", [])
+    contracts = parsed.get("contracts", [])
+    incidents = parsed.get("incidents", [])
+    vulns = parsed.get("vulnerabilities", [])
+    spofs = parsed.get("spof_candidates", [])
+
+    if policy.get("status") == "POLICY_BLOCKED":
+        return {
+            "action": "Revise task to remove prohibited vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, sabotage, procurement manipulation, or evasion behavior.",
+            "reason": "SUPPLYCHAININT is defensive/authorized dependency intelligence, not operational attack or disruption planning.",
+            "owner": "SUPPLYCHAININT Manager",
+            "expected_output": "Policy-compliant defensive supply-chain scope and question set.",
+        }
+
+    if policy.get("status") == "HUMAN_REVIEW_REQUIRED":
+        return {
+            "action": "Route to human supply-chain/risk/legal/compliance reviewer before consequential vendor termination, supplier replacement, production architecture change, or public attribution.",
+            "reason": "Third-party dependency findings can be commercially sensitive and operationally consequential.",
+            "owner": "SUPPLYCHAININT Manager",
+            "expected_output": "Approved defensive verification plan, evidence gaps, and handoffs.",
+        }
+
+    if not files:
+        return {
+            "action": "Attach lawful/authorized/public vendor inventory, SBOM/VEX, package lockfiles, contracts/SLAs, cloud/SaaS/identity inventory, incident notices, or CMDB exports before analysis.",
+            "reason": "No SUPPLYCHAININT evidence artifact is available for local deterministic analysis.",
+            "owner": "SUPPLYCHAININT AI Employee",
+            "expected_output": "Supply-chain evidence inventory with hashes and provenance.",
+        }
+
+    if not entities:
+        return {
+            "action": "Resolve vendor/supplier/manufacturer/provider entities from authorized vendor register, contracts, procurement records, or public vendor documentation.",
+            "reason": "Entity resolution is prerequisite to dependency mapping.",
+            "owner": "SUPPLYCHAININT / CORPINT",
+            "expected_output": "Canonical vendor/supplier entity candidates.",
+        }
+
+    if entities and not deps:
+        return {
+            "action": "Map direct dependencies from CMDB, application inventory, SaaS/cloud inventory, identity integrations, and contract scope.",
+            "reason": "Vendor list alone does not establish operational dependency.",
+            "owner": "SUPPLYCHAININT / ORGINT",
+            "expected_output": "Direct dependency edges with business function context.",
+        }
+
+    if packages and not parsed.get("sbom_components"):
+        return {
+            "action": "Obtain current SBOM/lockfile/build metadata and correlate with deployed application inventory.",
+            "reason": "Package records may be stale, incomplete, or not deployed.",
+            "owner": "SUPPLYCHAININT / PACKAGEINT / REPOINT",
+            "expected_output": "Current component/version/provenance graph.",
+        }
+
+    if vulns:
+        return {
+            "action": "Handoff vulnerability applicability to VULNINT and verify deployed/reachable versions before remediation prioritization.",
+            "reason": "Package presence is not vulnerability reachability.",
+            "owner": "VULNINT / SUPPLYCHAININT",
+            "expected_output": "Applicable vs non-applicable vulnerability disposition.",
+        }
+
+    if incidents:
+        return {
+            "action": "Correlate vendor incident scope with customer asset/inventory/logs to determine actual impact before escalation.",
+            "reason": "Vendor incident does not automatically prove customer compromise.",
+            "owner": "INCIDENTINT / SUPPLYCHAININT",
+            "expected_output": "Customer impact assessment or no-impact evidence.",
+        }
+
+    if spofs:
+        return {
+            "action": "Verify alternative supplier/redundancy/BCP-DR evidence before confirming SPOF.",
+            "reason": "Single provider in evidence is not automatically confirmed single point of failure.",
+            "owner": "SUPPLYCHAININT / ORGINT",
+            "expected_output": "Confirmed or falsified SPOF status with resilience evidence.",
+        }
+
+    if not contracts:
+        return {
+            "action": "Retrieve current contracts/SLAs/subprocessor terms for critical dependencies.",
+            "reason": "Operational dependency needs contractual and flow-down context.",
+            "owner": "PROCUREMENTINT / LEGALINT / SUPPLYCHAININT",
+            "expected_output": "Contract/SLA register linked to dependency graph.",
+        }
+
+    return {
+        "action": "Proceed with nth-party mapping, concentration/common-mode analysis, substitutability validation, and defensive resilience reporting.",
+        "reason": "Local evidence exists, but dependency visibility and resilience remain source-reported until corroborated.",
+        "owner": "SUPPLYCHAININT / ORGINT / PACKAGEINT / VULNINT as authorized",
+        "expected_output": "Evidence-linked supply-chain intelligence report with limitations and next actions.",
+    }
+
+
+def build_collection_plan(
+    payload: Dict[str, Any],
+    questions: List[Any],
+    files: List[Dict[str, Any]],
+    parsed: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    plan = []
+    priority = 1
+    questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+
+    has_files = bool(files)
+    has_entities = bool(parsed.get("entities"))
+    has_deps = bool(parsed.get("dependencies"))
+    has_packages = bool(parsed.get("packages"))
+    has_sbom = bool(parsed.get("sbom_components"))
+    has_contracts = bool(parsed.get("contracts"))
+    has_incidents = bool(parsed.get("incidents"))
+    has_vulns = bool(parsed.get("vulnerabilities"))
+
+    def add(
+        operation: str,
+        tool: str,
+        purpose: str,
+        status: str,
+        expected_output: str,
+        safety_risk: str = "LOW",
+        policy_note: str = "Defensive / authorized / evidence-first supply-chain intelligence only.",
+    ) -> None:
+        nonlocal priority
+        plan.append({
+            "question": questions_limited[0] if questions_limited else "General SUPPLYCHAININT planning",
+            "operation": operation,
+            "tool_or_provider": tool,
+            "purpose": purpose,
+            "status": status,
+            "expected_output": expected_output,
+            "priority": priority,
+            "safety_risk": safety_risk,
+            "policy_note": policy_note,
+            "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED",
+            "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+        })
+        priority += 1
+
+    add(
+        "define_supplychain_questions_scope",
+        "SUPPLYCHAININT Manager / SUPPLYCHAININT AI Employee",
+        "Convert objective into dependency questions, allowed sources, privacy boundaries, and safety boundaries.",
+        "COMPLETED_LOCAL" if payload.get("questions") else "REQUIRED_BEFORE_COLLECTION",
+        "Requirement-driven defensive supply-chain collection plan.",
+        policy_note="No vendor attack, unauthorized scanning, credential use, package poisoning, sabotage, or procurement manipulation.",
+    )
+
+    add(
+        "preserve_original_supply_chain_evidence",
+        "local evidence store",
+        "Store original vendor inventories, SBOMs, lockfiles, contracts, incident notices, and hashes without modifying originals.",
+        "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+        "DependencyEvidenceObject with SHA256 and provenance fields.",
+    )
+
+    add(
+        "safe_parse_json_csv_text_supply_chain_metadata",
+        "local deterministic parser",
+        "Parse lawful/authorized/public JSON/CSV/TXT supply-chain metadata without executing packages/scripts, opening unsafe archives, or accessing vendor systems.",
+        "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+        "Normalized entities, dependencies, packages, SBOM components, contracts, incidents, and vulnerabilities.",
+        safety_risk="HIGH_IF_UNTRUSTED_CONTENT_TREATED_AS_INSTRUCTION",
+        policy_note="Vendor/SBOM/package documents are untrusted evidence.",
+    )
+
+    add(
+        "vendor_supplier_entity_resolution",
+        "local resolver",
+        "Resolve vendor/supplier/manufacturer/distributor/reseller/MSP/cloud/SaaS/identity entities while avoiding false merges.",
+        "COMPLETED_LOCAL" if has_entities else "PLANNED_REQUIRES_VENDOR_EVIDENCE",
+        "Canonical third-party entity candidates.",
+        safety_risk="MEDIUM_IF_FALSE_MERGE",
+        policy_note="Vendor != manufacturer. Reseller != product maker.",
+    )
+
+    add(
+        "direct_dependency_mapping",
+        "local graph builder",
+        "Map organization/product/application dependencies on vendors/services/packages/components.",
+        "COMPLETED_LOCAL" if has_deps else "PLANNED_REQUIRES_DEPENDENCY_EVIDENCE",
+        "Direct dependency graph with business function context.",
+        safety_risk="HIGH_IF_CONTRACT_TAKEN_AS_ACTIVE_USE",
+        policy_note="Contract does not prove active use.",
+    )
+
+    add(
+        "nth_party_and_subprocessor_mapping",
+        "SUPPLYCHAININT Analyst",
+        "Identify fourth/nth-party dependencies from subprocessor lists, cloud/hosting edges, identity federation, and vendor documentation.",
+        "PLANNED_ANALYTIC",
+        "Nth-party dependency candidates and visibility gaps.",
+        safety_risk="MEDIUM_IF_VISIBILITY_INCOMPLETE",
+        policy_note="Subprocessor list may not equal active use.",
+    )
+
+    add(
+        "criticality_substitutability_spof_analysis",
+        "local analyzer",
+        "Assess criticality candidates, substitutability, and SPOF candidates using transparent dimensions.",
+        "COMPLETED_LOCAL" if has_deps else "PLANNED_ANALYTIC",
+        "Criticality/substitutability/SPOF candidate register.",
+        safety_risk="HIGH_IF_FALSE_SPOF",
+        policy_note="Single provider != confirmed SPOF. Dependency centrality != attack target.",
+    )
+
+    add(
+        "software_supply_chain_sbom_vex_analysis",
+        "local SBOM/parser + PACKAGEINT/VULNINT handoff",
+        "Parse SBOM/VEX/package metadata and separate presence from reachability/deployment.",
+        "COMPLETED_LOCAL" if has_packages or has_sbom else "PLANNED_REQUIRES_SBOM_EVIDENCE",
+        "Package/component dependency graph and applicability gaps.",
+        safety_risk="HIGH_IF_SBOM_TAKEN_AS_DEPLOYED_REALITY",
+        policy_note="SBOM is not deployed reality without inventory correlation.",
+    )
+
+    add(
+        "incident_vulnerability_propagation_analysis",
+        "SUPPLYCHAININT / INCIDENTINT / VULNINT",
+        "Model potential propagation from vendor incident or vulnerable component to dependent consumers without asserting impact.",
+        "COMPLETED_LOCAL" if has_incidents or has_vulns else "PLANNED_ANALYTIC",
+        "Propagation candidates with POTENTIAL_IMPACT states.",
+        safety_risk="HIGH_IF_CUSTOMER_IMPACT_OVERCLAIMED",
+        policy_note="Vendor incident != customer compromise. Vulnerability != exploitation.",
+    )
+
+    return plan
+
+
+def policy_screen(payload: Dict[str, Any]) -> Dict[str, Any]:
+    scanned_fields = [
+        "objective",
+        "target",
+        "questions",
+        "organizations",
+        "vendors",
+        "suppliers",
+        "manufacturers",
+        "oems",
+        "odms",
+        "distributors",
+        "resellers",
+        "contractors",
+        "subcontractors",
+        "nth_parties",
+        "cloud_providers",
+        "saas_providers",
+        "msps",
+        "mssps",
+        "identity_providers",
+        "network_providers",
+        "dns_providers",
+        "cdns",
+        "payment_processors",
+        "data_processors",
+        "subprocessors",
+        "products",
+        "services",
+        "components",
+        "packages",
+        "repositories",
+        "applications",
+        "sboms",
+        "vex_records",
+        "build_pipelines",
+        "artifact_registries",
+        "contracts",
+        "slas",
+        "procurement_records",
+        "trade_records",
+        "financial_records",
+        "cloud_inventory",
+        "saas_inventory",
+        "asset_inventory",
+        "identity_integrations",
+        "incidents",
+        "breaches",
+        "vulnerabilities",
+        "sanctions_data",
+    ]
+
+    parts: List[str] = []
+    for key in scanned_fields:
+        val = payload.get(key)
+        if isinstance(val, list):
+            parts.extend(str(x) for x in val)
+        elif isinstance(val, dict):
+            parts.append(json.dumps(val, ensure_ascii=False, default=str))
+        else:
+            parts.append(str(val or ""))
+
+    scanned = " \n ".join(parts).lower()
+
+    blocked_reasons: List[str] = []
+    for pat in POLICY_BLOCK_PATTERNS:
+        rx = re.compile(pat, re.I)
+        for m in rx.finditer(scanned):
+            start = max(0, m.start() - 180)
+            prefix = scanned[start:m.start()]
+            if NEGATION_RE.search(prefix):
+                continue
+            blocked_reasons.append(pat)
+            break
+
+    human_review_required = False
+    safety_notes: List[str] = []
+
+    if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+        human_review_required = True
+        safety_notes.append(
+            "Sensitive supply-chain/third-party context detected. Analysis must remain defensive, authorized, evidence-first, and privacy-aware. "
+            "No vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, sabotage, procurement manipulation, or evasion design."
+        )
+
+    if payload.get("contracts") or payload.get("slas") or payload.get("procurement_records"):
+        human_review_required = True
+        safety_notes.append(
+            "Contract/SLA/procurement context detected. Legal/commercial interpretation requires authorized human/legal review."
+        )
+
+    if payload.get("incidents") or payload.get("breaches") or payload.get("vulnerabilities"):
+        human_review_required = True
+        safety_notes.append(
+            "Incident/breach/vulnerability context detected. Customer impact and compromise claims require evidence and human/incident-response review."
+        )
+
+    if payload.get("sboms") or payload.get("packages") or payload.get("repositories"):
+        human_review_required = True
+        safety_notes.append(
+            "Software supply-chain context detected. Do not install, execute, poison, typosquat, or manipulate packages/repositories/build pipelines."
+        )
+
+    if blocked_reasons:
+        return {
+            "status": "POLICY_BLOCKED",
+            "reasons": sorted(set(blocked_reasons)),
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "The requested task appears to require attacking/scanning/exploiting vendors, using credentials, poisoning/compromising software supply chain, "
+                "sabotaging/disrupting suppliers, manipulating procurement, or designing evasion/false-supply-chain structures."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    if human_review_required:
+        return {
+            "status": "HUMAN_REVIEW_REQUIRED",
+            "reasons": [],
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "No obvious hard policy violation detected, but sensitive third-party, contract, incident, vulnerability, or software supply-chain context applies. "
+                "Conclusions must remain defensive, evidence-linked, privacy-aware, and human-reviewed before consequential vendor/supplier/operational action."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    return {
+        "status": "ALLOWED_DEFENSIVE_AUTHORIZED",
+        "reasons": [],
+        "human_review_required": False,
+        "safety_notes": [],
+        "explanation": (
+            "No obvious policy violation detected. Execution remains planning-only unless authorized/public/lawful supply-chain documents or connectors are configured."
+        ),
+        "safe_alternatives": [],
+    }
+
+
+def validate_payload(payload: Dict[str, Any]) -> List[str]:
+    warnings: List[str] = []
+
+    required = ["case_id", "task_id", "objective", "target", "target_type"]
+    for field in required:
+        if not payload.get(field):
+            warnings.append(f"Missing required field: {field}")
+
+    if not payload.get("questions"):
+        warnings.append("No SUPPLYCHAININT questions provided. Default questions will be inferred.")
+
+    evidence_keys = [
+        "organizations",
+        "vendors",
+        "suppliers",
+        "manufacturers",
+        "products",
+        "services",
+        "packages",
+        "sboms",
+        "contracts",
+        "incidents",
+        "vulnerabilities",
+        "vendor_inventory_paths",
+        "sbom_paths",
+        "contract_paths",
+        "incident_paths",
+        "package_paths",
+    ]
+
+    if not any(payload.get(k) for k in evidence_keys):
+        warnings.append("No supply-chain evidence provided. Output remains planning-only.")
+
+    if not payload.get("time_range"):
+        warnings.append("No time range provided. Dependency, contract, incident, and package version states are highly temporal.")
+
+    if not payload.get("configured_connectors"):
+        warnings.append("No CMDB/SBOM/procurement/cloud/CTI connector configured. External correlation remains planning-only.")
+
+    if payload.get("incidents") or payload.get("breaches"):
+        warnings.append("Incident/breach context triggers impact-verification controls. Do not assert customer compromise without evidence.")
+
+    if payload.get("vulnerabilities"):
+        warnings.append("Vulnerability context triggers reachability/applicability controls. Handoff applicability to VULNINT.")
+
+    return warnings
+
+
+def default_questions(payload: Dict[str, Any]) -> List[str]:
+    return [
+        "Which vendors, suppliers, manufacturers, distributors, resellers, contractors, and nth parties are involved?",
+        "What direct dependencies exist between organization/products/applications and third parties?",
+        "Which dependencies are indirect or fourth/nth-party and how visible are they?",
+        "Which dependencies are critical to business functions, capabilities, or sensitive data?",
+        "Which dependencies are substitutable, and what switching costs/lead times apply?",
+        "Are there candidate single points of failure or concentration/common-mode risks?",
+        "What software packages/components/SBOM/VEX context exists, and are deployed versions verified?",
+        "Which vulnerabilities or vendor incidents may propagate, and what customer impact evidence exists?",
+        "What contracts/SLAs/BCP-DR/subprocessor terms govern critical dependencies?",
+        "What sanctions/export-control/regulatory context applies?",
+        "Which sources are independent versus copies of the same vendor advisory/SBOM/registry?",
+        "What remains unknown and what defensive next action should occur?",
+    ]
+
+
+class TraceAtlasSUPPLYCHAININTPanel(tk.Tk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title(APP_TITLE)
+        self.geometry("1380x940")
+        self.minsize(1100, 760)
+
+        self.entries: Dict[str, Any] = {}
+        self.last_result: Dict[str, Any] = {}
+
+        self.analyzed_files: List[Dict[str, Any]] = []
+        self.parsed: Dict[str, Any] = empty_parsed()
+
+        self._configure_style()
+        self._build_ui()
+        self._set_defaults()
+
+    def _configure_style(self) -> None:
+        style = ttk.Style(self)
+
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        self.configure(bg="#0b0f19")
+
+        style.configure("TFrame", background="#0b0f19")
+        style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+        style.configure(
+            "Header.TLabel",
+            background="#0b0f19",
+            foreground="#fb7185",
+            font=("Segoe UI", 17, "bold"),
+        )
+        style.configure(
+            "Subheader.TLabel",
+            background="#0b0f19",
+            foreground="#94a3b8",
+            font=("Segoe UI", 9),
+        )
+        style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+        style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+
+        style.configure(
+            "TEntry",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            insertcolor="#ffffff",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TCombobox",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            arrowcolor="#e5e7eb",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TButton",
+            padding=7,
+            font=("Segoe UI", 10, "bold"),
+            background="#1f2937",
+            foreground="#e5e7eb",
+            bordercolor="#475569",
+            lightcolor="#475569",
+            darkcolor="#475569",
+        )
+
+        style.map(
+            "TButton",
+            background=[("active", "#334155")],
+            foreground=[("active", "#ffffff")],
+        )
+
+        style.configure(
+            "Vertical.TScrollbar",
+            background="#1f2937",
+            troughcolor="#0b0f19",
+            arrowcolor="#e5e7eb",
+        )
+
+    def _build_ui(self) -> None:
+        header = ttk.Frame(self)
+        header.pack(fill="x", padx=16, pady=(14, 8))
+
+        ttk.Label(header, text="TraceAtlas SUPPLYCHAININT AI Employee", style="Header.TLabel").pack(anchor="w")
+
+        ttk.Label(
+            header,
+            text=(
+                "Defensive / authorized / evidence-first / risk-aware supply-chain intelligence • Planning-only by default • "
+                "Local deterministic JSON/CSV/TXT vendor/SBOM/package/contract/incident parsing only • "
+                "No vendor attack / no unauthorized scanning / no credential use / no package poisoning / no build compromise / no sabotage / no procurement manipulation • "
+                "Vendor != Manufacturer • Contract != Active Use • SBOM != Deployed Reality • Vendor Incident != Customer Impact • Dependency Centrality != Attack Target"
+            ),
+            style="Subheader.TLabel",
+            wraplength=1280,
+            justify="left",
+        ).pack(anchor="w", pady=(2, 0))
+
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+
+        self.input_tab = ttk.Frame(self.notebook)
+        self.output_tab = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.input_tab, text="SUPPLYCHAININT Task Input")
+        self.notebook.add(self.output_tab, text="Output / SUPPLYCHAININT Plan / Evidence")
+
+        self._build_input_tab()
+        self._build_output_tab()
+
+    def _build_input_tab(self) -> None:
+        container = ttk.Frame(self.input_tab)
+        container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+        self.form = ttk.Frame(self.canvas)
+
+        self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        row = 0
+
+        for key, label, kind in FIELDS:
+            ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+
+            if kind == "entry":
+                widget = ttk.Entry(self.form, width=102)
+
+            elif kind == "combo":
+                widget = ttk.Combobox(
+                    self.form,
+                    values=TARGET_TYPES if key == "target_type" else [],
+                    width=100,
+                    state="readonly",
+                )
+
+            else:
+                widget = tk.Text(
+                    self.form,
+                    height=3,
+                    width=102,
+                    bg="#111827",
+                    fg="#e5e7eb",
+                    insertbackground="white",
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#334155",
+                    font=("Segoe UI", 10),
+                    wrap="word",
+                )
+
+            widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+            self.entries[key] = widget
+            row += 1
+
+        self.form.columnconfigure(1, weight=1)
+
+        buttons1 = ttk.Frame(self.input_tab)
+        buttons1.pack(fill="x", padx=10, pady=(12, 4))
+
+        buttons2 = ttk.Frame(self.input_tab)
+        buttons2.pack(fill="x", padx=10, pady=(0, 12))
+
+        ttk.Button(buttons1, text="Add Vendor Inventories", command=self.add_vendor_inventories).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add SBOM / VEX / Packages", command=self.add_sbom_packages).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Contracts / SLAs", command=self.add_contracts).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Incidents / Advisories", command=self.add_incidents).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Cloud / SaaS / Identity", command=self.add_cloud_saas).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Trade / Procurement", command=self.add_trade_procurement).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add STIX / MISP", command=self.add_stix_misp).pack(side="left", padx=4)
+
+        ttk.Button(buttons2, text="Analyze Local SUPPLYCHAININT Evidence", command=self.analyze_local_supplychain).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Generate SUPPLYCHAININT Plan", command=self.generate_plan).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+
+    def _build_output_tab(self) -> None:
+        container = ttk.Frame(self.output_tab)
+        container.pack(fill="both", expand=True)
+
+        self.output = tk.Text(
+            container,
+            wrap="word",
+            bg="#020617",
+            fg="#fecdd3",
+            insertbackground="white",
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#334155",
+            font=("Consolas", 11),
+        )
+
+        output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+        self.output.configure(yscrollcommand=output_scroll.set)
+
+        self.output.pack(side="left", fill="both", expand=True)
+        output_scroll.pack(side="right", fill="y")
+
+    def _set_defaults(self) -> None:
+        self.set_widget_value("case_id", "SUPPLYCHAININT-CASE-001")
+        self.set_widget_value("task_id", "SUPPLYCHAININT-TASK-001")
+        self.set_widget_value(
+            "objective",
+            "Analyze lawful/authorized/defensive supply-chain and third-party dependency intelligence using evidence-first methods. "
+            "Preserve originals, parse safe vendor/SBOM/package/contract/incident metadata deterministically, resolve vendors/suppliers/manufacturers/nth parties, "
+            "map direct and indirect dependencies, assess criticality/substitutability/concentration/common-mode resilience signals, test benign explanations, "
+            "and produce defensive risk reporting without unauthorized operational interference, credential use, package manipulation, supplier disruption, procurement manipulation, or evasion design.",
+        )
+        self.set_widget_value("target", "Illustrative example.com / authorized supply-chain context")
+        self.set_widget_value("target_type", "vendor_dependency_mapping")
+        self.set_widget_value(
+            "questions",
+            "\n".join(default_questions({"target": "Illustrative example.com / authorized supply-chain context"})),
+        )
+
+        for field in [
+            "organizations",
+            "vendors",
+            "suppliers",
+            "manufacturers",
+            "oems",
+            "odms",
+            "distributors",
+            "resellers",
+            "contractors",
+            "subcontractors",
+            "nth_parties",
+            "cloud_providers",
+            "saas_providers",
+            "msps",
+            "mssps",
+            "identity_providers",
+            "network_providers",
+            "dns_providers",
+            "cdns",
+            "payment_processors",
+            "data_processors",
+            "subprocessors",
+            "products",
+            "services",
+            "components",
+            "packages",
+            "repositories",
+            "applications",
+            "sboms",
+            "vex_records",
+            "build_pipelines",
+            "artifact_registries",
+            "contracts",
+            "slas",
+            "procurement_records",
+            "trade_records",
+            "financial_records",
+            "cloud_inventory",
+            "saas_inventory",
+            "asset_inventory",
+            "identity_integrations",
+            "incidents",
+            "breaches",
+            "vulnerabilities",
+            "sanctions_data",
+            "vendor_inventory_paths",
+            "sbom_paths",
+            "contract_paths",
+            "incident_paths",
+            "package_paths",
+            "cloud_paths",
+            "trade_paths",
+            "stix_misp_paths",
+        ]:
+            self.set_widget_value(field, "")
+
+        self.set_widget_value(
+            "time_range",
+            json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+        )
+        self.set_widget_value("jurisdiction", "")
+        self.set_widget_value(
+            "scope",
+            json.dumps(
+                {
+                    "allowed_source_types": [
+                        "vendor inventories",
+                        "supplier registers",
+                        "procurement systems",
+                        "contract repositories",
+                        "ERP records",
+                        "CMDB",
+                        "asset inventories",
+                        "software inventories",
+                        "SBOMs",
+                        "CycloneDX",
+                        "SPDX",
+                        "VEX",
+                        "package manifests",
+                        "lockfiles",
+                        "repository metadata",
+                        "CI/CD metadata",
+                        "cloud inventories",
+                        "SaaS inventories",
+                        "identity-provider integrations",
+                        "authorized network dependency data",
+                        "vendor security assessments",
+                        "SOC reports where authorized",
+                        "certifications",
+                        "security questionnaires",
+                        "public company filings",
+                        "annual reports",
+                        "trade records",
+                        "customs data",
+                        "shipping records",
+                        "incident reports",
+                        "breach notifications",
+                        "security advisories",
+                        "CVE/CWE/CPE/PURL",
+                        "KEV",
+                        "EPSS",
+                        "MISP/STIX",
+                        "sanctions lists",
+                        "regulatory lists",
+                        "business continuity documents",
+                        "vendor status pages",
+                        "service documentation",
+                        "public dependency documentation",
+                    ],
+                    "prohibited_sources_and_actions": [
+                        "attacking vendors",
+                        "scanning vendors without authorization",
+                        "exploiting supplier systems",
+                        "accessing third-party portals without authorization",
+                        "using vendor credentials",
+                        "using stolen credentials",
+                        "bypassing vendor authentication",
+                        "poisoning packages",
+                        "publishing malicious packages",
+                        "typosquatting packages",
+                        "compromising build pipelines",
+                        "tampering with SBOMs",
+                        "injecting malicious dependencies",
+                        "compromising repositories",
+                        "sabotaging logistics",
+                        "planning disruption",
+                        "identifying sabotage chokepoints for attack",
+                        "interfering with deliveries",
+                        "manipulating supplier contracts",
+                        "bribing procurement staff",
+                        "covertly recruiting vendor employees",
+                        "blackmailing suppliers",
+                        "designing sanctions-evasion supply chains",
+                        "designing customs-evasion routes",
+                        "recommending shell suppliers to conceal origin",
+                        "stealing vendor proprietary data",
+                    ],
+                    "data_minimization_rules": [
+                        "do not expose vendor credentials, API keys, tokens, private keys, or secrets",
+                        "preserve original package/component versions and hashes",
+                        "separate SBOM from deployed inventory",
+                        "separate vendor incident from customer impact",
+                    ],
+                    "authorized_use": "internal defensive/authorized supply-chain intelligence analysis only",
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value(
+            "authorization",
+            json.dumps(
+                {
+                    "authorized_by": "SUPPLYCHAININT Manager / Enterprise / Commercial / Cyber Intelligence Manager",
+                    "authorization_basis": "customer-authorized lawful/defensive supply-chain engagement",
+                    "permitted_actions": [
+                        "local supply-chain evidence hashing",
+                        "authorized/public vendor/SBOM/package/contract/incident metadata parsing",
+                        "dependency graph construction",
+                        "criticality/substitutability/SPOF candidate analysis",
+                        "concentration/common-mode resilience analysis",
+                        "incident/vulnerability propagation hypothesis generation",
+                        "defensive specialist handoff",
+                    ],
+                    "prohibited_actions": [
+                        "vendor attack",
+                        "unauthorized scanning",
+                        "credential use",
+                        "package poisoning",
+                        "build compromise",
+                        "SBOM tampering",
+                        "supplier sabotage",
+                        "logistics disruption",
+                        "procurement manipulation",
+                        "evasion design",
+                    ],
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value("source_limits", "")
+        self.set_widget_value("budget", "")
+        self.set_widget_value("deadline", "")
+        self.set_widget_value(
+            "configured_connectors",
+            "None configured. No CMDB/SBOM/procurement/cloud/CTI connector invoked. Planning-only for external enrichment.",
+        )
+
+    def get_widget_value(self, key: str) -> str:
+        widget = self.entries.get(key)
+        if widget is None:
+            return ""
+
+        if isinstance(widget, tk.Text):
+            return widget.get("1.0", "end-1c").strip()
+
+        if isinstance(widget, ttk.Combobox):
+            return widget.get().strip()
+
+        if isinstance(widget, ttk.Entry):
+            return widget.get().strip()
+
+        return ""
+
+    def set_widget_value(self, key: str, value: str) -> None:
+        widget = self.entries.get(key)
+        if widget is None:
+            return
+
+        if isinstance(widget, tk.Text):
+            widget.delete("1.0", "end")
+            widget.insert("1.0", value)
+        elif isinstance(widget, ttk.Combobox):
+            widget.set(value)
+        elif isinstance(widget, ttk.Entry):
+            widget.delete(0, "end")
+            widget.insert(0, value)
+
+    def collect_payload(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {}
+
+        for key, _, _ in FIELDS:
+            raw = self.get_widget_value(key)
+
+            if key in LIST_FIELDS:
+                payload[key] = parse_list(raw)
+            elif key in DICT_FIELDS:
+                payload[key] = parse_dict(raw)
+            else:
+                payload[key] = raw
+
+        payload["generated_at"] = now_utc()
+        payload["panel_version"] = APP_VERSION
+        payload["operating_mode"] = "PLANNING_ONLY_DEFENSIVE_AUTHORIZED_EVIDENCE_FIRST"
+        payload["source_boundary"] = "DEFENSIVE_AUTHORIZED_EVIDENCE_FIRST_RISK_AWARE_SUPPLYCHAININT_ONLY"
+        return payload
+
+    def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
+        if not paths:
+            return
+
+        current = self.get_widget_value(field)
+        added = "\n".join(paths)
+        new_value = current + ("\n" if current else "") + added
+        self.set_widget_value(field, new_value)
+        messagebox.showinfo(title, f"{len(paths)} path(s) added to {field}.")
+
+    def _append_paths_multi(self, fields: Tuple[str, ...], paths: Tuple[str, ...], title: str) -> None:
+        if not paths:
+            return
+
+        for field in fields:
+            current = self.get_widget_value(field)
+            added = "\n".join(paths)
+            new_value = current + ("\n" if current else "") + added
+            self.set_widget_value(field, new_value)
+
+        messagebox.showinfo(title, f"{len(paths)} path(s) added to {', '.join(fields)}.")
+
+    def add_vendor_inventories(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select vendor/supplier inventory files",
+            filetypes=[
+                ("Vendor inventories", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("vendor_inventory_paths", paths, "Vendor Inventory Files Added")
+
+    def add_sbom_packages(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select SBOM / VEX / package manifest / lockfile files",
+            filetypes=[
+                ("SBOM / packages", "*.json *.csv *.tsv *.txt *.xml *.sbom *.bom *.spdx *.cyclonedx *.lock"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths_multi(("sbom_paths", "package_paths"), paths, "SBOM / Package Files Added")
+
+    def add_contracts(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select contract / SLA files",
+            filetypes=[
+                ("Contracts / SLAs", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("contract_paths", paths, "Contract / SLA Files Added")
+
+    def add_incidents(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select incident / breach / advisory files",
+            filetypes=[
+                ("Incidents / advisories", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("incident_paths", paths, "Incident / Advisory Files Added")
+
+    def add_cloud_saas(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select cloud / SaaS / identity inventory files",
+            filetypes=[
+                ("Cloud / SaaS / identity", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("cloud_paths", paths, "Cloud / SaaS / Identity Files Added")
+
+    def add_trade_procurement(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select trade / logistics / procurement files",
+            filetypes=[
+                ("Trade / procurement", "*.json *.csv *.tsv *.txt *.log *.md"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("trade_paths", paths, "Trade / Procurement Files Added")
+
+    def add_stix_misp(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select STIX / MISP export files",
+            filetypes=[
+                ("STIX / MISP", "*.json *.xml *.csv *.tsv *.txt *.stix *.taxii *.misp"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("stix_misp_paths", paths, "STIX / MISP Files Added")
+
+    def run_policy_screen(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        result = {
+            "mode": "POLICY_SCREEN_ONLY",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "payload_preview": {
+                "case_id": payload.get("case_id"),
+                "task_id": payload.get("task_id"),
+                "objective": payload.get("objective"),
+                "target": payload.get("target"),
+                "target_type": payload.get("target_type"),
+                "has_vendors": bool(payload.get("vendors") or payload.get("suppliers")),
+                "has_packages": bool(payload.get("packages") or payload.get("sboms")),
+                "has_contracts": bool(payload.get("contracts") or payload.get("slas")),
+                "has_incidents": bool(payload.get("incidents") or payload.get("breaches")),
+                "has_vulnerabilities": bool(payload.get("vulnerabilities")),
+            },
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            messagebox.showwarning(
+                "Policy Blocked",
+                "This SUPPLYCHAININT request is policy-blocked.\n\n"
+                + "\n".join(policy["reasons"])
+                + "\n\nUse only defensive/authorized alternatives.",
+            )
+        elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            messagebox.showwarning(
+                "Human Review Required",
+                "No hard policy block detected, but sensitive third-party/contract/incident/vulnerability/software supply-chain context applies.",
+            )
+        else:
+            messagebox.showinfo(
+                "Policy Screen",
+                "No obvious policy violation detected. Planning-only mode remains active.",
+            )
+
+    def analyze_local_supplychain(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "evidence_inventory": [],
+                "entities_preview": [],
+                "dependencies_preview": [],
+                "packages_preview": [],
+                "observations": [],
+                "candidate_facts": [],
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning("Policy Blocked", "Local SUPPLYCHAININT evidence analysis blocked by policy screen.")
+            return
+
+        path_fields = [
+            "vendor_inventory_paths",
+            "sbom_paths",
+            "contract_paths",
+            "incident_paths",
+            "package_paths",
+            "cloud_paths",
+            "trade_paths",
+            "stix_misp_paths",
+        ]
+
+        all_paths: List[str] = []
+        seen = set()
+
+        for field in path_fields:
+            for p in payload.get(field, []):
+                sp = str(p).strip()
+                if sp and sp not in seen:
+                    seen.add(sp)
+                    all_paths.append(sp)
+
+        if not all_paths:
+            messagebox.showwarning("No SUPPLYCHAININT Evidence", "Add local lawful/authorized/public supply-chain evidence files first.")
+            return
+
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", "Analyzing local defensive/authorized SUPPLYCHAININT evidence. Hashing and parsing may take time...\n")
+        self.notebook.select(self.output_tab)
+
+        files: List[Dict[str, Any]] = []
+        parsed_list: List[Dict[str, Any]] = []
+
+        for p in all_paths[:30]:
+            f, parsed = analyze_supply_chain_file(p, payload.get("case_id", ""), payload.get("task_id", ""))
+            files.append(f)
+            parsed_list.append(parsed)
+
+        aggregated = finalize_parsed(aggregate_parsed(parsed_list), payload, files)
+
+        self.analyzed_files = files
+        self.parsed = aggregated
+
+        report = self._build_local_analysis_report(
+            files=files,
+            parsed=aggregated,
+            payload=payload,
+            policy=policy,
+        )
+
+        self.last_result = report
+        self._write_output(report)
+
+        succeeded = sum(1 for f in files if str(f.get("status", "")).startswith("SUCCEEDED"))
+        messagebox.showinfo(
+            "Local SUPPLYCHAININT Evidence Analysis Complete",
+            f"Processed {len(files)} evidence file(s).\n"
+            f"Succeeded/partial: {succeeded}\n"
+            f"Entities: {len(aggregated.get('entities', []))}\n"
+            f"Dependencies: {len(aggregated.get('dependencies', []))}\n"
+            f"Packages: {len(aggregated.get('packages', []))}\n"
+            f"Contracts: {len(aggregated.get('contracts', []))}\n"
+            f"Incidents: {len(aggregated.get('incidents', []))}\n"
+            f"Vulnerabilities: {len(aggregated.get('vulnerabilities', []))}\n"
+            "Review output for limitations and next actions.",
+        )
+
+    def generate_plan(self) -> None:
+        payload = self.collect_payload()
+        warnings = validate_payload(payload)
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "warnings": warnings,
+                "payload": payload,
+                "supplychainint_collection_plan": [],
+                "next_best_action": {
+                    "action": "Revise task to remove prohibited vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, sabotage, procurement manipulation, or evasion behavior.",
+                    "owner": "SUPPLYCHAININT Manager",
+                    "expected_output": "Policy-compliant defensive supply-chain scope and question set.",
+                },
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning(
+                "Policy Blocked",
+                "SUPPLYCHAININT plan not generated because the request is policy-blocked.",
+            )
+            return
+
+        questions = payload.get("questions") or default_questions(payload)
+
+        if not self.parsed.get("entities") and not self.parsed.get("dependencies") and not self.parsed.get("packages"):
+            self.parsed = finalize_parsed(empty_parsed(), payload, self.analyzed_files)
+
+        files = self.analyzed_files
+        parsed = self.parsed
+
+        next_action = build_next_best_action(payload, policy, files, parsed)
+        collection_plan = build_collection_plan(payload, questions, files, parsed)
+
+        overall_status = "PLANNING_ONLY"
+        if policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            overall_status = "HUMAN_REVIEW_REQUIRED"
+        if files or parsed.get("entities") or parsed.get("dependencies") or parsed.get("packages"):
+            overall_status = "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE"
+
+        result = {
+            "mode": overall_status,
+            "panel_version": APP_VERSION,
+            "policy": (
+                "This output does not attack vendors, scan third parties without authorization, exploit supplier systems, use vendor credentials, "
+                "poison or typosquat packages, compromise build pipelines, tamper with SBOMs, publish malicious dependencies, design supplier sabotage "
+                "or logistics disruption, turn dependency centrality into attack targeting, manipulate procurement, bribe/coerce/blackmail vendor staff, "
+                "design sanctions-evasion supply chains, or steal vendor proprietary data. "
+                "Local deterministic analysis is limited to hashing, safe JSON/CSV/TXT supply-chain metadata parsing, vendor/supplier/manufacturer resolution, "
+                "direct/indirect/nth-party dependency mapping, criticality/substitutability/SPOF candidate analysis, concentration/common-mode resilience signals, "
+                "SBOM/VEX/package context, contract/SLA context, incident/vulnerability propagation hypotheses, source independence, contradiction detection, "
+                "competing hypotheses, falsification, secret redaction, prompt-injection flagging, and defensive specialist handoff planning. "
+                "Live CMDB/SBOM/procurement/cloud/CTI enrichment, vendor termination, supplier replacement, production architecture change, and consequential legal/compliance action remain planning-only unless configured/authorized/human-reviewed."
+            ),
+            "policy_screen": policy,
+            "warnings": warnings,
+            "payload": payload,
+            "intelligence_questions": questions,
+            "evidence_inventory": files,
+            "entities_preview": parsed.get("entities", [])[:300],
+            "dependencies_preview": parsed.get("dependencies", [])[:300],
+            "packages_preview": parsed.get("packages", [])[:300],
+            "sbom_components_preview": parsed.get("sbom_components", [])[:300],
+            "contracts_preview": parsed.get("contracts", [])[:300],
+            "incidents_preview": parsed.get("incidents", [])[:300],
+            "vulnerabilities_preview": parsed.get("vulnerabilities", [])[:300],
+            "concentration_signals": parsed.get("concentration_signals", [])[:1000],
+            "spof_candidates": parsed.get("spof_candidates", [])[:1000],
+            "common_mode_signals": parsed.get("common_mode_signals", [])[:1000],
+            "propagation_candidates": parsed.get("propagation_candidates", [])[:1000],
+            "contradictions": parsed.get("contradictions", [])[:1000],
+            "hypotheses": parsed.get("hypotheses", [])[:1000],
+            "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+            "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+            "next_best_action": next_action,
+            "supplychainint_collection_plan": collection_plan,
+            **self._policy_sections(),
+            **self._schemas(),
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if warnings:
+            messagebox.showwarning(
+                "Validation Warnings",
+                "SUPPLYCHAININT plan generated with warnings:\n\n" + "\n".join(warnings),
+            )
+
+    def _build_local_analysis_report(
+        self,
+        files: List[Dict[str, Any]],
+        parsed: Dict[str, Any],
+        payload: Dict[str, Any],
+        policy: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        next_action = build_next_best_action(payload, policy, files, parsed)
+        collection_plan = build_collection_plan(payload, default_questions(payload), files, parsed)
+
+        observations: List[Dict[str, Any]] = []
+
+        for f in files:
+            observations.append({
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"A local defensive/authorized SUPPLYCHAININT evidence file was accessed and hashed: {f.get('filename')}.",
+                "evidence_id": f.get("evidence_id"),
+                "source_id": f.get("source_id"),
+                "observed_at": now_utc(),
+                "extraction_method": "local_deterministic_file_hash",
+                "limitations": "File hash does not prove dependency, impact, vulnerability reachability, or maliciousness.",
+            })
+
+        observations.extend([
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(files)} SUPPLYCHAININT evidence file(s) were parsed locally.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "safe_json_csv_text_supply_chain_parser",
+                "limitations": "Parser output is normalized evidence, not verified external reality.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": (
+                    f"{len(parsed.get('entities', []))} entity record(s), "
+                    f"{len(parsed.get('dependencies', []))} dependency record(s), "
+                    f"{len(parsed.get('packages', []))} package record(s), "
+                    f"{len(parsed.get('contracts', []))} contract record(s), "
+                    f"{len(parsed.get('incidents', []))} incident record(s), and "
+                    f"{len(parsed.get('vulnerabilities', []))} vulnerability record(s) were extracted."
+                ),
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_SUPPLY_CHAIN_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "entity_dependency_package_contract_incident_vuln_extraction",
+                "limitations": "Source-reported dependency/incident/vulnerability records are not verified customer impact.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": "No vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, SBOM tampering, sabotage, procurement manipulation, or evasion design was performed.",
+                "evidence_id": "LOCAL_PANEL_POLICY",
+                "source_id": "LOCAL_POLICY_GUARD",
+                "observed_at": now_utc(),
+                "extraction_method": "defensive_authorized_policy",
+                "limitations": "Planning/local deterministic panel only.",
+            },
+        ])
+
+        observations, _ = truncate_list(observations, 500)
+
+        candidate_facts: List[Dict[str, Any]] = []
+
+        for f in files:
+            if f.get("sha256"):
+                candidate_facts.append({
+                    "candidate_fact": f"The preserved local SUPPLYCHAININT evidence artifact {f.get('filename')} has SHA256 {f.get('sha256')}.",
+                    "status": "SUPPORTED",
+                    "evidence_ids": [f.get("evidence_id")],
+                    "notes": "Supported by deterministic local hashing. Does not prove dependency or impact.",
+                })
+
+        candidate_facts.extend([
+            {
+                "candidate_fact": f"{len(parsed.get('dependencies', []))} dependency candidate(s) were extracted or derived.",
+                "status": "SUPPORTED_AS_CANDIDATE_ONLY",
+                "evidence_ids": ["AGGREGATE"],
+                "not_supported": [
+                    "verified active operational use",
+                    "verified criticality",
+                    "verified SPOF",
+                    "verified customer impact",
+                    "verified vulnerability reachability",
+                ],
+            },
+            {
+                "candidate_fact": "No vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, SBOM tampering, sabotage, procurement manipulation, or evasion design was performed.",
+                "status": "SUPPORTED",
+                "evidence_ids": ["LOCAL_PANEL_POLICY"],
+                "notes": "Defensive/authorized planning boundary.",
+            },
+        ])
+
+        candidate_facts, _ = truncate_list(candidate_facts, 200)
+
+        fact_gate = {
+            "status": "LOCAL_DETERMINISTIC_ONLY" if files or parsed.get("entities") or parsed.get("dependencies") or parsed.get("packages") else "NO_LOCAL_SUPPLYCHAININT_EVIDENCE",
+            "supported": [
+                "file/source existence and SHA256 hash",
+                "parsed vendor/supplier/manufacturer/provider candidates",
+                "parsed direct dependency candidates",
+                "derived indirect dependency candidates",
+                "parsed package/SBOM component candidates",
+                "parsed contract/SLA candidates",
+                "parsed incident/breach source reports",
+                "parsed vulnerability source reports",
+                "concentration signals",
+                "SPOF candidates",
+                "common-mode signals",
+                "propagation candidates",
+                "contradiction candidates",
+                "competing hypotheses",
+                "secret redaction flags",
+                "prompt-injection flags",
+            ],
+            "not_supported": [
+                "verified active operational use",
+                "verified criticality",
+                "verified SPOF",
+                "verified customer impact",
+                "verified vulnerability reachability",
+                "verified supply-chain attack",
+                "verified vendor compromise",
+                "verified customer breach",
+                "final legal/regulatory determination",
+                "autonomous vendor termination",
+                "autonomous supplier blocking",
+                "autonomous production architecture change",
+            ],
+            "safety_status": (
+                "No vendor attack, unauthorized scanning, supplier exploitation, credential use, package poisoning, typosquatting, build compromise, "
+                "SBOM tampering, malicious dependency publication, supplier sabotage, logistics disruption, procurement manipulation, or evasion design performed."
+            ),
+        }
+
+        return {
+            "mode": "LOCAL_DETERMINISTIC_SUPPLYCHAININT_ANALYSIS",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "vendor_attack_performed": False,
+            "unauthorized_scanning_performed": False,
+            "credential_use_performed": False,
+            "package_poisoning_performed": False,
+            "build_compromise_performed": False,
+            "sbom_tampering_performed": False,
+            "sabotage_planning_performed": False,
+            "procurement_manipulation_performed": False,
+            "evasion_design_performed": False,
+            "evidence_inventory": files,
+            "entities_preview": parsed.get("entities", [])[:300],
+            "dependencies_preview": parsed.get("dependencies", [])[:300],
+            "packages_preview": parsed.get("packages", [])[:300],
+            "sbom_components_preview": parsed.get("sbom_components", [])[:300],
+            "contracts_preview": parsed.get("contracts", [])[:300],
+            "incidents_preview": parsed.get("incidents", [])[:300],
+            "vulnerabilities_preview": parsed.get("vulnerabilities", [])[:300],
+            "concentration_signals": parsed.get("concentration_signals", [])[:1000],
+            "spof_candidates": parsed.get("spof_candidates", [])[:1000],
+            "common_mode_signals": parsed.get("common_mode_signals", [])[:1000],
+            "propagation_candidates": parsed.get("propagation_candidates", [])[:1000],
+            "contradictions": parsed.get("contradictions", [])[:1000],
+            "hypotheses": parsed.get("hypotheses", [])[:1000],
+            "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+            "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+            "observations": observations,
+            "candidate_facts": candidate_facts,
+            "fact_gate": fact_gate,
+            "recommended_next_actions": next_action,
+            "supplychainint_collection_plan_preview": collection_plan[:20],
+            "limitations": [
+                "Only local deterministic checks were performed.",
+                "No network access was performed.",
+                "No vendor attack, unauthorized scanning, credential use, package poisoning, build compromise, SBOM tampering, sabotage, procurement manipulation, or evasion design was performed.",
+                "Vendor is not manufacturer.",
+                "Supplier is not OEM.",
+                "Reseller is not product maker.",
+                "Contract is not active use.",
+                "Active use is not current contract.",
+                "Dependency is not ownership.",
+                "Dependency is not control.",
+                "Single provider is not confirmed SPOF.",
+                "High spend is not high criticality.",
+                "Low spend is not low criticality.",
+                "Multi-vendor is not true diversification.",
+                "Multi-cloud is not resilience.",
+                "Certification is not security.",
+                "SBOM is not deployed reality.",
+                "Package presence is not vulnerability.",
+                "Vulnerability is not exploitation.",
+                "Vendor incident is not customer impact.",
+                "Vendor breach is not customer breach.",
+                "Third-party access is not active session.",
+                "Subprocessor list is not active use.",
+                "Exposed secrets were redacted heuristically and not used.",
+                "Vendor/SBOM/package/contract documents were treated as untrusted evidence.",
+            ],
+        }
+
+    def _write_output(self, result: Dict[str, Any]) -> None:
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2, default=str))
+
+    def _policy_sections(self) -> Dict[str, Any]:
+        return {
+            "role": {
+                "employee": "SUPPLYCHAININT AI Employee",
+                "hierarchy": [
+                    "Chief Intelligence Manager",
+                    "Enterprise / Commercial / Cyber Intelligence Manager",
+                    "Supply-Chain Intelligence Manager",
+                    "SUPPLYCHAININT AI Employee",
+                    "Vendor / Dependency / Software / Physical Supply Chain / Resilience / Third-Party Risk Skills",
+                ],
+                "not": [
+                    "sabotage planner",
+                    "vendor intrusion agent",
+                    "supplier disruption planner",
+                    "procurement manipulation agent",
+                    "sanctions-evasion advisor",
+                    "software supply-chain attack generator",
+                    "dependency poisoning system",
+                    "malicious package publisher",
+                    "insider recruitment system",
+                ],
+            },
+            "core_principle": [
+                "ORGANIZATION / PRODUCT",
+                "DEPENDENCY DISCOVERY",
+                "ENTITY RESOLUTION",
+                "ROLE RESOLUTION",
+                "DEPENDENCY TYPE",
+                "DIRECT / INDIRECT DEPENDENCY",
+                "CRITICALITY",
+                "TEMPORAL VALIDATION",
+                "SECURITY / OPERATIONAL CONTEXT",
+                "SOURCE RELIABILITY",
+                "SOURCE INDEPENDENCE",
+                "PROPAGATION ANALYSIS",
+                "RESILIENCE ANALYSIS",
+                "FACT GATE",
+                "RISK ASSESSMENT",
+                "DEFENSIBLE RECOMMENDATION",
+            ],
+            "critical_separations": [
+                "vendor != manufacturer",
+                "supplier != OEM",
+                "reseller != product maker",
+                "contract != active use",
+                "active use != current contract",
+                "dependency != ownership",
+                "dependency != control",
+                "single provider != confirmed SPOF",
+                "high spend != high criticality",
+                "low spend != low criticality",
+                "multi-vendor != true diversification",
+                "multi-cloud != resilience",
+                "certification != security",
+                "security questionnaire != independent verification",
+                "SBOM != deployed reality",
+                "package presence != vulnerability",
+                "vulnerability != exploitation",
+                "vendor incident != customer impact",
+                "vendor breach != customer breach",
+                "third-party access != active session",
+                "subprocessor list != active use",
+                "open-source maintainer != corporate owner",
+                "single maintainer != insecurity",
+                "EOL != compromise",
+                "financial distress != certain failure",
+                "geographic location != political risk",
+                "historical vendor != current dependency",
+                "old package version != current deployment",
+                "multiple risk providers using same source != independent corroboration",
+                "AI agreement != supply-chain corroboration",
+            ],
+            "hard_restrictions": [
+                "Do not attack vendors.",
+                "Do not scan third parties without authorization.",
+                "Do not exploit supplier systems.",
+                "Do not use vendor credentials.",
+                "Do not poison software packages.",
+                "Do not typosquat packages.",
+                "Do not compromise build pipelines.",
+                "Do not tamper with SBOMs.",
+                "Do not publish malicious dependencies.",
+                "Do not design supplier sabotage.",
+                "Do not design logistics disruption.",
+                "Do not turn dependency centrality into attack targeting.",
+                "Do not design sanctions-evasion supply chains.",
+                "Do not design false-origin or false-supplier structures.",
+                "Do not manipulate procurement.",
+                "Do not bribe, coerce, or blackmail vendor staff.",
+            ],
+            "non_negotiable_rules": [
+                "DO NOT ATTACK VENDORS.",
+                "DO NOT SCAN THIRD PARTIES WITHOUT AUTHORIZATION.",
+                "DO NOT EXPLOIT SUPPLIER SYSTEMS.",
+                "DO NOT USE VENDOR CREDENTIALS.",
+                "DO NOT POISON SOFTWARE PACKAGES.",
+                "DO NOT TYPOSQUAT PACKAGES.",
+                "DO NOT COMPROMISE BUILD PIPELINES.",
+                "DO NOT TAMPER WITH SBOMS.",
+                "DO NOT PUBLISH MALICIOUS DEPENDENCIES.",
+                "DO NOT DESIGN SUPPLIER SABOTAGE.",
+                "DO NOT DESIGN LOGISTICS DISRUPTION.",
+                "DO NOT TURN DEPENDENCY CENTRALITY INTO ATTACK TARGETING.",
+                "DO NOT DESIGN SANCTIONS-EVASION SUPPLY CHAINS.",
+                "DO NOT DESIGN FALSE-ORIGIN OR FALSE-SUPPLIER STRUCTURES.",
+                "DO NOT MANIPULATE PROCUREMENT.",
+                "DO NOT RECRUIT OR BLACKMAIL VENDOR STAFF.",
+                "DO NOT EQUATE VENDOR WITH MANUFACTURER.",
+                "DO NOT EQUATE SUPPLIER WITH OEM.",
+                "DO NOT EQUATE RESELLER WITH PRODUCT MAKER.",
+                "DO NOT EQUATE CONTRACT WITH ACTIVE USE.",
+                "DO NOT EQUATE ACTIVE USE WITH CURRENT CONTRACT.",
+                "DO NOT EQUATE DEPENDENCY WITH OWNERSHIP.",
+                "DO NOT EQUATE DEPENDENCY WITH CONTROL.",
+                "DO NOT EQUATE SINGLE PROVIDER WITH CONFIRMED SPOF.",
+                "DO NOT EQUATE HIGH SPEND WITH HIGH CRITICALITY.",
+                "DO NOT EQUATE LOW SPEND WITH LOW CRITICALITY.",
+                "DO NOT EQUATE MULTI-VENDOR WITH TRUE DIVERSIFICATION.",
+                "DO NOT EQUATE MULTI-CLOUD WITH RESILIENCE.",
+                "DO NOT EQUATE CERTIFICATION WITH SECURITY.",
+                "DO NOT EQUATE SBOM WITH DEPLOYED REALITY.",
+                "DO NOT EQUATE PACKAGE PRESENCE WITH VULNERABILITY.",
+                "DO NOT EQUATE VULNERABILITY WITH EXPLOITATION.",
+                "DO NOT EQUATE VENDOR INCIDENT WITH CUSTOMER IMPACT.",
+                "DO NOT EQUATE VENDOR BREACH WITH CUSTOMER BREACH.",
+                "DO NOT EQUATE THIRD-PARTY ACCESS WITH ACTIVE SESSION.",
+                "DO NOT EQUATE SUBPROCESSOR LIST WITH ACTIVE USE.",
+                "DO NOT EQUATE OPEN-SOURCE MAINTAINER WITH CORPORATE OWNER.",
+                "DO NOT EQUATE SINGLE MAINTAINER WITH INSECURITY.",
+                "DO NOT EQUATE EOL WITH COMPROMISE.",
+                "DO NOT EQUATE FINANCIAL DISTRESS WITH CERTAIN FAILURE.",
+                "DO NOT EQUATE GEOGRAPHIC LOCATION WITH POLITICAL RISK.",
+                "DO NOT EQUATE HISTORICAL VENDOR WITH CURRENT DEPENDENCY.",
+                "DO NOT EQUATE OLD PACKAGE VERSION WITH CURRENT DEPLOYMENT.",
+                "DO NOT EQUATE MULTIPLE RISK PROVIDERS USING SAME SOURCE WITH INDEPENDENT CORROBORATION.",
+                "DO NOT EQUATE AI AGREEMENT WITH SUPPLY-CHAIN CORROBORATION.",
+                "DO NOT HIDE FOURTH-PARTY DEPENDENCIES.",
+                "DO NOT HIDE COMMON-MODE FAILURE.",
+                "DO NOT HIDE SUBSTITUTABILITY UNCERTAINTY.",
+                "DO NOT HIDE SBOM STALENESS.",
+                "DO NOT HIDE VENDOR SELF-REPORTING BIAS.",
+                "DO NOT HIDE LEGACY DEPENDENCIES.",
+                "DO NOT INVENT SUPPLIERS.",
+                "DO NOT INVENT MANUFACTURERS.",
+                "DO NOT INVENT SUBPROCESSORS.",
+                "DO NOT INVENT SBOM COMPONENTS.",
+                "DO NOT INVENT ALTERNATIVE SUPPLIERS.",
+                "DO NOT INVENT INCIDENT IMPACT.",
+                "DO NOT INVENT SINGLE POINTS OF FAILURE.",
+                "DO NOT LOSE HISTORICAL DEPENDENCY STATES.",
+            ],
+        }
+
+    def _schemas(self) -> Dict[str, Any]:
+        return {
+            "dependency_evidence_schema": {
+                "evidence_id": "Unique supply-chain evidence identifier",
+                "case_id": "Case identifier",
+                "source_id": "Source identifier",
+                "source_type": "Vendor inventory / SBOM / contract / incident / vulnerability / etc.",
+                "organization_id": "Consumer organization reference",
+                "supplier_id": "Provider/supplier reference",
+                "dependency_id": "Dependency reference",
+                "product_or_service": "Product/service/component",
+                "document_reference": "Contract/advisory/SBOM/document reference",
+                "effective_at": "Effective time",
+                "observed_at": "Observation time",
+                "retrieved_at": "Retrieval time",
+                "content_hash": "SHA256",
+                "raw_artifact_reference": "Secure local artifact reference",
+                "parser_version": "Parser version",
+                "normalizer_version": "Normalizer version",
+                "authorization_context": "Authorization basis",
+            },
+            "dependency_schema": {
+                "dependency_id": "Unique dependency identifier",
+                "from_entity_ref": "Consumer entity reference",
+                "to_entity_ref": "Provider entity reference",
+                "dependency_type": "PRODUCT_SUPPLY / CLOUD / SAAS / IDENTITY_PROVIDER / DEPENDS_ON_PACKAGE / etc.",
+                "product_or_service": "Product/service/component",
+                "business_function": "Business function supported",
+                "criticality": "MISSION_CRITICAL / BUSINESS_CRITICAL / HIGH / MEDIUM / LOW / UNKNOWN",
+                "substitutability": "EASILY_SUBSTITUTABLE / MODERATELY_SUBSTITUTABLE / DIFFICULT_TO_SUBSTITUTE / NON_SUBSTITUTABLE_CANDIDATE / UNKNOWN",
+                "directness": "DIRECT_SOURCE_REPORTED / INDIRECT_CANDIDATE / etc.",
+                "valid_from": "Validity start",
+                "valid_to": "Validity end",
+                "source_id": "Source identifier",
+                "evidence_id": "Evidence identifier",
+                "confidence": "SOURCE_REPORTED / LOW_DERIVED / etc.",
+                "limitations": [
+                    "Dependency is source-reported until corroborated.",
+                    "Contract does not prove active use.",
+                    "Single provider does not automatically prove SPOF.",
+                ],
+            },
+            "supplychainint_result_schema": [
+                "case_id",
+                "task_id",
+                "objective",
+                "questions",
+                "source_ids",
+                "evidence_ids",
+                "organizations",
+                "vendors",
+                "suppliers",
+                "manufacturers",
+                "oems",
+                "odms",
+                "distributors",
+                "resellers",
+                "contractors",
+                "subcontractors",
+                "nth_parties",
+                "cloud_providers",
+                "saas_providers",
+                "msps",
+                "mssps",
+                "identity_providers",
+                "network_providers",
+                "dns_providers",
+                "cdns",
+                "payment_processors",
+                "data_processors",
+                "subprocessors",
+                "products",
+                "services",
+                "components",
+                "packages",
+                "repositories",
+                "applications",
+                "sboms",
+                "vex_records",
+                "build_pipelines",
+                "artifact_registries",
+                "contracts",
+                "slas",
+                "business_functions",
+                "capabilities",
+                "dependency_relationships",
+                "dependency_depth",
+                "criticality",
+                "substitutability",
+                "single_points_of_failure",
+                "concentration_risk",
+                "geographic_concentration",
+                "jurisdiction_context",
+                "privileged_access_context",
+                "data_processing_context",
+                "software_supply_chain_context",
+                "physical_supply_chain_context",
+                "vulnerability_context",
+                "incident_context",
+                "breach_context",
+                "financial_health_context",
+                "trade_context",
+                "procurement_context",
+                "sanctions_context",
+                "regulatory_context",
+                "business_continuity_context",
+                "alternative_suppliers",
+                "switching_cost_context",
+                "risk_dimensions",
+                "timeline_updates",
+                "observations",
+                "candidate_facts",
+                "supported_facts",
+                "partial_facts",
+                "disputed_facts",
+                "source_reliability",
+                "source_bias",
+                "source_limitations",
+                "source_pedigree",
+                "source_independence",
+                "contradictions",
+                "hypotheses",
+                "falsification_results",
+                "privacy_flags",
+                "legal_flags",
+                "unknowns",
+                "knowledge_gaps",
+                "recommended_next_actions",
+                "specialist_handoffs",
+                "limitations",
+                "status",
+            ],
+        }
+
+    def export_json(self) -> None:
+        if not self.last_result:
+            self.generate_plan()
+
+        data = self.last_result or self.collect_payload()
+
+        payload_for_name = data.get("payload") or data.get("payload_preview") or data
+        case_id = payload_for_name.get("case_id", "supplychainint")
+        task_id = payload_for_name.get("task_id", "task")
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialfile=f"{case_id}_{task_id}.json",
+        )
+
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            messagebox.showinfo("Export Complete", f"SUPPLYCHAININT JSON saved to:\n{path}")
+        except Exception as exc:
+            messagebox.showerror("Export Failed", str(exc))
+
+    def copy_output(self) -> None:
+        text = self.output.get("1.0", "end-1c").strip()
+        if not text:
+            messagebox.showinfo("Copy Output", "No output to copy.")
+            return
+
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Copy Output", "Output copied to clipboard.")
+
+    def clear_form(self) -> None:
+        confirm = messagebox.askyesno(
+            "Clear Form",
+            "Are you sure you want to clear all fields, analyzed SUPPLYCHAININT evidence, and reset defaults?",
+        )
+        if not confirm:
+            return
+
+        self._set_defaults()
+        self.output.delete("1.0", "end")
+        self.last_result = {}
+        self.analyzed_files = []
+        self.parsed = empty_parsed()
+
+
+if __name__ == "__main__":
+    try:
+        app = TraceAtlasSUPPLYCHAININTPanel()
+        app.mainloop()
+    except tk.TclError as exc:
+        print("GUI could not start. This is expected in headless environments without display access.")
+        print(f"TclError: {exc}")
+        print("The SUPPLYCHAININT logic remains usable as a library/module.")
+        
