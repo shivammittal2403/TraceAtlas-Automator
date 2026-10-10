@@ -82,7 +82,7 @@ pdf = [
     "reportlab>=4.0.0",
 ]
 censys = [
-    "censys>=2.2.0",
+    "censys>=2.3.0",
 ]
 socks = [
     "PySocks>=1.7.1",
@@ -107,7 +107,7 @@ all = [
     "ollama>=0.3.0",
     "openai>=1.40.0",
     "reportlab>=4.0.0",
-    "censys>=2.2.0",
+    "censys>=2.3.0",
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.54.0",
     "sse-starlette>=1.8.0",
