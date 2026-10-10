@@ -1,0 +1,3399 @@
+from __future__ import annotations
+
+import hashlib
+import itertools
+import json
+import logging
+import math
+import re
+import unicodedata
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("ENVINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class DomainType(str, Enum):
+    AIR = "AIR"
+    WATER = "WATER"
+    SOIL = "SOIL"
+    WEATHER = "WEATHER"
+    CLIMATE = "CLIMATE"
+    HYDROLOGY = "HYDROLOGY"
+    FLOOD = "FLOOD"
+    DROUGHT = "DROUGHT"
+    WILDFIRE = "WILDFIRE"
+    SMOKE = "SMOKE"
+    HEAT = "HEAT"
+    VEGETATION = "VEGETATION"
+    LANDCOVER = "LANDCOVER"
+    DEFORESTATION = "DEFORESTATION"
+    WETLAND = "WETLAND"
+    COASTAL = "COASTAL"
+    MARINE = "MARINE"
+    SNOW_ICE = "SNOW_ICE"
+    GLACIER = "GLACIER"
+    POLLUTION = "POLLUTION"
+    INDUSTRIAL = "INDUSTRIAL"
+    REGULATORY = "REGULATORY"
+    INCIDENT = "INCIDENT"
+    HAZARD = "HAZARD"
+    IMPACT = "IMPACT"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class SourceType(str, Enum):
+    DIRECT_MEASUREMENT = "DIRECT_MEASUREMENT"
+    REMOTE_SENSING_OBSERVATION = "REMOTE_SENSING_OBSERVATION"
+    MODEL_OUTPUT = "MODEL_OUTPUT"
+    DERIVED_PRODUCT = "DERIVED_PRODUCT"
+    REGULATORY_REPORT = "REGULATORY_REPORT"
+    INCIDENT_REPORT = "INCIDENT_REPORT"
+    SCIENTIFIC_PUBLICATION = "SCIENTIFIC_PUBLICATION"
+    SOURCE_CLAIM = "SOURCE_CLAIM"
+    ANALYTICAL_INFERENCE = "ANALYTICAL_INFERENCE"
+    UNKNOWN = "UNKNOWN"
+
+
+class ProcessingLevel(str, Enum):
+    RAW = "RAW"
+    LEVEL_1 = "LEVEL_1"
+    LEVEL_2 = "LEVEL_2"
+    DERIVED = "DERIVED"
+    MODELLED = "MODELLED"
+    AGGREGATED = "AGGREGATED"
+    REPORTED = "REPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class SensorHealth(str, Enum):
+    HEALTHY = "HEALTHY"
+    DEGRADED = "DEGRADED"
+    NOISY = "NOISY"
+    CLIPPED = "CLIPPED"
+    SATURATED = "SATURATED"
+    OFFLINE = "OFFLINE"
+    INTERMITTENT = "INTERMITTENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class CalibrationState(str, Enum):
+    CALIBRATED = "CALIBRATED"
+    CALIBRATION_REPORTED = "CALIBRATION_REPORTED"
+    CALIBRATION_EXPIRED = "CALIBRATION_EXPIRED"
+    CALIBRATION_UNKNOWN = "CALIBRATION_UNKNOWN"
+    CALIBRATION_SUSPECT = "CALIBRATION_SUSPECT"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class AnomalyState(str, Enum):
+    EXPECTED = "EXPECTED"
+    MILD_ANOMALY = "MILD_ANOMALY"
+    MATERIAL_ANOMALY = "MATERIAL_ANOMALY"
+    EXTREME_ANOMALY = "EXTREME_ANOMALY"
+    DATA_QUALITY_ANOMALY = "DATA_QUALITY_ANOMALY"
+    UNKNOWN = "UNKNOWN"
+
+
+class HazardState(str, Enum):
+    NONE_OBSERVED = "NONE_OBSERVED"
+    RISK_CANDIDATE = "RISK_CANDIDATE"
+    EVENT_CANDIDATE = "EVENT_CANDIDATE"
+    EVENT_OBSERVED = "EVENT_OBSERVED"
+    EVENT_SUPPORTED = "EVENT_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class FloodState(str, Enum):
+    NO_FLOOD_OBSERVED = "NO_FLOOD_OBSERVED"
+    FLOOD_CANDIDATE = "FLOOD_CANDIDATE"
+    FLOOD_OBSERVED = "FLOOD_OBSERVED"
+    FLOOD_SUPPORTED = "FLOOD_SUPPORTED"
+    FLOOD_RISK = "FLOOD_RISK"
+    FLOOD_FORECAST = "FLOOD_FORECAST"
+    UNKNOWN = "UNKNOWN"
+
+
+class DroughtState(str, Enum):
+    NO_DROUGHT_SIGNAL = "NO_DROUGHT_SIGNAL"
+    DROUGHT_CANDIDATE = "DROUGHT_CANDIDATE"
+    DROUGHT_SUPPORTED = "DROUGHT_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class FireState(str, Enum):
+    NO_FIRE_OBSERVED = "NO_FIRE_OBSERVED"
+    HEAT_DETECTION_CANDIDATE = "HEAT_DETECTION_CANDIDATE"
+    FIRE_DETECTION_CANDIDATE = "FIRE_DETECTION_CANDIDATE"
+    WILDFIRE_CANDIDATE = "WILDFIRE_CANDIDATE"
+    WILDFIRE_SUPPORTED = "WILDFIRE_SUPPORTED"
+    OTHER_HEAT_SOURCE_CANDIDATE = "OTHER_HEAT_SOURCE_CANDIDATE"
+    UNKNOWN = "UNKNOWN"
+
+
+class DeforestationState(str, Enum):
+    NO_PERSISTENT_CHANGE_OBSERVED = "NO_PERSISTENT_CHANGE_OBSERVED"
+    TREE_LOSS_CANDIDATE = "TREE_LOSS_CANDIDATE"
+    LANDCOVER_CHANGE_CANDIDATE = "LANDCOVER_CHANGE_CANDIDATE"
+    DEFORESTATION_CANDIDATE = "DEFORESTATION_CANDIDATE"
+    DEFORESTATION_SUPPORTED = "DEFORESTATION_SUPPORTED"
+    ILLEGAL_LOGGING_NOT_ASSESSED = "ILLEGAL_LOGGING_NOT_ASSESSED"
+    UNKNOWN = "UNKNOWN"
+
+
+class OilSpillState(str, Enum):
+    NO_OIL_SIGNAL = "NO_OIL_SIGNAL"
+    DARK_PATCH_CANDIDATE = "DARK_PATCH_CANDIDATE"
+    LOOKALIKE_CANDIDATE = "LOOKALIKE_CANDIDATE"
+    OIL_SPILL_CANDIDATE = "OIL_SPILL_CANDIDATE"
+    OIL_SPILL_SUPPORTED = "OIL_SPILL_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class PollutionState(str, Enum):
+    NO_POLLUTION_SIGNAL = "NO_POLLUTION_SIGNAL"
+    ANOMALY_OBSERVED = "ANOMALY_OBSERVED"
+    CONTAMINATION_SIGNAL = "CONTAMINATION_SIGNAL"
+    CONTAMINATION_SUPPORTED = "CONTAMINATION_SUPPORTED"
+    SOURCE_UNRESOLVED = "SOURCE_UNRESOLVED"
+    SOURCE_CANDIDATE = "SOURCE_CANDIDATE"
+    SOURCE_ASSOCIATION_SUPPORTED = "SOURCE_ASSOCIATION_SUPPORTED"
+    ATTRIBUTION_SUPPORTED = "ATTRIBUTION_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class RegulatoryState(str, Enum):
+    NO_REGULATORY_CONTEXT = "NO_REGULATORY_CONTEXT"
+    PERMIT_FOUND = "PERMIT_FOUND"
+    INSPECTION_FOUND = "INSPECTION_FOUND"
+    NOTICE_FOUND = "NOTICE_FOUND"
+    VIOLATION_NOTICE_FOUND = "VIOLATION_NOTICE_FOUND"
+    VIOLATION_NOT_ESTABLISHED = "VIOLATION_NOT_ESTABLISHED"
+    UNKNOWN = "UNKNOWN"
+
+
+class IndependenceState(str, Enum):
+    INDEPENDENT = "INDEPENDENT"
+    PARTIALLY_DEPENDENT = "PARTIALLY_DEPENDENT"
+    DEPENDENT = "DEPENDENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class UnitFamily(str, Enum):
+    TEMPERATURE = "TEMPERATURE"
+    CONCENTRATION_MASS_VOLUME = "CONCENTRATION_MASS_VOLUME"
+    CONCENTRATION_MIXING_RATIO = "CONCENTRATION_MIXING_RATIO"
+    PRECIPITATION = "PRECIPITATION"
+    FLOW = "FLOW"
+    VOLUME = "VOLUME"
+    DISTANCE = "DISTANCE"
+    AREA = "AREA"
+    MASS = "MASS"
+    PRESSURE = "PRESSURE"
+    DIMENSIONLESS = "DIMENSIONLESS"
+    INDEX = "INDEX"
+    COUNT = "COUNT"
+    TIME = "TIME"
+    UNKNOWN = "UNKNOWN"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+EARTH_RADIUS_M = 6371000.0
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def safe_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        try:
+            dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except Exception:
+            return None
+    elif isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        s = s.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            dt = None
+            for fmt in (
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+            ):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            if dt is None:
+                return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def mean(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def median(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return None
+    n = len(vals)
+    mid = n // 2
+    if n % 2 == 1:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2.0
+
+
+def std(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return 0.0
+    m = sum(vals) / len(vals)
+    var = sum((x - m) ** 2 for x in vals) / (len(vals) - 1)
+    return math.sqrt(var)
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def haversine_m(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dp = math.radians(float(lat2) - float(lat1))
+        dl = math.radians(float(lon2) - float(lon1))
+        a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return EARTH_RADIUS_M * c
+    except Exception:
+        return None
+
+
+def bearing_deg(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dl = math.radians(float(lon2) - float(lon1))
+        y = math.sin(dl) * math.cos(p2)
+        x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+        return (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
+    except Exception:
+        return None
+
+
+def angle_diff_deg(a: Optional[float], b: Optional[float]) -> Optional[float]:
+    if a is None or b is None:
+        return None
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def hash_payload(payload: Any) -> str:
+    try:
+        canonical = json.dumps(payload, sort_keys=True, default=_json_default)
+    except Exception:
+        canonical = str(payload)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def round_coord(value: Optional[float], digits: int = 2) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), digits)
+
+
+# ======================================================================
+# SECTION 3 — UNIT NORMALIZATION
+# ======================================================================
+
+@dataclass
+class NormalizedQuantity:
+    original_value: Optional[float]
+    original_unit: Optional[str]
+    normalized_value: Optional[float]
+    normalized_unit: str
+    unit_family: UnitFamily
+    conversion_formula: str
+
+
+def clean_unit(unit: Optional[str]) -> str:
+    if unit is None:
+        return ""
+    u = unicodedata.normalize("NFKC", str(unit)).strip().lower()
+    u = u.replace("µ", "u").replace("μ", "u")
+    u = u.replace("microgram", "ug")
+    u = u.replace(" ", "")
+    u = u.replace("^", "")
+    u = u.replace("/m³", "/m3")
+    u = u.replace("m³", "m3")
+    u = u.replace("m²", "m2")
+    u = u.replace("km²", "km2")
+    return u
+
+
+def detect_family(unit: Optional[str]) -> UnitFamily:
+    u = clean_unit(unit)
+    if not u:
+        return UnitFamily.UNKNOWN
+
+    if u in {"c", "celsius", "degc", "degreec", "f", "fahrenheit", "degf", "k", "kelvin"}:
+        return UnitFamily.TEMPERATURE
+
+    if "/m3" in u and (u.startswith("ug") or u.startswith("mg") or u.startswith("ng") or "gram" in u):
+        return UnitFamily.CONCENTRATION_MASS_VOLUME
+
+    if u in {"ppb", "ppm", "ppt"}:
+        return UnitFamily.CONCENTRATION_MIXING_RATIO
+
+    if u in {"mm", "cm", "in", "inch", "inches"}:
+        return UnitFamily.PRECIPITATION
+
+    if u in {"m3/s", "m3ps", "l/s", "lps", "cms", "cumecs"}:
+        return UnitFamily.FLOW
+
+    if u in {"m3", "l", "litre", "liter"}:
+        return UnitFamily.VOLUME
+
+    if u in {"m", "meter", "meters", "km", "kilometer", "kilometers", "mi", "mile", "miles", "ft", "feet"}:
+        return UnitFamily.DISTANCE
+
+    if u in {"m2", "km2", "ha", "hectare", "hectares"}:
+        return UnitFamily.AREA
+
+    if u in {"kg", "g", "mg", "ug", "lb", "lbs"}:
+        return UnitFamily.MASS
+
+    if u in {"pa", "hpa", "kpa", "bar", "mbar", "psi"}:
+        return UnitFamily.PRESSURE
+
+    if u in {"ndvi", "evi", "savi", "fraction", "ratio", "dimensionless", "unitless"}:
+        return UnitFamily.INDEX
+
+    if u in {"percent", "%"}:
+        return UnitFamily.DIMENSIONLESS
+
+    if u in {"count", "counts", "detections", "pixels", "pixel"}:
+        return UnitFamily.COUNT
+
+    if u in {"s", "sec", "second", "seconds", "min", "minute", "minutes", "h", "hr", "hour", "hours", "d", "day", "days"}:
+        return UnitFamily.TIME
+
+    return UnitFamily.UNKNOWN
+
+
+def normalize_quantity(value: Optional[float], unit: Optional[str]) -> NormalizedQuantity:
+    original_unit = unit
+    u = clean_unit(unit)
+    family = detect_family(u)
+
+    if value is None:
+        return NormalizedQuantity(
+            original_value=None,
+            original_unit=original_unit,
+            normalized_value=None,
+            normalized_unit="UNIT_UNKNOWN",
+            unit_family=family,
+            conversion_formula="no_value",
+        )
+
+    if family == UnitFamily.TEMPERATURE:
+        if u in {"c", "celsius", "degc", "degreec"}:
+            return NormalizedQuantity(value, original_unit, value + 273.15, "K", family, "K = C + 273.15")
+        if u in {"f", "fahrenheit", "degf"}:
+            return NormalizedQuantity(value, original_unit, (value - 32.0) * 5.0 / 9.0 + 273.15, "K", family, "K = (F - 32) * 5/9 + 273.15")
+        if u in {"k", "kelvin"}:
+            return NormalizedQuantity(value, original_unit, value, "K", family, "identity")
+
+    if family == UnitFamily.CONCENTRATION_MASS_VOLUME and "/m3" in u:
+        if u.startswith("ug") or "microgram" in u:
+            return NormalizedQuantity(value, original_unit, value, "ug/m3", family, "identity")
+        if u.startswith("mg"):
+            return NormalizedQuantity(value, original_unit, value * 1000.0, "ug/m3", family, "ug/m3 = mg/m3 * 1000")
+        if u.startswith("ng"):
+            return NormalizedQuantity(value, original_unit, value / 1000.0, "ug/m3", family, "ug/m3 = ng/m3 / 1000")
+
+    if family == UnitFamily.CONCENTRATION_MIXING_RATIO:
+        return NormalizedQuantity(
+            value,
+            original_unit,
+            value,
+            u,
+            family,
+            "mixing_ratio_not_mass_concentration_without_molecular_weight",
+        )
+
+    if family == UnitFamily.PRECIPITATION:
+        if u == "mm":
+            return NormalizedQuantity(value, original_unit, value, "mm", family, "identity")
+        if u == "cm":
+            return NormalizedQuantity(value, original_unit, value * 10.0, "mm", family, "mm = cm * 10")
+        if u in {"in", "inch", "inches"}:
+            return NormalizedQuantity(value, original_unit, value * 25.4, "mm", family, "mm = in * 25.4")
+
+    if family == UnitFamily.FLOW:
+        if u in {"m3/s", "m3ps", "cms", "cumecs"}:
+            return NormalizedQuantity(value, original_unit, value, "m3/s", family, "identity")
+        if u in {"l/s", "lps"}:
+            return NormalizedQuantity(value, original_unit, value / 1000.0, "m3/s", family, "m3/s = L/s / 1000")
+
+    if family == UnitFamily.VOLUME:
+        if u == "m3":
+            return NormalizedQuantity(value, original_unit, value, "m3", family, "identity")
+        if u in {"l", "litre", "liter"}:
+            return NormalizedQuantity(value, original_unit, value / 1000.0, "m3", family, "m3 = L / 1000")
+
+    if family == UnitFamily.DISTANCE:
+        if u in {"m", "meter", "meters"}:
+            return NormalizedQuantity(value, original_unit, value, "m", family, "identity")
+        if u in {"km", "kilometer", "kilometers"}:
+            return NormalizedQuantity(value, original_unit, value * 1000.0, "m", family, "m = km * 1000")
+        if u in {"mi", "mile", "miles"}:
+            return NormalizedQuantity(value, original_unit, value * 1609.344, "m", family, "m = mi * 1609.344")
+        if u in {"ft", "feet"}:
+            return NormalizedQuantity(value, original_unit, value * 0.3048, "m", family, "m = ft * 0.3048")
+
+    if family == UnitFamily.AREA:
+        if u == "m2":
+            return NormalizedQuantity(value, original_unit, value, "m2", family, "identity")
+        if u == "km2":
+            return NormalizedQuantity(value, original_unit, value * 1_000_000.0, "m2", family, "m2 = km2 * 1e6")
+        if u in {"ha", "hectare", "hectares"}:
+            return NormalizedQuantity(value, original_unit, value * 10_000.0, "m2", family, "m2 = ha * 10000")
+
+    if family == UnitFamily.MASS:
+        if u == "kg":
+            return NormalizedQuantity(value, original_unit, value, "kg", family, "identity")
+        if u == "g":
+            return NormalizedQuantity(value, original_unit, value / 1000.0, "kg", family, "kg = g / 1000")
+        if u == "mg":
+            return NormalizedQuantity(value, original_unit, value / 1_000_000.0, "kg", family, "kg = mg / 1e6")
+        if u == "ug":
+            return NormalizedQuantity(value, original_unit, value / 1_000_000_000.0, "kg", family, "kg = ug / 1e9")
+        if u in {"lb", "lbs"}:
+            return NormalizedQuantity(value, original_unit, value * 0.453592, "kg", family, "kg = lb * 0.453592")
+
+    if family == UnitFamily.PRESSURE:
+        if u == "pa":
+            return NormalizedQuantity(value, original_unit, value, "Pa", family, "identity")
+        if u == "kpa":
+            return NormalizedQuantity(value, original_unit, value * 1000.0, "Pa", family, "Pa = kPa * 1000")
+        if u in {"hpa", "mbar"}:
+            return NormalizedQuantity(value, original_unit, value * 100.0, "Pa", family, "Pa = hPa/mbar * 100")
+        if u == "bar":
+            return NormalizedQuantity(value, original_unit, value * 100000.0, "Pa", family, "Pa = bar * 100000")
+        if u == "psi":
+            return NormalizedQuantity(value, original_unit, value * 6894.76, "Pa", family, "Pa = psi * 6894.76")
+
+    if family == UnitFamily.INDEX:
+        return NormalizedQuantity(value, original_unit, value, u or "index", family, "identity")
+
+    if family == UnitFamily.DIMENSIONLESS:
+        if u in {"percent", "%"}:
+            return NormalizedQuantity(value, original_unit, value / 100.0, "fraction", family, "fraction = percent / 100")
+        return NormalizedQuantity(value, original_unit, value, "dimensionless", family, "identity")
+
+    if family == UnitFamily.COUNT:
+        return NormalizedQuantity(value, original_unit, value, "count", family, "identity")
+
+    if family == UnitFamily.TIME:
+        if u in {"s", "sec", "second", "seconds"}:
+            return NormalizedQuantity(value, original_unit, value, "s", family, "identity")
+        if u in {"min", "minute", "minutes"}:
+            return NormalizedQuantity(value, original_unit, value * 60.0, "s", family, "s = min * 60")
+        if u in {"h", "hr", "hour", "hours"}:
+            return NormalizedQuantity(value, original_unit, value * 3600.0, "s", family, "s = h * 3600")
+        if u in {"d", "day", "days"}:
+            return NormalizedQuantity(value, original_unit, value * 86400.0, "s", family, "s = d * 86400")
+
+    return NormalizedQuantity(
+        original_value=value,
+        original_unit=original_unit,
+        normalized_value=value,
+        normalized_unit="UNIT_UNKNOWN",
+        unit_family=UnitFamily.UNKNOWN,
+        conversion_formula="no_known_conversion",
+    )
+
+
+# ======================================================================
+# SECTION 4 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited ENVINT operational guidance.
+    Allows lawful environmental monitoring, scientific analysis,
+    hazard assessment, compliance context, and defensive mitigation.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:how\s+to|guide\s+to|instructions?\s+to|teach\s+me).*(?:contaminate|poison|dump|release|disperse|evade|bypass|disable|tamper|sabotage|burn|set fire|traffic|illegally log|illegally fish).*?(?:environment|water|soil|air|sensor|monitoring|dam|treatment|pipeline|wildlife|forest|marine|coast)",
+        r"\b(?:contamination|toxic release|pollutant dispersion|hazardous release|illegal dumping|environmental monitoring evasion|sensor tampering|disable environmental sensor|sabotage dam|sabotage water treatment|sabotage pipeline|cause wildfire|fire spread optimization|poison water|poison soil|release hazardous chemicals|harmful aerosol|biological contamination|radiological contamination|CBRN delivery|wildlife trafficking|illegal logging|illegal fishing|environmental-control evasion|target vulnerable environmental infrastructure)\b",
+        r"\b(?:geoengineering|climate engineering|solar radiation management).*(?:deployment plan|deployment instruction|release method|optimization)",
+        r"\b(?:optimize|maximize|minimize detection of).*(?:pollution|contamination|release|dumping|fire|emission)",
+        r"\b(?:private person|individual).*(?:stalk|track|locate|surveil).*(?:environmental|sensor|air|water|soil)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited ENVINT operational guidance.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Sensor metadata, reports, annotations, documents, and external feeds
+    are untrusted data. Neutralize obvious instruction-like injections while
+    preserving original evidence separately.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|release|dump|disable\s+sensor)\b"
+    )
+
+    def sanitize(self, text: Any, max_len: int = 500) -> Optional[str]:
+        if text is None:
+            return None
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return s[:max_len]
+
+
+# ======================================================================
+# SECTION 5 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    source_id: str = ""
+    dataset_id: str = ""
+    sensor_id: str = ""
+    observation_type: str = ""
+    measurement_type: str = ""
+    raw_payload_reference: str = ""
+    decoded_payload: Dict[str, Any] = field(default_factory=dict)
+    received_at: datetime = field(default_factory=utcnow)
+    retrieved_at: datetime = field(default_factory=utcnow)
+    content_hash: str = ""
+    parser_version: str = "ENVINT-parser-0.1.0"
+    normalizer_version: str = "ENVINT-normalizer-0.1.0"
+    authorization_context: str = ""
+
+
+@dataclass
+class Sensor:
+    sensor_id: str
+    sensor_type: str = "UNKNOWN"
+    network: str = "UNKNOWN"
+    operator: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    elevation_m: Optional[float] = None
+    units: str = "UNKNOWN"
+    calibration_state: CalibrationState = CalibrationState.CALIBRATION_UNKNOWN
+    calibration_date: Optional[datetime] = None
+    health: SensorHealth = SensorHealth.UNKNOWN
+    sampling_interval_s: Optional[float] = None
+    accuracy: Optional[float] = None
+    detection_limit: Optional[float] = None
+    quantification_limit: Optional[float] = None
+    source: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Facility:
+    facility_id: str
+    name: str = ""
+    facility_type: str = "UNKNOWN"
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    operator: Optional[str] = None
+    permits: List[Dict[str, Any]] = field(default_factory=list)
+    emissions_inventory: List[Dict[str, Any]] = field(default_factory=list)
+    source: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class RegulatoryRecord:
+    record_id: str
+    facility_id: Optional[str] = None
+    record_type: str = "UNKNOWN"
+    date: Optional[datetime] = None
+    status: str = "UNKNOWN"
+    threshold: Optional[float] = None
+    unit: Optional[str] = None
+    averaging_period: Optional[str] = None
+    jurisdiction: str = "UNKNOWN"
+    source: str = "UNKNOWN"
+    evidence_id: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class IncidentReport:
+    incident_id: str
+    incident_type: str = "UNKNOWN"
+    facility_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timestamp: Optional[datetime] = None
+    description: str = ""
+    reporter_type: str = "UNKNOWN"
+    source: str = "UNKNOWN"
+    reliability: Confidence = Confidence.UNKNOWN
+    evidence_id: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Observation:
+    observation_id: str = field(default_factory=lambda: new_id("OBS"))
+    case_id: str = ""
+    domain: DomainType = DomainType.UNKNOWN
+    measurement_type: str = "UNKNOWN"
+    value: Optional[float] = None
+    unit: str = "UNIT_UNKNOWN"
+    normalized_value: Optional[float] = None
+    normalized_unit: str = "UNIT_UNKNOWN"
+    unit_family: UnitFamily = UnitFamily.UNKNOWN
+    timestamp: Optional[datetime] = None
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
+    region: Optional[str] = None
+    spatial_resolution: Optional[str] = None
+    sensor_id: str = ""
+    source_id: str = ""
+    source_type: SourceType = SourceType.UNKNOWN
+    processing_level: ProcessingLevel = ProcessingLevel.UNKNOWN
+    quality_flags: List[str] = field(default_factory=list)
+    calibration_state: CalibrationState = CalibrationState.CALIBRATION_UNKNOWN
+    uncertainty: Optional[float] = None
+    confidence: Confidence = Confidence.UNKNOWN
+    evidence_id: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class Baseline:
+    baseline_id: str = field(default_factory=lambda: new_id("BASE"))
+    domain: DomainType = DomainType.UNKNOWN
+    measurement_type: str = "UNKNOWN"
+    region: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    mean: Optional[float] = None
+    std: Optional[float] = None
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+    count: int = 0
+    unit: str = "UNIT_UNKNOWN"
+    quality: str = "UNKNOWN"
+    version: str = "baseline-v0"
+    source: str = ""
+
+
+@dataclass
+class Anomaly:
+    anomaly_id: str = field(default_factory=lambda: new_id("ANOM"))
+    observation_id: str = ""
+    domain: DomainType = DomainType.UNKNOWN
+    measurement_type: str = ""
+    state: AnomalyState = AnomalyState.UNKNOWN
+    z_score: Optional[float] = None
+    deviation: Optional[float] = None
+    baseline_id: Optional[str] = None
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class HazardAssessment:
+    hazard_id: str = field(default_factory=lambda: new_id("HAZ"))
+    domain: DomainType = DomainType.UNKNOWN
+    measurement_type: str = ""
+    state: HazardState = HazardState.UNKNOWN
+    value: Optional[float] = None
+    unit: str = ""
+    threshold_value: Optional[float] = None
+    threshold_unit: str = ""
+    threshold_type: str = ""
+    jurisdiction: str = ""
+    source: str = ""
+    observation_id: str = ""
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Trend:
+    trend_id: str = field(default_factory=lambda: new_id("TREND"))
+    domain: DomainType = DomainType.UNKNOWN
+    measurement_type: str = ""
+    region: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    direction: str = "UNKNOWN"
+    slope_per_day: Optional[float] = None
+    r2: Optional[float] = None
+    confidence: Confidence = Confidence.LOW
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SourceCandidate:
+    candidate_id: str = field(default_factory=lambda: new_id("SRC"))
+    observation_id: str = ""
+    domain: DomainType = DomainType.UNKNOWN
+    source_type: str = "UNKNOWN"
+    source_id: str = ""
+    source_name: str = ""
+    confidence: Confidence = Confidence.LOW
+    status: PollutionState = PollutionState.SOURCE_UNRESOLVED
+    score: float = 0.0
+    support: List[str] = field(default_factory=list)
+    opposition: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    candidate_resolutions: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ENVINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    sensors: List[Sensor] = field(default_factory=list)
+    facilities: List[Facility] = field(default_factory=list)
+    regulatory_records: List[RegulatoryRecord] = field(default_factory=list)
+    incident_reports: List[IncidentReport] = field(default_factory=list)
+    observations: List[Observation] = field(default_factory=list)
+    baselines: List[Baseline] = field(default_factory=list)
+
+    anomalies: List[Anomaly] = field(default_factory=list)
+    hazards: List[HazardAssessment] = field(default_factory=list)
+    trends: List[Trend] = field(default_factory=list)
+    domain_assessments: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    source_candidates: List[SourceCandidate] = field(default_factory=list)
+
+    contradictions: List[Contradiction] = field(default_factory=list)
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 6 — INGESTION
+# ======================================================================
+
+class ENVINTIngestor:
+    PARSER_VERSION = "ENVINT-parser-0.1.0"
+    NORMALIZER_VERSION = "ENVINT-normalizer-0.1.0"
+
+    def __init__(self, injection_defense: Optional[PromptInjectionDefense] = None):
+        self.injection_defense = injection_defense or PromptInjectionDefense()
+
+    def ingest_case(
+        self, case: Dict[str, Any]
+    ) -> Tuple[
+        List[Evidence],
+        List[Sensor],
+        List[Facility],
+        List[RegulatoryRecord],
+        List[IncidentReport],
+        List[Observation],
+        List[Baseline],
+    ]:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        authorization = str(case.get("authorization", ""))
+
+        sensors = [self._parse_sensor(s) for s in case.get("sensors", [])]
+        facilities = [self._parse_facility(f) for f in case.get("facilities", [])]
+        regulatory = [self._parse_regulatory(r, case_id, authorization) for r in case.get("regulatory_records", [])]
+        incidents = [self._parse_incident(i, case_id, authorization) for i in case.get("incident_reports", [])]
+        baselines = [self._parse_baseline(b) for b in case.get("baselines", [])]
+
+        observations: List[Observation] = []
+        evidence: List[Evidence] = []
+
+        observation_groups = [
+            ("air_quality_data", DomainType.AIR, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.RAW),
+            ("water_quality_data", DomainType.WATER, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.RAW),
+            ("soil_data", DomainType.SOIL, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.RAW),
+            ("weather_data", DomainType.WEATHER, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.DERIVED),
+            ("climate_data", DomainType.CLIMATE, SourceType.MODEL_OUTPUT, ProcessingLevel.MODELLED),
+            ("hydrology_data", DomainType.HYDROLOGY, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.DERIVED),
+            ("fire_data", DomainType.WILDFIRE, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("smoke_data", DomainType.SMOKE, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("vegetation_data", DomainType.VEGETATION, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("land_cover_data", DomainType.LANDCOVER, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("marine_data", DomainType.MARINE, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("coastal_data", DomainType.COASTAL, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("snow_ice_data", DomainType.SNOW_ICE, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("pollution_data", DomainType.POLLUTION, SourceType.DIRECT_MEASUREMENT, ProcessingLevel.DERIVED),
+            ("satellite_products", DomainType.UNKNOWN, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("radar_data", DomainType.UNKNOWN, SourceType.REMOTE_SENSING_OBSERVATION, ProcessingLevel.DERIVED),
+            ("other_observations", DomainType.UNKNOWN, SourceType.UNKNOWN, ProcessingLevel.UNKNOWN),
+        ]
+
+        for key, default_domain, default_source_type, default_processing in observation_groups:
+            for item in case.get(key, []):
+                if not isinstance(item, dict):
+                    continue
+                ev, obs = self._parse_observation(
+                    case_id=case_id,
+                    authorization=authorization,
+                    item=item,
+                    default_domain=default_domain,
+                    default_source_type=default_source_type,
+                    default_processing=default_processing,
+                )
+                evidence.append(ev)
+                if obs is not None:
+                    observations.append(obs)
+
+        return evidence, sensors, facilities, regulatory, incidents, observations, baselines
+
+    def _parse_sensor(self, s: Dict[str, Any]) -> Sensor:
+        return Sensor(
+            sensor_id=str(s.get("sensor_id", new_id("SENSOR"))),
+            sensor_type=str(s.get("sensor_type", "UNKNOWN")),
+            network=str(s.get("network", "UNKNOWN")),
+            operator=normalize_text(s.get("operator")),
+            latitude=safe_float(s.get("latitude", s.get("lat"))),
+            longitude=safe_float(s.get("longitude", s.get("lon"))),
+            elevation_m=safe_float(s.get("elevation_m", s.get("elevation"))),
+            units=str(s.get("units", "UNKNOWN")),
+            calibration_state=enum_from(CalibrationState, s.get("calibration_state"), CalibrationState.CALIBRATION_UNKNOWN),
+            calibration_date=to_datetime(s.get("calibration_date")),
+            health=enum_from(SensorHealth, s.get("health"), SensorHealth.UNKNOWN),
+            sampling_interval_s=safe_float(s.get("sampling_interval_s")),
+            accuracy=safe_float(s.get("accuracy")),
+            detection_limit=safe_float(s.get("detection_limit")),
+            quantification_limit=safe_float(s.get("quantification_limit")),
+            source=str(s.get("source", "UNKNOWN")),
+            limitations=[str(x) for x in s.get("limitations", [])],
+        )
+
+    def _parse_facility(self, f: Dict[str, Any]) -> Facility:
+        return Facility(
+            facility_id=str(f.get("facility_id", new_id("FAC"))),
+            name=str(f.get("name", "")),
+            facility_type=str(f.get("facility_type", "UNKNOWN")),
+            latitude=safe_float(f.get("latitude", f.get("lat"))),
+            longitude=safe_float(f.get("longitude", f.get("lon"))),
+            operator=normalize_text(f.get("operator")),
+            permits=list(f.get("permits", [])),
+            emissions_inventory=list(f.get("emissions_inventory", [])),
+            source=str(f.get("source", "UNKNOWN")),
+            limitations=[str(x) for x in f.get("limitations", [])],
+        )
+
+    def _parse_regulatory(self, r: Dict[str, Any], case_id: str, authorization: str) -> RegulatoryRecord:
+        raw = dict(r)
+        for key in ("notes", "comment", "description"):
+            if key in raw:
+                raw[f"_sanitized_{key}"] = self.injection_defense.sanitize(raw.get(key))
+        ev = Evidence(
+            case_id=case_id,
+            source_id=str(r.get("source", r.get("agency", "regulatory"))),
+            observation_type="REGULATORY_RECORD",
+            measurement_type=str(r.get("record_type", "UNKNOWN")),
+            raw_payload_reference=json.dumps(raw, sort_keys=True, default=_json_default)[:1000],
+            decoded_payload=raw,
+            content_hash=hash_payload(raw),
+            authorization_context=authorization,
+        )
+        return RegulatoryRecord(
+            record_id=str(r.get("record_id", ev.evidence_id)),
+            facility_id=r.get("facility_id"),
+            record_type=str(r.get("record_type", "UNKNOWN")),
+            date=to_datetime(r.get("date", r.get("timestamp"))),
+            status=str(r.get("status", "UNKNOWN")),
+            threshold=safe_float(r.get("threshold")),
+            unit=r.get("unit"),
+            averaging_period=r.get("averaging_period"),
+            jurisdiction=str(r.get("jurisdiction", "UNKNOWN")),
+            source=str(r.get("source", "UNKNOWN")),
+            evidence_id=ev.evidence_id,
+            limitations=[str(x) for x in r.get("limitations", [])],
+        )
+
+    def _parse_incident(self, i: Dict[str, Any], case_id: str, authorization: str) -> IncidentReport:
+        raw = dict(i)
+        for key in ("description", "notes", "comment"):
+            if key in raw:
+                raw[f"_sanitized_{key}"] = self.injection_defense.sanitize(raw.get(key))
+        ev = Evidence(
+            case_id=case_id,
+            source_id=str(i.get("source", "incident_report")),
+            observation_type="INCIDENT_REPORT",
+            measurement_type=str(i.get("incident_type", "UNKNOWN")),
+            raw_payload_reference=json.dumps(raw, sort_keys=True, default=_json_default)[:1000],
+            decoded_payload=raw,
+            content_hash=hash_payload(raw),
+            authorization_context=authorization,
+        )
+        return IncidentReport(
+            incident_id=str(i.get("incident_id", ev.evidence_id)),
+            incident_type=str(i.get("incident_type", "UNKNOWN")),
+            facility_id=i.get("facility_id"),
+            latitude=safe_float(i.get("latitude", i.get("lat"))),
+            longitude=safe_float(i.get("longitude", i.get("lon"))),
+            timestamp=to_datetime(i.get("timestamp", i.get("time"))),
+            description=str(i.get("description", "")),
+            reporter_type=str(i.get("reporter_type", "UNKNOWN")),
+            source=str(i.get("source", "UNKNOWN")),
+            reliability=enum_from(Confidence, i.get("reliability"), Confidence.UNKNOWN),
+            evidence_id=ev.evidence_id,
+            limitations=[str(x) for x in i.get("limitations", [])],
+        )
+
+    def _parse_baseline(self, b: Dict[str, Any]) -> Baseline:
+        values = [safe_float(x) for x in b.get("values", [])]
+        values = [v for v in values if v is not None]
+        unit = str(b.get("unit", "UNIT_UNKNOWN"))
+        normalized_values = []
+        for v in values:
+            q = normalize_quantity(v, unit)
+            if q.normalized_value is not None:
+                normalized_values.append(q.normalized_value)
+
+        m = mean(normalized_values)
+        s = std(normalized_values)
+        count = len(normalized_values)
+
+        if count >= 30:
+            quality = "STRONG"
+        elif count >= 10:
+            quality = "MODERATE"
+        elif count > 0:
+            quality = "WEAK"
+        else:
+            quality = "INSUFFICIENT"
+
+        return Baseline(
+            baseline_id=str(b.get("baseline_id", new_id("BASE"))),
+            domain=enum_from(DomainType, b.get("domain"), DomainType.UNKNOWN),
+            measurement_type=str(b.get("measurement_type", "UNKNOWN")),
+            region=b.get("region"),
+            start_time=to_datetime(b.get("start_time")),
+            end_time=to_datetime(b.get("end_time")),
+            mean=m,
+            std=s,
+            min_value=min(normalized_values) if normalized_values else None,
+            max_value=max(normalized_values) if normalized_values else None,
+            count=count,
+            unit="normalized" if normalized_values else unit,
+            quality=quality,
+            version=str(b.get("version", "baseline-v0")),
+            source=str(b.get("source", "")),
+        )
+
+    def _parse_observation(
+        self,
+        case_id: str,
+        authorization: str,
+        item: Dict[str, Any],
+        default_domain: DomainType,
+        default_source_type: SourceType,
+        default_processing: ProcessingLevel,
+    ) -> Tuple[Evidence, Optional[Observation]]:
+        raw = dict(item)
+        for key in ("notes", "comment", "description", "metadata", "annotation"):
+            if key in raw:
+                raw[f"_sanitized_{key}"] = self.injection_defense.sanitize(raw.get(key))
+
+        domain = enum_from(DomainType, item.get("domain"), default_domain)
+        measurement_type = str(item.get("measurement_type", item.get("parameter", item.get("type", "UNKNOWN"))))
+        value = safe_float(item.get("value"))
+        unit = str(item.get("unit", "UNIT_UNKNOWN"))
+        norm = normalize_quantity(value, unit)
+
+        timestamp = to_datetime(
+            item.get("timestamp")
+            or item.get("measurement_time")
+            or item.get("observation_time")
+            or item.get("time")
+        )
+        lat = safe_float(item.get("latitude", item.get("lat")))
+        lon = safe_float(item.get("longitude", item.get("lon")))
+
+        source_type = enum_from(SourceType, item.get("source_type"), default_source_type)
+        processing_level = enum_from(ProcessingLevel, item.get("processing_level"), default_processing)
+
+        quality_flags = [str(x) for x in item.get("quality_flags", [])]
+        if value is None:
+            quality_flags.append("NO_VALUE")
+        if norm.unit_family == UnitFamily.UNKNOWN:
+            quality_flags.append("UNIT_UNKNOWN")
+        if timestamp is None:
+            quality_flags.append("TIMESTAMP_MISSING")
+        if lat is None or lon is None:
+            quality_flags.append("LOCATION_MISSING")
+
+        ev = Evidence(
+            case_id=case_id,
+            source_id=str(item.get("source_id", item.get("source", "unknown_source"))),
+            dataset_id=str(item.get("dataset_id", "")),
+            sensor_id=str(item.get("sensor_id", "")),
+            observation_type=domain.value,
+            measurement_type=measurement_type,
+            raw_payload_reference=json.dumps(raw, sort_keys=True, default=_json_default)[:1000],
+            decoded_payload=raw,
+            content_hash=hash_payload(raw),
+            parser_version=self.PARSER_VERSION,
+            normalizer_version=self.NORMALIZER_VERSION,
+            authorization_context=authorization,
+        )
+
+        obs = Observation(
+            observation_id=str(item.get("observation_id", new_id("OBS"))),
+            case_id=case_id,
+            domain=domain,
+            measurement_type=measurement_type,
+            value=value,
+            unit=unit,
+            normalized_value=norm.normalized_value,
+            normalized_unit=norm.normalized_unit,
+            unit_family=norm.unit_family,
+            timestamp=timestamp,
+            location_lat=lat,
+            location_lon=lon,
+            region=item.get("region"),
+            spatial_resolution=item.get("spatial_resolution"),
+            sensor_id=str(item.get("sensor_id", "")),
+            source_id=str(item.get("source_id", item.get("source", "unknown_source"))),
+            source_type=source_type,
+            processing_level=processing_level,
+            quality_flags=unique_list(quality_flags),
+            calibration_state=enum_from(CalibrationState, item.get("calibration_state"), CalibrationState.CALIBRATION_UNKNOWN),
+            uncertainty=safe_float(item.get("uncertainty")),
+            confidence=Confidence.LOW,
+            evidence_id=ev.evidence_id,
+            raw=raw,
+        )
+        return ev, obs
+
+
+# ======================================================================
+# SECTION 7 — SENSOR QC / BASELINE / ANOMALY / THRESHOLD
+# ======================================================================
+
+class SensorQCAnalyzer:
+    def analyze(self, obs: Observation, sensor_map: Dict[str, Sensor]) -> None:
+        flags = list(obs.quality_flags)
+        sensor = sensor_map.get(obs.sensor_id)
+
+        if sensor is None:
+            flags.append("SENSOR_UNRESOLVED")
+        else:
+            if sensor.calibration_state in (CalibrationState.CALIBRATION_UNKNOWN, CalibrationState.CALIBRATION_SUSPECT):
+                flags.append("CALIBRATION_UNCERTAIN")
+            if sensor.calibration_state == CalibrationState.CALIBRATION_EXPIRED:
+                flags.append("CALIBRATION_EXPIRED")
+            if sensor.health in (SensorHealth.DEGRADED, SensorHealth.NOISY, SensorHealth.INTERMITTENT):
+                flags.append(f"SENSOR_HEALTH_{sensor.health.value}")
+            if sensor.health == SensorHealth.OFFLINE:
+                flags.append("SENSOR_OFFLINE")
+            if sensor.units and sensor.units != "UNKNOWN" and obs.normalized_unit != "UNIT_UNKNOWN":
+                if sensor.units.lower().replace(" ", "") != obs.normalized_unit.lower().replace(" ", ""):
+                    flags.append("SENSOR_UNIT_MISMATCH_POSSIBLE")
+            if sensor.detection_limit is not None and obs.normalized_value is not None and obs.normalized_value < sensor.detection_limit:
+                flags.append("BELOW_DETECTION_LIMIT")
+            if sensor.quantification_limit is not None and obs.normalized_value is not None and obs.normalized_value < sensor.quantification_limit:
+                flags.append("BELOW_QUANTIFICATION_LIMIT")
+
+        if obs.source_type == SourceType.MODEL_OUTPUT:
+            flags.append("MODEL_OUTPUT_NOT_DIRECT_OBSERVATION")
+        if obs.processing_level == ProcessingLevel.MODELLED:
+            flags.append("MODELLED_PRODUCT")
+        if obs.processing_level == ProcessingLevel.AGGREGATED:
+            flags.append("AGGREGATED_PRODUCT")
+
+        if obs.normalized_value is not None:
+            if obs.unit_family in (
+                UnitFamily.CONCENTRATION_MASS_VOLUME,
+                UnitFamily.CONCENTRATION_MIXING_RATIO,
+                UnitFamily.PRECIPITATION,
+                UnitFamily.FLOW,
+                UnitFamily.VOLUME,
+                UnitFamily.DISTANCE,
+                UnitFamily.AREA,
+                UnitFamily.MASS,
+                UnitFamily.PRESSURE,
+                UnitFamily.COUNT,
+            ) and obs.normalized_value < 0:
+                flags.append("NEGATIVE_PHYSICALLY_IMPLAUSIBLE")
+
+        if obs.raw.get("cloud_fraction") is not None:
+            try:
+                if float(obs.raw.get("cloud_fraction", 0)) > 0.5:
+                    flags.append("CLOUD_OBSCURATION_POSSIBLE")
+            except Exception:
+                pass
+
+        if obs.raw.get("community_sensor") is True or obs.source_type == SourceType.SOURCE_CLAIM:
+            flags.append("LOW_CONFIDENCE_SOURCE_CLAIM_OR_COMMUNITY_SENSOR")
+
+        severe = {
+            "NO_VALUE",
+            "UNIT_UNKNOWN",
+            "SENSOR_UNRESOLVED",
+            "CALIBRATION_EXPIRED",
+            "NEGATIVE_PHYSICALLY_IMPLAUSIBLE",
+            "SENSOR_OFFLINE",
+        }
+        if severe.intersection(flags):
+            obs.confidence = Confidence.LOW
+        elif obs.source_type == SourceType.DIRECT_MEASUREMENT and "CALIBRATION_UNCERTAIN" not in flags:
+            obs.confidence = Confidence.MEDIUM
+        else:
+            obs.confidence = Confidence.LOW
+
+        obs.quality_flags = unique_list(flags)
+
+
+class BaselineSelector:
+    def choose(self, obs: Observation, baselines: List[Baseline]) -> Optional[Baseline]:
+        candidates = [
+            b for b in baselines
+            if b.domain == obs.domain
+            and b.measurement_type == obs.measurement_type
+            and (b.region in (None, "", obs.region) or obs.region == b.region)
+        ]
+        if not candidates:
+            candidates = [
+                b for b in baselines
+                if b.domain == obs.domain
+                and b.measurement_type == obs.measurement_type
+                and b.region in (None, "")
+            ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda b: (b.count, b.end_time or datetime.min.replace(tzinfo=timezone.utc)))
+
+
+class AnomalyDetector:
+    def detect(self, obs: Observation, baseline: Optional[Baseline]) -> Optional[Anomaly]:
+        if obs.normalized_value is None:
+            return None
+
+        severe = {
+            "NO_VALUE",
+            "UNIT_UNKNOWN",
+            "SENSOR_UNRESOLVED",
+            "CALIBRATION_EXPIRED",
+            "NEGATIVE_PHYSICALLY_IMPLAUSIBLE",
+            "SENSOR_OFFLINE",
+        }
+        if severe.intersection(obs.quality_flags):
+            return Anomaly(
+                observation_id=obs.observation_id,
+                domain=obs.domain,
+                measurement_type=obs.measurement_type,
+                state=AnomalyState.DATA_QUALITY_ANOMALY,
+                notes=["Data quality issue prevents reliable anomaly interpretation."],
+            )
+
+        if baseline is None or baseline.mean is None:
+            return None
+
+        sigma = baseline.std or 0.0
+        unc = obs.uncertainty or 0.0
+        denom = math.sqrt(sigma * sigma + unc * unc)
+        if denom <= 0:
+            z = None
+            state = AnomalyState.UNKNOWN
+        else:
+            z = (obs.normalized_value - baseline.mean) / denom
+            az = abs(z)
+            if az < 1:
+                state = AnomalyState.EXPECTED
+            elif az < 2:
+                state = AnomalyState.MILD_ANOMALY
+            elif az < 3:
+                state = AnomalyState.MATERIAL_ANOMALY
+            else:
+                state = AnomalyState.EXTREME_ANOMALY
+
+        return Anomaly(
+            observation_id=obs.observation_id,
+            domain=obs.domain,
+            measurement_type=obs.measurement_type,
+            state=state,
+            z_score=z,
+            deviation=obs.normalized_value - baseline.mean if baseline.mean is not None else None,
+            baseline_id=baseline.baseline_id,
+            notes=[
+                "Anomaly is a departure from defined baseline.",
+                "Anomaly is not automatically hazard, pollution, or deliberate act.",
+            ],
+        )
+
+
+class ThresholdAnalyzer:
+    def assess(self, obs: Observation, anomaly: Optional[Anomaly], case: Dict[str, Any]) -> Optional[HazardAssessment]:
+        thresholds = (
+            case.get("thresholds", {})
+            .get(obs.domain.value, {})
+            .get(obs.measurement_type, [])
+        )
+        if not thresholds:
+            return None
+
+        for th in thresholds:
+            th_value = safe_float(th.get("value"))
+            th_unit = str(th.get("unit", obs.unit))
+            th_norm = normalize_quantity(th_value, th_unit)
+            if obs.normalized_value is None or th_norm.normalized_value is None:
+                continue
+            if obs.normalized_value <= th_norm.normalized_value:
+                continue
+
+            if obs.source_type == SourceType.MODEL_OUTPUT or obs.processing_level == ProcessingLevel.MODELLED:
+                state = HazardState.RISK_CANDIDATE
+            elif anomaly and anomaly.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY):
+                state = HazardState.EVENT_CANDIDATE
+            else:
+                state = HazardState.EVENT_CANDIDATE
+
+            return HazardAssessment(
+                domain=obs.domain,
+                measurement_type=obs.measurement_type,
+                state=state,
+                value=obs.normalized_value,
+                unit=obs.normalized_unit,
+                threshold_value=th_norm.normalized_value,
+                threshold_unit=th_norm.normalized_unit,
+                threshold_type=str(th.get("type", "THRESHOLD")),
+                jurisdiction=str(th.get("jurisdiction", "UNKNOWN")),
+                source=str(th.get("source", "case_supplied")),
+                observation_id=obs.observation_id,
+                notes=[
+                    "Threshold exceedance is a hazard candidate, not automatically impact or violation.",
+                    "Threshold source/jurisdiction/averaging period must be preserved.",
+                ],
+            )
+        return None
+
+
+# ======================================================================
+# SECTION 8 — TREND / DOMAIN ASSESSMENTS
+# ======================================================================
+
+class TrendAnalyzer:
+    def analyze(self, observations: List[Observation]) -> List[Trend]:
+        groups: Dict[Tuple[str, str, Optional[str]], List[Observation]] = {}
+        for o in observations:
+            if o.normalized_value is None or o.timestamp is None:
+                continue
+            key = (o.domain.value, o.measurement_type, o.region)
+            groups.setdefault(key, []).append(o)
+
+        trends: List[Trend] = []
+        for (domain, measurement_type, region), items in groups.items():
+            items = sorted(items, key=lambda x: x.timestamp)
+            if len(items) < 5:
+                continue
+
+            t0 = items[0].timestamp
+            xs = [(it.timestamp - t0).total_seconds() / 86400.0 for it in items]
+            ys = [it.normalized_value for it in items if it.normalized_value is not None]
+            if len(xs) != len(ys) or len(xs) < 5:
+                continue
+
+            n = len(xs)
+            xmean = sum(xs) / n
+            ymean = sum(ys) / n
+            cov = sum((xs[i] - xmean) * (ys[i] - ymean) for i in range(n))
+            varx = sum((xs[i] - xmean) ** 2 for i in range(n))
+            vary = sum((ys[i] - ymean) ** 2 for i in range(n))
+            slope = cov / varx if varx != 0 else 0.0
+            r2 = (cov * cov) / (varx * vary) if varx > 0 and vary > 0 else None
+
+            if abs(slope) < 1e-6:
+                direction = "FLAT"
+            elif slope > 0:
+                direction = "INCREASING"
+            else:
+                direction = "DECREASING"
+
+            confidence = Confidence.LOW
+            if n >= 20 and r2 is not None and r2 > 0.4:
+                confidence = Confidence.MEDIUM
+
+            trends.append(
+                Trend(
+                    domain=enum_from(DomainType, domain, DomainType.UNKNOWN),
+                    measurement_type=measurement_type,
+                    region=region,
+                    start_time=items[0].timestamp,
+                    end_time=items[-1].timestamp,
+                    direction=direction,
+                    slope_per_day=slope,
+                    r2=r2,
+                    confidence=confidence,
+                    notes=[
+                        "Trend is statistical, not causal.",
+                        "Sensor changes, missing seasons, and methodology shifts can create apparent trends.",
+                    ],
+                )
+            )
+        return trends
+
+
+class FloodAnalyzer:
+    def analyze(self, observations: List[Observation], anomalies: List[Anomaly], case: Dict[str, Any]) -> List[Dict[str, Any]]:
+        assessments: List[Dict[str, Any]] = []
+        thresholds = case.get("flood_thresholds", {})
+        anom_ids = {a.observation_id for a in anomalies if a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY)}
+
+        for o in observations:
+            if o.domain not in (DomainType.HYDROLOGY, DomainType.FLOOD) or o.normalized_value is None:
+                continue
+            th = thresholds.get(o.region or "", {}).get(o.measurement_type)
+            state = FloodState.UNKNOWN
+            notes = []
+
+            if th:
+                th_norm = normalize_quantity(safe_float(th.get("value")), str(th.get("unit", o.unit)))
+                if th_norm.normalized_value is not None and o.normalized_value > th_norm.normalized_value:
+                    if o.source_type == SourceType.MODEL_OUTPUT or o.processing_level == ProcessingLevel.MODELLED:
+                        state = FloodState.FLOOD_FORECAST
+                        notes.append("Model/forecast indicates flood risk; not an observed flood.")
+                    else:
+                        state = FloodState.FLOOD_CANDIDATE
+                        notes.append("Gauge/observed level exceeds supplied flood threshold candidate.")
+            elif o.observation_id in anom_ids:
+                state = FloodState.FLOOD_CANDIDATE
+                notes.append("Hydrologic anomaly may indicate flood candidate; threshold unavailable.")
+
+            if o.measurement_type in {"water_extent", "flood_extent"} and o.source_type == SourceType.REMOTE_SENSING_OBSERVATION:
+                if state == FloodState.UNKNOWN:
+                    state = FloodState.FLOOD_CANDIDATE
+                notes.append("Satellite water-extent change requires cloud/terrain/vegetation/radar-artifact checks.")
+
+            if state != FloodState.UNKNOWN:
+                assessments.append(
+                    {
+                        "flood_id": new_id("FLOOD"),
+                        "region": o.region,
+                        "measurement_type": o.measurement_type,
+                        "state": state.value,
+                        "observation_id": o.observation_id,
+                        "value": o.normalized_value,
+                        "unit": o.normalized_unit,
+                        "notes": unique_list(notes + [
+                            "Flood risk/forecast is not an observed flood event.",
+                            "Flood extent remote sensing must be verified against permanent water and artifacts.",
+                        ]),
+                    }
+                )
+        return assessments
+
+
+class DroughtAnalyzer:
+    def analyze(self, observations: List[Observation], anomalies: List[Anomaly]) -> List[Dict[str, Any]]:
+        anom_by_obs = {a.observation_id: a for a in anomalies}
+        low_indicators: Dict[Optional[str], List[str]] = {}
+        drought_types: Dict[Optional[str], set[str]] = {}
+
+        for o in observations:
+            a = anom_by_obs.get(o.observation_id)
+            if not a or a.state not in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY):
+                continue
+            if a.deviation is None or a.deviation >= 0:
+                continue
+
+            mt = o.measurement_type.lower()
+            region = o.region
+            low_indicators.setdefault(region, []).append(o.measurement_type)
+
+            if "precipitation" in mt or "rainfall" in mt:
+                drought_types.setdefault(region, set()).add("METEOROLOGICAL")
+            if "soil_moisture" in mt or "vegetation" in mt or "ndvi" in mt:
+                drought_types.setdefault(region, set()).add("AGRICULTURAL")
+            if "reservoir" in mt or "river" in mt or "groundwater" in mt or "discharge" in mt:
+                drought_types.setdefault(region, set()).add("HYDROLOGICAL")
+
+        assessments = []
+        for region, indicators in low_indicators.items():
+            if len(set(indicators)) >= 2:
+                assessments.append(
+                    {
+                        "drought_id": new_id("DRY"),
+                        "region": region,
+                        "state": DroughtState.DROUGHT_CANDIDATE.value,
+                        "indicators": sorted(set(indicators)),
+                        "types": sorted(drought_types.get(region, set())),
+                        "notes": [
+                            "No single indicator defines all drought types.",
+                            "Drought candidate requires seasonality, baseline, and independent corroboration.",
+                        ],
+                    }
+                )
+        return assessments
+
+
+class WildfireAnalyzer:
+    def analyze(
+        self,
+        observations: List[Observation],
+        anomalies: List[Anomaly],
+        incidents: List[IncidentReport],
+        facilities: List[Facility],
+    ) -> List[Dict[str, Any]]:
+        assessments = []
+        anom_ids = {a.observation_id for a in anomalies if a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY)}
+
+        for o in observations:
+            if o.domain not in (DomainType.WILDFIRE, DomainType.SMOKE) and "fire" not in o.measurement_type.lower() and "thermal" not in o.measurement_type.lower():
+                continue
+
+            state = FireState.UNKNOWN
+            notes = []
+
+            if o.measurement_type.lower() in {"thermal_anomaly", "fire_detection", "hotspot"}:
+                state = FireState.FIRE_DETECTION_CANDIDATE
+                notes.append("Thermal/fire detection may be wildfire, industrial flare, agricultural burn, or sensor artifact.")
+
+            if o.observation_id in anom_ids and state == FireState.UNKNOWN:
+                state = FireState.HEAT_DETECTION_CANDIDATE
+
+            for inc in incidents:
+                if inc.incident_type.lower() in {"wildfire", "fire", "smoke"} and inc.timestamp and o.timestamp:
+                    dt_h = abs((inc.timestamp - o.timestamp).total_seconds()) / 3600.0
+                    dist = haversine_m(o.location_lat, o.location_lon, inc.latitude, inc.longitude)
+                    if dt_h <= 72 and (dist is None or dist <= 200_000):
+                        state = FireState.WILDFIRE_CANDIDATE
+                        notes.append("External incident report supports wildfire candidate.")
+
+            for fac in facilities:
+                if fac.facility_type.upper() in {"FLARE", "INDUSTRIAL_COMBUSTION", "POWER_PLANT"}:
+                    dist = haversine_m(o.location_lat, o.location_lon, fac.latitude, fac.longitude)
+                    if dist is not None and dist <= 10_000:
+                        state = FireState.OTHER_HEAT_SOURCE_CANDIDATE
+                        notes.append("Nearby industrial combustion/flare context may explain thermal detection.")
+
+            if state != FireState.UNKNOWN:
+                assessments.append(
+                    {
+                        "fire_id": new_id("FIRE"),
+                        "state": state.value,
+                        "measurement_type": o.measurement_type,
+                        "observation_id": o.observation_id,
+                        "region": o.region,
+                        "timestamp": o.timestamp.isoformat() if o.timestamp else None,
+                        "notes": unique_list(notes + [
+                            "Fire detection is not automatically wildfire.",
+                            "Cause/arson/lightning not inferred from detection alone.",
+                        ]),
+                    }
+                )
+        return assessments
+
+
+class HeatAnalyzer:
+    def analyze(self, observations: List[Observation], hazards: List[HazardAssessment]) -> List[Dict[str, Any]]:
+        assessments = []
+        hazard_obs = {h.observation_id for h in hazards if h.domain == DomainType.HEAT or h.measurement_type in {"air_temperature", "land_surface_temperature", "heat_index"}}
+
+        for o in observations:
+            if o.domain != DomainType.HEAT and o.measurement_type.lower() not in {"air_temperature", "land_surface_temperature", "heat_index", "lst"}:
+                continue
+            state = "HEAT_CANDIDATE" if o.observation_id in hazard_obs else "UNKNOWN"
+            notes = []
+            if "land_surface_temperature" in o.measurement_type.lower() or o.measurement_type.lower() == "lst":
+                notes.append("Land surface temperature is not air temperature.")
+            if state != "UNKNOWN":
+                assessments.append(
+                    {
+                        "heat_id": new_id("HEAT"),
+                        "state": state,
+                        "measurement_type": o.measurement_type,
+                        "observation_id": o.observation_id,
+                        "region": o.region,
+                        "notes": unique_list(notes + [
+                            "Heat hazard requires threshold, population exposure, and vulnerability context.",
+                        ]),
+                    }
+                )
+        return assessments
+
+
+class VegetationLandCoverAnalyzer:
+    def analyze(self, observations: List[Observation]) -> List[Dict[str, Any]]:
+        groups: Dict[Tuple[Optional[str], str], List[Observation]] = {}
+        for o in observations:
+            if o.domain not in (DomainType.VEGETATION, DomainType.LANDCOVER, DomainType.DEFORESTATION):
+                continue
+            if o.normalized_value is None or o.timestamp is None:
+                continue
+            groups.setdefault((o.region, o.measurement_type), []).append(o)
+
+        assessments = []
+        for (region, mt), items in groups.items():
+            items = sorted(items, key=lambda x: x.timestamp)
+            if len(items) < 2:
+                continue
+            first = items[0]
+            last = items[-1]
+            if first.normalized_value is None or last.normalized_value is None:
+                continue
+            drop = first.normalized_value - last.normalized_value
+            days = (last.timestamp - first.timestamp).total_seconds() / 86400.0
+
+            state = DeforestationState.UNKNOWN
+            notes = ["Vegetation index change can be caused by cloud, season, crop cycle, soil, atmosphere, or sensor issues."]
+
+            if drop > 0.15 and days >= 14:
+                state = DeforestationState.DEFORESTATION_CANDIDATE
+                notes.append("Persistent vegetation decline candidate; requires land-cover classification and multi-date verification.")
+            elif drop > 0.10:
+                state = DeforestationState.LANDCOVER_CHANGE_CANDIDATE
+                notes.append("Short-term change candidate; not persistent deforestation.")
+
+            if state != DeforestationState.UNKNOWN:
+                assessments.append(
+                    {
+                        "vegetation_change_id": new_id("VEG"),
+                        "region": region,
+                        "measurement_type": mt,
+                        "state": state.value,
+                        "start_time": first.timestamp.isoformat(),
+                        "end_time": last.timestamp.isoformat(),
+                        "drop": drop,
+                        "days": days,
+                        "notes": unique_list(notes + [
+                            "Tree loss is not automatically illegal logging.",
+                            "Legal harvest, fire, storm, disease, and land conversion remain possible.",
+                        ]),
+                    }
+                )
+        return assessments
+
+
+class MarineCoastalAnalyzer:
+    def analyze(self, observations: List[Observation], weather: List[Observation]) -> List[Dict[str, Any]]:
+        assessments = []
+        low_wind = False
+        for w in weather:
+            if w.measurement_type.lower() == "wind_speed" and w.normalized_value is not None and w.normalized_value < 2.0:
+                low_wind = True
+
+        for o in observations:
+            if o.domain not in (DomainType.MARINE, DomainType.COASTAL):
+                continue
+            mt = o.measurement_type.lower()
+
+            if "dark_patch" in mt or "sar_lookalike" in mt:
+                state = OilSpillState.DARK_PATCH_CANDIDATE
+                notes = ["Radar dark patch is not oil automatically."]
+                if low_wind:
+                    state = OilSpillState.LOOKALIKE_CANDIDATE
+                    notes.append("Low-wind slick lookalike possible.")
+                if o.raw.get("confirmation") in {"sampling", "airborne_observation", "official_report"}:
+                    state = OilSpillState.OIL_SPILL_SUPPORTED
+                    notes.append("Independent confirmation supplied.")
+                else:
+                    state = OilSpillState.OIL_SPILL_CANDIDATE if state == OilSpillState.DARK_PATCH_CANDIDATE else state
+                assessments.append(
+                    {
+                        "marine_id": new_id("MAR"),
+                        "state": state.value,
+                        "measurement_type": o.measurement_type,
+                        "observation_id": o.observation_id,
+                        "region": o.region,
+                        "notes": unique_list(notes + [
+                            "Biogenic films, current boundaries, and sensor artifacts can mimic oil spills.",
+                            "Vessel proximity does not establish pollution responsibility.",
+                        ]),
+                    }
+                )
+
+            if "shoreline" in mt or "erosion" in mt or "accretion" in mt:
+                assessments.append(
+                    {
+                        "coastal_id": new_id("COAST"),
+                        "state": "SHORELINE_CHANGE_CANDIDATE",
+                        "measurement_type": o.measurement_type,
+                        "observation_id": o.observation_id,
+                        "region": o.region,
+                        "notes": [
+                            "Shoreline change requires tide, season, storm, geometry, and resolution controls.",
+                            "One image pair can mislead.",
+                        ],
+                    }
+                )
+        return assessments
+
+
+# ======================================================================
+# SECTION 9 — SOURCE ATTRIBUTION / CONTRADICTIONS / HYPOTHESES
+# ======================================================================
+
+class SourceAttributionEngine:
+    def attribute(
+        self,
+        anomalies: List[Anomaly],
+        hazards: List[HazardAssessment],
+        observations: List[Observation],
+        facilities: List[Facility],
+        incidents: List[IncidentReport],
+        fire_assessments: List[Dict[str, Any]],
+    ) -> List[SourceCandidate]:
+        candidates: List[SourceCandidate] = []
+        significant_obs_ids = {
+            a.observation_id for a in anomalies
+            if a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY)
+        }
+        significant_obs_ids.update(
+            h.observation_id for h in hazards
+            if h.state in (HazardState.EVENT_CANDIDATE, HazardState.EVENT_OBSERVED, HazardState.EVENT_SUPPORTED)
+        )
+
+        obs_by_id = {o.observation_id: o for o in observations}
+        significant_obs = [obs_by_id[oid] for oid in significant_obs_ids if oid in obs_by_id]
+
+        for obs in significant_obs:
+            if obs.domain not in (DomainType.AIR, DomainType.WATER, DomainType.SOIL, DomainType.POLLUTION, DomainType.SMOKE):
+                continue
+
+            wind = self._nearest_wind(obs, observations)
+            wind_dir = wind.normalized_value if wind and wind.measurement_type.lower() == "wind_direction" else None
+            wind_speed = None
+            for w in observations:
+                if w.measurement_type.lower() == "wind_speed" and w.timestamp and obs.timestamp and abs((w.timestamp - obs.timestamp).total_seconds()) <= 3 * 3600:
+                    wind_speed = w.normalized_value
+                    break
+
+            artifact_score = 0.0
+            artifact_support = []
+            if any(f in obs.quality_flags for f in ("SENSOR_UNRESOLVED", "CALIBRATION_EXPIRED", "UNIT_UNKNOWN", "NEGATIVE_PHYSICALLY_IMPLAUSIBLE", "SENSOR_OFFLINE")):
+                artifact_score += 3
+                artifact_support.append("sensor/data-quality flags")
+            if obs.source_type == SourceType.MODEL_OUTPUT:
+                artifact_score += 1
+                artifact_support.append("model output not direct measurement")
+
+            natural_score = 1.0
+            natural_support = ["baseline/seasonal variability remains possible"]
+
+            facility_candidates = []
+            for fac in facilities:
+                dist = haversine_m(obs.location_lat, obs.location_lon, fac.latitude, fac.longitude)
+                if dist is None or dist > 150_000:
+                    continue
+                score = 1.0
+                support = [f"facility within {dist/1000:.1f} km"]
+                opposition = ["proximity alone does not prove source"]
+
+                if obs.domain == DomainType.AIR and wind_dir is not None:
+                    brg = bearing_deg(obs.location_lat, obs.location_lon, fac.latitude, fac.longitude)
+                    adiff = angle_diff_deg(brg, wind_dir)
+                    if adiff is not None and adiff <= 45 and (wind_speed or 0) > 0.5:
+                        score += 3
+                        support.append("facility is approximately upwind under reported wind direction")
+                    else:
+                        opposition.append("wind direction does not strongly support facility upwind transport")
+
+                if obs.domain in (DomainType.WATER, DomainType.SOIL) and dist <= 50_000:
+                    score += 1
+                    support.append("nearby water/soil exposure possible")
+
+                for inc in incidents:
+                    if inc.facility_id == fac.facility_id:
+                        if inc.incident_type.lower() in {"spill", "release", "emission", "fire", "smell", "odor"}:
+                            if inc.reliability in (Confidence.MEDIUM, Confidence.HIGH):
+                                score += 2
+                                support.append("medium/high-reliability incident report linked to facility")
+                            else:
+                                score += 1
+                                support.append("low-reliability incident report linked to facility")
+
+                facility_candidates.append((fac, score, support, opposition))
+
+            fire_score = 0.0
+            fire_support = []
+            for fa in fire_assessments:
+                if fa.get("state") in {
+                    FireState.WILDFIRE_CANDIDATE.value,
+                    FireState.WILDFIRE_SUPPORTED.value,
+                    FireState.FIRE_DETECTION_CANDIDATE.value,
+                }:
+                    fire_score += 2
+                    fire_support.append("regional fire/thermal detection context")
+
+            if obs.domain in (DomainType.AIR, DomainType.SMOKE):
+                smoke_obs = [
+                    o for o in observations
+                    if o.domain == DomainType.SMOKE
+                    or "aerosol" in o.measurement_type.lower()
+                    or "smoke" in o.measurement_type.lower()
+                ]
+                if smoke_obs:
+                    fire_score += 2
+                    fire_support.append("smoke/aerosol observation present")
+
+            for inc in incidents:
+                if inc.incident_type.lower() in {"wildfire", "fire"}:
+                    if inc.reliability in (Confidence.MEDIUM, Confidence.HIGH):
+                        fire_score += 3
+                        fire_support.append("official/external wildfire incident report")
+                    else:
+                        fire_score += 1
+                        fire_support.append("low-reliability wildfire incident report")
+
+            if obs.domain == DomainType.AIR and wind_dir is not None:
+                # If a fire observation exists upwind, add transport support.
+                for o in observations:
+                    if o.domain == DomainType.WILDFIRE and o.location_lat is not None and o.location_lon is not None:
+                        brg = bearing_deg(obs.location_lat, obs.location_lon, o.location_lat, o.location_lon)
+                        adiff = angle_diff_deg(brg, wind_dir)
+                        if adiff is not None and adiff <= 60 and (wind_speed or 0) > 0.5:
+                            fire_score += 1
+                            fire_support.append("fire location is approximately upwind under reported wind direction")
+                            break
+
+            dust_score = 0.0
+            dust_support = []
+            if obs.measurement_type.upper() in {"PM10", "PM2.5"} and (wind_speed or 0) > 5:
+                dust_score += 2
+                dust_support.append("high wind and particulate anomaly may support dust candidate")
+                if obs.measurement_type.upper() == "PM10":
+                    dust_score += 1
+
+            all_candidates: List[SourceCandidate] = []
+
+            all_candidates.append(SourceCandidate(
+                observation_id=obs.observation_id,
+                domain=obs.domain,
+                source_type="SENSOR_OR_DATA_ARTIFACT",
+                source_id="DATA_QUALITY",
+                source_name="Sensor/data artifact candidate",
+                score=artifact_score,
+                status=PollutionState.SOURCE_UNRESOLVED,
+                support=artifact_support,
+                opposition=["Direct calibrated measurements weaken pure artifact hypothesis" if obs.source_type == SourceType.DIRECT_MEASUREMENT else ""],
+                unknowns=["instrument maintenance", "colocation", "raw counts/signal quality"],
+                evidence_ids=[obs.evidence_id],
+                limitations=["Artifact hypothesis must be tested before environmental attribution."],
+            ))
+
+            all_candidates.append(SourceCandidate(
+                observation_id=obs.observation_id,
+                domain=obs.domain,
+                source_type="NATURAL_OR_SEASONAL",
+                source_id="NATURAL_BACKGROUND",
+                source_name="Natural/seasonal variability",
+                score=natural_score,
+                status=PollutionState.SOURCE_UNRESOLVED,
+                support=natural_support,
+                opposition=["Extreme anomaly may exceed normal variability" if any(a.observation_id == obs.observation_id and a.state == AnomalyState.EXTREME_ANOMALY for a in anomalies) else ""],
+                unknowns=["local meteorology", "phenology", "background emissions"],
+                evidence_ids=[obs.evidence_id],
+                limitations=["Natural variability is not automatically benign or proven."],
+            ))
+
+            for fac, score, support, opposition in facility_candidates:
+                all_candidates.append(SourceCandidate(
+                    observation_id=obs.observation_id,
+                    domain=obs.domain,
+                    source_type="FACILITY",
+                    source_id=fac.facility_id,
+                    source_name=fac.name or fac.facility_id,
+                    score=score,
+                    status=PollutionState.SOURCE_UNRESOLVED,
+                    support=support,
+                    opposition=opposition,
+                    unknowns=["actual emission rate", "stack/inventory validation", "chemical fingerprint", "operational records"],
+                    evidence_ids=[obs.evidence_id],
+                    limitations=[
+                        "Facility proximity is not source proof.",
+                        "Permit/inventory is not observed emission.",
+                        "Observed emission is not regulatory violation without method/threshold/jurisdiction.",
+                    ],
+                ))
+
+            if fire_score > 0:
+                all_candidates.append(SourceCandidate(
+                    observation_id=obs.observation_id,
+                    domain=obs.domain,
+                    source_type="WILDFIRE_SMOKE",
+                    source_id="REGIONAL_FIRE",
+                    source_name="Wildfire/smoke candidate",
+                    score=fire_score,
+                    status=PollutionState.SOURCE_UNRESOLVED,
+                    support=fire_support,
+                    opposition=["Smoke transport requires wind and trajectory corroboration"],
+                    unknowns=["fire extent", "emission factors", "aerosol composition"],
+                    evidence_ids=[obs.evidence_id],
+                    limitations=["Fire detection is not automatically wildfire; smoke signal is not chemical-specific toxicity."],
+                ))
+
+            if dust_score > 0:
+                all_candidates.append(SourceCandidate(
+                    observation_id=obs.observation_id,
+                    domain=obs.domain,
+                    source_type="DUST",
+                    source_id="DUST_EVENT",
+                    source_name="Dust/mineral event candidate",
+                    score=dust_score,
+                    status=PollutionState.SOURCE_UNRESOLVED,
+                    support=dust_support,
+                    opposition=["Particulate size ratio alone is not dust proof"],
+                    unknowns=["mineral composition", "source region", "humidity effects"],
+                    evidence_ids=[obs.evidence_id],
+                    limitations=["Dust candidate requires compositional/meteorological corroboration."],
+                ))
+
+            for cand in all_candidates:
+                if cand.score >= 8:
+                    cand.status = PollutionState.SOURCE_ASSOCIATION_SUPPORTED
+                    cand.confidence = Confidence.MEDIUM
+                elif cand.score >= 3:
+                    cand.status = PollutionState.SOURCE_CANDIDATE
+                    cand.confidence = Confidence.LOW
+                else:
+                    cand.status = PollutionState.SOURCE_UNRESOLVED
+                    cand.confidence = Confidence.LOW
+                cand.support = [s for s in cand.support if s]
+                cand.opposition = [o for o in cand.opposition if o]
+                candidates.append(cand)
+
+        return candidates
+
+    @staticmethod
+    def _nearest_wind(obs: Observation, observations: List[Observation]) -> Optional[Observation]:
+        best = None
+        best_dt = None
+        for o in observations:
+            if o.domain != DomainType.WEATHER or o.measurement_type.lower() not in {"wind_direction", "wind_speed"}:
+                continue
+            if o.timestamp is None or obs.timestamp is None:
+                continue
+            dt = abs((o.timestamp - obs.timestamp).total_seconds())
+            if dt > 6 * 3600:
+                continue
+            if best_dt is None or dt < best_dt:
+                best = o
+                best_dt = dt
+        return best
+
+
+class ContradictionDetector:
+    def detect(self, observations: List[Observation]) -> List[Contradiction]:
+        contradictions: List[Contradiction] = []
+
+        groups: Dict[Tuple[str, str, Optional[str], Optional[float], Optional[float]], List[Observation]] = {}
+        for o in observations:
+            if o.normalized_value is None or o.timestamp is None:
+                continue
+            key = (
+                o.domain.value,
+                o.measurement_type,
+                o.region,
+                round_coord(o.location_lat),
+                round_coord(o.location_lon),
+            )
+            groups.setdefault(key, []).append(o)
+
+        for key, items in groups.items():
+            items = sorted(items, key=lambda x: x.timestamp)
+            for a, b in itertools.combinations(items, 2):
+                if abs((a.timestamp - b.timestamp).total_seconds()) > 7200:
+                    continue
+                if a.source_type == b.source_type and a.sensor_id == b.sensor_id:
+                    continue
+
+                diff = abs((a.normalized_value or 0.0) - (b.normalized_value or 0.0))
+                tol = max(
+                    1e-6,
+                    3 * (a.uncertainty or 0.0),
+                    3 * (b.uncertainty or 0.0),
+                    0.25 * max(abs(a.normalized_value or 0.0), abs(b.normalized_value or 0.0)),
+                )
+                if diff > tol:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="SENSOR_DISAGREEMENT",
+                            description=(
+                                f"{a.measurement_type} values differ: {a.normalized_value} {a.normalized_unit} "
+                                f"vs {b.normalized_value} {b.normalized_unit} within 2h at similar location."
+                            ),
+                            evidence_ids=[a.evidence_id, b.evidence_id],
+                            candidate_resolutions=[
+                                "different instrument/calibration",
+                                "different averaging period",
+                                "different exact location",
+                                "sensor failure/noise",
+                                "real small-scale environmental gradient",
+                            ],
+                        )
+                    )
+
+        # Model vs direct disagreement.
+        for a, b in itertools.combinations(observations, 2):
+            if a.timestamp is None or b.timestamp is None:
+                continue
+            if abs((a.timestamp - b.timestamp).total_seconds()) > 21600:
+                continue
+            if a.domain != b.domain or a.measurement_type != b.measurement_type:
+                continue
+            if a.region != b.region:
+                continue
+            if {a.source_type, b.source_type} != {SourceType.MODEL_OUTPUT, SourceType.DIRECT_MEASUREMENT}:
+                continue
+            if a.normalized_value is None or b.normalized_value is None:
+                continue
+            rel = abs(a.normalized_value - b.normalized_value) / max(1e-9, abs(b.normalized_value))
+            if rel > 0.5:
+                contradictions.append(
+                    Contradiction(
+                        contradiction_type="MODEL_OBSERVATION_MISMATCH",
+                        description=f"Model output and direct measurement differ by {rel*100:.1f}% for {a.measurement_type}.",
+                        evidence_ids=[a.evidence_id, b.evidence_id],
+                        candidate_resolutions=[
+                            "model resolution/initialization limitation",
+                            "local meteorology not captured",
+                            "measurement representativeness",
+                            "processing difference",
+                        ],
+                    )
+                )
+
+        return contradictions
+
+
+class HypothesisEngine:
+    def generate(
+        self,
+        anomalies: List[Anomaly],
+        source_candidates: List[SourceCandidate],
+        contradictions: List[Contradiction],
+    ) -> List[Hypothesis]:
+        hypotheses: List[Hypothesis] = []
+
+        for a in anomalies:
+            if a.state not in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY):
+                continue
+
+            cands = [c for c in source_candidates if c.observation_id == a.observation_id]
+            for c in cands:
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"{c.source_name} may explain anomaly {a.anomaly_id} ({a.domain.value}:{a.measurement_type}).",
+                        supports=c.support,
+                        oppositions=c.opposition,
+                        unknowns=c.unknowns,
+                        falsification_tests=[
+                            "independent sensor contradicts spatial/temporal pattern",
+                            "meteorological trajectory does not connect source to observation",
+                            "laboratory/compositional analysis excludes candidate",
+                            "regulatory/operational records show incompatible activity",
+                        ],
+                    )
+                )
+
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Sensor artifact or data-quality issue may explain anomaly {a.anomaly_id}.",
+                    supports=["QC flags" if any("SENSOR" in f or "CALIBRATION" in f or "UNIT" in f for f in []) else "no explicit QC flag in this generic hypothesis"],
+                    oppositions=["multiple independent sensors agree" if not any(con.contradiction_type == "SENSOR_DISAGREEMENT" for con in contradictions) else "sensor disagreement exists"],
+                    unknowns=["maintenance history", "raw signal quality", "collocation"],
+                    falsification_tests=["recalibrated/independent sensor confirms anomaly", "raw data inspection shows real signal"],
+                )
+            )
+
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Natural/seasonal variability may explain anomaly {a.anomaly_id}.",
+                    supports=["baseline/seasonality not fully excluded"],
+                    oppositions=["extreme z-score" if a.state == AnomalyState.EXTREME_ANOMALY else "material departure from baseline"],
+                    unknowns=["local phenology", "mesoscale meteorology", "background conditions"],
+                    falsification_tests=["historical analogous events show same pattern", "chemical/compositional signature indicates anthropogenic source"],
+                )
+            )
+
+        return hypotheses
+
+
+# ======================================================================
+# SECTION 10 — SOURCE INDEPENDENCE / FACT GATE / DUAL-AI REVIEW
+# ======================================================================
+
+class SourceIndependenceAnalyzer:
+    def assess(self, observations: List[Observation], sensors: List[Sensor], case: Dict[str, Any]) -> Dict[str, Any]:
+        sources = set()
+        for o in observations:
+            if o.source_id:
+                sources.add(o.source_id)
+            if o.dataset_id:
+                sources.add(f"dataset:{o.dataset_id}")
+        for s in sensors:
+            if s.source:
+                sources.add(f"sensor_source:{s.source}")
+            if s.network:
+                sources.add(f"network:{s.network}")
+        for r in case.get("regulatory_records", []):
+            if r.get("source"):
+                sources.add(f"regulatory:{r.get('source')}")
+        for i in case.get("incident_reports", []):
+            if i.get("source"):
+                sources.add(f"incident:{i.get('source')}")
+
+        if not sources:
+            return {
+                "status": IndependenceState.UNKNOWN.value,
+                "notes": ["No source metadata supplied."],
+                "sources": [],
+            }
+
+        if len(sources) == 1:
+            status = IndependenceState.DEPENDENT
+            notes = [
+                "All available observations/reports appear to derive from one source family.",
+                "Multiple dashboards/articles consuming one upstream dataset are not independent confirmations.",
+            ]
+        else:
+            status = IndependenceState.PARTIALLY_DEPENDENT
+            notes = [
+                "Multiple source identifiers exist, but full pedigree/independence is not proven.",
+                "Verify whether satellite product, ground sensor, regulator, and media report share upstream data.",
+            ]
+
+        return {"status": status.value, "notes": notes, "sources": sorted(sources)}
+
+
+class FactGate:
+    def generate(
+        self,
+        *,
+        case: Dict[str, Any],
+        observations: List[Observation],
+        sensors: List[Sensor],
+        baselines: List[Baseline],
+        anomalies: List[Anomaly],
+        hazards: List[HazardAssessment],
+        trends: List[Trend],
+        domain_assessments: Dict[str, List[Dict[str, Any]]],
+        source_candidates: List[SourceCandidate],
+        contradictions: List[Contradiction],
+        regulatory_records: List[RegulatoryRecord],
+        incident_reports: List[IncidentReport],
+        source_independence: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        facts: List[Fact] = []
+        unknowns: List[str] = []
+        limitations: List[str] = []
+        gaps: List[KnowledgeGap] = []
+        actions: List[NextAction] = []
+        handoffs: List[SpecialistHandoff] = []
+
+        sensor_map = {s.sensor_id: s for s in sensors}
+
+        for o in observations[:200]:
+            sensor = sensor_map.get(o.sensor_id)
+            sensor_desc = sensor.sensor_type if sensor else "UNKNOWN_SENSOR"
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Source {o.source_id} recorded {o.domain.value}:{o.measurement_type} "
+                        f"value {o.normalized_value} {o.normalized_unit} at {o.timestamp.isoformat() if o.timestamp else 'UNKNOWN'} "
+                        f"near ({round_coord(o.location_lat)}, {round_coord(o.location_lon)}) via {sensor_desc}."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=[o.evidence_id],
+                    limitations=[
+                        "This is a recorded observation, not independent ground truth.",
+                        "Interpretation requires QC, baseline, units, spatial/temporal representativeness, and source pedigree.",
+                    ],
+                )
+            )
+
+        for a in anomalies[:200]:
+            facts.append(
+                Fact(
+                    statement=f"Baseline comparison indicates {a.state.value} for observation {a.observation_id}.",
+                    status=FactStatus.SUPPORTED if a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY) else FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=[
+                        "Anomaly is not automatically hazard, pollution, or deliberate act.",
+                        "Baseline quality and seasonality must be considered.",
+                    ],
+                )
+            )
+
+        for h in hazards[:200]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Threshold assessment for {h.domain.value}:{h.measurement_type} is {h.state.value} "
+                        f"(value {h.value} {h.unit}, threshold {h.threshold_value} {h.threshold_unit}, "
+                        f"type {h.threshold_type}, jurisdiction {h.jurisdiction})."
+                    ),
+                    status=FactStatus.CANDIDATE if h.state in (HazardState.EVENT_CANDIDATE, HazardState.RISK_CANDIDATE) else FactStatus.SUPPORTED,
+                    evidence_ids=[h.observation_id],
+                    limitations=h.notes,
+                )
+            )
+
+        for t in trends[:100]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Trend candidate for {t.domain.value}:{t.measurement_type} in region {t.region} "
+                        f"is {t.direction} with slope {t.slope_per_day} per day (r2={t.r2})."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=t.notes,
+                )
+            )
+
+        for domain, items in domain_assessments.items():
+            for item in items[:50]:
+                state = item.get("state", "UNKNOWN")
+                facts.append(
+                    Fact(
+                        statement=f"{domain} assessment: {state} for {item.get('measurement_type', item.get('region', 'region'))}.",
+                        status=FactStatus.CANDIDATE,
+                        evidence_ids=[item.get("observation_id", "")],
+                        limitations=item.get("notes", []),
+                    )
+                )
+
+        for c in source_candidates[:200]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Source attribution candidate for observation {c.observation_id}: "
+                        f"{c.source_name} ({c.source_type}) status={c.status.value}, score={c.score:.1f}."
+                    ),
+                    status=FactStatus.CANDIDATE if c.status != PollutionState.SOURCE_ASSOCIATION_SUPPORTED else FactStatus.SUPPORTED,
+                    evidence_ids=c.evidence_ids,
+                    limitations=c.limitations,
+                )
+            )
+            if c.status == PollutionState.SOURCE_ASSOCIATION_SUPPORTED:
+                gaps.append(
+                    KnowledgeGap(
+                        description=f"Source association supported but attribution/impact requires review: {c.source_name}.",
+                        importance="HIGH",
+                        recommended_source="laboratory composition, operational records, independent sensor network, regulatory review",
+                        specialist="ENVINT / LEGALINT / CORPINT / human domain review",
+                        expected_information_value="Prevents overclaim from correlation to legal/operational attribution.",
+                    )
+                )
+
+        for r in regulatory_records[:100]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Regulatory record {r.record_type} exists for facility {r.facility_id or 'UNKNOWN'} "
+                        f"status={r.status}, jurisdiction={r.jurisdiction}, date={r.date.isoformat() if r.date else 'UNKNOWN'}."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=[r.evidence_id],
+                    limitations=[
+                        "Permit is not observed emission.",
+                        "Inspection is not violation.",
+                        "Notice is not final legal finding.",
+                    ],
+                )
+            )
+
+        for i in incident_reports[:100]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Incident report {i.incident_type} at ({round_coord(i.latitude)}, {round_coord(i.longitude)}) "
+                        f"time={i.timestamp.isoformat() if i.timestamp else 'UNKNOWN'} reliability={i.reliability.value}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[i.evidence_id],
+                    limitations=[
+                        "Incident report is a claim/lead, not laboratory or instrumental confirmation.",
+                        "Reporter type and source pedigree affect reliability.",
+                    ],
+                )
+            )
+
+        for con in contradictions[:200]:
+            facts.append(
+                Fact(
+                    statement=f"Open contradiction: {con.contradiction_type} — {con.description}",
+                    status=FactStatus.DISPUTED,
+                    evidence_ids=con.evidence_ids,
+                    limitations=con.candidate_resolutions,
+                )
+            )
+            unknowns.append(f"Unresolved contradiction: {con.contradiction_type}")
+
+        if source_independence.get("status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            limitations.append("Source independence is dependent or unknown; do not inflate confidence from duplicated feeds/dashboards.")
+            gaps.append(
+                KnowledgeGap(
+                    description="Independent environmental source pedigree not established.",
+                    importance="HIGH",
+                    recommended_source="independent ground sensor / official agency dataset / laboratory sample",
+                    specialist="ENVINT source evaluation",
+                    expected_information_value="Prevents false corroboration from one upstream dataset.",
+                )
+            )
+
+        for o in observations[:200]:
+            if "CALIBRATION_UNCERTAIN" in o.quality_flags or "CALIBRATION_EXPIRED" in o.quality_flags:
+                gaps.append(
+                    KnowledgeGap(
+                        description=f"Sensor calibration uncertain/expired for observation {o.observation_id}.",
+                        importance="HIGH",
+                        recommended_source="calibration certificate / maintenance log",
+                        specialist="ENVINT sensor QC",
+                        expected_information_value="Reduces false anomaly and false attribution risk.",
+                    )
+                )
+            if o.normalized_unit == "UNIT_UNKNOWN":
+                gaps.append(
+                    KnowledgeGap(
+                        description=f"Unit unknown for observation {o.observation_id}.",
+                        importance="HIGH",
+                        recommended_source="dataset metadata / instrument manual",
+                        specialist="ENVINT normalization",
+                        expected_information_value="Prevents invalid comparison and threshold misuse.",
+                    )
+                )
+
+        if not baselines:
+            gaps.append(
+                KnowledgeGap(
+                    description="No baseline supplied; anomaly labels are weak.",
+                    importance="HIGH",
+                    recommended_source="historical environmental dataset / seasonal normals",
+                    specialist="ENVINT baseline analysis",
+                    expected_information_value="Distinguishes normal variation from departure.",
+                )
+            )
+
+        limitations.extend(
+            [
+                "Sensor reading is not ground truth.",
+                "Model output is not observation.",
+                "Satellite pixel is not facility attribution.",
+                "Anomaly is not hazard.",
+                "Hazard is not cause.",
+                "Correlation is not causation.",
+                "Permitted emission is not observed emission.",
+                "Observed emission is not regulatory violation without method/threshold/jurisdiction.",
+                "Fire detection is not wildfire.",
+                "Tree loss is not illegal logging.",
+                "Radar dark patch is not oil spill.",
+                "Vessel proximity is not pollution responsibility.",
+                "Non-detection is not absence.",
+                "Missing data is not zero.",
+            ]
+        )
+
+        unknowns.extend(
+            [
+                "exact pollutant chemical identity unless laboratory analysis exists",
+                "responsible operator/entity",
+                "intent or negligence",
+                "actual emission rate",
+                "population health impact",
+                "legal/regulatory violation status",
+            ]
+        )
+
+        actions.extend(
+            [
+                NextAction(description="Retrieve calibrated independent ground sensor or laboratory sample.", rationale="Confirms anomaly and chemical identity where needed.", priority="HIGH"),
+                NextAction(description="Compare official agency satellite/product and ground observations.", rationale="Tests remote-sensing retrieval and cloud/artifact limitations.", priority="HIGH"),
+                NextAction(description="Retrieve wind/current/upstream-downstream context before source attribution.", rationale="Transport geometry is necessary but not sufficient for attribution.", priority="HIGH"),
+                NextAction(description="Review regulatory permit/inspection/incident records at high level.", rationale="Compliance context requires legal/domain review, not automated accusation.", priority="MEDIUM"),
+                NextAction(description="Handoff vessel correlation to AISINT if marine spill candidate exists.", rationale="AIS presence alone does not establish pollution responsibility.", priority="MEDIUM"),
+                NextAction(description="Handoff surface deformation/damage context to SATINT/GEOINT/IMINT where relevant.", rationale="ENVINT interprets environmental condition, not all geospatial effects.", priority="MEDIUM"),
+            ]
+        )
+
+        guard = PolicyGuard()
+        actions = [a for a in actions if guard.is_safe_action(a.description)]
+
+        handoffs.extend(
+            [
+                SpecialistHandoff(specialist="SATINT", reason="Satellite product validation, cloud/artifact checks, surface deformation/extent.", payload={}),
+                SpecialistHandoff(specialist="GEOINT", reason="Spatial context, terrain, infrastructure, population exposure aggregates.", payload={}),
+                SpecialistHandoff(specialist="RADINT", reason="Radar precipitation/backscatter/SAR interpretation.", payload={}),
+                SpecialistHandoff(specialist="SEISINT", reason="Seismic/landslide/volcanic source context.", payload={}),
+                SpecialistHandoff(specialist="AISINT", reason="Vessel movement correlation for marine incidents.", payload={}),
+                SpecialistHandoff(specialist="LEGALINT", reason="Regulatory violation/legal attribution.", payload={}),
+                SpecialistHandoff(specialist="CORPINT", reason="Facility/company ownership and operator resolution.", payload={}),
+                SpecialistHandoff(specialist="TECHINT", reason="Sensor/industrial process technical identification.", payload={}),
+                SpecialistHandoff(specialist="IMINT", reason="Ground imagery/damage/facility context, no facial identification.", payload={}),
+            ]
+        )
+
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs,
+        }
+
+
+class DualAIReviewer:
+    def review(
+        self,
+        *,
+        observations: List[Observation],
+        anomalies: List[Anomaly],
+        hazards: List[HazardAssessment],
+        source_candidates: List[SourceCandidate],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+        case: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        notes: List[str] = []
+        status = ReviewStatus.AGREE
+
+        if any(o.source_type == SourceType.MODEL_OUTPUT for o in observations):
+            notes.append("Model output present; do not present modelled values as direct measurements.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if any(a.state == AnomalyState.DATA_QUALITY_ANOMALY for a in anomalies):
+            notes.append("Data-quality anomalies present; environmental conclusions should be withheld for affected observations.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if any(c.status == PollutionState.SOURCE_ASSOCIATION_SUPPORTED for c in source_candidates):
+            notes.append("Source association supported; still not legal attribution, operator responsibility, or intent.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if contradictions:
+            notes.append("Open contradictions remain; final source/impact claims should stay conservative.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if source_independence.get("status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            notes.append("Source independence dependent/unknown; multiple views may share one upstream dataset.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        human_review_required = False
+        tags = [str(x).upper() for x in case.get("sensitivity_tags", [])]
+
+        if any(h.state in (HazardState.EVENT_CANDIDATE, HazardState.EVENT_OBSERVED, HazardState.EVENT_SUPPORTED) for h in hazards):
+            human_review_required = True
+            notes.append("Hazard candidate may require public-safety/domain review.")
+
+        if any(c.source_type == "FACILITY" and c.status in (PollutionState.SOURCE_CANDIDATE, PollutionState.SOURCE_ASSOCIATION_SUPPORTED) for c in source_candidates):
+            human_review_required = True
+            notes.append("Facility source candidate may lead to consequential compliance/legal action; human review required.")
+
+        if any(t in {"DRINKING_WATER", "CBRN", "PUBLIC_HEALTH", "EVACUATION", "CRITICAL_INFRASTRUCTURE"} for t in tags):
+            human_review_required = True
+            notes.append("Sensitive public-safety/infrastructure context supplied; human review required.")
+
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "AI agreement is not environmental corroboration.",
+            "human_review_required": human_review_required,
+        }
+
+
+# ======================================================================
+# SECTION 11 — GRAPHICAL MEMORY / REPORT GENERATOR
+# ======================================================================
+
+class GraphicalMemory:
+    def __init__(self) -> None:
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        self.edges: List[Dict[str, Any]] = []
+
+    def add_node(self, node_id: str, node_type: str, properties: Dict[str, Any]) -> None:
+        self.nodes[node_id] = {"type": node_type, "properties": properties}
+
+    def add_edge(self, source_id: str, relation: str, target_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append(
+            {
+                "source_id": source_id,
+                "relation": relation,
+                "target_id": target_id,
+                "properties": properties or {},
+            }
+        )
+
+    def write_result(self, result: ENVINTResult) -> Dict[str, Any]:
+        for s in result.sensors:
+            self.add_node(s.sensor_id, "Sensor", {"sensor_type": s.sensor_type, "network": s.network, "calibration": s.calibration_state.value, "health": s.health.value})
+
+        for f in result.facilities:
+            self.add_node(f.facility_id, "Facility", {"name": f.name, "type": f.facility_type, "lat": f.latitude, "lon": f.longitude})
+
+        for o in result.observations[:1000]:
+            self.add_node(
+                o.observation_id,
+                "Observation",
+                {
+                    "domain": o.domain.value,
+                    "measurement_type": o.measurement_type,
+                    "value": o.normalized_value,
+                    "unit": o.normalized_unit,
+                    "time": o.timestamp.isoformat() if o.timestamp else None,
+                    "lat": o.location_lat,
+                    "lon": o.location_lon,
+                    "source_type": o.source_type.value,
+                    "quality_flags": o.quality_flags,
+                },
+            )
+            if o.sensor_id:
+                self.add_edge(o.observation_id, "MEASURED_BY", o.sensor_id, {"evidence_id": o.evidence_id})
+            if o.region:
+                self.add_edge(o.observation_id, "LOCATED_IN", o.region)
+
+        for a in result.anomalies[:1000]:
+            self.add_node(a.anomaly_id, "Anomaly", {"state": a.state.value, "z_score": a.z_score, "observation_id": a.observation_id})
+            self.add_edge(a.anomaly_id, "DERIVED_FROM", a.observation_id)
+
+        for h in result.hazards[:1000]:
+            self.add_node(h.hazard_id, "HazardAssessment", {"state": h.state.value, "measurement_type": h.measurement_type})
+            self.add_edge(h.hazard_id, "DERIVED_FROM", h.observation_id)
+
+        for c in result.source_candidates[:1000]:
+            self.add_node(c.candidate_id, "SourceCandidate", {"source_type": c.source_type, "source_id": c.source_id, "status": c.status.value, "score": c.score})
+            self.add_edge(c.candidate_id, "SOURCE_CANDIDATE_FOR", c.observation_id)
+            if c.source_type == "FACILITY":
+                self.add_edge(c.candidate_id, "SOURCE_CANDIDATE_FOR_FACILITY", c.source_id)
+
+        for f in result.facts[:1000]:
+            self.add_node(f.fact_id, "Fact", {"statement": f.statement, "status": f.status.value})
+            for ev in f.evidence_ids[:20]:
+                self.add_edge(f.fact_id, "SUPPORTED_BY", ev)
+
+        for h in result.hypotheses[:1000]:
+            self.add_node(h.hypothesis_id, "Hypothesis", {"statement": h.statement})
+
+        return {
+            "node_count": len(self.nodes),
+            "edge_count": len(self.edges),
+            "sample_nodes": list(self.nodes.keys())[:20],
+        }
+
+
+class ReportGenerator:
+    def generate(self, result: ENVINTResult) -> str:
+        lines: List[str] = []
+
+        def section(title: str) -> None:
+            lines.append("")
+            lines.append(title.upper())
+            lines.append("-" * len(title))
+
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — ENVINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Task ID: {result.task_id}")
+        lines.append(f"Objective: {result.objective}")
+        lines.append(f"Status: {result.status}")
+        lines.append(f"Policy Decision: {result.policy_decision.value}")
+
+        section("Safety / Privacy Boundary")
+        lines.append("- Lawful environmental monitoring, scientific analysis, hazard assessment, compliance context, and defensive mitigation only.")
+        lines.append("- No contamination, toxic release optimization, illegal dumping, monitoring bypass, sensor tampering, sabotage, wildfire ignition/spread optimization, CBRN release, geoengineering deployment, wildlife trafficking, illegal logging/fishing, or infrastructure targeting.")
+        for flag in result.safety_flags:
+            lines.append(f"- Safety: {flag}")
+        for flag in result.privacy_flags:
+            lines.append(f"- Privacy: {flag}")
+
+        section("Sensor Inventory")
+        if not result.sensors:
+            lines.append("- No sensors supplied.")
+        for s in result.sensors:
+            lines.append(f"- {s.sensor_id}: type={s.sensor_type}, network={s.network}, calibration={s.calibration_state.value}, health={s.health.value}, units={s.units}")
+            if s.limitations:
+                lines.append(f"  limitations={'; '.join(s.limitations)}")
+
+        section("Facilities / Regulatory / Incidents")
+        for f in result.facilities:
+            lines.append(f"- Facility {f.facility_id}: name={f.name}, type={f.facility_type}, lat={f.latitude}, lon={f.longitude}")
+        for r in result.regulatory_records:
+            lines.append(f"- Regulatory {r.record_id}: type={r.record_type}, facility={r.facility_id}, status={r.status}, jurisdiction={r.jurisdiction}")
+            lines.append("  caution: permit/inspection/notice is not automatic violation.")
+        for i in result.incident_reports:
+            lines.append(f"- Incident {i.incident_id}: type={i.incident_type}, facility={i.facility_id}, time={i.timestamp}, reliability={i.reliability.value}")
+            lines.append("  caution: incident report is a claim/lead, not instrumental confirmation.")
+
+        section("Observations / QC")
+        if not result.observations:
+            lines.append("- No observations.")
+        for o in result.observations[:80]:
+            lines.append(
+                f"- {o.observation_id}: {o.domain.value}:{o.measurement_type} = {o.normalized_value} {o.normalized_unit}, "
+                f"time={o.timestamp.isoformat() if o.timestamp else 'UNKNOWN'}, loc=({round_coord(o.location_lat)}, {round_coord(o.location_lon)}), "
+                f"source_type={o.source_type.value}, confidence={o.confidence.value}"
+            )
+            if o.quality_flags:
+                lines.append(f"  quality_flags={o.quality_flags}")
+
+        section("Baselines / Anomalies / Hazards")
+        for b in result.baselines[:50]:
+            lines.append(f"- Baseline {b.baseline_id}: {b.domain.value}:{b.measurement_type}, mean={b.mean}, std={b.std}, count={b.count}, quality={b.quality}")
+        for a in result.anomalies[:100]:
+            lines.append(f"- Anomaly {a.anomaly_id}: obs={a.observation_id}, state={a.state.value}, z={a.z_score}, deviation={a.deviation}")
+        for h in result.hazards[:100]:
+            lines.append(
+                f"- Hazard {h.hazard_id}: {h.domain.value}:{h.measurement_type}, state={h.state.value}, "
+                f"value={h.value} {h.unit}, threshold={h.threshold_value} {h.threshold_unit}, jurisdiction={h.jurisdiction}"
+            )
+            for n in h.notes:
+                lines.append(f"  note: {n}")
+
+        section("Trends")
+        if not result.trends:
+            lines.append("- No trends computed.")
+        for t in result.trends[:50]:
+            lines.append(f"- Trend {t.trend_id}: {t.domain.value}:{t.measurement_type} region={t.region}, direction={t.direction}, slope/day={t.slope_per_day}, r2={t.r2}, confidence={t.confidence.value}")
+
+        section("Domain Assessments")
+        for domain, items in result.domain_assessments.items():
+            if not items:
+                continue
+            lines.append(f"[{domain}]")
+            for item in items[:50]:
+                lines.append(f"- {item}")
+
+        section("Source Attribution Candidates")
+        if not result.source_candidates:
+            lines.append("- No source candidates.")
+        for c in result.source_candidates[:100]:
+            lines.append(
+                f"- {c.candidate_id}: obs={c.observation_id}, type={c.source_type}, source={c.source_name}, "
+                f"status={c.status.value}, score={c.score:.1f}, confidence={c.confidence.value}"
+            )
+            lines.append(f"  support={c.support}")
+            lines.append(f"  opposition={c.opposition}")
+            lines.append(f"  unknowns={c.unknowns}")
+            lines.append(f"  limitations={c.limitations}")
+
+        section("Source Independence")
+        lines.append(f"- Status: {result.source_independence.get('status', 'UNKNOWN')}")
+        for note in result.source_independence.get("notes", []):
+            lines.append(f"  - {note}")
+
+        section("Facts")
+        for f in result.facts[:200]:
+            lines.append(f"- [{f.status.value}] {f.statement}")
+            if f.limitations:
+                lines.append(f"  limitations: {'; '.join(f.limitations)}")
+
+        section("Contradictions")
+        if not result.contradictions:
+            lines.append("- None detected.")
+        for c in result.contradictions[:100]:
+            lines.append(f"- {c.contradiction_type}: {c.description}")
+            lines.append(f"  resolutions: {c.candidate_resolutions}")
+
+        section("Competing Hypotheses")
+        for h in result.hypotheses[:100]:
+            lines.append(f"- {h.hypothesis_id}: {h.statement}")
+            lines.append(f"  supports: {h.supports}")
+            lines.append(f"  oppositions: {h.oppositions}")
+            lines.append(f"  falsification: {h.falsification_tests}")
+
+        section("Unknowns / Knowledge Gaps")
+        for u in result.unknowns[:100]:
+            lines.append(f"- Unknown: {u}")
+        for g in result.knowledge_gaps[:100]:
+            lines.append(f"- Gap: {g.description} | importance={g.importance} | specialist={g.specialist}")
+
+        section("Next Actions")
+        if not result.next_actions:
+            lines.append("- None.")
+        for a in result.next_actions:
+            lines.append(f"- {a.description} ({a.priority}) — {a.rationale}")
+
+        section("Specialist Handoffs")
+        if not result.specialist_handoffs:
+            lines.append("- None.")
+        for h in result.specialist_handoffs:
+            lines.append(f"- {h.specialist}: {h.reason}")
+
+        section("Limitations")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+
+        section("Dual-AI Review")
+        lines.append(f"- Status: {result.review.get('status', 'N/A')}")
+        for n in result.review.get("skeptic_notes", []):
+            lines.append(f"  - {n}")
+        if result.review.get("human_review_required"):
+            lines.append("  - Human review required before consequential public-health, regulatory, facility-accusation, or emergency action.")
+
+        section("Required Analyst Summary")
+        air_anoms = [a for a in result.anomalies if a.domain == DomainType.AIR and a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY)]
+        fire_items = result.domain_assessments.get("wildfire", [])
+        facility_candidates = [c for c in result.source_candidates if c.source_type == "FACILITY"]
+        fire_candidates = [c for c in result.source_candidates if c.source_type == "WILDFIRE_SMOKE"]
+
+        if air_anoms:
+            lines.append("OBSERVATION: Elevated air-quality anomaly is supported by calibrated ground observation(s).")
+        else:
+            lines.append("OBSERVATION: No material air-quality anomaly resolved from supplied data.")
+
+        if fire_items:
+            lines.append(f"WILDFIRE/SMOKE: {fire_items[0].get('state', 'UNKNOWN')} from fire/smoke context.")
+        else:
+            lines.append("WILDFIRE/SMOKE: No wildfire/smoke assessment supplied.")
+
+        if fire_candidates:
+            best_fire = max(fire_candidates, key=lambda c: c.score)
+            lines.append(f"SOURCE: Wildfire/smoke contribution = {best_fire.status.value} (score {best_fire.score:.1f}).")
+        else:
+            lines.append("SOURCE: Wildfire/smoke candidate not resolved.")
+
+        if facility_candidates:
+            best_fac = max(facility_candidates, key=lambda c: c.score)
+            lines.append(f"FACILITY: {best_fac.source_name} = {best_fac.status.value} (score {best_fac.score:.1f}); attribution not established.")
+        else:
+            lines.append("FACILITY: No facility source candidate.")
+
+        lines.append("NEXT ACTION: Obtain independent sensors/laboratory composition, official fire/smoke products, operational records, and legal/domain review before consequential claims.")
+
+        lines.append("")
+        lines.append("=" * 72)
+        lines.append("END REPORT")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 12 — ENVINT AI EMPLOYEE
+# ======================================================================
+
+class ENVIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.injection_defense = PromptInjectionDefense()
+        self.ingestor = ENVINTIngestor(injection_defense=self.injection_defense)
+        self.qc = SensorQCAnalyzer()
+        self.baseline_selector = BaselineSelector()
+        self.anomaly_detector = AnomalyDetector()
+        self.threshold_analyzer = ThresholdAnalyzer()
+        self.trend_analyzer = TrendAnalyzer()
+        self.flood_analyzer = FloodAnalyzer()
+        self.drought_analyzer = DroughtAnalyzer()
+        self.wildfire_analyzer = WildfireAnalyzer()
+        self.heat_analyzer = HeatAnalyzer()
+        self.vegetation_analyzer = VegetationLandCoverAnalyzer()
+        self.marine_analyzer = MarineCoastalAnalyzer()
+        self.source_engine = SourceAttributionEngine()
+        self.contradiction_detector = ContradictionDetector()
+        self.hypothesis_engine = HypothesisEngine()
+        self.independence_analyzer = SourceIndependenceAnalyzer()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> ENVINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        task_id = str(case.get("task_id", new_id("TASK")))
+        objective = str(case.get("objective", ""))
+        questions = case.get("questions", [])
+
+        request_text = objective + "\n" + "\n".join(str(q) for q in questions)
+        policy = self.policy.check_request(request_text)
+
+        if policy.decision == PolicyDecision.POLICY_BLOCKED:
+            return ENVINTResult(
+                case_id=case_id,
+                task_id=task_id,
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report=(
+                    "POLICY_BLOCKED\n\n"
+                    "This request seeks prohibited ENVINT operational guidance. "
+                    "Lawful alternative: authorized environmental monitoring, sensor QC, baseline/anomaly analysis, "
+                    "hazard candidate assessment, source-attribution hypotheses, compliance context, and defensive "
+                    "mitigation/reporting without contamination, sabotage, monitoring evasion, CBRN optimization, "
+                    "illegal dumping, wildlife trafficking, or infrastructure targeting."
+                ),
+                safety_flags=[
+                    "No contamination/release/dumping guidance provided.",
+                    "No sensor tampering/monitoring evasion guidance provided.",
+                    "No sabotage/wildfire ignition/CBRN optimization provided.",
+                ],
+                limitations=[policy.reason],
+            )
+
+        evidence, sensors, facilities, regulatory, incidents, observations, baselines = self.ingestor.ingest_case(case)
+        sensor_map = {s.sensor_id: s for s in sensors}
+
+        for o in observations:
+            self.qc.analyze(o, sensor_map)
+
+        anomalies: List[Anomaly] = []
+        hazards: List[HazardAssessment] = []
+
+        for o in observations:
+            baseline = self.baseline_selector.choose(o, baselines)
+            anomaly = self.anomaly_detector.detect(o, baseline)
+            if anomaly:
+                anomalies.append(anomaly)
+            hazard = self.threshold_analyzer.assess(o, anomaly, case)
+            if hazard:
+                hazards.append(hazard)
+
+        trends = self.trend_analyzer.analyze(observations)
+
+        weather_obs = [o for o in observations if o.domain == DomainType.WEATHER]
+        fire_assessments = self.wildfire_analyzer.analyze(observations, anomalies, incidents, facilities)
+        flood_assessments = self.flood_analyzer.analyze(observations, anomalies, case)
+        drought_assessments = self.drought_analyzer.analyze(observations, anomalies)
+        heat_assessments = self.heat_analyzer.analyze(observations, hazards)
+        vegetation_assessments = self.vegetation_analyzer.analyze(observations)
+        marine_assessments = self.marine_analyzer.analyze(observations, weather_obs)
+
+        domain_assessments = {
+            "wildfire": fire_assessments,
+            "flood": flood_assessments,
+            "drought": drought_assessments,
+            "heat": heat_assessments,
+            "vegetation_landcover": vegetation_assessments,
+            "marine_coastal": marine_assessments,
+        }
+
+        source_candidates = self.source_engine.attribute(
+            anomalies=anomalies,
+            hazards=hazards,
+            observations=observations,
+            facilities=facilities,
+            incidents=incidents,
+            fire_assessments=fire_assessments,
+        )
+
+        contradictions = self.contradiction_detector.detect(observations)
+        hypotheses = self.hypothesis_engine.generate(anomalies, source_candidates, contradictions)
+        source_independence = self.independence_analyzer.assess(observations, sensors, case)
+
+        fact_out = self.fact_gate.generate(
+            case=case,
+            observations=observations,
+            sensors=sensors,
+            baselines=baselines,
+            anomalies=anomalies,
+            hazards=hazards,
+            trends=trends,
+            domain_assessments=domain_assessments,
+            source_candidates=source_candidates,
+            contradictions=contradictions,
+            regulatory_records=regulatory,
+            incident_reports=incidents,
+            source_independence=source_independence,
+        )
+
+        review = self.reviewer.review(
+            observations=observations,
+            anomalies=anomalies,
+            hazards=hazards,
+            source_candidates=source_candidates,
+            contradictions=contradictions,
+            source_independence=source_independence,
+            case=case,
+        )
+
+        status = "PARTIAL"
+        if not observations:
+            status = "INSUFFICIENT_DATA"
+        elif review.get("human_review_required"):
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+        elif any(a.state in (AnomalyState.MATERIAL_ANOMALY, AnomalyState.EXTREME_ANOMALY) for a in anomalies):
+            status = "SUCCEEDED"
+        elif any(c.status == PollutionState.SOURCE_ASSOCIATION_SUPPORTED for c in source_candidates):
+            status = "SUCCEEDED"
+
+        privacy_flags = []
+        if self.mode == ModelMode.LOCAL_ONLY:
+            privacy_flags.append("LOCAL_ONLY mode selected; sensitive facility/community sensor data should remain local.")
+        elif self.mode == ModelMode.CLOUD:
+            privacy_flags.append("CLOUD mode requires sanitized/public/aggregated environmental data only.")
+        else:
+            privacy_flags.append("HYBRID mode requires routing controls and tenant isolation.")
+
+        result = ENVINTResult(
+            case_id=case_id,
+            task_id=task_id,
+            objective=objective,
+            status=status,
+            policy_decision=PolicyDecision.ALLOW,
+            evidence=evidence,
+            sensors=sensors,
+            facilities=facilities,
+            regulatory_records=regulatory,
+            incident_reports=incidents,
+            observations=observations,
+            baselines=baselines,
+            anomalies=anomalies,
+            hazards=hazards,
+            trends=trends,
+            domain_assessments=domain_assessments,
+            source_candidates=source_candidates,
+            contradictions=contradictions,
+            hypotheses=hypotheses,
+            facts=fact_out["facts"],
+            knowledge_gaps=fact_out["knowledge_gaps"],
+            next_actions=fact_out["next_actions"],
+            specialist_handoffs=fact_out["specialist_handoffs"],
+            source_independence=source_independence,
+            review=review,
+            unknowns=fact_out["unknowns"],
+            limitations=fact_out["limitations"],
+            safety_flags=[
+                "No contamination/release/dumping guidance.",
+                "No sensor tampering/monitoring evasion guidance.",
+                "No sabotage/wildfire ignition/CBRN optimization.",
+                "Anomaly is not hazard; hazard is not cause.",
+                "Source association is not legal attribution.",
+                "Human review required for consequential public-health/regulatory/facility-action.",
+            ],
+            privacy_flags=privacy_flags,
+        )
+
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 13 — SYNTHETIC DEMO
+# ======================================================================
+
+def demo() -> None:
+    """
+    Synthetic lawful demo:
+    Urban air-quality anomaly with wildfire smoke and nearby facility context.
+    No contamination planning, no sabotage, no monitoring evasion, no targeting.
+    """
+    employee = ENVIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-ENVINT-001",
+        "task_id": "DEMO-TASK-001",
+        "objective": (
+            "Lawful environmental monitoring and defensive risk analysis: assess an urban PM2.5 anomaly, "
+            "test wildfire-smoke and facility source hypotheses, preserve uncertainty, and avoid "
+            "consequential attribution without independent corroboration."
+        ),
+        "questions": [
+            "What environmental condition was observed?",
+            "Is the PM2.5 reading anomalous relative to baseline?",
+            "Is wildfire smoke a plausible contributor?",
+            "Is the nearby facility source established?",
+            "What remains unknown?",
+        ],
+        "authorization": "PUBLIC_OR_AUTHORIZED_ENVIRONMENTAL_MONITORING_LAWFUL_RESEARCH",
+        "sensitivity_tags": ["PUBLIC_HEALTH_CONTEXT", "AIR_QUALITY", "SYNTHETIC_DEMO"],
+        "sensors": [
+            {
+                "sensor_id": "GND_PM25_A",
+                "sensor_type": "REFERENCE_PM25",
+                "network": "DEMO_CITY_AQ_NETWORK",
+                "operator": "Demo Environmental Agency",
+                "latitude": 40.0000,
+                "longitude": -74.0000,
+                "units": "ug/m3",
+                "calibration_state": "CALIBRATED",
+                "calibration_date": "2026-09-01T00:00:00Z",
+                "health": "HEALTHY",
+                "accuracy": 3.0,
+                "detection_limit": 1.0,
+                "source": "demo_reference_network",
+                "limitations": ["Point measurement; representativeness depends on placement."],
+            },
+            {
+                "sensor_id": "LOWCOST_PM25_B",
+                "sensor_type": "LOW_COST_PM25",
+                "network": "DEMO_COMMUNITY_SENSOR_PILOT",
+                "operator": "Demo Community Group",
+                "latitude": 40.0005,
+                "longitude": -74.0005,
+                "units": "ug/m3",
+                "calibration_state": "CALIBRATION_UNKNOWN",
+                "health": "NOISY",
+                "source": "demo_community_network",
+                "limitations": ["Low-cost sensor; humidity/drift/placement effects possible."],
+            },
+            {
+                "sensor_id": "SAT_FIRE_C",
+                "sensor_type": "THERMAL_IMAGERY",
+                "network": "DEMO_SAT_FIRE_PRODUCT",
+                "latitude": None,
+                "longitude": None,
+                "units": "count",
+                "calibration_state": "CALIBRATION_REPORTED",
+                "health": "HEALTHY",
+                "source": "demo_satellite_fire_product",
+                "limitations": ["Fire detections may be industrial/agricultural/other heat sources."],
+            },
+            {
+                "sensor_id": "WX_D",
+                "sensor_type": "METEOROLOGICAL_STATION",
+                "network": "DEMO_WEATHER_NETWORK",
+                "latitude": 40.0010,
+                "longitude": -74.0010,
+                "units": "mixed",
+                "calibration_state": "CALIBRATED",
+                "health": "HEALTHY",
+                "source": "demo_weather_network",
+            },
+        ],
+        "facilities": [
+            {
+                "facility_id": "FAC_CHEM_NORTH",
+                "name": "Demo Chemical Plant North",
+                "facility_type": "CHEMICAL_MANUFACTURING",
+                "latitude": 40.0500,
+                "longitude": -74.0000,
+                "operator": "Demo Chem Co",
+                "permits": [{"permit_id": "AIR_PERMIT_1", "pollutant": "VOC", "limit": "reported"}],
+                "emissions_inventory": [{"year": "2025", "pollutant": "PM2.5_precursor", "reported": "modeled"}],
+                "source": "public_regulatory_demo",
+                "limitations": ["Inventory is reported/modeled, not observed emission."],
+            },
+            {
+                "facility_id": "FAC_POWER_EAST",
+                "name": "Demo Power Plant East",
+                "facility_type": "POWER_PLANT",
+                "latitude": 40.0000,
+                "longitude": -73.9000,
+                "operator": "Demo Power Co",
+                "permits": [],
+                "emissions_inventory": [],
+                "source": "public_regulatory_demo",
+            },
+        ],
+        "regulatory_records": [
+            {
+                "record_id": "REG_INSPECTION_001",
+                "facility_id": "FAC_CHEM_NORTH",
+                "record_type": "INSPECTION",
+                "date": "2026-08-15T00:00:00Z",
+                "status": "CLOSED_NO_ACTION",
+                "jurisdiction": "DEMO_STATE",
+                "source": "demo_regulatory_portal",
+                "limitations": ["Inspection occurrence is not violation."],
+            },
+            {
+                "record_id": "REG_PERMIT_001",
+                "facility_id": "FAC_CHEM_NORTH",
+                "record_type": "PERMIT",
+                "date": "2026-01-01T00:00:00Z",
+                "status": "ACTIVE",
+                "jurisdiction": "DEMO_STATE",
+                "source": "demo_regulatory_portal",
+                "limitations": ["Permit limit is not observed emission."],
+            },
+        ],
+        "incident_reports": [
+            {
+                "incident_id": "INC_ODOR_CITIZEN",
+                "incident_type": "ODOR",
+                "facility_id": "FAC_CHEM_NORTH",
+                "latitude": 40.0100,
+                "longitude": -74.0000,
+                "timestamp": "2026-10-08T11:30:00Z",
+                "description": "Citizen reported chemical-like odor.",
+                "reporter_type": "CITIZEN",
+                "source": "demo_311_like_report",
+                "reliability": "LOW",
+                "limitations": ["Human report; not instrumental or laboratory confirmation."],
+            },
+            {
+                "incident_id": "INC_WILDFIRE_OFFICIAL",
+                "incident_type": "WILDFIRE",
+                "facility_id": None,
+                "latitude": 40.5000,
+                "longitude": -74.0000,
+                "timestamp": "2026-10-08T09:00:00Z",
+                "description": "Official regional fire agency reports active wildfire north of metro area.",
+                "reporter_type": "OFFICIAL_AGENCY",
+                "source": "demo_fire_agency",
+                "reliability": "MEDIUM",
+                "limitations": ["Agency report; fire growth and smoke trajectory require authoritative products."],
+            },
+        ],
+        "baselines": [
+            {
+                "baseline_id": "BASE_PM25_DEMO_CITY",
+                "domain": "AIR",
+                "measurement_type": "PM2.5",
+                "region": "DEMO_CITY",
+                "start_time": "2026-09-01T00:00:00Z",
+                "end_time": "2026-10-07T00:00:00Z",
+                "unit": "ug/m3",
+                "values": [
+                    12, 14, 15, 13, 16, 15, 14, 17, 15, 14,
+                    13, 15, 16, 14, 15, 13, 14, 15, 16, 15,
+                    14, 13, 15, 16, 15, 14, 15, 13, 14, 15,
+                ],
+                "version": "pm25-30d-v1",
+                "source": "demo_reference_network",
+            }
+        ],
+        "thresholds": {
+            "AIR": {
+                "PM2.5": [
+                    {
+                        "value": 25.0,
+                        "unit": "ug/m3",
+                        "type": "GUIDELINE",
+                        "jurisdiction": "WHO_24H_DEMO",
+                        "source": "demo_threshold_reference",
+                    }
+                ]
+            }
+        },
+        "air_quality_data": [
+            {
+                "observation_id": "OBS_PM25_REF",
+                "sensor_id": "GND_PM25_A",
+                "measurement_type": "PM2.5",
+                "value": 85.0,
+                "unit": "ug/m3",
+                "timestamp": "2026-10-08T12:00:00Z",
+                "latitude": 40.0000,
+                "longitude": -74.0000,
+                "region": "DEMO_CITY",
+                "source_id": "demo_reference_network",
+                "source_type": "DIRECT_MEASUREMENT",
+                "processing_level": "RAW",
+                "uncertainty": 3.0,
+            },
+            {
+                "observation_id": "OBS_PM25_LOWCOST",
+                "sensor_id": "LOWCOST_PM25_B",
+                "measurement_type": "PM2.5",
+                "value": 95.0,
+                "unit": "ug/m3",
+                "timestamp": "2026-10-08T12:05:00Z",
+                "latitude": 40.0005,
+                "longitude": -74.0005,
+                "region": "DEMO_CITY",
+                "source_id": "demo_community_network",
+                "source_type": "DIRECT_MEASUREMENT",
+                "processing_level": "DERIVED",
+                "uncertainty": 12.0,
+                "community_sensor": True,
+            },
+        ],
+        "weather_data": [
+            {
+                "observation_id": "OBS_WIND_DIR",
+                "sensor_id": "WX_D",
+                "measurement_type": "wind_direction",
+                "value": 0.0,
+                "unit": "degrees",
+                "timestamp": "2026-10-08T12:00:00Z",
+                "latitude": 40.0010,
+                "longitude": -74.0010,
+                "region": "DEMO_CITY",
+                "source_id": "demo_weather_network",
+                "source_type": "DIRECT_MEASUREMENT",
+                "processing_level": "DERIVED",
+                "uncertainty": 5.0,
+            },
+            {
+                "observation_id": "OBS_WIND_SPEED",
+                "sensor_id": "WX_D",
+                "measurement_type": "wind_speed",
+                "value": 5.0,
+                "unit": "m/s",
+                "timestamp": "2026-10-08T12:00:00Z",
+                "latitude": 40.0010,
+                "longitude": -74.0010,
+                "region": "DEMO_CITY",
+                "source_id": "demo_weather_network",
+                "source_type": "DIRECT_MEASUREMENT",
+                "processing_level": "DERIVED",
+                "uncertainty": 0.5,
+            },
+        ],
+        "fire_data": [
+            {
+                "observation_id": "OBS_FIRE_SAT",
+                "sensor_id": "SAT_FIRE_C",
+                "measurement_type": "fire_detection",
+                "value": 1.0,
+                "unit": "count",
+                "timestamp": "2026-10-08T11:45:00Z",
+                "latitude": 40.5000,
+                "longitude": -74.0000,
+                "region": "DEMO_REGION_NORTH",
+                "source_id": "demo_satellite_fire_product",
+                "source_type": "REMOTE_SENSING_OBSERVATION",
+                "processing_level": "DERIVED",
+            }
+        ],
+        "smoke_data": [
+            {
+                "observation_id": "OBS_AOD",
+                "sensor_id": "SAT_FIRE_C",
+                "measurement_type": "aerosol_optical_depth",
+                "value": 0.85,
+                "unit": "dimensionless",
+                "timestamp": "2026-10-08T12:10:00Z",
+                "latitude": 40.1000,
+                "longitude": -74.0000,
+                "region": "DEMO_CITY",
+                "source_id": "demo_satellite_aerosol_product",
+                "source_type": "REMOTE_SENSING_OBSERVATION",
+                "processing_level": "DERIVED",
+                "cloud_fraction": 0.10,
+            }
+        ],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def main() -> None:
+    demo()
+
+
+if __name__ == "__main__":
+    main()

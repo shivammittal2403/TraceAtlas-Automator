@@ -1,0 +1,954 @@
+import hashlib
+import json
+import logging
+import uuid
+from datetime import datetime, timezone, timedelta
+from enum import Enum, auto
+from typing import List, Dict, Optional, Any, Set, Tuple
+from dataclasses import dataclass, field, asdict
+from collections import defaultdict
+
+# ==============================================================================
+# CONFIGURATION & LOGGING
+# ==============================================================================
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s')
+logger = logging.getLogger("TRACEATLAS.MEMEINT")
+
+# ==============================================================================
+# SECTION 12 & 193: HARD RESTRICTIONS & POLICY ENGINE
+# ==============================================================================
+
+class PolicyViolation(Exception):
+    pass
+
+def enforce_policy(action: str, context: dict) -> None:
+    """
+    Enforces Section 12 (Hard Restrictions) and Section 193 (Non-Negotiable Rules).
+    Raises PolicyViolation if an offensive/prohibited action is detected.
+    """
+    prohibited_keywords = [
+        "create_propaganda", "generate_disinformation", "run_bot", 
+        "microtarget_user", "harass_target", "evade_platform_integrity",
+        "identify_private_individual", "psychographic_profiling",
+        "buy_followers", "coordinate_brigading", "dox_targets",
+        "design_emotional_manipulation", "optimize_political_persuasion",
+        "segment_voters_for_manipulation", "hide_campaign_attribution"
+    ]
+    
+    action_lower = action.lower()
+    for keyword in prohibited_keywords:
+        if keyword in action_lower:
+            raise PolicyViolation(f"POLICY_BLOCKED: Action '{action}' violates INFLUENCEINT core principles ({keyword}).")
+    
+    # Check for attempts to infer sensitive traits (Section 122, 123, 176)
+    if context.get("infer_sensitive_traits", False):
+        raise PolicyViolation("POLICY_BLOCKED: Inferring sensitive personal traits (religion, ethnicity, health, ideology) is strictly prohibited.")
+    
+    # Check for private person identification (Section 174)
+    if context.get("identify_real_person", False):
+        raise PolicyViolation("POLICY_BLOCKED: Identifying real people behind pseudonymous accounts requires lawful authority and strong evidence, which are not present here.")
+
+# ==============================================================================
+# SECTIONS 49, 87, 113, 46, 56, 89: ENUMS & STATES
+# ==============================================================================
+
+class CoordinationState(Enum):
+    NO_COORDINATION_EVIDENCE = auto()
+    ORGANIC_COORDINATION_CANDIDATE = auto()
+    COORDINATION_SUPPORTED = auto()
+    INAUTHENTIC_COORDINATION_CANDIDATE = auto()
+    INAUTHENTIC_COORDINATION_SUPPORTED = auto()
+    UNKNOWN = auto()
+
+class CampaignState(Enum):
+    NO_CAMPAIGN_EVIDENCE = auto()
+    CONTENT_CLUSTER = auto()
+    PROPAGATION_CLUSTER = auto()
+    COORDINATION_CANDIDATE = auto()
+    COORDINATED_CAMPAIGN_SUPPORTED = auto()
+    INAUTHENTIC_CAMPAIGN_CANDIDATE = auto()
+    INAUTHENTIC_CAMPAIGN_SUPPORTED = auto()
+    ATTRIBUTION_UNRESOLVED = auto()
+
+class ClaimVerificationState(Enum):
+    SUPPORTED = auto()
+    PARTIALLY_SUPPORTED = auto()
+    DISPUTED = auto()
+    UNSUPPORTED = auto()
+    INCONCLUSIVE = auto()
+
+class AutomationState(Enum):
+    LIKELY_AUTOMATED = auto()
+    AUTOMATION_CANDIDATE = auto()
+    HUMAN_OR_MANUAL_CANDIDATE = auto()
+    UNKNOWN = auto()
+
+class SourceIndependenceState(Enum):
+    INDEPENDENT = auto()
+    PARTIALLY_DEPENDENT = auto()
+    DEPENDENT = auto()
+    UNKNOWN = auto()
+
+class AttributionState(Enum):
+    UNATTRIBUTED = auto()
+    SOURCE_CLAIMED_ATTRIBUTION = auto()
+    EVIDENCE_BASED_ATTRIBUTION = auto()
+    VERIFIED_ATTRIBUTION = auto()
+
+class HypothesisStatus(Enum):
+    ACTIVE = auto()
+    REJECTED = auto()
+    CONFIRMED = auto()
+    CANDIDATE = auto()
+
+# ==============================================================================
+# SECTIONS 17-25, 41, 86, 150-153: DATA OBJECTS
+# ==============================================================================
+
+@dataclass
+class EvidenceObject:
+    evidence_id: str
+    case_id: str
+    source_id: str
+    platform: str
+    content_id: str
+    published_at: datetime
+    first_seen: datetime
+    retrieved_at: datetime
+    content_hash: str
+    authorization_context: str
+
+@dataclass
+class ContentObject:
+    content_id: str
+    platform: str
+    author_account: str
+    channel_or_page: Optional[str]
+    content_type: str 
+    text: Optional[str]
+    hashtags: List[str]
+    urls: List[str]
+    media_ids: List[str]
+    language: str
+    published_at: datetime
+    engagement_snapshot: Dict[str, int]
+    evidence_ids: List[str]
+    raw_data: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class MemeTemplateObject:
+    template_id: str
+    visual_signature: str 
+    layout_signature: str
+    text_regions: List[Dict[str, str]]
+    first_seen: datetime
+    variant_count: int
+    platforms: List[str]
+    related_narratives: List[str]
+    confidence: float
+
+@dataclass
+class MemeVariantObject:
+    variant_id: str
+    template_id: str
+    media_hash: str
+    perceptual_hash: str
+    caption: Optional[str]
+    language: str
+    first_seen: datetime
+    platform: str
+    source_content_id: str
+
+@dataclass
+class ClaimObject:
+    claim_id: str
+    subject: str
+    predicate: str
+    object: str
+    time_reference: Optional[str]
+    location_reference: Optional[str]
+    claim_type: str
+    explicit_or_implied: str
+    source_content_id: str
+    verification_state: ClaimVerificationState
+
+@dataclass
+class NarrativeObject:
+    narrative_id: str
+    summary: str
+    claims: List[str] 
+    themes: List[str]
+    frames: List[str]
+    keywords: List[str]
+    meme_templates: List[str]
+    languages: List[str]
+    first_seen: datetime
+    last_seen: datetime
+    platforms: List[str]
+    confidence: float
+
+@dataclass
+class AccountObject:
+    account_id: str
+    platform: str
+    public_handle: str
+    display_name: str
+    creation_time_if_public: Optional[datetime]
+    bio_if_public: Optional[str]
+    public_metrics: Dict[str, int]
+    first_seen: datetime
+    last_seen: datetime
+    automation_indicators: List[str] = field(default_factory=list)
+    is_suspicious: bool = False # Flagged by heuristics, NOT proven bad actor
+
+@dataclass
+class InfluenceCampaignObject:
+    campaign_id: str
+    candidate_name: Optional[str]
+    time_range: Tuple[datetime, datetime]
+    narratives: List[str]
+    meme_templates: List[str]
+    platforms: List[str]
+    accounts: List[str]
+    coordination_signals: List[str]
+    inauthenticity_signals: List[str]
+    attribution_claims: List[Dict[str, Any]]
+    verification_state: str
+    confidence: float
+    limitations: List[str]
+    state: CampaignState
+
+@dataclass
+class GraphNode:
+    node_id: str
+    type: str # Content, Account, MemeTemplate, Narrative, etc.
+    attributes: Dict[str, Any]
+
+@dataclass
+class GraphEdge:
+    edge_id: str
+    source_node_id: str
+    target_node_id: str
+    relation: str # POSTED, DERIVED_FROM, SYNCHRONIZED_WITH, etc.
+    confidence: float
+    evidence_ids: List[str]
+
+@dataclass
+class Hypothesis:
+    id: str
+    description: str
+    support_evidence: List[str]
+    opposition_evidence: List[str]
+    unknowns: List[str]
+    falsification_criteria: str
+    status: HypothesisStatus
+
+# ==============================================================================
+# SECTIONS 30-33, 166: DETERMINISTIC ANALYSIS MODULES
+# ==============================================================================
+
+class HashingModule:
+    @staticmethod
+    def compute_sha256(data: str) -> str:
+        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def compute_perceptual_hash(image_data: bytes) -> str:
+        """
+        Simulates pHash. In production, use 'imagehash' library.
+        Deterministic based on input bytes for consistency.
+        """
+        # Simple MD5 truncation for simulation purposes
+        return hashlib.md5(image_data).hexdigest()[:16]
+
+class TextNormalizationModule:
+    @staticmethod
+    def normalize(text: str) -> str:
+        if not text:
+            return ""
+        # Lowercase, remove extra whitespace, basic punctuation cleanup
+        cleaned = " ".join(text.lower().split())
+        return cleaned.strip()
+
+class CoordinationAnalyzer:
+    """
+    Implements Section 48 (Coordination Analysis) and 50 (States).
+    Focuses on temporal and structural signals without assuming malice.
+    """
+    
+    @staticmethod
+    def detect_temporal_bursts(contents: List[ContentObject], window_seconds: int = 300) -> List[List[str]]:
+        """
+        Identifies clusters of posts occurring within a tight time window.
+        Returns list of lists containing content_ids.
+        """
+        sorted_contents = sorted(contents, key=lambda x: x.published_at)
+        clusters = []
+        current_cluster = []
+        
+        for i, c in enumerate(sorted_contents):
+            if not current_cluster:
+                current_cluster.append(c.content_id)
+                continue
+            
+            prev_c = sorted_contents[i-1]
+            diff = (c.published_at - prev_c.published_at).total_seconds()
+            
+            if diff <= window_seconds:
+                current_cluster.append(c.content_id)
+            else:
+                if len(current_cluster) > 1:
+                    clusters.append(current_cluster.copy())
+                current_cluster = [c.content_id]
+                
+        if len(current_cluster) > 1:
+            clusters.append(current_cluster)
+            
+        return clusters
+
+    @staticmethod
+    def analyze_source_independence(contents: List[ContentObject]) -> Dict[str, SourceIndependenceState]:
+        """
+        Determines if content derives from same upstream artifact (URL/Media).
+        Section 56 & 57: Ten posts copying one Telegram message = one upstream family.
+        """
+        url_map = defaultdict(list)
+        media_map = defaultdict(list)
+        independence_states = {}
+        
+        for c in contents:
+            primary_url = c.urls[0] if c.urls else None
+            if primary_url:
+                url_map[primary_url].append(c.content_id)
+            
+            if c.media_ids:
+                media_map[c.media_ids[0]].append(c.content_id)
+        
+        # Mark as dependent if multiple items share exact URL or Media Hash
+        all_dependent_ids = set()
+        for ids in list(url_map.values()) + list(media_map.values()):
+            if len(ids) > 1:
+                all_dependent_ids.update(ids)
+                
+        for c in contents:
+            if c.content_id in all_dependent_ids:
+                independence_states[c.content_id] = SourceIndependenceState.DEPENDENT
+            else:
+                independence_states[c.content_id] = SourceIndependenceState.INDEPENDENT
+                    
+        return independence_states
+
+class AutomationHeuristicEngine:
+    """
+    Implements Section 45-47. Detects indicators, NOT bots.
+    """
+    @staticmethod
+    def assess_automation(account: AccountObject, contents_by_account: Dict[str, List[ContentObject]]) -> AutomationState:
+        """
+        Checks posting frequency and timing regularity.
+        """
+        acc_contents = contents_by_account.get(account.account_id, [])
+        if len(acc_contents) < 5:
+            return AutomationState.UNKNOWN
+        
+        times = [c.published_at for c in acc_contents]
+        times.sort()
+        
+        intervals = [(times[i+1] - times[i]).total_seconds() for i in range(len(times)-1)]
+        if not intervals:
+            return AutomationState.UNKNOWN
+            
+        avg_interval = sum(intervals) / len(intervals)
+        variance = sum((x - avg_interval)**2 for x in intervals) / len(intervals)
+        
+        # Low variance suggests scheduled/automated behavior
+        # Thresholds are illustrative; real systems need tuned ML models
+        if variance < 100 and avg_interval < 3600: # Less than 1 min variance, hourly freq
+            return AutomationState.LIKELY_AUTOMATED
+        elif variance < 500:
+            return AutomationState.AUTOMATION_CANDIDATE
+        else:
+            return AutomationState.HUMAN_OR_MANUAL_CANDIDATE
+
+# ==============================================================================
+# SECTION 164-165: DUAL-AI REVIEW SIMULATION
+# ==============================================================================
+
+class IndependentSkepticAI:
+    """
+    Pass 2: Reviews artifacts without seeing Pass 1 conclusions initially.
+    Actively seeks alternative explanations (Section 162).
+    """
+    @staticmethod
+    def review_findings(
+        coordination_clusters: List[List[str]],
+        independence_map: Dict[str, SourceIndependenceState],
+        automation_states: Dict[str, AutomationState],
+        contents: List[ContentObject]
+    ) -> Dict[str, Any]:
+        skepticism_report = {
+            "alternative_explanations": [],
+            "confidence_adjustments": {},
+            "flags": [],
+            "diagnostic_questions": []
+        }
+        
+        # Check 1: Is synchronization explained by press embargo?
+        if coordination_clusters:
+            skepticism_report["alternative_explanations"].append(
+                "Synchronized posting may result from press embargoes, scheduled marketing tools, or live event reactions."
+            )
+            skepticism_report["flags"].append("VERIFY_UPSTREAM_SOURCE_FOR_SYNC")
+            skepticism_report["diagnostic_questions"].append(
+                "Do the synchronized accounts have prior history of coordinated behavior?"
+            )
+            
+        # Check 2: Are dependencies just news syndication?
+        dependent_count = sum(1 for v in independence_map.values() if v == SourceIndependenceState.DEPENDENT)
+        if dependent_count > 0:
+            skepticism_report["alternative_explanations"].append(
+                "Shared URLs/media may indicate legitimate news syndication, official press releases, or viral organic sharing."
+            )
+            skepticism_report["diagnostic_questions"].append(
+                "Is the shared URL an official government/news source or a suspicious mirror?"
+            )
+            
+        # Check 3: Is automation malicious?
+        likely_auto_accounts = [acc for acc, state in automation_states.items() if state == AutomationState.LIKELY_AUTOMATED]
+        if likely_auto_accounts:
+            skepticism_report["alternative_explanations"].append(
+                "Automated behavior does not imply malicious intent; could be customer service alerts, RSS feeds, or legitimate scheduling."
+            )
+            skepticism_report["diagnostic_questions"].append(
+                "Are these accounts verified entities or anonymous personas?"
+            )
+            
+        # Check 4: Meme Template Reuse vs. Campaign
+        templates_used = set()
+        for c in contents:
+            if c.media_ids:
+                templates_used.add(c.media_ids[0][:8])
+        if len(templates_used) > 1:
+             skepticism_report["alternative_explanations"].append(
+                "Multiple templates suggest diverse creative efforts rather than a single rigid campaign script."
+            )
+
+        return skepticism_report
+
+# ==============================================================================
+# MAIN ENGINE: MEMEINT / INFLUENCEINT AI EMPLOYEE
+# ==============================================================================
+
+class MemeIntEmployee:
+    def __init__(self, model_mode: str = "LOCAL_ONLY"):
+        self.model_mode = model_mode
+        self.hasher = HashingModule()
+        self.normalizer = TextNormalizationModule()
+        self.coord_analyzer = CoordinationAnalyzer()
+        self.auto_engine = AutomationHeuristicEngine()
+        self.skeptic = IndependentSkepticAI()
+        
+        # Graphical Memory Containers (Section 153)
+        self.graph_nodes: Dict[str, GraphNode] = {}
+        self.graph_edges: List[GraphEdge] = []
+        
+        logger.info(f"MemeInt Employee initialized in mode: {model_mode}")
+
+    def process_case(self, 
+                     objective: str, 
+                     authorized_scope: Dict[str, Any],
+                     raw_inputs: List[Dict[str, Any]],
+                     existing_facts: Dict[str, bool] = None) -> Dict[str, Any]:
+        
+        # 1. Authorization & Policy Check (Section 4, 12)
+        try:
+            enforce_policy(objective, authorized_scope)
+        except PolicyViolation as e:
+            return {"status": "POLICY_BLOCKED", "error": str(e)}
+        
+        if existing_facts is None:
+            existing_facts = {}
+
+        logger.info(f"Starting Case Processing. Objective: {objective[:50]}...")
+
+        # Storage Containers
+        contents: List[ContentObject] = []
+        evidences: List[EvidenceObject] = []
+        accounts: Dict[str, AccountObject] = {}
+        memes: List[MemeVariantObject] = []
+        templates: Dict[str, MemeTemplateObject] = {}
+        claims: List[ClaimObject] = []
+        narratives: List[NarrativeObject] = []
+        hypotheses: List[Hypothesis] = []
+        
+        now = datetime.now(timezone.utc)
+
+        # 2. Content Ingestion & Preservation (Section 26)
+        for idx, item in enumerate(raw_inputs):
+            content_id = f"C_{idx}_{item['platform']}"
+            evidence_id = f"E_{idx}"
+            
+            # Normalize Data
+            text_norm = self.normalizer.normalize(item.get('text', ''))
+            media_hash = ""
+            if 'media_bytes' in item:
+                media_hash = self.hasher.compute_perceptual_hash(item['media_bytes'])
+            elif 'media_id' in item:
+                media_hash = self.hasher.compute_sha256(str(item['media_id']))
+            
+            # Create Evidence Object
+            pub_date_str = item['published_at'].replace('Z', '+00:00')
+            pub_dt = datetime.fromisoformat(pub_date_str)
+            
+            ev = EvidenceObject(
+                evidence_id=evidence_id,
+                case_id="CASE_001",
+                source_id=item.get('source_id', 'UNKNOWN'),
+                platform=item['platform'],
+                content_id=content_id,
+                published_at=pub_dt,
+                first_seen=now,
+                retrieved_at=now,
+                content_hash=self.hasher.compute_sha256(json.dumps(item)),
+                authorization_context=authorized_scope.get('context', 'PUBLIC_DATA')
+            )
+            evidences.append(ev)
+
+            # Create Account Object
+            acc_id = item.get('account_id', 'ANON_USER')
+            if acc_id not in accounts:
+                accounts[acc_id] = AccountObject(
+                    account_id=acc_id,
+                    platform=item['platform'],
+                    public_handle=item.get('handle', ''),
+                    display_name=item.get('display_name', ''),
+                    creation_time_if_public=None,
+                    bio_if_public=item.get('bio', ''),
+                    public_metrics={},
+                    first_seen=now,
+                    last_seen=now
+                )
+
+            # Create Content Object
+            cont = ContentObject(
+                content_id=content_id,
+                platform=item['platform'],
+                author_account=acc_id,
+                channel_or_page=item.get('channel_id'),
+                content_type=item.get('type', 'TEXT'),
+                text=text_norm,
+                hashtags=item.get('hashtags', []),
+                urls=item.get('urls', []),
+                media_ids=[media_hash] if media_hash else [],
+                language=item.get('language', 'en'),
+                published_at=pub_dt,
+                engagement_snapshot=item.get('engagement', {}),
+                evidence_ids=[evidence_id],
+                raw_data=item
+            )
+            contents.append(cont)
+
+            # Extract Claims (Simulated NLP)
+            if item.get('extracted_claims'):
+                for cl in item['extracted_claims']:
+                    claim_obj = ClaimObject(
+                        claim_id=f"CL_{len(claims)}",
+                        subject=cl['subject'],
+                        predicate=cl['predicate'],
+                        object=cl['object'],
+                        time_reference=cl.get('time_ref'),
+                        location_reference=cl.get('loc_ref'),
+                        claim_type=cl.get('type', 'FACTUAL'),
+                        explicit_or_implied=cl.get('explicitness', 'EXPLICIT'),
+                        source_content_id=content_id,
+                        verification_state=ClaimVerificationState.INCONCLUSIVE
+                    )
+                    claims.append(claim_obj)
+
+        # 3. Meme Template Detection & Lineage (Section 32-34)
+        template_groups: Dict[str, List[ContentObject]] = defaultdict(list)
+        for c in contents:
+            if c.media_ids:
+                sig = c.media_ids[0][:8] 
+                template_groups[sig].append(c)
+        
+        for sig, group in template_groups.items():
+            tid = f"TPL_{sig}"
+            variants = []
+            for g in group:
+                v = MemeVariantObject(
+                    variant_id=f"VAR_{g.content_id}",
+                    template_id=tid,
+                    media_hash=g.media_ids[0],
+                    perceptual_hash=g.media_ids[0],
+                    caption=g.text,
+                    language=g.language,
+                    first_seen=g.published_at,
+                    platform=g.platform,
+                    source_content_id=g.content_id
+                )
+                variants.append(v)
+                memes.append(v)
+            
+            tpl = MemeTemplateObject(
+                template_id=tid,
+                visual_signature=sig,
+                layout_signature="SIMILAR_LAYOUT",
+                text_regions=[], 
+                first_seen=min([v.first_seen for v in variants]),
+                variant_count=len(variants),
+                platforms=list(set([v.platform for v in variants])),
+                related_narratives=[],
+                confidence=0.9 if len(variants) > 1 else 0.5
+            )
+            templates[tid] = tpl
+
+        # 4. Propagation & Coordination Analysis (Section 48-50)
+        sync_clusters = self.coord_analyzer.detect_temporal_bursts(contents)
+        indep_states = self.coord_analyzer.analyze_source_independence(contents)
+        
+        # Map accounts to their contents for automation analysis
+        contents_by_account = defaultdict(list)
+        for c in contents:
+            contents_by_account[c.author_account].append(c)
+            
+        automation_states = {}
+        for acc_id, acc_obj in accounts.items():
+            state = self.auto_engine.assess_automation(acc_obj, contents_by_account)
+            automation_states[acc_id] = state
+            acc_obj.automation_indicators = [state.name]
+            if state == AutomationState.LIKELY_AUTOMATED:
+                acc_obj.is_suspicious = True # Flagged for review, not confirmed bad
+
+        # Determine Coordination State
+        coord_state = CoordinationState.NO_COORDINATION_EVIDENCE
+        if sync_clusters:
+            # Check if these synchronized posts are also dependent (same source)
+            dependent_sync = False
+            for cluster in sync_clusters:
+                for cid in cluster:
+                    if indep_states.get(cid) == SourceIndependenceState.DEPENDENT:
+                        dependent_sync = True
+                        break
+            
+            if dependent_sync:
+                coord_state = CoordinationState.COORDINATION_SUPPORTED
+            else:
+                coord_state = CoordinationState.ORGANIC_COORDINATION_CANDIDATE
+                
+        # Determine Inauthenticity Candidate (Section 51)
+        inauthenticity_candidate = False
+        if coord_state == CoordinationState.COORDINATION_SUPPORTED:
+            # Look for fake persona indicators or mass creation (simulated)
+            # Here we assume if many accounts are Likely Automated AND Dependent, it's a candidate
+            auto_accs = [a for a, s in automation_states.items() if s == AutomationState.LIKELY_AUTOMATED]
+            if len(auto_accs) >= 2: # Require at least 2 automated-looking accounts in sync
+                inauthenticity_candidate = True
+                coord_state = CoordinationState.INAUTHENTIC_COORDINATION_CANDIDATE
+
+        # 5. Fact Gate Application (Section 112)
+        for claim in claims:
+            claim_key = f"{claim.subject} {claim.predicate} {claim.object}"
+            if claim_key in existing_facts:
+                if existing_facts[claim_key]:
+                    claim.verification_state = ClaimVerificationState.SUPPORTED
+                else:
+                    claim.verification_state = ClaimVerificationState.DISPUTED
+            else:
+                claim.verification_state = ClaimVerificationState.INCONCLUSIVE
+
+        # 6. Dual-AI Review (Section 164)
+        skeptic_review = self.skeptic.review_findings(sync_clusters, indep_states, automation_states, contents)
+        
+        # Adjust Confidence based on Skeptic Review
+        final_confidence_penalty = 0.0
+        if "VERIFY_UPSTREAM_SOURCE_FOR_SYNC" in skeptic_review["flags"]:
+            final_confidence_penalty += 0.2
+
+        # 7. Hypothesis Generation (Section 161)
+        h1 = Hypothesis(id="H1", description="Organic Viral Spread", support_evidence=["High variance in captions"], opposition_evidence=[], unknowns=["True origin"], falsification_criteria="If all captions are identical, reject.", status=HypothesisStatus.ACTIVE)
+        h2 = Hypothesis(id="H2", description="Coordinated Authentic Campaign", support_evidence=["Sync posting", "Shared official URLs"] if sync_clusters else [], opposition_evidence=["No deceptive identity found"], unknowns=["Operator Identity"], falsification_criteria="If deception proven, upgrade to H3.", status=HypothesisStatus.ACTIVE if sync_clusters else HypothesisStatus.REJECTED)
+        h3 = Hypothesis(id="H3", description="Inauthentic Bot Network", support_evidence=["Fake personas", "Mass account creation"] if inauthenticity_candidate else [], opposition_evidence=skeptic_review["alternative_explanations"], unknowns=["Attribution"], falsification_criteria="If human control proven, reject.", status=HypothesisStatus.CANDIDATE if inauthenticity_candidate else HypothesisStatus.REJECTED)
+        
+        hypotheses.extend([h1, h2, h3])
+
+        # 8. Build Graphical Memory (Section 153)
+        self._build_graph(contents, accounts, templates, sync_clusters, indep_states)
+
+        # 9. Construct Result Object (Section 186)
+        
+        # Determine Campaign State
+        campaign_state = CampaignState.NO_CAMPAIGN_EVIDENCE
+        if coord_state == CoordinationState.INAUTHENTIC_COORDINATION_CANDIDATE:
+            campaign_state = CampaignState.INAUTHENTIC_CAMPAIGN_CANDIDATE
+        elif coord_state == CoordinationState.COORDINATION_SUPPORTED:
+            campaign_state = CampaignState.COORDINATED_CAMPAIGN_SUPPORTED
+        elif len(memes) > 0:
+            campaign_state = CampaignState.CONTENT_CLUSTER
+
+        # Build Analyst Summary (Section 187)
+        summary_text = self._generate_analyst_summary(
+            contents, templates, sync_clusters, indep_states, claims, campaign_state, skeptic_review
+        )
+
+        result = {
+            "case_id": "CASE_001",
+            "task_id": "TASK_MEME_ANALYSIS_FULL",
+            "objective": objective,
+            "status": "COMPLETED",
+            "analyst_summary": summary_text,
+            "artifacts": {
+                "contents_processed": len(contents),
+                "evidences_preserved": len(evidences),
+                "accounts_mapped": list(accounts.keys()),
+                "memes_variants": len(memes),
+                "meme_templates": list(templates.keys()),
+                "claims_extracted": len(claims),
+                "narratives_identified": len(narratives)
+            },
+            "analysis_details": {
+                "coordination_state": coord_state.name,
+                "campaign_state": campaign_state.name,
+                "inauthenticity_candidate": inauthenticity_candidate,
+                "synchronization_clusters": sync_clusters,
+                "source_independence_map": {k: v.name for k, v in indep_states.items()},
+                "automation_states": {k: v.name for k, v in automation_states.items()},
+                "fact_check_results": [{c.claim_id: c.verification_state.name} for c in claims],
+                "hypotheses": [asdict(h) for h in hypotheses],
+                "skeptic_review": skeptic_review,
+                "graph_stats": {
+                    "nodes_created": len(self.graph_nodes),
+                    "edges_created": len(self.graph_edges)
+                }
+            },
+            "limitations": [
+                "First-seen times are relative to collection start, not global origin.",
+                "Automation detection is heuristic; humans can schedule posts.",
+                "No private data accessed per LOCAL_ONLY/HYBRID policy.",
+                "Confidence penalized by %.2f due to unverified upstream sources." % final_confidence_penalty
+            ],
+            "next_best_action": [
+                "Trace upstream source of shared URLs using WEBINT.",
+                "Verify account creation dates for synchronization cluster members.",
+                "Consult DISINFOINT for factual adjudication of disputed claims.",
+                "Review Platform Transparency Reports for takedown history."
+            ]
+        }
+
+        logger.info("Case processing complete. Defensive report generated.")
+        return result
+
+    def _build_graph(self, contents, accounts, templates, sync_clusters, indep_states):
+        """
+        Populates Graphical Memory (Section 153).
+        Nodes: Content, Account, MemeTemplate.
+        Edges: POSTED, USES_TEMPLATE, SYNCHRONIZED_WITH_CANDIDATE, DEPENDENT_ON.
+        """
+        # Add Content Nodes
+        for c in contents:
+            nid = f"N_CONTENT_{c.content_id}"
+            self.graph_nodes[nid] = GraphNode(node_id=nid, type="Content", attributes={"platform": c.platform})
+            
+            # Edge: Account POSTED Content
+            acc_nid = f"N_ACCOUNT_{c.author_account}"
+            if acc_nid not in self.graph_nodes:
+                self.graph_nodes[acc_nid] = GraphNode(node_id=acc_nid, type="Account", attributes={})
+            
+            self.graph_edges.append(GraphEdge(
+                edge_id=str(uuid.uuid4()),
+                source_node_id=acc_nid,
+                target_node_id=nid,
+                relation="POSTED",
+                confidence=1.0,
+                evidence_ids=c.evidence_ids
+            ))
+            
+            # Edge: Content USES_TEMPLATE (if applicable)
+            if c.media_ids:
+                tmpl_sig = c.media_ids[0][:8]
+                tmpl_nid = f"N_TEMPLATE_{tmpl_sig}"
+                if tmpl_nid not in self.graph_nodes:
+                    self.graph_nodes[tmpl_nid] = GraphNode(node_id=tmpl_nid, type="MemeTemplate", attributes={})
+                
+                self.graph_edges.append(GraphEdge(
+                    edge_id=str(uuid.uuid4()),
+                    source_node_id=nid,
+                    target_node_id=tmpl_nid,
+                    relation="USES_TEMPLATE",
+                    confidence=0.9,
+                    evidence_ids=[]
+                ))
+
+        # Add Sync Edges
+        for cluster in sync_clusters:
+            for i in range(len(cluster)):
+                for j in range(i+1, len(cluster)):
+                    src_nid = f"N_CONTENT_{cluster[i]}"
+                    tgt_nid = f"N_CONTENT_{cluster[j]}"
+                    if src_nid in self.graph_nodes and tgt_nid in self.graph_nodes:
+                        self.graph_edges.append(GraphEdge(
+                            edge_id=str(uuid.uuid4()),
+                            source_node_id=src_nid,
+                            target_node_id=tgt_nid,
+                            relation="SYNCHRONIZED_WITH_CANDIDATE",
+                            confidence=0.8,
+                            evidence_ids=[]
+                        ))
+
+    def _generate_analyst_summary(self, contents, templates, sync_clusters, indep_states, claims, campaign_state, skeptic_review) -> str:
+        """
+        Generates the structured summary required by Section 187.
+        """
+        lines = []
+        lines.append("--- TRACEATLAS / MEMEINT DEFENSIVE SUMMARY ---")
+        
+        # NARRATIVE
+        lines.append(f"NARRATIVE: Analyzed {len(contents)} pieces of content across {len(set(c.platform for c in contents))} platforms.")
+        
+        # MEME
+        if templates:
+            lines.append(f"MEME: Detected {len(templates)} unique meme templates with {sum(t.variant_count for t in templates.values())} total variants.")
+        else:
+            lines.append("MEME: No distinct meme templates identified in this batch.")
+            
+        # EARLIEST OBSERVATION
+        if contents:
+            earliest = min(contents, key=lambda x: x.published_at)
+            lines.append(f"EARLIEST OBSERVATION: Channel/Acc {earliest.author_account} posted the earliest currently observed version at {earliest.published_at}.")
+            lines.append("CAUTION: This timestamp represents the earliest observation in our dataset, not proof of original creation.")
+            
+        # PROPAGATION
+        if sync_clusters:
+            lines.append(f"PROPAGATION: Identified {len(sync_clusters)} temporal burst(s) indicating rapid simultaneous dissemination.")
+        else:
+            lines.append("PROPAGATION: Standard diffusion pattern observed; no significant temporal bursts.")
+            
+        # COORDINATION
+        dep_count = sum(1 for v in indep_states.values() if v == SourceIndependenceState.DEPENDENT)
+        if dep_count > 0:
+            lines.append(f"COORDINATION: {dep_count} items appear to derive from common upstream sources (Dependent).")
+        else:
+            lines.append("COORDINATION: Sources appear largely independent.")
+            
+        # ALTERNATIVE
+        if skeptic_review["alternative_explanations"]:
+            lines.append(f"ALTERNATIVE EXPLANATIONS: {'; '.join(skeptic_review['alternative_explanations'])}")
+            
+        # INAUTHENTICITY
+        if campaign_state in [CampaignState.INAUTHENTIC_CAMPAIGN_CANDIDATE, CampaignState.INAUTHENTIC_CAMPAIGN_SUPPORTED]:
+            lines.append("INAUTHENTICITY: Indicators of coordinated inauthentic behavior present (Candidate Status).")
+        else:
+            lines.append("INAUTHENTICITY: Insufficient evidence to suggest inauthentic coordination.")
+            
+        # CAMPAIGN STATUS
+        lines.append(f"CAMPAIGN STATUS: {campaign_state.name}")
+        
+        # ATTRIBUTION
+        lines.append("ATTRIBUTION: UNRESOLVED. No verified actor attribution supported by current evidence.")
+        
+        # CLAIM
+        disputed = [c for c in claims if c.verification_state == ClaimVerificationState.DISPUTED]
+        if disputed:
+            lines.append(f"CLAIM: Underlying factual claims are DISPUTED by independently sourced evidence.")
+        else:
+            lines.append("CLAIM: Factual status inconclusive or supported pending further verification.")
+            
+        # NEXT ACTION
+        lines.append("NEXT ACTION: Resolve upstream sources and verify account control before escalating conclusions.")
+        
+        return "\n".join(lines)
+
+# ==============================================================================
+# EXECUTION EXAMPLE WITH COMPLEX SCENARIO
+# ==============================================================================
+
+if __name__ == "__main__":
+    # Initialize System
+    analyst = MemeIntEmployee(model_mode="HYBRID")
+
+    # Scenario: A mix of organic discussion and potential coordinated amplification
+    mock_raw_inputs = [
+        # 1. Original Post (Suspected Seed)
+        {
+            "platform": "X_Twitter",
+            "account_id": "user_seed_01",
+            "handle": "@SeedBot",
+            "type": "MEME",
+            "text": "BREAKING: Official X caught stealing funds! #Corruption #Truth",
+            "hashtags": ["Corruption", "Truth"],
+            "urls": ["http://leak-site.com/doc.pdf"],
+            "media_bytes": b"meme_template_red_alert_v1",
+            "published_at": "2026-10-09T10:00:00Z",
+            "language": "en",
+            "engagement": {"likes": 5, "retweets": 2},
+            "extracted_claims": [{"subject": "Official X", "predicate": "stole", "object": "Funds"}]
+        },
+        # 2. Coordinated Amplifier 1 (Same time, same URL, same image)
+        {
+            "platform": "Telegram",
+            "account_id": "chan_amplify_01",
+            "channel_id": "Channel_Alpha",
+            "type": "MEME",
+            "text": "Look what they did! Read here:",
+            "hashtags": ["Truth"],
+            "urls": ["http://leak-site.com/doc.pdf"], # Same URL
+            "media_bytes": b"meme_template_red_alert_v1", # Same Image
+            "published_at": "2026-10-09T10:00:10Z", # 10s later
+            "language": "en",
+            "engagement": {"views": 1000},
+            "extracted_claims": [{"subject": "Official X", "predicate": "stole", "object": "Funds"}]
+        },
+        # 3. Coordinated Amplifier 2 (Same time, same URL, same image)
+        {
+            "platform": "Facebook",
+            "account_id": "page_amplify_02",
+            "type": "POST",
+            "text": "Shocking revelation about Official X.",
+            "hashtags": ["Corruption"],
+            "urls": ["http://leak-site.com/doc.pdf"], # Same URL
+            "media_bytes": b"meme_template_red_alert_v1", # Same Image
+            "published_at": "2026-10-09T10:00:15Z", # 15s later
+            "language": "en",
+            "engagement": {"shares": 50},
+            "extracted_claims": [{"subject": "Official X", "predicate": "stole", "object": "Funds"}]
+        },
+        # 4. Organic Skeptic (Different URL, different image, later time)
+        {
+            "platform": "Reddit",
+            "account_id": "user_skeptic_99",
+            "handle": "u/SkepticUser",
+            "type": "TEXT",
+            "text": "Is this leak site legit? Seems suspicious.",
+            "hashtags": [],
+            "urls": ["https://news-outlet.com/fact-check"],
+            "media_bytes": b"",
+            "published_at": "2026-10-09T12:00:00Z", # 2 hours later
+            "language": "en",
+            "engagement": {"upvotes": 100},
+            "extracted_claims": []
+        }
+    ]
+
+    # Define Existing Facts (Simulated Knowledge Base)
+    # Suppose we know Official X did NOT steal funds (Fact Checked)
+    existing_knowledge_base = {
+        "Official X stole Funds": False
+    }
+
+    # Run Analysis
+    try:
+        report = analyst.process_case(
+            objective="Analyze propagation pattern of meme regarding Official X corruption allegations.",
+            authorized_scope={"context": "PUBLIC_RESEARCH", "platforms": ["X_Twitter", "Telegram", "Facebook", "Reddit"]},
+            raw_inputs=mock_raw_inputs,
+            existing_facts=existing_knowledge_base
+        )
+        
+        print("\n" + "="*80)
+        print("TRACEATLAS / MEMEINT FULL REPORT OUTPUT")
+        print("="*80)
+        print(json.dumps(report, indent=4, default=str))
+        
+    except Exception as e:
+        logger.error(f"System Error: {e}", exc_info=True)

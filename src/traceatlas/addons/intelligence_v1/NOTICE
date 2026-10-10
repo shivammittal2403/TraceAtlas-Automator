@@ -1,0 +1,14 @@
+User-supplied source snapshot: OSINT all (2)(1).zip, received for integration.
+The supplied archive contains 135 Python files and one workspace file.
+No external vendor source code or licensed data was fetched for this integration.
+Original archive and member hashes are retained in catalog.json. Two stored
+source files have potential credential-shaped sample strings redacted; their
+stored hashes and redaction counts are recorded separately.
+Maintained copies include syntax, import, runtime and integration repairs.
+Nine maintained panels supersede older supplied copies using repository main
+commit 36618e8a4d1ee9a99f9e5f8dd399c380d99e5315.
+The supplied BIOINT file was empty; its maintained adapter reviews submitted
+research metadata only. It is not a biological modeling or clinical system.
+Source ownership and license provenance are user-supplied and have not been
+independently authenticated. Existing repository license terms govern original
+TraceAtlas modifications; this notice does not grant third-party data rights.

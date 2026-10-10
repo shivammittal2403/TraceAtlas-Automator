@@ -1,0 +1,3109 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS LANGINT — Safe Python Starter Implementation
+
+Purpose:
+  Evidence-first language/linguistic intelligence pipeline.
+
+Hard boundaries enforced in code:
+  - Does NOT infer nationality, ethnicity, religion, political belief,
+    sexual orientation, medical condition, mental state, personality,
+    criminality, honesty, or real-person identity from language alone.
+  - Preserves original text.
+  - Treats translation and authorship as candidates, not proof.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import hashlib
+import json
+import math
+import os
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+
+VERSION = "0.1.0-langint-safe-starter"
+
+MIN_LANGUAGE_CHARS = 20
+MIN_STYLE_CHARS = 800
+TARGET_LANGUAGE_DEFAULT = "en"
+
+# --------------------------------------------------------------------
+# Optional dependencies
+# --------------------------------------------------------------------
+
+HAS_LANGDETECT = False
+try:
+    from langdetect import detect_langs, DetectorFactory  # type: ignore
+
+    DetectorFactory.seed = 0
+    HAS_LANGDETECT = True
+except Exception:
+    HAS_LANGDETECT = False
+
+HAS_FASTTEXT = False
+FASTTEXT_MODEL = None
+try:
+    import fasttext  # type: ignore
+
+    HAS_FASTTEXT = True
+    _ft_model_path = os.environ.get("LANGINT_FASTTEXT_MODEL")
+    if _ft_model_path and Path(_ft_model_path).exists():
+        FASTTEXT_MODEL = fasttext.load_model(_ft_model_path)
+except Exception:
+    HAS_FASTTEXT = False
+    FASTTEXT_MODEL = None
+
+HAS_SPACY = False
+SPACY_NLP = None
+try:
+    import spacy  # type: ignore
+
+    HAS_SPACY = True
+    _spacy_model = os.environ.get("LANGINT_SPACY_MODEL")
+    if _spacy_model:
+        try:
+            SPACY_NLP = spacy.load(_spacy_model)
+        except Exception:
+            SPACY_NLP = None
+except Exception:
+    HAS_SPACY = False
+    SPACY_NLP = None
+
+HAS_TRANSLIT = False
+try:
+    from transliterate import translit  # type: ignore
+
+    HAS_TRANSLIT = True
+except Exception:
+    HAS_TRANSLIT = False
+
+
+# --------------------------------------------------------------------
+# Basic helpers
+# --------------------------------------------------------------------
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def stable_id(prefix: str, *parts: Any) -> str:
+    raw = "|".join(str(p) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def normalize_text(text: str) -> str:
+    if text is None:
+        return ""
+    t = unicodedata.normalize("NFC", str(text))
+    # Remove common zero-width / BOM artifacts for analysis, but original is preserved elsewhere.
+    t = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", t)
+    t = t.replace("\r\n", "\n").replace("\r", "\n")
+    return t
+
+
+def analysis_text(text: str) -> str:
+    return re.sub(r"\s+", " ", normalize_text(text)).strip()
+
+
+def content_hash(text: str) -> str:
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
+
+
+def unique_preserve(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        key = item if isinstance(item, (str, int, float, bool, type(None))) else json.dumps(item, sort_keys=True, ensure_ascii=False)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def tokenize_words(text: str) -> List[str]:
+    return re.findall(r"\b[\w']+\b", text.lower(), re.UNICODE)
+
+
+# --------------------------------------------------------------------
+# Script detection
+# --------------------------------------------------------------------
+
+SCRIPT_RANGES: List[Tuple[str, List[Tuple[int, int]]]] = [
+    ("Latin", [
+        (0x0041, 0x005A), (0x0061, 0x007A),
+        (0x00AA, 0x00AA), (0x00BA, 0x00BA),
+        (0x00C0, 0x024F), (0x1E00, 0x1EFF),
+        (0x2C60, 0x2C7F), (0xA720, 0xA7FF),
+    ]),
+    ("Cyrillic", [
+        (0x0400, 0x04FF), (0x0500, 0x052F),
+        (0x2DE0, 0x2DFF), (0xA640, 0xA69F),
+    ]),
+    ("Arabic", [
+        (0x0600, 0x06FF), (0x0750, 0x077F),
+        (0x08A0, 0x08FF), (0xFB50, 0xFDFF),
+        (0xFE70, 0xFEFF),
+    ]),
+    ("Devanagari", [
+        (0x0900, 0x097F), (0xA8E0, 0xA8FF),
+    ]),
+    ("Bengali", [(0x0980, 0x09FF)]),
+    ("Gurmukhi", [(0x0A00, 0x0A7F)]),
+    ("Gujarati", [(0x0A80, 0x0AFF)]),
+    ("Oriya", [(0x0B00, 0x0B7F)]),
+    ("Tamil", [(0x0B80, 0x0BFF)]),
+    ("Telugu", [(0x0C00, 0x0C7F)]),
+    ("Kannada", [(0x0C80, 0x0CFF)]),
+    ("Malayalam", [(0x0D00, 0x0D7F)]),
+    ("Sinhala", [(0x0D80, 0x0DFF)]),
+    ("Thai", [(0x0E00, 0x0E7F)]),
+    ("Lao", [(0x0E80, 0x0EFF)]),
+    ("Tibetan", [(0x0F00, 0x0FFF)]),
+    ("Myanmar", [(0x1000, 0x109F)]),
+    ("Georgian", [(0x10A0, 0x10FF), (0x2D00, 0x2D2F)]),
+    ("Armenian", [(0x0530, 0x058F)]),
+    ("Greek", [(0x0370, 0x03FF), (0x1F00, 0x1FFF)]),
+    ("Hebrew", [(0x0590, 0x05FF), (0xFB1D, 0xFB4F)]),
+    ("Han", [
+        (0x3400, 0x4DBF), (0x4E00, 0x9FFF),
+        (0xF900, 0xFAFF), (0x20000, 0x2A6DF),
+        (0x2A700, 0x2B73F), (0x2B740, 0x2B81F),
+        (0x2B820, 0x2CEAF), (0x2F800, 0x2FA1F),
+    ]),
+    ("Hangul", [
+        (0x1100, 0x11FF), (0x3130, 0x318F),
+        (0xA960, 0xA97F), (0xAC00, 0xD7AF),
+    ]),
+    ("Hiragana", [(0x3040, 0x309F)]),
+    ("Katakana", [(0x30A0, 0x30FF), (0xFF66, 0xFF9F)]),
+    ("Ethiopic", [
+        (0x1200, 0x137F), (0x1380, 0x139F),
+        (0x2D80, 0x2DFF), (0xAB00, 0xABFF),
+    ]),
+    ("Cherokee", [(0x13A0, 0x13FF)]),
+    ("Canadian_Aboriginal", [(0x1400, 0x167F), (0x18B0, 0x18FF)]),
+]
+
+
+def char_script(ch: str) -> Optional[str]:
+    if not ch.isalpha():
+        return None
+    cat = unicodedata.category(ch)
+    if cat.startswith("M"):
+        return None
+    cp = ord(ch)
+    for name, ranges in SCRIPT_RANGES:
+        for start, end in ranges:
+            if start <= cp <= end:
+                return name
+    return "Other_Alphabetic"
+
+
+def detect_scripts(text: str) -> Dict[str, Any]:
+    counts: Counter = Counter()
+    for ch in text:
+        s = char_script(ch)
+        if s:
+            counts[s] += 1
+
+    total = sum(counts.values())
+    if total == 0:
+        return {
+            "counts": {},
+            "dominant": "NONE",
+            "mixed": False,
+            "confidence": "UNKNOWN",
+            "limitations": ["No alphabetic characters detected."],
+        }
+
+    ratios = {k: v / total for k, v in counts.items()}
+    dominant, dom_ratio = max(ratios.items(), key=lambda x: x[1])
+    significant = [k for k, r in ratios.items() if r >= 0.10]
+    mixed = len(significant) > 1
+
+    if dom_ratio >= 0.90:
+        confidence = "HIGH_CONFIDENCE"
+    elif dom_ratio >= 0.70:
+        confidence = "PROBABLE"
+    elif dom_ratio >= 0.40:
+        confidence = "POSSIBLE"
+    else:
+        confidence = "UNKNOWN"
+
+    limitations = []
+    if mixed:
+        limitations.append("Mixed scripts present; script does not determine language.")
+    if dominant == "Other_Alphabetic":
+        limitations.append("Some alphabetic characters are outside implemented script ranges.")
+
+    return {
+        "counts": dict(counts),
+        "dominant": dominant,
+        "mixed": mixed,
+        "confidence": confidence,
+        "limitations": limitations,
+    }
+
+
+# --------------------------------------------------------------------
+# Language detection fallback resources
+# --------------------------------------------------------------------
+
+SCRIPT_LANGUAGE_HINTS: Dict[str, List[Tuple[str, float]]] = {
+    "Cyrillic": [("ru", 0.35), ("uk", 0.20), ("bg", 0.15), ("sr", 0.10), ("mn", 0.05), ("kk", 0.05)],
+    "Arabic": [("ar", 0.45), ("fa", 0.15), ("ur", 0.15), ("ps", 0.10), ("ug", 0.05), ("sd", 0.05)],
+    "Devanagari": [("hi", 0.40), ("mr", 0.20), ("ne", 0.15), ("sa", 0.10), ("bho", 0.05), ("mai", 0.05)],
+    "Bengali": [("bn", 0.60), ("as", 0.15)],
+    "Gurmukhi": [("pa", 0.70)],
+    "Gujarati": [("gu", 0.70)],
+    "Tamil": [("ta", 0.70)],
+    "Telugu": [("te", 0.70)],
+    "Kannada": [("kn", 0.70)],
+    "Malayalam": [("ml", 0.70)],
+    "Thai": [("th", 0.70)],
+    "Hebrew": [("he", 0.60), ("yi", 0.20)],
+    "Greek": [("el", 0.70)],
+    "Hangul": [("ko", 0.80)],
+    "Han": [("zh", 0.45), ("ja", 0.25), ("ko", 0.10)],
+    "Hiragana": [("ja", 0.80)],
+    "Katakana": [("ja", 0.80)],
+}
+
+STOPWORDS: Dict[str, Set[str]] = {
+    "en": {
+        "the", "and", "is", "are", "was", "were", "of", "in", "to", "a", "an", "it",
+        "that", "for", "with", "on", "at", "by", "from", "as", "be", "has", "have",
+        "had", "not", "but", "or", "if", "then", "this", "these", "those", "i", "you",
+        "he", "she", "we", "they",
+    },
+    "es": {
+        "de", "la", "que", "el", "en", "y", "a", "los", "se", "del", "las", "por",
+        "un", "con", "no", "una", "su", "para", "es", "al", "lo", "como", "mas",
+        "pero", "les", "ya", "o", "este", "si", "porque", "estan", "entre", "cuando",
+        "muy", "sin", "sobre", "tambien", "me", "hasta", "hay", "donde", "quien",
+        "desde", "todo", "nos", "durante", "todos", "uno", "nada", "muchos", "cual",
+        "ella", "estar", "estas", "algo", "nosotros", "mi", "antes", "yo", "otro",
+        "otra", "el", "contra", "luego", "ellos", "esto", "unos",
+    },
+    "fr": {
+        "le", "des", "pour", "ce", "dans", "qui", "ne", "pas", "sur", "du", "de",
+        "au", "si", "comme", "mais", "avec", "en", "il", "que", "la", "par", "plus",
+        "ou", "etre", "nous", "je", "se", "son", "tout", "c", "d", "l", "qu", "n",
+        "s", "m", "t", "y", "vous", "ils", "elles", "on", "aux", "est", "sont",
+    },
+    "de": {
+        "der", "die", "und", "in", "den", "von", "zu", "das", "mit", "sich", "fur",
+        "ist", "im", "dem", "nicht", "ein", "eine", "als", "auch", "es", "an",
+        "werden", "aus", "er", "hat", "dass", "sie", "nach", "um", "am", "sind",
+        "vom", "auf", "noch", "bei", "sein", "wurde", "war", "haben", "wir", "ich",
+        "seine", "worden", "oder", "zum", "nur", "uber", "einen", "hatte", "ihr",
+    },
+    "pt": {
+        "de", "que", "do", "da", "em", "um", "para", "com", "nao", "uma", "os",
+        "no", "se", "na", "por", "mais", "as", "dos", "como", "mas", "foi", "ao",
+        "ele", "das", "tem", "a", "os", "lhe", "de", "ou", "ser", "quando", "ha",
+        "esta", "eu", "so", "porque", "com", "nao",
+    },
+    "it": {
+        "di", "che", "per", "con", "non", "una", "si", "e", "il", "del", "le", "la",
+        "a", "i", "della", "in", "un", "ma", "come", "nella", "ci", "ho", "ha",
+        "sono", "se", "anche", "su", "o", "dal", "lo", "questo", "questa", "quello",
+    },
+    "nl": {
+        "de", "het", "een", "van", "en", "ik", "te", "dat", "die", "in", "naar",
+        "zijn", "hij", "ze", "zij", "we", "wij", "jij", "je", "met", "op", "aan",
+        "voor", "maar", "of", "als", "dan", "ook", "nog", "al", "er", "bij", "uit",
+    },
+    "ru": {
+        "и", "в", "не", "на", "я", "что", "он", "с", "со", "а", "то", "все", "она",
+        "так", "его", "но", "да", "ты", "к", "у", "же", "вы", "за", "бы", "по",
+        "только", "меня", "есть", "нее", "о", "из", "ему", "теперь", "когда", "даже",
+        "ну", "вдруг", "ли", "если", "уже", "или", "ни", "быть", "было", "него", "до",
+        "вас", "ведь", "там", "потом", "себя", "ничего", "ей", "может", "они", "тут",
+        "где", "надо", "ней", "для", "мы", "тебя", "их", "чем", "была", "сам", "чтоб",
+        "без", "будто", "чего", "раз", "тоже", "под", "будет", "ж", "тогда", "кто",
+        "этот", "того", "потому", "этого", "какой", "совсем", "ним", "здесь", "этом",
+        "один", "почти", "мой", "тем", "чтобы", "нее", "были", "ему",
+    },
+    "uk": {
+        "і", "в", "не", "на", "я", "що", "він", "з", "зі", "а", "то", "все", "вона",
+        "так", "його", "але", "так", "ти", "до", "у", "же", "ви", "за", "би", "по",
+        "тільки", "мене", "є", "її", "про", "з", "йому", "тепер", "коли", "навіть",
+        "ну", "раптом", "чи", "якщо", "вже", "або", "ні", "бути", "було", "його",
+        "до", "вас", "адже", "там", "потім", "себе", "нічого", "їй", "може", "вони",
+        "тут", "де", "треба", "неї", "для", "ми", "тебе", "їх", "чим", "була", "сам",
+        "щоб", "без", "ніби", "чого", "раз", "теж", "під", "буде", "ж", "тоді", "хто",
+        "цей", "того", "тому", "цього", "який", "зовсім", "ним", "тут", "цьому", "один",
+        "майже", "мій", "тим", "щоб",
+    },
+    "hi": {
+        "और", "का", "के", "की", "है", "हैं", "में", "से", "पर", "को", "यह", "वह",
+        "जो", "कि", "तो", "भी", "नहीं", "हो", "रहा", "रही", "रहे", "था", "थी",
+        "थे", "आप", "हम", "वे", "मैं", "तुम", "इस", "उस", "एक", "सब", "कुछ",
+        "बहुत", "ही", "या", "लेकिन", "क्योंकि", "जब", "अगर", "यदि",
+    },
+    "ar": {
+        "من", "في", "على", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "تلك", "الذي",
+        "التي", "الذين", "كان", "كانت", "يكون", "تكون", "قد", "سوف", "لا", "نعم",
+        "ما", "أن", "إن", "لكن", "أو", "و", "ف", "ثم", "حتى", "بينما", "عندما",
+        "حيث", "كل", "بعض", "كثير", "قليل", "جدا", "أيضا", "هنا", "هناك", "الآن",
+        "أمس", "اليوم", "غدا",
+    },
+    "fa": {
+        "و", "در", "به", "از", "با", "است", "را", "که", "این", "آن", "یک", "بود",
+        "شده", "می", "نبود", "نیست", "یا", "اما", "اگر", "چون", "برای", "هم",
+        "هر", "چیز", "خود", "او", "ما", "شما", "آنها",
+    },
+    "ur": {
+        "اور", "کی", "کے", "کا", "ہے", "ہیں", "میں", "سے", "پر", "کو", "یہ", "وہ",
+        "جو", "کہ", "تو", "بھی", "نہیں", "ہو", "رہا", "رہی", "رہے", "था", "थी",
+        "थे", "آپ", "ہم", "وہ", "میں", "تم", "اس", "اس", "ایک", "سب", "کچھ",
+        "بہت", "ہی", "یا", "لیکن", "کیونکہ", "جب", "اگر",
+    },
+    "tr": {
+        "ve", "bir", "bu", "şu", "o", "ile", "için", "gibi", "daha", "çok", "az",
+        "değil", "hayır", "evet", "ama", "veya", "ya", "ki", "mı", "mi", "mu", "üm",
+        "ben", "sen", "o", "biz", "siz", "onlar", "benim", "senin", "onun",
+    },
+    "id": {
+        "yang", "dan", "di", "ke", "dari", "untuk", "dengan", "pada", "ini", "itu",
+        "adalah", "akan", "telah", "sudah", "tidak", "bukan", "juga", "atau", "tapi",
+        "karena", "jika", "ada", "pun", "oleh", "sebagai", "saya", "anda", "kami",
+        "mereka", "dia", "ia",
+    },
+    "ms": {
+        "yang", "dan", "di", "ke", "dari", "untuk", "dengan", "pada", "ini", "itu",
+        "adalah", "akan", "telah", "sudah", "tidak", "bukan", "juga", "atau", "tapi",
+        "kerana", "jika", "ada", "pun", "oleh", "sebagai", "saya", "anda", "kami",
+        "mereka", "dia", "ia",
+    },
+    "vi": {
+        "và", "của", "là", "có", "được", "trong", "cho", "một", "này", "đó", "với",
+        "không", "như", "người", "đã", "khi", "cũng", "mà", "để", "theo", "từ",
+        "vì", "nếu", "thì", "tôi", "bạn", "anh", "chị", "ông", "bà", "họ", "chúng",
+    },
+    "th": {
+        "และ", "ของ", "ที่", "เป็น", "ใน", "มี", "ได้", "จะ", "ก็", "ไม่", "หรือ",
+        "แต่", "ถ้า", "เพราะ", "จึง", "นี้", "นั้น", "เรา", "คุณ", "เขา", "มัน",
+        "คือ", "โดย", "จาก", "ถึง", "เกี่ยวกับ",
+    },
+    "ja": {
+        "の", "に", "は", "を", "が", "で", "と", "も", "っ", "い", "る", "な", "け",
+        "れ", "て", "す", "か", "ら", "た", "ち",
+    },
+    "ko": {
+        "은", "는", "이", "가", "을", "를", "의", "에", "에서", "으로", "로", "와",
+        "과", "도", "만", "부터", "까지", "만큼", "보다", "처럼", "따라", "대해",
+        "관한", "대한", "하고", "해서", "하지만", "그러나", "그리고", "또는",
+        "그런데", "그래서", "때문에", "위해",
+    },
+    "zh": {
+        "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "上",
+        "说", "要", "去", "会", "着", "没", "看", "好", "自己", "这", "那", "他",
+        "她", "它", "们", "个", "中", "为", "与", "或", "但", "如果", "因为", "所以",
+        "可以", "已经",
+    },
+    "el": {
+        "και", "το", "η", "ο", "της", "του", "στην", "στο", "με", "για", "από",
+        "σε", "ότι", "είναι", "δεν", "πολύ", "also", "ή", "αλλά", "αν", "όπως",
+        "επίσης", "εγώ", "εσύ", "αυτός", "αυτή", "εμείς", "εσείς", "αυτοί",
+    },
+    "he": {
+        "של", "את", "על", "לא", "אם", "הוא", "היא", "הם", "הן", "אני", "אתה", "את",
+        "אנחנו", "אתם", "זה", "זאת", "מה", "מי", "איפה", "מתי", "למה", "כי", "אבל",
+        "או", "גם", "רק", "עוד", "הרבה", "מעט", "כל", "ב", "ל", "מ", "ה",
+    },
+}
+
+
+def score_language_by_stopwords(text: str) -> List[Tuple[str, float]]:
+    tokens = tokenize_words(text)
+    if not tokens:
+        return []
+
+    scores: List[Tuple[str, float]] = []
+    for lang, sw in STOPWORDS.items():
+        hits = sum(1 for t in tokens if t in sw)
+        if hits >= 2:
+            prob = min(0.65, (hits / max(1, len(tokens))) * 4.0)
+            scores.append((lang, prob))
+
+    scores.sort(key=lambda x: x[1], reverse=True)
+    return scores[:8]
+
+
+def probability_to_confidence(p: float) -> str:
+    if p >= 0.85:
+        return "HIGH_CONFIDENCE"
+    if p >= 0.60:
+        return "PROBABLE"
+    if p >= 0.30:
+        return "POSSIBLE"
+    return "UNKNOWN"
+
+
+def detect_language(text: str) -> List[Dict[str, Any]]:
+    analysis = analysis_text(text)
+    alpha_len = sum(1 for ch in analysis if ch.isalpha())
+    limitations: List[str] = []
+
+    if alpha_len < MIN_LANGUAGE_CHARS:
+        return [{
+            "language": "UNKNOWN",
+            "probability": 0.0,
+            "confidence": "INSUFFICIENT_TEXT",
+            "evidence": [f"alphabetic_chars={alpha_len}"],
+            "limitations": ["Text too short for reliable language identification."],
+        }]
+
+    candidates: List[Dict[str, Any]] = []
+
+    if FASTTEXT_MODEL is not None:
+        try:
+            single = analysis[:5000].replace("\n", " ")
+            labels, probs = FASTTEXT_MODEL.predict(single)
+            for lab, p in zip(labels, probs):
+                lang = str(lab).replace("__label__", "")
+                candidates.append({
+                    "language": lang,
+                    "probability": float(p),
+                    "source": "fasttext",
+                })
+        except Exception as exc:
+            limitations.append(f"fasttext_error:{exc}")
+
+    if HAS_LANGDETECT:
+        try:
+            for d in detect_langs(analysis[:5000]):
+                candidates.append({
+                    "language": str(d.lang),
+                    "probability": float(d.prob),
+                    "source": "langdetect",
+                })
+        except Exception as exc:
+            limitations.append(f"langdetect_error:{exc}")
+
+    script_info = detect_scripts(analysis)
+    dominant_script = script_info["dominant"]
+
+    if dominant_script in SCRIPT_LANGUAGE_HINTS:
+        for lang, p in SCRIPT_LANGUAGE_HINTS[dominant_script]:
+            candidates.append({
+                "language": lang,
+                "probability": p,
+                "source": "script_hint",
+            })
+
+    if dominant_script == "Han" and ("Hiragana" in script_info["counts"] or "Katakana" in script_info["counts"]):
+        candidates.append({
+            "language": "ja",
+            "probability": 0.75,
+            "source": "han_kana",
+        })
+
+    for lang, p in score_language_by_stopwords(analysis):
+        candidates.append({
+            "language": lang,
+            "probability": p,
+            "source": "stopword",
+        })
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for c in candidates:
+        lang = c["language"]
+        p = float(c["probability"])
+        src = c["source"]
+        if lang not in merged or p > merged[lang]["probability"]:
+            merged[lang] = {
+                "language": lang,
+                "probability": p,
+                "evidence": [f"source={src}"],
+                "limitations": [],
+            }
+        else:
+            merged[lang]["evidence"].append(f"source={src}")
+
+    if not merged:
+        return [{
+            "language": "UNKNOWN",
+            "probability": 0.0,
+            "confidence": "UNKNOWN",
+            "evidence": ["no_detector_match"],
+            "limitations": limitations + ["No language detector or reliable heuristic match."],
+        }]
+
+    result: List[Dict[str, Any]] = []
+    for m in merged.values():
+        source_types = set()
+        for ev in m["evidence"]:
+            if ev.startswith("source="):
+                source_types.add(ev.split("=", 1)[1])
+
+        if source_types & {"fasttext", "langdetect"}:
+            cap = 0.95
+        elif "script_hint" in source_types or "han_kana" in source_types:
+            cap = 0.55
+        else:
+            cap = 0.65
+
+        prob = min(float(m["probability"]), cap)
+        conf = probability_to_confidence(prob)
+
+        lims = list(m["limitations"])
+        if "script_hint" in source_types or "han_kana" in source_types:
+            lims.append("Script is not language; candidates are possible only.")
+        if "stopword" in source_types:
+            lims.append("Stopword heuristic is weak and short-text sensitive.")
+        if alpha_len < 100:
+            lims.append("Short text increases uncertainty.")
+        lims.extend(limitations)
+
+        result.append({
+            "language": m["language"],
+            "probability": round(prob, 4),
+            "confidence": conf,
+            "evidence": unique_preserve(m["evidence"]),
+            "limitations": unique_preserve(lims),
+        })
+
+    result.sort(key=lambda x: x["probability"], reverse=True)
+    return result[:5]
+
+
+# --------------------------------------------------------------------
+# Sentence / code-switching segmentation
+# --------------------------------------------------------------------
+
+def sentence_spans(text: str) -> List[Tuple[int, int]]:
+    spans: List[Tuple[int, int]] = []
+    pattern = re.compile(r"[^.!?।۔؟\n]+[.!?।۔؟]?", re.UNICODE)
+    for m in pattern.finditer(text):
+        chunk = m.group()
+        if chunk.strip():
+            spans.append((m.start(), m.end()))
+    return spans
+
+
+def split_sentences(text: str) -> List[str]:
+    norm = normalize_text(text)
+    return [norm[s:e].strip() for s, e in sentence_spans(norm) if norm[s:e].strip()]
+
+
+def segment_code_switching(source_id: str, text: str) -> Dict[str, Any]:
+    spans = sentence_spans(normalize_text(text))
+    segments: List[Dict[str, Any]] = []
+    lang_counts: Counter = Counter()
+
+    for idx, (s, e) in enumerate(spans):
+        sent = text[s:e]
+        langs = detect_language(sent)
+        top = langs[0] if langs else {"language": "UNKNOWN", "confidence": "UNKNOWN"}
+        lang = top["language"]
+        weight = max(1, len(analysis_text(sent)))
+        if lang != "UNKNOWN":
+            lang_counts[lang] += weight
+
+        segments.append({
+            "segment_id": stable_id("SEG", source_id, idx, s),
+            "source_id": source_id,
+            "text": sent,
+            "start": s,
+            "end": e,
+            "language": lang,
+            "script": detect_scripts(analysis_text(sent))["dominant"],
+            "confidence": top.get("confidence", "UNKNOWN"),
+            "language_candidates": langs,
+            "evidence_ids": [],
+        })
+
+    # Merge adjacent same-language segments.
+    merged: List[Dict[str, Any]] = []
+    for seg in segments:
+        if merged and merged[-1]["language"] == seg["language"] and merged[-1]["end"] == seg["start"]:
+            merged[-1]["text"] = merged[-1]["text"] + " " + seg["text"]
+            merged[-1]["end"] = seg["end"]
+            merged[-1]["segment_id"] = stable_id("SEG", source_id, merged[-1]["start"], seg["end"])
+        else:
+            merged.append(seg)
+    segments = merged
+
+    dominant = lang_counts.most_common(1)[0][0] if lang_counts else "UNKNOWN"
+    distinct = {
+        seg["language"]
+        for seg in segments
+        if seg["language"] != "UNKNOWN" and seg["confidence"] in ("HIGH_CONFIDENCE", "PROBABLE")
+    }
+
+    return {
+        "segments": segments,
+        "dominant_language": dominant,
+        "code_switching": len(distinct) > 1,
+        "detected_languages": sorted(distinct),
+        "limitations": [
+            "Code-switching segmentation is sentence-level; intra-sentence switching may be missed.",
+            "Short segments may produce unstable language labels.",
+        ],
+    }
+
+
+# --------------------------------------------------------------------
+# Transliteration / translation
+# --------------------------------------------------------------------
+
+def maybe_transliterate(text: str, language: str) -> Optional[Dict[str, Any]]:
+    if not HAS_TRANSLIT or not language or language == "UNKNOWN":
+        return None
+    try:
+        out = translit(text, language, reversed=False)  # type: ignore
+        if out and out != text:
+            return {
+                "language": language,
+                "system": "transliterate-py",
+                "transliterated_text": out,
+                "limitations": ["Transliteration changes representation, not meaning; may be lossy."],
+            }
+    except Exception:
+        return None
+    return None
+
+
+class LocalTranslationEngine:
+    """
+    Optional local translation engine.
+    Default disabled to avoid silent cloud processing or fabricated translation.
+    """
+
+    def __init__(self, enabled: bool = False):
+        self.enabled = enabled
+        self._cache: Dict[Tuple[str, str], Any] = {}
+
+    def translate(self, text: str, src: str, tgt: str) -> Tuple[Optional[str], str, List[str]]:
+        if not self.enabled:
+            return None, "NOT_CONFIGURED", ["No authorized local translation engine enabled."]
+
+        try:
+            from argostranslate import translate as argo_translate  # type: ignore
+        except Exception as exc:
+            return None, "IMPORT_ERROR", [f"Argos Translate not available: {exc}"]
+
+        key = (src, tgt)
+        try:
+            if key not in self._cache:
+                self._cache[key] = argo_translate.get_translation(src, tgt)
+            trans = self._cache[key]
+            out = trans.translate(text)
+            return out, "ARGOS_LOCAL", []
+        except Exception as exc:
+            return None, "RUNTIME_ERROR", [f"Translation failed: {exc}"]
+
+
+def translate_text(
+    engine: LocalTranslationEngine,
+    text: str,
+    src: str,
+    tgt: str,
+) -> Dict[str, Any]:
+    base = {
+        "translation_id": stable_id("TR", src, tgt, content_hash(text)),
+        "source_language": src,
+        "target_language": tgt,
+        "source_text": text,
+        "literal_translation": None,
+        "contextual_translation": None,
+        "method": "NONE",
+        "status": "NOT_ATTEMPTED",
+        "machine_translation_candidate": False,
+        "limitations": [],
+    }
+
+    if not text.strip():
+        base["status"] = "INSUFFICIENT_TEXT"
+        base["limitations"].append("Empty text.")
+        return base
+
+    if src in (None, "UNKNOWN") or tgt in (None, "UNKNOWN"):
+        base["status"] = "LANGUAGE_UNRESOLVED"
+        base["limitations"].append("Cannot translate without source/target language.")
+        return base
+
+    if src == tgt:
+        base["status"] = "NOT_REQUIRED"
+        base["contextual_translation"] = text
+        return base
+
+    if not engine.enabled:
+        base["status"] = "TRANSLATION_UNRESOLVED"
+        base["limitations"].append("No authorized local translation engine enabled.")
+        return base
+
+    out, method, lims = engine.translate(text, src, tgt)
+    if out:
+        base.update({
+            "contextual_translation": out,
+            "method": method,
+            "status": "SUCCEEDED",
+            "machine_translation_candidate": True,
+            "limitations": lims + [
+                "Machine translation may distort negation, modality, idioms, entities, and technical terms.",
+                "Material claims require human/native review.",
+            ],
+        })
+    else:
+        base["status"] = "TRANSLATION_UNRESOLVED"
+        base["limitations"] = lims
+
+    return base
+
+
+# --------------------------------------------------------------------
+# Linguistic word lists
+# --------------------------------------------------------------------
+
+NEGATION_WORDS: Dict[str, Set[str]] = {
+    "und": {"not", "no", "never", "none", "nothing", "nobody", "neither", "nor", "without"},
+    "en": {"not", "no", "never", "none", "nothing", "nobody", "neither", "nor", "without", "deny", "denied", "lacks", "absence", "fail", "failed"},
+    "es": {"no", "nunca", "ninguno", "ninguna", "nada", "nadie", "ni", "sin", "nega", "negado", "falta", "ausencia"},
+    "fr": {"ne", "pas", "jamais", "aucun", "aucune", "rien", "personne", "ni", "sans", "nie", "nié", "manque", "absence"},
+    "de": {"nicht", "kein", "keine", "niemals", "nichts", "niemand", "ohne", "verweigert", "mangel", "fehlen"},
+    "ru": {"не", "ни", "нет", "ничего", "никто", "без", "отрицает", "отсутствует"},
+    "uk": {"не", "ні", "немає", "нічого", "ніхто", "без", "заперечує", "відсутній"},
+    "hi": {"नहीं", "मत", "बिना", "कोई", "कुछ", "अस्वीकार", "अनुपस्थित"},
+    "ar": {"لا", "لم", "لن", "ما", "ليس", "غير", "بدون", "ينفي", "مرفوض"},
+    "fa": {"نه", "نیست", "نبود", "هیچ", "بدون", "انکار", "عدم"},
+    "ur": {"نہیں", "مت", "بغیر", "انکار", "موجود"},
+    "tr": {"değil", "hayır", "hiç", "yok", "olsuz", "reddediyor", "eksik"},
+    "id": {"tidak", "bukan", "tanpa", "menyangkal", "tidak"},
+    "ms": {"tidak", "bukan", "tanpa", "menafikan", "tiada"},
+    "vi": {"không", "chưa", "chẳng", "phủ nhận", "thiếu"},
+    "th": {"ไม่", "ไร้", "ปฏิเสธ", "ไม่มี"},
+    "ja": {"ない", "ず", "ぬ", "まい", "なし", "否定", "不存在"},
+    "ko": {"안", "못", "말", "없다", "부정", "없음"},
+    "zh": {"不", "没", "未", "非", "无", "否", "缺乏"},
+    "el": {"δεν", "ούτε", "κανένας", "τίποτα", "χωρίς", "αρνείται", "απουσία"},
+    "he": {"לא", "אין", "בלי", "שולל", "היעדר"},
+    "pt": {"não", "nenhum", "nada", "ninguém", "sem", "nega", "ausência"},
+    "it": {"non", "nessuno", "nulla", "senza", "nega", "assenza"},
+    "nl": {"niet", "geen", "niets", "niemand", "zonder", "ontkent", "afwezig"},
+}
+
+MODAL_WORDS: Dict[str, Set[str]] = {
+    "en": {"will", "would", "may", "might", "could", "should", "must", "can", "cannot", "shall"},
+    "es": {"irá", "podría", "puede", "pueda", "debe", "debería", "habría", "pueden", "deben"},
+    "fr": {"sera", "pourrait", "peut", "peuvent", "doit", "devrait", "aurait"},
+    "de": {"wird", "würde", "kann", "können", "muss", "müsste", "sollte", "dürfte"},
+    "ru": {"будет", "может", "мог бы", "должен", "следует", "могли"},
+    "hi": {"होगा", "हो सकता", "सकता", "चाहिए", "करेगा"},
+    "ar": {"سي", "سوف", "قد", "يمكن", "يجب", "ربما"},
+    "zh": {"将", "会", "可以", "可能", "必须", "应该"},
+    "ja": {"する", "できる", "かもしれない", "べき", " must"},
+    "ko": {"할", "수", "있다", "없다", "해야", "된다"},
+}
+
+REPORTED_WORDS = {
+    "reportedly", "allegedly", "claimed", "according to", "said", "stated", "reported",
+    "sources say", "it is said",
+}
+
+UNCERTAIN_WORDS = {
+    "may", "might", "could", "possibly", "likely", "unlikely", "suspect", "believe",
+    "estimate", "unknown", "unclear", "apparently", "presumably", "tentative",
+}
+
+CERTAIN_WORDS = {
+    "confirmed", "certain", "definitely", "will", "must", "clearly", "undoubtedly",
+    "verified", "established",
+}
+
+
+def contains_any(text: str, words: Iterable[str]) -> bool:
+    lower = text.lower()
+    tokens = set(tokenize_words(text))
+    for w in words:
+        wl = str(w).lower()
+        if not wl:
+            continue
+        if " " in wl:
+            if wl in lower:
+                return True
+        else:
+            if wl in tokens:
+                return True
+    return False
+
+
+def find_first_word(text: str, words: Iterable[str]) -> Optional[str]:
+    lower = text.lower()
+    tokens = set(tokenize_words(text))
+    for w in words:
+        wl = str(w).lower()
+        if not wl:
+            continue
+        if " " in wl:
+            if wl in lower:
+                return w
+        else:
+            if wl in tokens:
+                return w
+    return None
+
+
+def contains_negation(text: str, lang: str) -> bool:
+    words = NEGATION_WORDS.get(lang, set()) | NEGATION_WORDS.get("und", set()) | NEGATION_WORDS.get("en", set())
+    return contains_any(text, words)
+
+
+def detect_modality(text: str, lang: str) -> Optional[str]:
+    candidates = MODAL_WORDS.get(lang, set()) | MODAL_WORDS.get("en", set())
+    return find_first_word(text, candidates)
+
+
+def detect_epistemic(text: str) -> Optional[str]:
+    if find_first_word(text, REPORTED_WORDS):
+        return "reported"
+    if find_first_word(text, UNCERTAIN_WORDS):
+        return "uncertain"
+    if find_first_word(text, CERTAIN_WORDS):
+        return "certain"
+    return None
+
+
+def certainty_score(modal: Optional[str], epistemic: Optional[str]) -> float:
+    score = 0.5
+    if modal in {"may", "might", "could"}:
+        score = 0.30
+    elif modal in {"will", "must", "shall"}:
+        score = 0.80
+    elif modal in {"would", "should", "can", "cannot"}:
+        score = 0.45
+
+    if epistemic == "uncertain":
+        score = min(score, 0.40)
+    elif epistemic == "reported":
+        score = min(score, 0.50)
+    elif epistemic == "certain":
+        score = max(score, 0.90)
+
+    return score
+
+
+# --------------------------------------------------------------------
+# Temporal / entity / claim extraction
+# --------------------------------------------------------------------
+
+MONTHS = (
+    "January|February|March|April|May|June|July|August|September|October|November|December|"
+    "Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
+)
+
+DATE_RE = re.compile(
+    rf"\b(?:\d{{4}}-\d{{2}}-\d{{2}}|\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}|"
+    rf"(?:{MONTHS})\.?\s+\d{{1,2}},?\s+\d{{4}}|\d{{1,2}}\.?\s+(?:{MONTHS})\.?,?\s+\d{{4}})\b",
+    re.I,
+)
+
+REL_TIME_RE = re.compile(
+    r"\b(?:today|yesterday|tomorrow|last week|this week|next week|last month|this month|"
+    r"next month|recently|shortly|last night|this morning|this evening|in coming months|"
+    r"before launch|after attack|ago|since|until|during)\b",
+    re.I,
+)
+
+NUMBER_RE = re.compile(r"\b\d+(?:[.,]\d+)?\b")
+
+
+def extract_temporal_expressions(text: str, anchor: Optional[str] = None) -> List[Dict[str, Any]]:
+    exprs: List[Dict[str, Any]] = []
+    seen = set()
+
+    for m in REL_TIME_RE.finditer(text):
+        t = m.group().strip()
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        exprs.append({
+            "text": t,
+            "type": "RELATIVE",
+            "resolved_range": None,
+            "anchor": anchor,
+            "confidence": "POSSIBLE",
+            "limitations": ["Relative time not resolved without exact event anchor."],
+        })
+
+    for m in DATE_RE.finditer(text):
+        t = m.group().strip()
+        key = t.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        exprs.append({
+            "text": t,
+            "type": "ABSOLUTE_CANDIDATE",
+            "resolved_range": None,
+            "anchor": anchor,
+            "confidence": "POSSIBLE",
+            "limitations": ["Date mention requires source timestamp/context validation."],
+        })
+
+    return exprs
+
+
+PROPER_RE = re.compile(r"\b[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+){0,3}\b")
+ACRONYM_RE = re.compile(r"\b[A-Z]{2,}\b")
+CAMEL_RE = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+\b")
+
+
+def extract_entities(text: str, language: str = "und") -> List[Dict[str, Any]]:
+    ents: List[Dict[str, Any]] = []
+    seen = set()
+
+    def add(txt: str, label: str, conf: str, lims: List[str]) -> None:
+        txt = txt.strip()
+        if not txt:
+            return
+        key = (txt.lower(), label)
+        if key in seen:
+            return
+        seen.add(key)
+        ents.append({
+            "text": txt,
+            "label": label,
+            "type": "NAMED_ENTITY_CANDIDATE",
+            "language": language,
+            "confidence": conf,
+            "limitations": unique_preserve(["Mention does not verify real-world identity."] + lims),
+        })
+
+    if SPACY_NLP is not None:
+        try:
+            doc = SPACY_NLP(text)
+            for ent in doc.ents:
+                conf = "PROBABLE" if ent.label_ not in {"CARDINAL", "DATE", "TIME"} else "POSSIBLE"
+                add(ent.text, ent.label_, conf, ["spaCy NER is model-dependent."])
+        except Exception:
+            pass
+
+    for m in PROPER_RE.finditer(text):
+        add(m.group(), "PERSON_ORG_PLACE_UNKNOWN", "POSSIBLE", ["Regex proper-noun heuristic; may include sentence starts."])
+
+    for m in ACRONYM_RE.finditer(text):
+        add(m.group(), "ACRONYM_ORG_CANDIDATE", "POSSIBLE", [])
+
+    for m in CAMEL_RE.finditer(text):
+        add(m.group(), "PRODUCT_OR_CODE_NAME_CANDIDATE", "POSSIBLE", [])
+
+    for m in DATE_RE.finditer(text):
+        add(m.group(), "DATE", "POSSIBLE", ["Date mention requires context."])
+
+    return ents[:100]
+
+
+def extract_claims(source_id: str, text: str, language: str) -> List[Dict[str, Any]]:
+    claims: List[Dict[str, Any]] = []
+
+    for i, sent in enumerate(split_sentences(text)):
+        neg = contains_negation(sent, language)
+        modal = detect_modality(sent, language)
+        epis = detect_epistemic(sent)
+        temps = extract_temporal_expressions(sent)
+        ents = extract_entities(sent, language)
+
+        subj = verb = obj = None
+        if SPACY_NLP is not None:
+            try:
+                doc = SPACY_NLP(sent)
+                subj_t = next((t for t in doc if t.dep_ in ("nsubj", "nsubjpass")), None)
+                verb_t = next((t for t in doc if t.pos_ == "VERB"), None)
+                obj_t = next((t for t in doc if t.dep_ in ("dobj", "obj", "oprd", "attr", "pobj")), None)
+                subj = subj_t.text if subj_t else None
+                verb = verb_t.lemma_ if verb_t else None
+                obj = obj_t.text if obj_t else None
+            except Exception:
+                pass
+
+        conf = "POSSIBLE" if subj and verb else "LOW"
+        claim_id = stable_id("CLM", source_id, i, sent)
+
+        claims.append({
+            "claim_id": claim_id,
+            "source_id": source_id,
+            "text": sent,
+            "subject": subj,
+            "predicate": verb,
+            "object": obj,
+            "negated": neg,
+            "modal": modal,
+            "epistemic": epis,
+            "temporal": [t["text"] for t in temps],
+            "entities": [e["text"] for e in ents],
+            "confidence": conf,
+            "evidence_id": stable_id("EV", source_id, claim_id),
+            "limitations": [
+                "Sentence-level atomicity is approximate.",
+                "Quoted speech may not be the current author's claim.",
+            ],
+        })
+
+    return claims
+
+
+# --------------------------------------------------------------------
+# Terminology / slang / rhetoric
+# --------------------------------------------------------------------
+
+DOMAIN_LEXICON: Dict[str, List[str]] = {
+    "cybersecurity": [
+        "malware", "ransomware", "phishing", "exploit", "vulnerability", "cve",
+        "ioc", "ttp", "apt", "ddos", "encryption", "authentication",
+        "privilege escalation", "lateral movement", "command and control", "c2",
+    ],
+    "military": [
+        "kinetic", "asymmetric", "force multiplier", "rules of engagement",
+        "troops", "artillery", "drone", "isr", "reconnaissance", "logistics",
+    ],
+    "financial": [
+        "liquidity", "derivative", "escrow", "chargeback", "aml", "kyc",
+        "ledger", "equity", "bond", "sanctions", "money laundering",
+    ],
+    "legal": [
+        "plaintiff", "defendant", "injunction", "affidavit", "jurisdiction",
+        "precedent", "statute", "tort", "subpoena", "due diligence",
+    ],
+    "organizational": [
+        "okr", "kpi", "sow", "rfp", "sla", "incident response",
+        "business continuity", "change management",
+    ],
+    "criminal_market_analytical": [
+        "illicit finance", "counterfeit", "trafficking", "sanctions evasion",
+        "money laundering", "dark web market",
+    ],
+}
+
+
+def extract_terminology(text: str, language: str = "und") -> List[Dict[str, Any]]:
+    terms: List[Dict[str, Any]] = []
+    seen = set()
+
+    def add(term: str, ttype: str, domain: str, conf: str, lims: Optional[List[str]] = None) -> None:
+        term = term.strip()
+        if not term:
+            return
+        key = (term.lower(), ttype, domain)
+        if key in seen:
+            return
+        seen.add(key)
+        terms.append({
+            "term": term,
+            "type": ttype,
+            "domain": domain,
+            "language": language,
+            "confidence": conf,
+            "limitations": unique_preserve((lims or []) + [
+                "Terminology indicates topic familiarity, not occupation or identity."
+            ]),
+        })
+
+    for m in ACRONYM_RE.finditer(text):
+        add(m.group(), "ACRONYM", "UNKNOWN", "POSSIBLE")
+
+    for m in CAMEL_RE.finditer(text):
+        add(m.group(), "CAMELCASE_TERM_CANDIDATE", "UNKNOWN", "POSSIBLE")
+
+    for domain, kws in DOMAIN_LEXICON.items():
+        for kw in kws:
+            if contains_any(text, [kw]):
+                add(kw, "DOMAIN_TERM", domain, "PROBABLE")
+
+    for e in extract_entities(text, language):
+        if e["label"] in {"PERSON_ORG_PLACE_UNKNOWN", "PRODUCT_OR_CODE_NAME_CANDIDATE"}:
+            add(e["text"], "PROPER_PHRASE_CANDIDATE", "UNKNOWN", "POSSIBLE")
+
+    return terms[:150]
+
+
+def analyze_slang(text: str, language: str = "und", platform: Optional[str] = None) -> Dict[str, Any]:
+    candidates: List[Dict[str, Any]] = []
+
+    for token in re.findall(r"\b[a-z0-9]{4,}\b", text.lower()):
+        if re.search(r"[013457]", token) and re.search(r"[a-z]", token):
+            candidates.append({
+                "token": token,
+                "type": "LEETSPEAK_CANDIDATE",
+                "confidence": "POSSIBLE",
+                "language": language,
+                "platform": platform,
+            })
+
+    for token in re.findall(r"\b[a-z]{4,}\b", text.lower()):
+        if re.search(r"(.)\1\1", token):
+            candidates.append({
+                "token": token,
+                "type": "REPEATED_CHARACTER_CANDIDATE",
+                "confidence": "POSSIBLE",
+                "language": language,
+                "platform": platform,
+            })
+
+    return {
+        "slang_candidates": candidates[:50],
+        "idiom_candidates": [],
+        "limitations": [
+            "No slang/idiom lexicon loaded.",
+            "Slang meaning depends on time, platform, community, and language.",
+        ],
+    }
+
+
+FRAME_KEYWORDS: Dict[str, List[str]] = {
+    "security": ["security", "defense", "protection", "safety", "border", "threat"],
+    "economic": ["economy", "jobs", "growth", "inflation", "market", "trade"],
+    "moral": ["right", "wrong", "justice", "evil", "good", "duty", "honor"],
+    "legal": ["law", "illegal", "lawful", "court", "statute", "regulation"],
+    "humanitarian": ["civilians", "aid", "suffering", "refugees", "human rights"],
+    "identity": ["identity", "heritage", "culture", "nation", "people"],
+    "victimhood": ["victim", "victims", "oppressed", "persecuted", "suffering"],
+    "threat": ["threat", "enemy", "danger", "risk", "attack"],
+    "competence": ["competent", "expertise", "professional", "capable", "incompetent"],
+    "corruption": ["corrupt", "scandal", "fraud", "bribery", "misconduct"],
+    "innovation": ["innovation", "disrupt", "future", "transformation", "modern"],
+}
+
+
+def analyze_rhetoric(text: str) -> Dict[str, Any]:
+    lower = text.lower()
+    frames: List[Dict[str, Any]] = []
+
+    for frame, kws in FRAME_KEYWORDS.items():
+        hits = [kw for kw in kws if contains_any(text, [kw])]
+        if hits:
+            frames.append({
+                "frame": frame,
+                "count": len(hits),
+                "examples": hits[:5],
+                "confidence": "POSSIBLE",
+                "limitations": ["Frame labels are analytical and do not infer personal belief."],
+            })
+
+    rhetorical: List[str] = []
+    if contains_any(text, ["expert", "experts", "study", "studies", "officials", "according to", "report"]):
+        rhetorical.append("APPEAL_TO_AUTHORITY_CANDIDATE")
+    if contains_any(text, ["threat", "danger", "risk", "attack", "enemy", "fear"]):
+        rhetorical.append("FEAR_FRAMING_CANDIDATE")
+    if re.search(r"\b(we|our|us)\b", lower) and re.search(r"\b(they|their|them)\b", lower):
+        rhetorical.append("US_VS_THEM_CANDIDATE")
+    if contains_any(text, ["must", "should", "need to", "act now", "urgent", "immediately"]):
+        rhetorical.append("URGENCY_OR_PRESCRIPTION_CANDIDATE")
+    if re.search(r"[!?]{2,}", text):
+        rhetorical.append("EMOTIONAL_PUNCTUATION_CANDIDATE")
+
+    return {
+        "narrative_frames": frames,
+        "rhetorical_features": rhetorical,
+        "limitations": ["Rhetoric analysis does not prove disinformation or belief."],
+    }
+
+
+# --------------------------------------------------------------------
+# N-grams / similarity / stylometry
+# --------------------------------------------------------------------
+
+def word_ngrams(text: str, n: int = 3) -> List[str]:
+    tokens = tokenize_words(text)
+    return [" ".join(tokens[i:i + n]) for i in range(max(0, len(tokens) - n + 1))]
+
+
+def char_ngrams(text: str, n: int = 5) -> List[str]:
+    clean = re.sub(r"\s+", " ", text.lower()).strip()
+    return [clean[i:i + n] for i in range(max(0, len(clean) - n + 1))]
+
+
+def jaccard_sets(a: Set[str], b: Set[str]) -> float:
+    if not a and not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
+
+
+EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF]")
+
+FUNCTION_WORDS = {
+    "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this",
+    "these", "those", "of", "in", "on", "at", "by", "from", "with", "without",
+    "to", "for", "as", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
+    "should", "may", "might", "must", "can", "could", "not", "no", "yes",
+    "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us",
+    "them", "my", "your", "his", "its", "our", "their",
+}
+
+
+def extract_stylometric_features(text: str) -> Dict[str, Any]:
+    analysis = analysis_text(text)
+    words = tokenize_words(analysis)
+    sentences = split_sentences(analysis)
+    chars = len(analysis)
+
+    if not words:
+        return {
+            "char_count": chars,
+            "word_count": 0,
+            "sentence_count": 0,
+            "avg_sentence_length": 0.0,
+            "avg_word_length": 0.0,
+            "type_token_ratio": 0.0,
+            "punctuation_rate": 0.0,
+            "comma_rate": 0.0,
+            "period_rate": 0.0,
+            "exclamation_rate": 0.0,
+            "question_rate": 0.0,
+            "uppercase_ratio": 0.0,
+            "digit_ratio": 0.0,
+            "emoji_count": 0,
+            "function_word_rate": 0.0,
+            "paragraph_count": 0,
+            "insufficient_text": True,
+        }
+
+    punctuation = sum(1 for ch in analysis if unicodedata.category(ch).startswith("P"))
+    emoji = len(EMOJI_RE.findall(analysis))
+    uppercase = sum(1 for ch in analysis if ch.isupper())
+    digits = sum(1 for ch in analysis if ch.isdigit())
+    function_hits = sum(1 for w in words if w in FUNCTION_WORDS)
+    paragraph_count = len([p for p in text.split("\n") if p.strip()])
+
+    features = {
+        "char_count": chars,
+        "word_count": len(words),
+        "sentence_count": len(sentences),
+        "avg_sentence_length": len(words) / max(1, len(sentences)),
+        "avg_word_length": sum(len(w) for w in words) / max(1, len(words)),
+        "type_token_ratio": len(set(words)) / max(1, len(words)),
+        "punctuation_rate": punctuation / max(1, chars) * 100,
+        "comma_rate": analysis.count(",") / max(1, chars) * 100,
+        "period_rate": analysis.count(".") / max(1, chars) * 100,
+        "exclamation_rate": analysis.count("!") / max(1, chars) * 100,
+        "question_rate": analysis.count("?") / max(1, chars) * 100,
+        "uppercase_ratio": uppercase / max(1, chars),
+        "digit_ratio": digits / max(1, chars),
+        "emoji_count": emoji,
+        "function_word_rate": function_hits / max(1, len(words)),
+        "paragraph_count": paragraph_count,
+        "insufficient_text": chars < MIN_STYLE_CHARS,
+    }
+
+    return features
+
+
+def stylometric_distance(f1: Dict[str, Any], f2: Dict[str, Any]) -> float:
+    exclude = {
+        "char_count", "word_count", "sentence_count", "paragraph_count",
+        "emoji_count", "insufficient_text",
+    }
+    keys = [
+        k for k in f1.keys()
+        if k not in exclude and isinstance(f1.get(k), (int, float))
+    ]
+    diffs = []
+    for k in keys:
+        a = float(f1.get(k, 0))
+        b = float(f2.get(k, 0))
+        denom = abs(a) + abs(b) + 1e-9
+        diffs.append(abs(a - b) / denom)
+    return sum(diffs) / len(diffs) if diffs else 1.0
+
+
+def shared_rare_phrases(texts: List[str], n: int = 4) -> List[Dict[str, Any]]:
+    if len(texts) < 2:
+        return []
+
+    doc_sets = [set(word_ngrams(t, n)) for t in texts]
+    df: Counter = Counter()
+    for s in doc_sets:
+        for ng in s:
+            df[ng] += 1
+
+    shared = []
+    max_ratio = 0.6
+    for ng, cnt in df.items():
+        if cnt >= 2 and cnt / len(texts) <= max_ratio:
+            shared.append({
+                "phrase": ng,
+                "document_count": cnt,
+                "n": n,
+                "rarity_score": round(1 - cnt / len(texts), 3),
+            })
+
+    shared.sort(key=lambda x: (x["document_count"], len(x["phrase"])), reverse=True)
+    return shared[:50]
+
+
+def detect_templates(artifacts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if len(artifacts) < 2:
+        return []
+
+    docs = [a["analysis"] for a in artifacts]
+    threshold = max(2, math.ceil(len(docs) * 0.6))
+    c: Counter = Counter()
+
+    for d in docs:
+        for ng in set(word_ngrams(d, 5)):
+            c[ng] += 1
+
+    return [
+        {
+            "phrase": ng,
+            "document_count": cnt,
+            "threshold": threshold,
+            "confidence": "POSSIBLE",
+            "limitations": ["Template reuse does not prove same operator."],
+        }
+        for ng, cnt in c.items()
+        if cnt >= threshold
+    ][:50]
+
+
+# --------------------------------------------------------------------
+# Translation fidelity / certainty / contradictions
+# --------------------------------------------------------------------
+
+SEVERITY_ORDER = {
+    "UNKNOWN": 0,
+    "COSMETIC": 1,
+    "MINOR": 2,
+    "MATERIAL": 3,
+    "CRITICAL": 4,
+}
+
+
+def bump_severity(current: str, new: str) -> str:
+    if SEVERITY_ORDER.get(new, 0) > SEVERITY_ORDER.get(current, 0):
+        return new
+    return current
+
+
+def assess_translation_fidelity(
+    source_text: str,
+    translated_text: Optional[str],
+    src_lang: str,
+    tgt_lang: str,
+    method: str,
+) -> Dict[str, Any]:
+    base = {
+        "status": "TRANSLATION_UNRESOLVED",
+        "difference": "UNKNOWN",
+        "semantic_preservation": "UNKNOWN",
+        "omissions": [],
+        "additions": [],
+        "tone_shift": "UNKNOWN",
+        "certainty_shift": "UNKNOWN",
+        "entity_shift": "UNKNOWN",
+        "time_shift": "UNKNOWN",
+        "notes": [],
+        "limitations": ["No translation available."],
+    }
+
+    if not translated_text:
+        return base
+
+    sev = "COSMETIC"
+    notes: List[str] = []
+
+    src_neg = contains_negation(source_text, src_lang)
+    tgt_neg = contains_negation(translated_text, tgt_lang)
+    if src_neg and not tgt_neg:
+        sev = bump_severity(sev, "CRITICAL")
+        notes.append("Possible negation loss.")
+    elif not src_neg and tgt_neg:
+        sev = bump_severity(sev, "CRITICAL")
+        notes.append("Possible negation addition.")
+
+    src_m = detect_modality(source_text, src_lang)
+    tgt_m = detect_modality(translated_text, tgt_lang)
+    src_e = detect_epistemic(source_text)
+    tgt_e = detect_epistemic(translated_text)
+    src_cs = certainty_score(src_m, src_e)
+    tgt_cs = certainty_score(tgt_m, tgt_e)
+
+    certainty_shift = "NONE_DETECTED"
+    if abs(src_cs - tgt_cs) >= 0.25:
+        sev = bump_severity(sev, "MATERIAL")
+        notes.append("Certainty shift candidate between source and translation.")
+        certainty_shift = "CANDIDATE"
+
+    src_ents = {e["text"].lower() for e in extract_entities(source_text, src_lang)}
+    tgt_ents = {e["text"].lower() for e in extract_entities(translated_text, tgt_lang)}
+    missing = src_ents - tgt_ents
+    extra = tgt_ents - src_ents
+
+    entity_shift = "NONE_DETECTED"
+    if missing:
+        sev = bump_severity(sev, "MATERIAL" if len(missing) > 1 else "MINOR")
+        notes.append(f"Possible missing entities in translation: {sorted(missing)[:5]}")
+        entity_shift = "CANDIDATE"
+    if extra:
+        notes.append(f"Possible added entities in translation: {sorted(extra)[:5]}")
+        entity_shift = "CANDIDATE"
+
+    src_t = {t["text"].lower() for t in extract_temporal_expressions(source_text)}
+    tgt_t = {t["text"].lower() for t in extract_temporal_expressions(translated_text)}
+    time_shift = "NONE_DETECTED"
+    if src_t != tgt_t:
+        sev = bump_severity(sev, "MINOR")
+        notes.append("Temporal expression mismatch candidate.")
+        time_shift = "CANDIDATE"
+
+    ratio = len(translated_text) / max(1, len(source_text))
+    omissions = []
+    additions = []
+    if ratio < 0.4:
+        sev = bump_severity(sev, "MATERIAL")
+        notes.append("Translation much shorter; possible omission.")
+        omissions.append("LENGTH_RATIO_LOW")
+    elif ratio > 2.5:
+        sev = bump_severity(sev, "MINOR")
+        notes.append("Translation much longer; possible addition/explanation.")
+        additions.append("LENGTH_RATIO_HIGH")
+
+    status = "SUCCEEDED" if method not in ("NOT_CONFIGURED", "IMPORT_ERROR", "RUNTIME_ERROR") else "TRANSLATION_UNRESOLVED"
+
+    return {
+        "status": status,
+        "difference": sev,
+        "semantic_preservation": "PARTIAL" if sev in ("MINOR", "MATERIAL", "CRITICAL") else "GOOD",
+        "omissions": omissions,
+        "additions": additions,
+        "tone_shift": "UNKNOWN",
+        "certainty_shift": certainty_shift,
+        "entity_shift": entity_shift,
+        "time_shift": time_shift,
+        "notes": notes,
+        "limitations": [
+            "Fidelity checks are heuristic; material claims require human/native review.",
+            "Machine translation may distort idioms, negation, modality, gender, technical terms.",
+        ],
+    }
+
+
+def detect_certainty_shift(claims_a: List[Dict[str, Any]], claims_b: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    shifts = []
+    for ca in claims_a[:50]:
+        for cb in claims_b[:50]:
+            ov = jaccard_sets(set(tokenize_words(ca["text"])), set(tokenize_words(cb["text"])))
+            if ov >= 0.50:
+                sa = certainty_score(ca.get("modal"), ca.get("epistemic"))
+                sb = certainty_score(cb.get("modal"), cb.get("epistemic"))
+                if sb - sa >= 0.25:
+                    shifts.append({
+                        "type": "CERTAINTY_INFLATION_CANDIDATE",
+                        "severity": "MATERIAL",
+                        "claim_a": ca["claim_id"],
+                        "claim_b": cb["claim_id"],
+                        "overlap": round(ov, 3),
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Lexical overlap may produce false positives."],
+                    })
+                elif sa - sb >= 0.25:
+                    shifts.append({
+                        "type": "CERTAINTY_DEFLATION_CANDIDATE",
+                        "severity": "MINOR",
+                        "claim_a": ca["claim_id"],
+                        "claim_b": cb["claim_id"],
+                        "overlap": round(ov, 3),
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Lexical overlap may produce false positives."],
+                    })
+    return unique_preserve(shifts)[:20]
+
+
+def detect_contradictions(claims_a: List[Dict[str, Any]], claims_b: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    contr = []
+
+    for ca in claims_a[:50]:
+        for cb in claims_b[:50]:
+            ov = jaccard_sets(set(tokenize_words(ca["text"])), set(tokenize_words(cb["text"])))
+
+            if (
+                ca.get("subject") and cb.get("subject") and
+                ca.get("object") and cb.get("object") and
+                ca["subject"].lower() == cb["subject"].lower() and
+                ca["object"].lower() == cb["object"].lower() and
+                ca.get("negated") != cb.get("negated")
+            ):
+                contr.append({
+                    "type": "NEGATION_CONFLICT_CANDIDATE",
+                    "severity": "MATERIAL",
+                    "claims": [ca["claim_id"], cb["claim_id"]],
+                    "confidence": "POSSIBLE",
+                    "limitations": ["Subject/object match is lexical; may be false positive."],
+                })
+
+            nums_a = set(NUMBER_RE.findall(ca["text"]))
+            nums_b = set(NUMBER_RE.findall(cb["text"]))
+            if ov >= 0.5 and nums_a and nums_b and nums_a != nums_b:
+                contr.append({
+                    "type": "NUMERIC_CONFLICT_CANDIDATE",
+                    "severity": "MATERIAL",
+                    "claims": [ca["claim_id"], cb["claim_id"]],
+                    "values_a": sorted(nums_a),
+                    "values_b": sorted(nums_b),
+                    "confidence": "POSSIBLE",
+                    "limitations": ["Numbers may refer to different units or contexts."],
+                })
+
+            if ca.get("modal") != cb.get("modal") and ov >= 0.6:
+                contr.append({
+                    "type": "MODALITY_CONFLICT_CANDIDATE",
+                    "severity": "MINOR",
+                    "claims": [ca["claim_id"], cb["claim_id"]],
+                    "modal_a": ca.get("modal"),
+                    "modal_b": cb.get("modal"),
+                    "confidence": "POSSIBLE",
+                    "limitations": ["Modality difference may reflect translation or style."],
+                })
+
+    return unique_preserve(contr)[:20]
+
+
+def machine_translation_indicators(art: Dict[str, Any]) -> Dict[str, Any]:
+    indicators = []
+    if art["translation"].get("machine_translation_candidate"):
+        indicators.append("Translation produced by local MT engine.")
+
+    return {
+        "artifact_id": art["artifact_id"],
+        "status": "MT_CANDIDATE" if indicators else "INSUFFICIENT_EVIDENCE",
+        "indicators": indicators,
+        "limitations": ["Bilingual humans can produce similar features."],
+    }
+
+
+def ai_generation_indicators(art: Dict[str, Any]) -> Dict[str, Any]:
+    indicators = []
+    meta = art.get("metadata", {}) or {}
+
+    if meta.get("ai_generated") is True:
+        indicators.append("Metadata claims AI generation (unverified).")
+    if meta.get("generator"):
+        indicators.append(f"Generator metadata: {meta['generator']}")
+
+    sents = split_sentences(art["analysis"])
+    if len(sents) >= 5:
+        c = Counter(s.lower() for s in sents)
+        rep = sum(v - 1 for v in c.values() if v > 1)
+        if rep / len(sents) > 0.2:
+            indicators.append("High repeated sentence ratio.")
+
+    return {
+        "artifact_id": art["artifact_id"],
+        "status": "AI_GENERATION_CANDIDATE" if indicators else "INSUFFICIENT_EVIDENCE",
+        "indicators": indicators,
+        "limitations": [
+            "Text-only AI detection is uncertain.",
+            "Detector score or style impression is not proof of AI generation.",
+        ],
+    }
+
+
+QUOTE_RE = re.compile(r"[“\"](.+?)[”\"]", re.DOTALL)
+
+
+def quote_alignment(text: str) -> List[Dict[str, Any]]:
+    quotes = []
+    for m in QUOTE_RE.finditer(text):
+        q = m.group(1).strip()
+        if q:
+            quotes.append({
+                "quote": q,
+                "alignment_state": "UNVERIFIED",
+                "confidence": "UNKNOWN",
+                "limitations": ["Quote source passage not located."],
+            })
+    return quotes[:50]
+
+
+# --------------------------------------------------------------------
+# Pairwise analysis
+# --------------------------------------------------------------------
+
+def analyze_pair(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+    pair_id = stable_id("PAIR", a["artifact_id"], b["artifact_id"])
+
+    a_lang = a["top_language"]
+    b_lang = b["top_language"]
+
+    same_language = a_lang == b_lang and a_lang != "UNKNOWN"
+    languages_differ = a_lang != b_lang and a_lang != "UNKNOWN" and b_lang != "UNKNOWN"
+
+    w3 = jaccard_sets(a["word_ngrams3"], b["word_ngrams3"])
+    w5 = jaccard_sets(a["word_ngrams5"], b["word_ngrams5"])
+    c5 = jaccard_sets(a["char_ngrams5"], b["char_ngrams5"])
+
+    tr_w5 = 0.0
+    if a["translated_word_ngrams5"] and b["translated_word_ngrams5"]:
+        tr_w5 = jaccard_sets(a["translated_word_ngrams5"], b["translated_word_ngrams5"])
+
+    seq = difflib.SequenceMatcher(None, a["analysis"][:20000], b["analysis"][:20000]).ratio()
+
+    styl_dist = None
+    if not a["stylometry"]["insufficient_text"] and not b["stylometry"]["insufficient_text"]:
+        styl_dist = round(stylometric_distance(a["stylometry"], b["stylometry"]), 4)
+
+    shared = shared_rare_phrases([a["analysis"], b["analysis"]], n=4)
+
+    if a["content_hash"] == b["content_hash"]:
+        copy_state = "EXACT_COPY"
+        copy_conf = "HIGH_CONFIDENCE"
+    elif seq >= 0.95 and w5 >= 0.80:
+        copy_state = "NEAR_COPY"
+        copy_conf = "HIGH_CONFIDENCE"
+    elif seq >= 0.85 or (w5 >= 0.60 and c5 >= 0.70):
+        copy_state = "NEAR_COPY"
+        copy_conf = "PROBABLE"
+    elif languages_differ and tr_w5 >= 0.45:
+        copy_state = "TRANSLATION_CANDIDATE"
+        copy_conf = "PROBABLE"
+    elif len(shared) >= 3 and (w3 >= 0.20 or (styl_dist is not None and styl_dist < 0.35)):
+        copy_state = "SHARED_SOURCE_CANDIDATE"
+        copy_conf = "POSSIBLE"
+    elif (
+        w5 < 0.03 and c5 < 0.08 and not shared and
+        a["stylometry"]["char_count"] >= MIN_STYLE_CHARS and
+        b["stylometry"]["char_count"] >= MIN_STYLE_CHARS
+    ):
+        copy_state = "INDEPENDENT"
+        copy_conf = "POSSIBLE"
+    elif w5 < 0.10 and not shared:
+        copy_state = "UNKNOWN"
+        copy_conf = "UNKNOWN"
+    else:
+        copy_state = "PARAPHRASE_CANDIDATE"
+        copy_conf = "POSSIBLE"
+
+    if copy_state in ("EXACT_COPY", "NEAR_COPY", "TRANSLATION_CANDIDATE"):
+        independence = "DEPENDENT"
+    elif copy_state in ("PARAPHRASE_CANDIDATE", "SHARED_SOURCE_CANDIDATE"):
+        independence = "PARTIALLY_DEPENDENT"
+    elif copy_state == "INDEPENDENT":
+        independence = "INDEPENDENT"
+    else:
+        independence = "UNKNOWN"
+
+    if same_language:
+        if copy_state in ("EXACT_COPY", "NEAR_COPY") and w5 >= 0.75:
+            sem = "SEMANTICALLY_EQUIVALENT"
+            sem_conf = "PROBABLE"
+        elif w5 >= 0.35 or w3 >= 0.50:
+            sem = "PARTIALLY_EQUIVALENT"
+            sem_conf = "POSSIBLE"
+        else:
+            sem = "UNKNOWN"
+            sem_conf = "UNKNOWN"
+    else:
+        if tr_w5 >= 0.60:
+            sem = "PARTIALLY_EQUIVALENT"
+            sem_conf = "POSSIBLE"
+        elif tr_w5 >= 0.35:
+            sem = "UNKNOWN"
+            sem_conf = "POSSIBLE"
+        else:
+            sem = "UNKNOWN"
+            sem_conf = "UNKNOWN"
+
+    if languages_differ and copy_state == "TRANSLATION_CANDIDATE":
+        dep = "CANDIDATE"
+    elif languages_differ and tr_w5 >= 0.35:
+        dep = "CANDIDATE"
+    elif languages_differ:
+        dep = "UNKNOWN"
+    else:
+        dep = "NOT_APPLICABLE"
+
+    auth_state = "INSUFFICIENT_TEXT"
+    auth_conf = "INSUFFICIENT_TEXT"
+    auth_score = None
+
+    if styl_dist is not None:
+        sim = 1.0 - min(1.0, 0.55 * styl_dist + 0.45 * (1.0 - w5))
+        auth_score = round(sim, 4)
+        if sim >= 0.75:
+            auth_state = "HIGH_SIMILARITY"
+        elif sim >= 0.55:
+            auth_state = "MODERATE_SIMILARITY"
+        elif sim >= 0.35:
+            auth_state = "LOW_SIMILARITY"
+        else:
+            auth_state = "DIFFERENT_STYLE_SIGNAL"
+        auth_conf = "POSSIBLE"
+
+        if (a.get("metadata", {}) or {}).get("genre") != (b.get("metadata", {}) or {}).get("genre"):
+            auth_conf = "LOW"
+        if (a.get("metadata", {}) or {}).get("platform") != (b.get("metadata", {}) or {}).get("platform"):
+            auth_conf = "LOW"
+
+    certainty_shifts = detect_certainty_shift(a["claims"], b["claims"])
+    contradictions = detect_contradictions(a["claims"], b["claims"])
+
+    limitations = [
+        "Similarity metrics are heuristic; exact phrase match does not prove same author.",
+        "Publication chronology is not fully modeled; timestamps may be missing/unreliable.",
+        "Stylometric similarity is not real-person identity attribution.",
+    ]
+    if not a["translation"].get("contextual_translation") or not b["translation"].get("contextual_translation"):
+        limitations.append("Cross-language dependency analysis is weakened without translation.")
+    if styl_dist is None:
+        limitations.append("Insufficient text for stylometric comparison.")
+
+    return {
+        "pair_id": pair_id,
+        "artifact_id_a": a["artifact_id"],
+        "artifact_id_b": b["artifact_id"],
+        "source_id_a": a["source_id"],
+        "source_id_b": b["source_id"],
+        "language_a": a_lang,
+        "language_b": b_lang,
+        "same_language": same_language,
+        "languages_differ": languages_differ,
+        "word_ngram3_jaccard": round(w3, 4),
+        "word_ngram5_jaccard": round(w5, 4),
+        "char_ngram5_jaccard": round(c5, 4),
+        "translated_word_ngram_jaccard": round(tr_w5, 4),
+        "sequence_ratio": round(seq, 4),
+        "stylometric_distance": styl_dist,
+        "shared_rare_phrases": shared,
+        "copy_state": copy_state,
+        "copy_confidence": copy_conf,
+        "source_independence": independence,
+        "semantic_equivalence": sem,
+        "semantic_confidence": sem_conf,
+        "translation_dependency_state": dep,
+        "authorship_similarity_state": auth_state,
+        "authorship_confidence": auth_conf,
+        "authorship_similarity_score": auth_score,
+        "certainty_shifts": certainty_shifts,
+        "contradictions": contradictions,
+        "limitations": unique_preserve(limitations),
+    }
+
+
+# --------------------------------------------------------------------
+# Hypotheses / fact gate / graph / report helpers
+# --------------------------------------------------------------------
+
+def generate_hypotheses(pairs: List[Dict[str, Any]], artifacts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    hyp = []
+
+    for p in pairs:
+        if p["languages_differ"]:
+            support = []
+            oppose = []
+            if p["translated_word_ngram_jaccard"] >= 0.45:
+                support.append("High post-translation similarity.")
+            else:
+                oppose.append("No or low post-translation similarity.")
+            if p["copy_state"] == "TRANSLATION_CANDIDATE":
+                support.append("Pair classified as translation candidate.")
+
+            hyp.append({
+                "hypothesis_id": stable_id("HYP", p["pair_id"], "translation"),
+                "statement": f"{p['artifact_id_b']} may be a translation of {p['artifact_id_a']} or share an upstream translated source.",
+                "support": support,
+                "opposition": oppose,
+                "unknowns": [
+                    "Original source not retrieved.",
+                    "Translation engine may be unavailable or imperfect.",
+                ],
+                "falsification_conditions": [
+                    "Later text predates earlier text.",
+                    "Substantive details differ.",
+                    "Post-translation similarity drops with better translation.",
+                ],
+                "status": "CANDIDATE" if support else "UNKNOWN",
+            })
+
+        if p["copy_state"] in ("SHARED_SOURCE_CANDIDATE", "PARAPHRASE_CANDIDATE"):
+            hyp.append({
+                "hypothesis_id": stable_id("HYP", p["pair_id"], "common_upstream"),
+                "statement": f"{p['artifact_id_a']} and {p['artifact_id_b']} may derive from a common upstream source, template, or press release.",
+                "support": [
+                    f"Copy state: {p['copy_state']}",
+                    f"Shared rare phrases: {len(p['shared_rare_phrases'])}",
+                ],
+                "opposition": [
+                    "Shared terminology can arise independently.",
+                    "Genre/platform differences may explain style variation.",
+                ],
+                "unknowns": ["Upstream source not identified."],
+                "falsification_conditions": [
+                    "Both cite different primary sources.",
+                    "Shared phrases are common boilerplate.",
+                    "Publication order contradicts derivation.",
+                ],
+                "status": "CANDIDATE",
+            })
+
+        if p["copy_state"] == "INDEPENDENT":
+            hyp.append({
+                "hypothesis_id": stable_id("HYP", p["pair_id"], "independent"),
+                "statement": f"{p['artifact_id_a']} and {p['artifact_id_b']} appear independent at linguistic level.",
+                "support": ["Low n-gram overlap and no shared rare phrases."],
+                "opposition": ["Insufficient text or missing translation may hide dependency."],
+                "unknowns": ["Full source lineage not verified."],
+                "falsification_conditions": [
+                    "Additional shared rare phrases found.",
+                    "Hidden common template detected.",
+                    "Translation dependency emerges after MT/human review.",
+                ],
+                "status": "CANDIDATE",
+            })
+
+        if p["copy_state"] in ("NEAR_COPY", "EXACT_COPY") and p["certainty_shifts"]:
+            hyp.append({
+                "hypothesis_id": stable_id("HYP", p["pair_id"], "copy_certainty_change"),
+                "statement": f"One text may be copied/near-copied with certainty alteration.",
+                "support": [
+                    f"Copy state: {p['copy_state']}",
+                    f"Certainty shift candidates: {len(p['certainty_shifts'])}",
+                ],
+                "opposition": ["Certainty shift may come from translation or editing."],
+                "unknowns": ["Editor/translator identity not established."],
+                "falsification_conditions": [
+                    "Shift explained by source attribution or quote framing.",
+                    "Different genre explains modality change.",
+                ],
+                "status": "CANDIDATE",
+            })
+
+    return hyp
+
+
+def normalize_fact(f: Any) -> str:
+    if isinstance(f, dict):
+        return str(f.get("text") or f.get("fact") or "")
+    return str(f)
+
+
+def fact_gate(claims: List[Dict[str, Any]], known_facts: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    known = []
+    for f in known_facts:
+        txt = normalize_fact(f)
+        if txt:
+            known.append(normalize_text(txt).lower())
+
+    supported = []
+    candidate = []
+    disputed = []
+
+    for c in claims:
+        ct = normalize_text(c["text"]).lower()
+        matched = any(k in ct or ct in k for k in known if k)
+        if matched:
+            supported.append({
+                "claim_id": c["claim_id"],
+                "fact": c["text"],
+                "status": "SUPPORTED_BY_PROVIDED_KNOWN_FACT",
+                "confidence": "PROBABLE",
+                "limitations": ["Supported only by supplied known facts; no external verification."],
+            })
+        else:
+            candidate.append({
+                "claim_id": c["claim_id"],
+                "fact": c["text"],
+                "status": "CANDIDATE",
+                "confidence": "POSSIBLE",
+                "limitations": ["No independent verification performed."],
+            })
+
+    return supported, candidate, disputed
+
+
+class GraphMemory:
+    def __init__(self):
+        self.nodes: List[Dict[str, Any]] = []
+        self.edges: List[Dict[str, Any]] = []
+        self._node_ids: Set[str] = set()
+
+    def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if node_id in self._node_ids:
+            return
+        self._node_ids.add(node_id)
+        self.nodes.append({
+            "type": node_type,
+            "id": node_id,
+            "properties": properties or {},
+        })
+
+    def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append({
+            "from": from_id,
+            "to": to_id,
+            "type": edge_type,
+            "properties": properties or {},
+        })
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "nodes": self.nodes[:500],
+            "edges": self.edges[:1000],
+            "note": "Graph is a memory/index, not proof. Every edge retains confidence/method where available.",
+        }
+
+
+def build_graph(artifacts: List[Dict[str, Any]], pairs: List[Dict[str, Any]], result: Dict[str, Any]) -> GraphMemory:
+    g = GraphMemory()
+
+    for a in artifacts:
+        g.add_node("TextArtifact", a["artifact_id"], {
+            "source_id": a["source_id"],
+            "language": a["top_language"],
+            "script": a["script"]["dominant"],
+            "timestamp": a["timestamp"],
+        })
+
+        ev = a["evidence"]
+        g.add_node("Evidence", ev["evidence_id"], {
+            "source_id": ev["source_id"],
+            "confidence": ev["confidence"],
+        })
+
+        if a["top_language"] != "UNKNOWN":
+            lang_id = f"Language-{a['top_language']}"
+            g.add_node("Language", lang_id, {"code": a["top_language"]})
+            g.add_edge(a["artifact_id"], lang_id, "WRITTEN_IN", {
+                "confidence": a["language_confidence"],
+                "method": "language_detection",
+            })
+
+        script = a["script"]["dominant"]
+        if script != "NONE":
+            script_id = f"Script-{script}"
+            g.add_node("Script", script_id, {"name": script})
+            g.add_edge(a["artifact_id"], script_id, "USES_SCRIPT", {
+                "confidence": a["script"]["confidence"],
+                "method": "unicode_script_ranges",
+            })
+
+        for t in a["terminology"][:20]:
+            term_id = stable_id("Term", t["term"].lower())
+            g.add_node("Term", term_id, {"term": t["term"], "domain": t.get("domain")})
+            g.add_edge(a["artifact_id"], term_id, "CONTAINS_TERM", {
+                "confidence": t["confidence"],
+                "method": "terminology_extraction",
+            })
+
+        for c in a["claims"][:20]:
+            g.add_node("Claim", c["claim_id"], {
+                "text": c["text"],
+                "negated": c["negated"],
+                "modal": c["modal"],
+                "epistemic": c["epistemic"],
+            })
+            g.add_edge(ev["evidence_id"], c["claim_id"], "SUPPORTS_CLAIM", {
+                "confidence": c["confidence"],
+                "method": "claim_extraction",
+            })
+
+    for ph in result.get("phrases", [])[:20]:
+        phrase_id = stable_id("Phrase", ph["phrase"])
+        g.add_node("Phrase", phrase_id, {"phrase": ph["phrase"], "document_count": ph["document_count"]})
+        for a in artifacts:
+            if ph["phrase"] in " ".join(tokenize_words(a["analysis"])):
+                g.add_edge(a["artifact_id"], phrase_id, "CONTAINS_PHRASE", {
+                    "method": "word_ngram_4",
+                    "confidence": "POSSIBLE",
+                })
+
+    for p in pairs:
+        g.add_edge(p["artifact_id_a"], p["artifact_id_b"], "LINGUISTICALLY_SIMILAR_TO", {
+            "word_ngram5_jaccard": p["word_ngram5_jaccard"],
+            "stylometric_distance": p["stylometric_distance"],
+            "method": "ngram+stylometry",
+            "confidence": "POSSIBLE",
+        })
+
+        if p["semantic_equivalence"] != "UNKNOWN":
+            g.add_edge(p["artifact_id_a"], p["artifact_id_b"], "SEMANTICALLY_MATCHES", {
+                "state": p["semantic_equivalence"],
+                "confidence": p["semantic_confidence"],
+                "method": "lexical/translated similarity",
+            })
+
+        if p["copy_state"] in ("EXACT_COPY", "NEAR_COPY"):
+            g.add_edge(p["artifact_id_b"], p["artifact_id_a"], "COPIED_FROM", {
+                "state": p["copy_state"],
+                "confidence": p["copy_confidence"],
+                "method": "hash+sequence+ngram",
+            })
+        elif p["copy_state"] == "TRANSLATION_CANDIDATE":
+            g.add_edge(p["artifact_id_b"], p["artifact_id_a"], "TRANSLATED_FROM", {
+                "confidence": p["copy_confidence"],
+                "method": "post-translation ngram similarity",
+            })
+        elif p["copy_state"] == "PARAPHRASE_CANDIDATE":
+            g.add_edge(p["artifact_id_b"], p["artifact_id_a"], "PARAPHRASED_FROM", {
+                "confidence": p["copy_confidence"],
+                "method": "ngram+shared phrases",
+            })
+        elif p["copy_state"] == "SHARED_SOURCE_CANDIDATE":
+            src_id = stable_id("SourceCandidate", p["pair_id"])
+            g.add_node("SourceCandidate", src_id, {"pair_id": p["pair_id"]})
+            g.add_edge(p["artifact_id_a"], src_id, "DERIVED_FROM_CANDIDATE", {
+                "confidence": p["copy_confidence"],
+                "method": "shared rare phrases",
+            })
+            g.add_edge(p["artifact_id_b"], src_id, "DERIVED_FROM_CANDIDATE", {
+                "confidence": p["copy_confidence"],
+                "method": "shared rare phrases",
+            })
+
+        for c in p["contradictions"][:10]:
+            claim_a, claim_b = c["claims"]
+            g.add_edge(claim_a, claim_b, "CONTRADICTS", {
+                "type": c["type"],
+                "severity": c["severity"],
+                "confidence": c["confidence"],
+                "method": "claim heuristic",
+            })
+
+    for h in result.get("hypotheses", [])[:20]:
+        g.add_node("Hypothesis", h["hypothesis_id"], {
+            "statement": h["statement"],
+            "status": h["status"],
+        })
+
+    return g
+
+
+def dual_ai_review(
+    artifacts: List[Dict[str, Any]],
+    pairs: List[Dict[str, Any]],
+    result: Dict[str, Any],
+) -> Dict[str, Any]:
+    review = {
+        "status": "INSUFFICIENT_EVIDENCE",
+        "primary_conclusions": [],
+        "skeptic_challenges": [],
+        "comparison": "NO_SECOND_MODEL_CONFIGURED",
+        "notes": [
+            "This starter does not call an independent second model.",
+            "AI agreement is not linguistic corroboration.",
+            "Human review is required for consequential attribution.",
+        ],
+    }
+
+    for p in pairs:
+        if p["copy_state"] in ("EXACT_COPY", "NEAR_COPY"):
+            review["primary_conclusions"].append(f"{p['pair_id']}: copying/near-copying candidate.")
+            review["skeptic_challenges"].append(
+                "Check syndication, quotation, shared template, or common upstream source before declaring dependence."
+            )
+        if p["authorship_similarity_state"] in ("HIGH_SIMILARITY", "MODERATE_SIMILARITY"):
+            review["primary_conclusions"].append(f"{p['pair_id']}: stylometric similarity candidate.")
+            review["skeptic_challenges"].append(
+                "Genre/platform/editor/translator effects may explain style similarity; no real-person identity."
+            )
+        if p["translation_dependency_state"] == "CANDIDATE":
+            review["primary_conclusions"].append(f"{p['pair_id']}: translation dependency candidate.")
+            review["skeptic_challenges"].append(
+                "Confirm original language, publication order, and independent human translation."
+            )
+
+    if not pairs:
+        review["notes"].append("No pairs analyzed.")
+
+    if review["primary_conclusions"]:
+        review["status"] = "PARTIAL_AGREEMENT"
+
+    return review
+
+
+def build_observations(artifacts: List[Dict[str, Any]], pairs: List[Dict[str, Any]], result: Dict[str, Any]) -> List[str]:
+    obs = []
+
+    langs = sorted({a["top_language"] for a in artifacts if a["top_language"] != "UNKNOWN"})
+    if langs:
+        obs.append(f"Languages detected: {', '.join(langs)}.")
+
+    scripts = sorted({a["script"]["dominant"] for a in artifacts if a["script"]["dominant"] != "NONE"})
+    if scripts:
+        obs.append(f"Dominant scripts: {', '.join(scripts)}. Script does not determine language.")
+
+    if any(a["code_switching"]["code_switching"] for a in artifacts):
+        obs.append("Code-switching candidates detected at sentence level.")
+
+    trans_ok = sum(1 for a in artifacts if a["translation"]["status"] == "SUCCEEDED")
+    obs.append(f"Translation status: {trans_ok}/{len(artifacts)} succeeded; unresolved translations are not fabricated.")
+
+    if pairs:
+        dep = [p for p in pairs if p["source_independence"] in ("DEPENDENT", "PARTIALLY_DEPENDENT")]
+        if dep:
+            obs.append(
+                f"Source dependency candidates: {len(dep)} pair(s). "
+                "Do not count dependent sources as independent corroboration."
+            )
+
+        auth = [p for p in pairs if p["authorship_similarity_state"] in ("HIGH_SIMILARITY", "MODERATE_SIMILARITY")]
+        if auth:
+            obs.append(
+                "Stylometric similarity is a supporting signal only and does not identify a real-world author."
+            )
+
+    if result.get("contradictions"):
+        obs.append(
+            "Contradiction candidates detected; these may arise from translation, editing, context, or updated information."
+        )
+
+    if result.get("privacy_flags"):
+        obs.append("Privacy boundary enforced: prohibited sensitive-trait inference was not performed.")
+
+    return obs
+
+
+def build_unknowns(artifacts: List[Dict[str, Any]], pairs: List[Dict[str, Any]], result: Dict[str, Any]) -> List[str]:
+    unknowns = []
+
+    for a in artifacts:
+        if a["top_language"] == "UNKNOWN":
+            unknowns.append(f"Language unresolved for {a['artifact_id']}.")
+        if a["translation"]["status"] != "SUCCEEDED":
+            unknowns.append(f"Translation unresolved for {a['artifact_id']}.")
+
+    for p in pairs:
+        if p["copy_state"] == "UNKNOWN":
+            unknowns.append(f"Source dependency unresolved for pair {p['pair_id']}.")
+        if p["authorship_similarity_state"] == "INSUFFICIENT_TEXT":
+            unknowns.append(f"Authorship similarity underpowered for pair {p['pair_id']}.")
+
+    if result.get("contradictions"):
+        unknowns.append("Contradiction candidates unresolved.")
+
+    return unique_preserve(unknowns)
+
+
+def build_gaps(artifacts: List[Dict[str, Any]], pairs: List[Dict[str, Any]], result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    gaps = []
+
+    for a in artifacts:
+        if a["top_language"] == "UNKNOWN" or a["language_confidence"] in ("UNKNOWN", "INSUFFICIENT_TEXT"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "lang", a["artifact_id"]),
+                "type": "LANGUAGE_AMBIGUOUS",
+                "importance": "HIGH",
+                "artifact_id": a["artifact_id"],
+                "recommended_source": "Longer original text, native speaker review, or authoritative corpus.",
+                "specialist": "LANGINT / HUMAN_REVIEW",
+                "expected_information_value": "Resolves language before translation/dependency analysis.",
+            })
+
+        if a["translation"]["status"] in ("TRANSLATION_UNRESOLVED", "LANGUAGE_UNRESOLVED", "NOT_ATTEMPTED"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "trans", a["artifact_id"]),
+                "type": "TRANSLATION_UNCERTAIN",
+                "importance": "HIGH" if a["top_language"] != "UNKNOWN" else "MEDIUM",
+                "artifact_id": a["artifact_id"],
+                "recommended_source": "Authorized local MT, bilingual human translator, or original-language source.",
+                "specialist": "LANGINT / HUMAN_REVIEW",
+                "expected_information_value": "Enables cross-language claim alignment and fidelity checks.",
+            })
+
+        if a["stylometry"]["insufficient_text"]:
+            gaps.append({
+                "gap_id": stable_id("GAP", "style", a["artifact_id"]),
+                "type": "AUTHORSHIP_COMPARISON_UNDERPOWERED",
+                "importance": "MEDIUM",
+                "artifact_id": a["artifact_id"],
+                "recommended_source": "More comparable texts of same genre/platform/time period.",
+                "specialist": "LANGINT / SOCINT / METADATAINT",
+                "expected_information_value": "Improves stylometric reliability but never proves identity alone.",
+            })
+
+    for p in pairs:
+        if p["copy_state"] == "UNKNOWN":
+            gaps.append({
+                "gap_id": stable_id("GAP", "dep", p["pair_id"]),
+                "type": "SOURCE_DEPENDENCY_UNKNOWN",
+                "importance": "HIGH",
+                "pair_id": p["pair_id"],
+                "recommended_source": "Full text, publication chronology, upstream source, or metadata.",
+                "specialist": "LANGINT / DOCINT / METADATAINT",
+                "expected_information_value": "Prevents false independent corroboration.",
+            })
+
+        if p["contradictions"]:
+            gaps.append({
+                "gap_id": stable_id("GAP", "contr", p["pair_id"]),
+                "type": "CONTRADICTION_UNRESOLVED",
+                "importance": "HIGH",
+                "pair_id": p["pair_id"],
+                "recommended_source": "Primary source, context, edit history, or native translation review.",
+                "specialist": "LANGINT / DISINFOINT / HUMAN_REVIEW",
+                "expected_information_value": "Clarifies whether conflict is substantive or linguistic artifact.",
+            })
+
+    if any(e["label"] == "PERSON_ORG_PLACE_UNKNOWN" for e in result.get("entities", [])):
+        gaps.append({
+            "gap_id": stable_id("GAP", "entity", "global"),
+            "type": "ENTITY_UNRESOLVED",
+            "importance": "MEDIUM",
+            "recommended_source": "Cross-language entity resolution, authoritative gazetteer, or identity handoff.",
+            "specialist": "LANGINT / ORGINT / SOCMINT",
+            "expected_information_value": "Reduces false merging of names/transliterations.",
+        })
+
+    return gaps[:100]
+
+
+def build_next_actions(gaps: List[Dict[str, Any]], privacy_flags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    actions = []
+    priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
+    for g in gaps:
+        if g["type"] == "LANGUAGE_AMBIGUOUS":
+            action = "Retrieve longer original-language text or request native transcript."
+        elif g["type"] == "TRANSLATION_UNCERTAIN":
+            action = "Request second independent translation or authorized local MT; do not fabricate translation."
+        elif g["type"] == "AUTHORSHIP_COMPARISON_UNDERPOWERED":
+            action = "Collect more comparable texts of same genre/platform/time; keep authorship as supporting signal only."
+        elif g["type"] == "SOURCE_DEPENDENCY_UNKNOWN":
+            action = "Compare publication chronology, full context, and upstream source lineage."
+        elif g["type"] == "CONTRADICTION_UNRESOLVED":
+            action = "Retrieve primary source/context and perform human/native review."
+        elif g["type"] == "ENTITY_UNRESOLVED":
+            action = "Verify named entity spelling and cross-language aliases before resolution."
+        else:
+            action = "Gather additional authorized evidence."
+
+        actions.append({
+            "action": action,
+            "gap_id": g["gap_id"],
+            "priority": g["importance"],
+            "expected_information_value": g["expected_information_value"],
+            "privacy_impact": "LOW",
+            "prohibited_alternatives": [
+                "Do not infer nationality/ethnicity/religion/political belief from language.",
+                "Do not contact author deceptively.",
+                "Do not profile sensitive traits.",
+            ],
+        })
+
+    if privacy_flags:
+        actions.append({
+            "action": "Maintain privacy boundary; do not pursue prohibited sensitive-trait inference.",
+            "gap_id": "PRIVACY_BOUNDARY",
+            "priority": "HIGH",
+            "expected_information_value": "Prevents unlawful or unethical profiling.",
+            "privacy_impact": "HIGH",
+            "prohibited_alternatives": ["No ethnicity/nationality/religion/political/personality inference."],
+        })
+
+    actions.sort(key=lambda x: priority_map.get(x["priority"], 9))
+    return actions[:30]
+
+
+def determine_handoffs(objective: str, questions: List[str], result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    blob = " ".join([objective] + questions).lower()
+    hand = []
+
+    def add(name: str, reason: str) -> None:
+        hand.append({
+            "specialist": name,
+            "reason": reason,
+            "payload": [
+                "text_spans", "language", "source", "time", "claim_ids",
+                "known_facts", "unknowns", "limitations",
+            ],
+        })
+
+    if any(k in blob for k in ["propagation", "narrative", "campaign", "frame spread", "meme"]):
+        add("NARRATIVEINT", "Narrative propagation/frame evolution requested.")
+    if any(k in blob for k in ["identity", "author", "who wrote", "real person", "person"]):
+        add("SOCMINT / METADATAINT / authorized identity evidence", "Identity question requires non-linguistic evidence.")
+    if any(k in blob for k in ["audio", "voice", "speaker", "accent", "asr"]):
+        add("AUDINT", "Audio/acoustic/speaker analysis out of LANGINT scope.")
+    if any(k in blob for k in ["document structure", "file metadata", "provenance", "pdf", "docx"]):
+        add("DOCINT / METADATAINT", "Document structure/provenance requested.")
+    if any(k in blob for k in ["fake", "false", "disinformation", "manipulation"]):
+        add("DISINFOINT", "Truth/falsehood assessment requested.")
+    if any(k in blob for k in ["fraud", "scam", "phishing"]):
+        add("FRAUDINT", "Fraud/scam pattern analysis requested.")
+    if result.get("contradictions"):
+        add("FACT GATE / human review", "Contradiction candidates require independent verification.")
+
+    return hand
+
+
+def aggregate_limitations(
+    artifacts: List[Dict[str, Any]],
+    pairs: List[Dict[str, Any]],
+    privacy_blocked: List[str],
+    auth_reasons: List[str],
+) -> List[str]:
+    lims = [
+        "Language detection is probabilistic; script is not language.",
+        "Sentence-level code-switching may miss intra-sentence switches.",
+        "No external fact verification performed unless known_facts supplied.",
+        "Stylometry/authorship similarity does not identify real persons.",
+        "Translation fidelity checks are heuristic; material claims require human/native review.",
+        "Short text, poor OCR/ASR, mixed scripts, and missing timestamps reduce confidence.",
+    ]
+
+    if privacy_blocked:
+        lims.append("Prohibited sensitive-trait inference requested and not performed.")
+    if auth_reasons:
+        lims.extend(auth_reasons)
+
+    for a in artifacts:
+        if a["language_candidates"]:
+            lims.extend(a["language_candidates"][0].get("limitations", []))
+        lims.extend(a["script"].get("limitations", []))
+        lims.extend(a["code_switching"].get("limitations", []))
+        lims.extend(a["translation"].get("limitations", []))
+        lims.extend(a["translation_fidelity"].get("limitations", []))
+
+    for p in pairs:
+        lims.extend(p.get("limitations", []))
+
+    return unique_preserve(lims)
+
+
+def finalize_status(
+    result: Dict[str, Any],
+    artifacts: List[Dict[str, Any]],
+    pairs: List[Dict[str, Any]],
+    auth_ok: bool,
+    privacy_blocked: List[str],
+) -> str:
+    if not auth_ok:
+        return "BLOCKED_PERMISSION"
+    if not artifacts:
+        return "INSUFFICIENT_TEXT"
+
+    if privacy_blocked and not any(a["top_language"] != "UNKNOWN" for a in artifacts):
+        return "BLOCKED_PRIVACY"
+
+    statuses = []
+
+    if all(a["top_language"] == "UNKNOWN" for a in artifacts):
+        statuses.append("LANGUAGE_UNRESOLVED")
+    if any(a["translation"]["status"] == "TRANSLATION_UNRESOLVED" for a in artifacts):
+        statuses.append("TRANSLATION_UNRESOLVED")
+    if pairs and all(p["copy_state"] == "UNKNOWN" for p in pairs):
+        statuses.append("SOURCE_DEPENDENCY_UNRESOLVED")
+    if any(p["authorship_similarity_state"] == "INSUFFICIENT_TEXT" for p in pairs):
+        statuses.append("STYLE_COMPARISON_UNDERPOWERED")
+    if result.get("contradictions"):
+        statuses.append("INCONCLUSIVE")
+
+    if "LANGUAGE_UNRESOLVED" in statuses and not any(a["top_language"] != "UNKNOWN" for a in artifacts):
+        return "LANGUAGE_UNRESOLVED"
+
+    if statuses:
+        return "PARTIAL"
+
+    if privacy_blocked:
+        return "PARTIAL"
+
+    return "SUCCEEDED"
+
+
+# --------------------------------------------------------------------
+# Privacy / authorization checks
+# --------------------------------------------------------------------
+
+PROHIBITED_PATTERNS = [
+    (r"\b(nationality|citizenship|country of origin|passport)\b", "NATIONALITY_INFERENCE"),
+    (r"\b(ethnicity|ethnic background|race|racial)\b", "ETHNICITY_INFERENCE"),
+    (r"\b(religion|religious identity|faith of person)\b", "RELIGION_INFERENCE"),
+    (r"\b(political belief|political ideology|party affiliation)\b", "POLITICAL_BELIEF_INFERENCE"),
+    (r"\b(personality|psychopath|narcissist|mental illness|diagnos)\b", "PERSONALITY_OR_MENTAL_STATE_INFERENCE"),
+    (r"\b(lie detector|deception detection|guilt|criminality)\b", "DECEPTION_OR_CRIMINALITY_INFERENCE"),
+    (r"\b(sexual orientation|medical condition|health status)\b", "SENSITIVE_TRAIT_INFERENCE"),
+]
+
+
+def privacy_screen(objective: str, questions: List[str]) -> List[str]:
+    blob = " ".join([objective] + questions).lower()
+    blocked = []
+    for pat, label in PROHIBITED_PATTERNS:
+        if re.search(pat, blob):
+            blocked.append(label)
+    return unique_preserve(blocked)
+
+
+def authorization_check(case: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    auth = case.get("authorization") or {}
+    reasons = []
+
+    if not auth.get("approved"):
+        reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+
+    scope = auth.get("scope", "provided_texts_only")
+    allowed_scopes = {
+        "provided_texts_only",
+        "authorized_enterprise",
+        "public_sources",
+        "lawful_incident_records",
+    }
+    if scope not in allowed_scopes:
+        reasons.append("UNSUPPORTED_SCOPE")
+
+    model_mode = auth.get("model_mode", "LOCAL_ONLY")
+    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+        reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+
+    return (len(reasons) == 0), reasons
+
+
+# --------------------------------------------------------------------
+# Artifact preparation
+# --------------------------------------------------------------------
+
+def prepare_artifact(artifact: Dict[str, Any], engine: LocalTranslationEngine, target_language: str) -> Dict[str, Any]:
+    source_id = str(artifact.get("source_id", "UNKNOWN"))
+    original = str(artifact.get("text", ""))
+    artifact_id = str(artifact.get("artifact_id") or stable_id("ART", source_id, content_hash(original)))
+
+    norm = normalize_text(original)
+    analysis = analysis_text(norm)
+
+    script_info = detect_scripts(analysis)
+    langs = detect_language(analysis)
+    top_lang = langs[0]["language"] if langs else "UNKNOWN"
+    top_conf = langs[0]["confidence"] if langs else "UNKNOWN"
+
+    seg_info = segment_code_switching(source_id, norm)
+    translit = maybe_transliterate(norm, top_lang)
+
+    translation = translate_text(engine, norm, top_lang, target_language)
+    fidelity = assess_translation_fidelity(
+        norm,
+        translation.get("contextual_translation"),
+        top_lang,
+        target_language,
+        translation.get("method", "NONE"),
+    )
+
+    terms = extract_terminology(norm, top_lang)
+    entities = extract_entities(norm, top_lang)
+    claims = extract_claims(source_id, norm, top_lang)
+    temporal = extract_temporal_expressions(norm, artifact.get("timestamp"))
+    rhetoric = analyze_rhetoric(norm)
+    slang = analyze_slang(norm, top_lang, (artifact.get("metadata", {}) or {}).get("platform"))
+    style = extract_stylometric_features(analysis)
+
+    wn3 = set(word_ngrams(analysis, 3))
+    wn5 = set(word_ngrams(analysis, 5))
+    cn5 = set(char_ngrams(analysis, 5))
+
+    translated_analysis = analysis_text(translation.get("contextual_translation") or "")
+    trwn5 = set(word_ngrams(translated_analysis, 5)) if translated_analysis else set()
+
+    ev_id = stable_id("EV", source_id, artifact_id, content_hash(original))
+    evidence = {
+        "evidence_id": ev_id,
+        "source_id": source_id,
+        "artifact_id": artifact_id,
+        "text_span_id": "FULL_ARTIFACT",
+        "original_text": original,
+        "normalized_text": norm,
+        "language_candidate": top_lang,
+        "script": script_info["dominant"],
+        "offsets": [0, len(norm)],
+        "timestamp": artifact.get("timestamp"),
+        "content_hash": content_hash(original),
+        "parser_version": VERSION,
+        "model_version": ",".join(filter(None, [
+            "langdetect" if HAS_LANGDETECT else None,
+            "fasttext" if FASTTEXT_MODEL else None,
+            "spacy" if SPACY_NLP else None,
+        ])) or "stdlib-heuristics",
+        "confidence": top_conf,
+        "limitations": langs[0]["limitations"] if langs else ["No language candidates."],
+    }
+
+    art = {
+        "artifact_id": artifact_id,
+        "source_id": source_id,
+        "original_text": original,
+        "normalized_text": norm,
+        "analysis": analysis,
+        "content_hash": content_hash(original),
+        "timestamp": artifact.get("timestamp"),
+        "metadata": artifact.get("metadata", {}) or {},
+        "language_candidates": langs,
+        "top_language": top_lang,
+        "language_confidence": top_conf,
+        "script": script_info,
+        "code_switching": seg_info,
+        "transliteration": translit,
+        "translation": translation,
+        "translation_fidelity": fidelity,
+        "terminology": terms,
+        "entities": entities,
+        "claims": claims,
+        "temporal_expressions": temporal,
+        "rhetoric": rhetoric,
+        "slang": slang,
+        "stylometry": style,
+        "word_ngrams3": wn3,
+        "word_ngrams5": wn5,
+        "char_ngrams5": cn5,
+        "translated_word_ngrams5": trwn5,
+        "evidence": evidence,
+    }
+
+    art["machine_translation_indicators"] = machine_translation_indicators(art)
+    art["ai_generation_indicators"] = ai_generation_indicators(art)
+    art["quote_alignment"] = quote_alignment(norm)
+
+    return art
+
+
+def public_artifact(art: Dict[str, Any]) -> Dict[str, Any]:
+    drop = {"word_ngrams3", "word_ngrams5", "char_ngrams5", "translated_word_ngrams5"}
+    out = {k: v for k, v in art.items() if k not in drop}
+    out["ngram_summary"] = {
+        "word3_count": len(art["word_ngrams3"]),
+        "word5_count": len(art["word_ngrams5"]),
+        "char5_count": len(art["char_ngrams5"]),
+        "translated_word5_count": len(art["translated_word_ngrams5"]),
+    }
+    return out
+
+
+# --------------------------------------------------------------------
+# Main analysis
+# --------------------------------------------------------------------
+
+def analyze_case(case: Dict[str, Any]) -> Dict[str, Any]:
+    case_id = case.get("case_id", "CASE-UNKNOWN")
+    task_id = case.get("task_id", "TASK-UNKNOWN")
+    objective = case.get("objective", "")
+    questions = case.get("questions", []) or []
+
+    auth_ok, auth_reasons = authorization_check(case)
+    privacy_blocked = privacy_screen(objective, questions)
+
+    result: Dict[str, Any] = {
+        "case_id": case_id,
+        "task_id": task_id,
+        "objective": objective,
+        "questions": questions,
+        "generated_at": utc_now(),
+        "version": VERSION,
+        "source_ids": [],
+        "evidence_ids": [],
+        "text_artifacts": [],
+        "languages": [],
+        "language_segments": [],
+        "language_confidence": [],
+        "scripts": [],
+        "script_confidence": [],
+        "code_switching": [],
+        "transliterations": [],
+        "translations": [],
+        "translation_fidelity": [],
+        "translation_differences": [],
+        "dialect_features": [],
+        "regional_features": [],
+        "registers": [],
+        "genres": [],
+        "terminology": [],
+        "jargon": [],
+        "slang": [],
+        "idioms": [],
+        "entities": [],
+        "cross_language_entities": [],
+        "claims": [],
+        "cross_language_claims": [],
+        "semantic_equivalence": [],
+        "temporal_expressions": [],
+        "rhetorical_features": [],
+        "narrative_frames": [],
+        "phrases": [],
+        "phrase_reuse": [],
+        "templates": [],
+        "source_copying": [],
+        "translation_dependencies": [],
+        "stylometric_features": [],
+        "authorship_similarity": [],
+        "linguistic_similarity": [],
+        "machine_translation_candidates": [],
+        "ai_generation_candidates": [],
+        "certainty_shifts": [],
+        "quote_alignment": [],
+        "source_pedigree": [],
+        "source_independence": [],
+        "timeline_updates": [],
+        "observations": [],
+        "candidate_facts": [],
+        "supported_facts": [],
+        "partial_facts": [],
+        "disputed_facts": [],
+        "contradictions": [],
+        "hypotheses": [],
+        "falsification_results": [],
+        "privacy_flags": [],
+        "unknowns": [],
+        "knowledge_gaps": [],
+        "recommended_next_actions": [],
+        "specialist_handoffs": [],
+        "limitations": [],
+        "dual_ai_review": {},
+        "graph_memory": {},
+        "status": "PARTIAL",
+    }
+
+    if privacy_blocked:
+        result["privacy_flags"] = [
+            {
+                "type": label,
+                "action": "PROHIBITED_INFERENCE_NOT_PERFORMED",
+                "boundary": "LANGINT does not infer nationality, ethnicity, religion, political belief, personality, mental state, deception, or criminality from language.",
+            }
+            for label in privacy_blocked
+        ]
+
+    if not auth_ok:
+        result["status"] = "BLOCKED_PERMISSION"
+        result["limitations"] = auth_reasons
+        return result
+
+    texts = case.get("texts", []) or []
+    if not texts:
+        result["status"] = "INSUFFICIENT_TEXT"
+        result["limitations"].append("No texts provided.")
+        return result
+
+    translation_config = case.get("translation", {}) or {}
+    engine = LocalTranslationEngine(enabled=bool(translation_config.get("enabled", False)))
+    target_language = translation_config.get("target_language", case.get("target_language", TARGET_LANGUAGE_DEFAULT))
+
+    artifacts: List[Dict[str, Any]] = []
+    for artifact in texts:
+        art = prepare_artifact(artifact, engine, target_language)
+        artifacts.append(art)
+
+    # Aggregate per-artifact outputs
+    for art in artifacts:
+        result["source_ids"].append(art["source_id"])
+        result["evidence_ids"].append(art["evidence"]["evidence_id"])
+        result["text_artifacts"].append(public_artifact(art))
+
+        for cand in art["language_candidates"]:
+            result["languages"].append({**cand, "artifact_id": art["artifact_id"]})
+            result["language_confidence"].append({
+                "artifact_id": art["artifact_id"],
+                "language": cand["language"],
+                "confidence": cand["confidence"],
+            })
+
+        result["language_segments"].extend(art["code_switching"]["segments"])
+
+        result["scripts"].append({"artifact_id": art["artifact_id"], **art["script"]})
+        result["script_confidence"].append({
+            "artifact_id": art["artifact_id"],
+            "script": art["script"]["dominant"],
+            "confidence": art["script"]["confidence"],
+        })
+
+        result["code_switching"].append({
+            "artifact_id": art["artifact_id"],
+            "code_switching": art["code_switching"]["code_switching"],
+            "dominant_language": art["code_switching"]["dominant_language"],
+            "detected_languages": art["code_switching"]["detected_languages"],
+            "limitations": art["code_switching"]["limitations"],
+        })
+
+        result["transliterations"].append({
+            "artifact_id": art["artifact_id"],
+            "transliteration": art["transliteration"],
+        })
+
+        result["translations"].append({
+            "artifact_id": art["artifact_id"],
+            **art["translation"],
+        })
+
+        result["translation_fidelity"].append({
+            "artifact_id": art["artifact_id"],
+            **art["translation_fidelity"],
+        })
+        result["translation_differences"].append({
+            "artifact_id": art["artifact_id"],
+            "difference": art["translation_fidelity"]["difference"],
+            "notes": art["translation_fidelity"]["notes"],
+        })
+
+        for t in art["terminology"]:
+            result["terminology"].append({"artifact_id": art["artifact_id"], **t})
+            if t["type"] == "DOMAIN_TERM":
+                result["jargon"].append({"artifact_id": art["artifact_id"], **t})
+
+        for e in art["entities"]:
+            result["entities"].append({"artifact_id": art["artifact_id"], **e})
+
+        for c in art["claims"]:
+            result["claims"].append({"artifact_id": art["artifact_id"], **c})
+
+        for te in art["temporal_expressions"]:
+            result["temporal_expressions"].append({"artifact_id": art["artifact_id"], **te})
+
+        result["rhetorical_features"].append({
+            "artifact_id": art["artifact_id"],
+            "features": art["rhetoric"]["rhetorical_features"],
+            "limitations": art["rhetoric"]["limitations"],
+        })
+
+        for f in art["rhetoric"]["narrative_frames"]:
+            result["narrative_frames"].append({"artifact_id": art["artifact_id"], **f})
+
+        result["slang"].append({"artifact_id": art["artifact_id"], **art["slang"]})
+        result["stylometric_features"].append({"artifact_id": art["artifact_id"], **art["stylometry"]})
+        result["machine_translation_candidates"].append(art["machine_translation_indicators"])
+        result["ai_generation_candidates"].append(art["ai_generation_indicators"])
+
+        for q in art["quote_alignment"]:
+            result["quote_alignment"].append({"artifact_id": art["artifact_id"], **q})
+
+        result["timeline_updates"].append({
+            "artifact_id": art["artifact_id"],
+            "timestamp": art["timestamp"],
+            "event": "ARTIFACT_OBSERVED",
+        })
+
+        # Simple register/genre placeholder from metadata
+        metadata = art.get("metadata", {}) or {}
+        if metadata.get("register"):
+            result["registers"].append({"artifact_id": art["artifact_id"], "register": metadata["register"]})
+        if metadata.get("genre"):
+            result["genres"].append({"artifact_id": art["artifact_id"], "genre": metadata["genre"]})
+
+    # Pairwise analysis
+    pairs: List[Dict[str, Any]] = []
+    for i in range(len(artifacts)):
+        for j in range(i + 1, len(artifacts)):
+            p = analyze_pair(artifacts[i], artifacts[j])
+            pairs.append(p)
+
+            result["linguistic_similarity"].append({
+                "pair_id": p["pair_id"],
+                "word_ngram3_jaccard": p["word_ngram3_jaccard"],
+                "word_ngram5_jaccard": p["word_ngram5_jaccard"],
+                "char_ngram5_jaccard": p["char_ngram5_jaccard"],
+                "translated_word_ngram_jaccard": p["translated_word_ngram_jaccard"],
+                "sequence_ratio": p["sequence_ratio"],
+                "stylometric_distance": p["stylometric_distance"],
+            })
+
+            result["source_copying"].append({
+                "pair_id": p["pair_id"],
+                "copy_state": p["copy_state"],
+                "confidence": p["copy_confidence"],
+            })
+
+            result["translation_dependencies"].append({
+                "pair_id": p["pair_id"],
+                "state": p["translation_dependency_state"],
+                "confidence": p["copy_confidence"],
+            })
+
+            result["semantic_equivalence"].append({
+                "pair_id": p["pair_id"],
+                "state": p["semantic_equivalence"],
+                "confidence": p["semantic_confidence"],
+            })
+
+            result["authorship_similarity"].append({
+                "pair_id": p["pair_id"],
+                "state": p["authorship_similarity_state"],
+                "confidence": p["authorship_confidence"],
+                "score": p["authorship_similarity_score"],
+                "limitation": "Style similarity is not identity attribution.",
+            })
+
+            result["certainty_shifts"].extend(p["certainty_shifts"])
+            result["contradictions"].extend(p["contradictions"])
+
+            for ph in p["shared_rare_phrases"]:
+                result["phrase_reuse"].append({"pair_id": p["pair_id"], **ph})
+
+            result["source_independence"].append({
+                "pair_id": p["pair_id"],
+                "state": p["source_independence"],
+            })
+
+            result["source_pedigree"].append({
+                "pair_id": p["pair_id"],
+                "state": p["copy_state"],
+                "confidence": p["copy_confidence"],
+            })
+
+    # Global phrases/templates
+    result["phrases"] = shared_rare_phrases([a["analysis"] for a in artifacts], n=4)
+    result["templates"] = detect_templates(artifacts)
+
+    # Fact gate
+    all_claims = [c for a in artifacts for c in a["claims"]]
+    supported, candidate, disputed = fact_gate(all_claims, case.get("known_facts", []) or [])
+    result["supported_facts"] = supported
+    result["candidate_facts"] = candidate
+    result["disputed_facts"] = disputed
+
+    # Hypotheses
+    result["hypotheses"] = generate_hypotheses(pairs, artifacts)
+    result["falsification_results"] = [
+        {
+            "hypothesis_id": h["hypothesis_id"],
+            "opposition": h["opposition"],
+            "falsification_conditions": h["falsification_conditions"],
+        }
+        for h in result["hypotheses"]
+    ]
+
+    # Dual AI review stub
+    result["dual_ai_review"] = dual_ai_review(artifacts, pairs, result)
+
+    # Graph memory
+    graph = build_graph(artifacts, pairs, result)
+    result["graph_memory"] = graph.to_dict()
+
+    # Observations / unknowns / gaps / actions / handoffs / limitations
+    result["observations"] = build_observations(artifacts, pairs, result)
+    result["unknowns"] = build_unknowns(artifacts, pairs, result)
+    result["knowledge_gaps"] = build_gaps(artifacts, pairs, result)
+    result["recommended_next_actions"] = build_next_actions(result["knowledge_gaps"], result["privacy_flags"])
+    result["specialist_handoffs"] = determine_handoffs(objective, questions, result)
+    result["limitations"] = aggregate_limitations(artifacts, pairs, privacy_blocked, auth_reasons)
+
+    result["status"] = finalize_status(result, artifacts, pairs, auth_ok, privacy_blocked)
+
+    return result
+
+
+# --------------------------------------------------------------------
+# Report generation
+# --------------------------------------------------------------------
+
+def generate_report(result: Dict[str, Any]) -> str:
+    lines = []
+    lines.append("# LANGINT Evidence-Linked Report")
+    lines.append("")
+    lines.append(f"- Case ID: `{result.get('case_id')}`")
+    lines.append(f"- Task ID: `{result.get('task_id')}`")
+    lines.append(f"- Generated: `{result.get('generated_at')}`")
+    lines.append(f"- Version: `{result.get('version')}`")
+    lines.append(f"- Status: `{result.get('status')}`")
+    lines.append("")
+
+    lines.append("## Objective")
+    lines.append(str(result.get("objective", "")))
+    lines.append("")
+
+    lines.append("## Required Analyst Summary")
+    langs = sorted({l["language"] for l in result.get("languages", []) if l.get("language") != "UNKNOWN"})
+    scripts = sorted({s["script"] for s in result.get("scripts", []) if s.get("dominant") not in (None, "NONE")})
+    if not scripts:
+        scripts = sorted({s.get("dominant") for s in result.get("scripts", []) if s.get("dominant") != "NONE"})
+
+    lines.append(f"- LANGUAGE(S): {', '.join(langs) if langs else 'UNKNOWN / INSUFFICIENT'}")
+    lines.append(f"- SCRIPT(S): {', '.join(scripts) if scripts else 'NONE / UNKNOWN'}")
+    lines.append("- CODE-SWITCHING: " + (
+        "Candidates detected" if any(cs.get("code_switching") for cs in result.get("code_switching", [])) else "Not detected at sentence level"
+    ))
+    lines.append("- TRANSLATION STATUS: " + (
+        f"{sum(1 for t in result.get('translations', []) if t.get('status') == 'SUCCEEDED')} succeeded; "
+        f"{sum(1 for t in result.get('translations', []) if t.get('status') != 'SUCCEEDED')} unresolved/not attempted"
+    ))
+    lines.append("- TRANSLATION FIDELITY: " + (
+        ", ".join(sorted({t.get('difference', 'UNKNOWN') for t in result.get('translation_fidelity', [])})) or "UNKNOWN"
+    ))
+    lines.append("- DIALECT / REGIONAL FEATURES: Not inferred as identity/location; only feature-compatible observations would be allowed in expanded modules.")
+    lines.append("- REGISTER: " + (
+        ", ".join(sorted({r.get('register', 'UNKNOWN') for r in result.get('registers', [])})) or "UNKNOWN"
+    ))
+    lines.append("- DOMAIN TERMINOLOGY: " + (
+        ", ".join(sorted({t.get('domain', 'UNKNOWN') for t in result.get('terminology', []) if t.get('type') == 'DOMAIN_TERM'})) or "None detected"
+    ))
+    lines.append(f"- KEY TERMS / JARGON COUNT: {len(result.get('jargon', []))}")
+    lines.append(f"- CLAIMS EXTRACTED: {len(result.get('claims', []))}")
+    lines.append("- SEMANTIC EQUIVALENCE: " + (
+        ", ".join(sorted({s.get('state', 'UNKNOWN') for s in result.get('semantic_equivalence', [])})) or "UNKNOWN"
+    ))
+    lines.append("- RHETORICAL / FRAMING FEATURES: " + (
+        ", ".join(sorted({f for item in result.get('rhetorical_features', []) for f in item.get('features', [])})) or "None"
+    ))
+    lines.append(f"- TEMPORAL LANGUAGE EXPRESSIONS: {len(result.get('temporal_expressions', []))}")
+    lines.append(f"- PHRASE / TEMPLATE REUSE: {len(result.get('phrase_reuse', []))} pair-level shared phrases; {len(result.get('templates', []))} template candidates")
+    lines.append("- SOURCE COPYING / TRANSLATION DEPENDENCY: " + (
+        ", ".join(sorted({c.get('copy_state', 'UNKNOWN') for c in result.get('source_copying', [])})) or "UNKNOWN"
+    ))
+    lines.append("- STYLOMETRIC SIMILARITY: " + (
+        ", ".join(sorted({a.get('state', 'UNKNOWN') for a in result.get('authorship_similarity', [])})) or "INSUFFICIENT_TEXT"
+    ))
+    lines.append("- AUTHORSHIP LIMITATION: Stylometry is similarity evidence only; it does not identify a real-world person.")
+    lines.append("- SOURCE INDEPENDENCE: " + (
+        ", ".join(sorted({s.get('state', 'UNKNOWN') for s in result.get('source_independence', [])})) or "UNKNOWN"
+    ))
+    lines.append(f"- CONTRADICTIONS: {len(result.get('contradictions', []))} candidate(s)")
+    lines.append(f"- UNKNOWN: {len(result.get('unknowns', []))} item(s)")
+    lines.append("- NEXT ACTION: " + (
+        result.get("recommended_next_actions", [{}])[0].get("action", "None")
+    ))
+    lines.append("")
+
+    lines.append("## Privacy / Sensitive-Inference Boundaries")
+    if result.get("privacy_flags"):
+        for pf in result["privacy_flags"]:
+            lines.append(f"- BLOCKED: `{pf.get('type')}` — {pf.get('action')}")
+    else:
+        lines.append("- No prohibited sensitive-trait inference requested or performed.")
+    lines.append("")
+
+    lines.append("## Observations")
+    for o in result.get("observations", []):
+        lines.append(f"- {o}")
+    lines.append("")
+
+    lines.append("## Languages")
+    for l in result.get("languages", [])[:50]:
+        lines.append(
+            f"- `{l.get('artifact_id')}`: {l.get('language')} "
+            f"(p={l.get('probability')}, conf={l.get('confidence')})"
+        )
+    lines.append("")
+
+    lines.append("## Scripts")
+    for s in result.get("scripts", [])[:50]:
+        lines.append(
+            f"- `{s.get('artifact_id')}`: dominant={s.get('dominant')}, "
+            f"mixed={s.get('mixed')}, conf={s.get('confidence')}"
+        )
+    lines.append("")
+
+    lines.append("## Translation")
+    for t in result.get("translations", [])[:20]:
+        lines.append(
+            f"- `{t.get('artifact_id')}`: {t.get('source_language')} -> {t.get('target_language')}, "
+            f"status={t.get('status')}, method={t.get('method')}"
+        )
+    lines.append("")
+
+    lines.append("## Terminology / Jargon")
+    for term in result.get("terminology", [])[:50]:
+        lines.append(
+            f"- `{term.get('artifact_id')}`: {term.get('term')} "
+            f"[{term.get('type')} / {term.get('domain')}] conf={term.get('confidence')}"
+        )
+    lines.append("")
+
+    lines.append("## Claims")
+    for c in result.get("claims", [])[:50]:
+        neg = "NEGATED" if c.get("negated") else "AFFIRMATIVE"
+        modal = c.get("modal") or "NONE"
+        lines.append(
+            f"- `{c.get('claim_id')}` ({neg}, modal={modal}): {c.get('text')}"
+        )
+    lines.append("")
+
+    lines.append("## Pairwise Linguistic Similarity / Dependency")
+    for p in result.get("source_copying", [])[:50]:
+        pair_id = p.get("pair_id")
+        lines.append(f"- `{pair_id}`: copy_state={p.get('copy_state')}, confidence={p.get('confidence')}")
+    for s in result.get("source_independence", [])[:50]:
+        lines.append(f"- `{s.get('pair_id')}`: independence={s.get('state')}")
+    for a in result.get("authorship_similarity", [])[:50]:
+        lines.append(
+            f"- `{a.get('pair_id')}`: authorship_similarity={a.get('state')}, "
+            f"score={a.get('score')}, conf={a.get('confidence')}"
+        )
+    lines.append("")
+
+    lines.append("## Contradictions / Certainty Shifts")
+    for c in result.get("contradictions", [])[:30]:
+        lines.append(f"- {c.get('type')} ({c.get('severity')}): claims={c.get('claims')}")
+    for cs in result.get("certainty_shifts", [])[:30]:
+        lines.append(f"- {cs.get('type')} ({cs.get('severity')}): {cs.get('claim_a')} vs {cs.get('claim_b')}")
+    lines.append("")
+
+    lines.append("## Hypotheses")
+    for h in result.get("hypotheses", [])[:30]:
+        lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('status')}]: {h.get('statement')}")
+        if h.get("support"):
+            lines.append(f"  - support: {'; '.join(h['support'])}")
+        if h.get("opposition"):
+            lines.append(f"  - opposition: {'; '.join(h['opposition'])}")
+        if h.get("falsification_conditions"):
+            lines.append(f"  - falsify if: {'; '.join(h['falsification_conditions'])}")
+    lines.append("")
+
+    lines.append("## Knowledge Gaps")
+    for g in result.get("knowledge_gaps", [])[:30]:
+        lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+    lines.append("")
+
+    lines.append("## Recommended Next Actions")
+    for a in result.get("recommended_next_actions", [])[:30]:
+        lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+    lines.append("")
+
+    lines.append("## Specialist Handoffs")
+    for h in result.get("specialist_handoffs", []):
+        lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+    lines.append("")
+
+    lines.append("## Limitations")
+    for lim in result.get("limitations", []):
+        lines.append(f"- {lim}")
+    lines.append("")
+
+    lines.append("## Non-Negotiable Boundary")
+    lines.append("- Language is not nationality, ethnicity, religion, political belief, identity, honesty, or criminality.")
+    lines.append("- Writing style is similarity evidence, not real-person attribution.")
+    lines.append("- Dependent/copied/translated sources are not independent corroboration.")
+
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TRACEATLAS LANGINT safe starter")
+    parser.add_argument("--input", required=True, help="Path to case JSON file")
+    parser.add_argument("--output", default="langint_result.json", help="Output JSON path")
+    parser.add_argument("--report", default="langint_report.md", help="Output Markdown report path")
+    args = parser.parse_args()
+
+    try:
+        case = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"ERROR reading input: {exc}", file=sys.stderr)
+        return 2
+
+    result = analyze_case(case)
+
+    Path(args.output).write_text(
+        json.dumps(result, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+
+    Path(args.report).write_text(generate_report(result), encoding="utf-8")
+
+    print(f"Wrote: {args.output}")
+    print(f"Wrote: {args.report}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
