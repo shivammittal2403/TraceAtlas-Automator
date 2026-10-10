@@ -1,0 +1,44 @@
+name: Repair lock candidates
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 9.15.0
+          run_install: false
+      - name: Regenerate lock candidates
+        run: |
+          python -m pip install uv==0.12.17
+          uv lock --project packages/openosint
+          pnpm -C integrations/osint-tool-typescript install --lockfile-only --ignore-scripts
+          python scripts/refresh_typescript_manifest.py
+      - name: Emit reviewable changes to tracked metadata
+        run: |
+          python - <<'PY'
+          import base64, difflib, hashlib, json, subprocess
+          from pathlib import Path
+          paths = ["packages/openosint/uv.lock", "integrations/osint-tool-typescript/pnpm-lock.yaml", "integrations/osint-tool-typescript.traceatlas-manifest.json"]
+          for path in paths:
+              old = subprocess.check_output(["git", "show", f"HEAD:{path}"]).decode()
+              new = Path(path).read_text()
+              before, after = old.splitlines(keepends=True), new.splitlines(keepends=True)
+              edits = [[a,b,after[c:d]] for op,a,b,c,d in difflib.SequenceMatcher(None,before,after,autojunk=False).get_opcodes() if op != "equal"]
+              record = {"path":path,"base":hashlib.sha256(old.encode()).hexdigest(),"sha256":hashlib.sha256(new.encode()).hexdigest(),"edits":edits}
+              print("LOCK_CANDIDATE:" + base64.b64encode(json.dumps(record).encode()).decode())
+          PY
