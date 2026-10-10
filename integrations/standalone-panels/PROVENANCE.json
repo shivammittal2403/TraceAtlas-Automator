@@ -1,0 +1,51 @@
+{
+  "purpose": "Maintained standalone investigation panels; not integrated production adapters.",
+  "source_repository": "shivammittal2403/SKILLS",
+  "source_commit": "1e873792281f8f73db17001548d98dd895e7b6ba",
+  "source_folder": "OSINT all",
+  "source_status": "Fetched during the authorized October 9 review before source repository became unavailable.",
+  "original_archive": "allint52/ remains byte-for-byte preserved; empty source files are not implemented by this change.",
+  "files": [
+    {
+      "path": "audint.py",
+      "source_blob": "1d144efcddc0046e247121c9cb43cab9dc1e3bcc"
+    },
+    {
+      "path": "geomint.py",
+      "source_blob": "b40dff27ab055c65539e06bfa526160452a31435"
+    },
+    {
+      "path": "imgmint.py",
+      "source_blob": "3ecd19b1cd6d46a7ea19dab22300e0fc748c9d4d"
+    },
+    {
+      "path": "maretineint.py",
+      "source_blob": "0c4985a0e3e75213509fe6aa64b953ff6b1ecf92"
+    },
+    {
+      "path": "osint.py",
+      "source_blob": "4586eaac0d3a93b5fe7e52d67ad8ca4461a6b375"
+    },
+    {
+      "path": "scamint.py",
+      "source_blob": "ff595d006349ec448bfdffa97956d550cd92fb30"
+    },
+    {
+      "path": "socmint.py",
+      "source_blob": "351afb83a38fb5438faf6fa60aa37133cf739133"
+    },
+    {
+      "path": "vedmint.py",
+      "source_blob": "66fb65cbd7dd04d69a09890f64143938e73c7492"
+    },
+    {
+      "path": "webint.py",
+      "source_blob": "f5f0cebe928a88125a8c5f1dd72e40de76fef9fc"
+    }
+  ],
+  "limitations": [
+    "AIS gap/anomaly analysis remains NOT_IMPLEMENTED.",
+    "Standalone panels are planning/local-analysis tools, not automatically production-qualified source integrations.",
+    "No provider credentials or live-target qualification included."
+  ]
+}
