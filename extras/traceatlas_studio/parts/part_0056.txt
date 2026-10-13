@@ -1,0 +1,1000 @@
+#|     right_repository_id: str
+#|     left_commit_id: str
+#|     right_commit_id: str
+#|     scope: str
+#|     state: SimilarityState
+#|     similarity_score: float
+#|     method: str
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Test:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     name: str
+#|     target_symbols: List[str] = field(default_factory=list)
+#|     passed: Optional[bool] = None
+#|     coverage: Optional[str] = None
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Coverage:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     line_coverage: Optional[float] = None
+#|     branch_coverage: Optional[float] = None
+#|     function_coverage: Optional[float] = None
+#|     scope: str = "UNKNOWN"
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Hypothesis:
+#|     id: str
+#|     statement: str
+#|     kind: str
+#|     supporting_finding_ids: List[str] = field(default_factory=list)
+#|     supporting_evidence_ids: List[str] = field(default_factory=list)
+#|     contradicting_evidence_ids: List[str] = field(default_factory=list)
+#|     assumptions: List[str] = field(default_factory=list)
+#|     predictions: List[str] = field(default_factory=list)
+#|     falsification_conditions: List[str] = field(default_factory=list)
+#|     status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+#|     confidence: float = 0.0
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Contradiction:
+#|     id: str
+#|     contradiction_type: str
+#|     description: str
+#|     repository_id: Optional[str] = None
+#|     finding_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     source_ids: List[str] = field(default_factory=list)
+#|     severity: str = "MEDIUM"
+#|     status: str = "OPEN"
+#|     recommended_resolution: str = ""
+#| 
+#| 
+#| @dataclass
+#| class KnowledgeGap:
+#|     id: str
+#|     gap_type: GapType
+#|     description: str
+#|     about_repository_ids: List[str] = field(default_factory=list)
+#|     about_finding_ids: List[str] = field(default_factory=list)
+#|     importance: str = "MEDIUM"
+#|     recommended_source: str = ""
+#|     specialist: Optional[str] = None
+#|     expected_information_value: float = 0.0
+#| 
+#| 
+#| @dataclass
+#| class NextAction:
+#|     id: str
+#|     description: str
+#|     priority: int = 1
+#|     privacy_impact: str = "LOW_IF_AUTHORIZED"
+#|     expected_gain: float = 0.0
+#|     specialist: Optional[str] = None
+#|     requires_human_approval: bool = False
+#| 
+#| 
+#| @dataclass
+#| class Recommendation:
+#|     id: str
+#|     category: str
+#|     action: str
+#|     target: str
+#|     rationale: str
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     finding_ids: List[str] = field(default_factory=list)
+#|     approval: Approval = Approval.HUMAN_APPROVAL_REQUIRED
+#|     business_impact: str = "REQUIRES_ENGINEERING_REVIEW"
+#|     reversibility: str = "REQUIRES_VALIDATION"
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Case:
+#|     case_id: str
+#|     task_id: str
+#|     objective: str
+#|     questions: List[str] = field(default_factory=list)
+#|     scope: List[str] = field(default_factory=lambda: ["authorized_source_only", "static_first", "case_scoped"])
+#|     authorization: str = "demo_authorized_code_intelligence"
+#|     repositories: List[str] = field(default_factory=list)
+#|     commits: List[str] = field(default_factory=list)
+#|     time_range: Optional[str] = None
+#|     sample: bool = False
+#|     budget: Optional[str] = None
+#|     deadline: Optional[str] = None
+#| 
+#| 
+#| # =====================================================================
+#| # CODEINT ENGINE
+#| # =====================================================================
+#| 
+#| class CodeInt:
+#|     def __init__(self, case: Case) -> None:
+#|         self.case = case
+#|         self.sources: Dict[str, Source] = {}
+#|         self.evidence: Dict[str, Evidence] = {}
+#|         self.repositories: Dict[str, Repository] = {}
+#|         self.commits: Dict[str, Commit] = {}
+#|         self.branches: Dict[str, Branch] = {}
+#|         self.tags: Dict[str, Tag] = {}
+#|         self.releases: Dict[str, Release] = {}
+#|         self.files: Dict[str, SourceFile] = {}
+#|         self.symbols: Dict[str, Symbol] = {}
+#|         self.components: Dict[str, Component] = {}
+#|         self.services: Dict[str, Service] = {}
+#|         self.dependencies: Dict[str, Dependency] = {}
+#|         self.sbom_components: Dict[str, SBOMComponent] = {}
+#|         self.licenses: Dict[str, LicenseInfo] = {}
+#|         self.secret_candidates: Dict[str, SecretCandidate] = {}
+#|         self.config_items: Dict[str, ConfigItem] = {}
+#|         self.findings: Dict[str, SecurityFinding] = {}
+#|         self.provenance: Dict[str, Provenance] = {}
+#|         self.similarities: Dict[str, CodeSimilarity] = {}
+#|         self.tests: Dict[str, Test] = {}
+#|         self.coverages: Dict[str, Coverage] = {}
+#|         self.hypotheses: List[Hypothesis] = []
+#|         self.contradictions: List[Contradiction] = []
+#|         self.gaps: List[KnowledgeGap] = []
+#|         self.actions: List[NextAction] = []
+#|         self.recommendations: List[Recommendation] = []
+#|         self.handoffs: List[Dict[str, str]] = []
+#|         self.documentation_claims: List[Dict[str, Any]] = []
+#|         self.validation_errors: List[str] = []
+#| 
+#|         self.symbol_calls: Dict[str, Set[str]] = defaultdict(set)
+#|         self.route_handler_map: Dict[str, str] = {}
+#|         self.entrypoint_ids: Set[str] = set()
+#|         self.reachable_symbols: Set[str] = set()
+#|         self.deployment_context_known: bool = False
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Adders
+#|     # -----------------------------------------------------------------
+#| 
+#|     def add_source(self, source: Source) -> Source:
+#|         self.sources[source.id] = source
+#|         return source
+#| 
+#|     def add_evidence(self, evidence: Evidence) -> Evidence:
+#|         if not evidence.artifact_hash:
+#|             seed = "|".join([
+#|                 evidence.repository_id,
+#|                 evidence.commit_id,
+#|                 evidence.file_path or "",
+#|                 evidence.symbol or "",
+#|                 evidence.excerpt,
+#|             ])
+#|             evidence.artifact_hash = stable_hash(seed)
+#|         self.evidence[evidence.id] = evidence
+#|         return evidence
+#| 
+#|     def add_repository(self, repo: Repository) -> Repository:
+#|         self.repositories[repo.id] = repo
+#|         return repo
+#| 
+#|     def add_commit(self, commit: Commit) -> Commit:
+#|         self.commits[commit.id] = commit
+#|         return commit
+#| 
+#|     def add_branch(self, branch: Branch) -> Branch:
+#|         self.branches[branch.id] = branch
+#|         return branch
+#| 
+#|     def add_tag(self, tag: Tag) -> Tag:
+#|         self.tags[tag.id] = tag
+#|         return tag
+#| 
+#|     def add_release(self, release: Release) -> Release:
+#|         self.releases[release.id] = release
+#|         return release
+#| 
+#|     def add_file(self, file: SourceFile) -> SourceFile:
+#|         if not file.hash:
+#|             file.hash = sha256_short(f"{file.repository_id}:{file.commit_id}:{file.path}")
+#|         file.language = infer_language(file.path, file.language)
+#|         self.files[file.id] = file
+#|         return file
+#| 
+#|     def add_symbol(self, symbol: Symbol) -> Symbol:
+#|         self.symbols[symbol.id] = symbol
+#|         if symbol.entrypoint:
+#|             self.entrypoint_ids.add(symbol.id)
+#|         if symbol.route and symbol.handler:
+#|             self.route_handler_map[symbol.id] = symbol.handler
+#|         for callee in symbol.calls:
+#|             self.symbol_calls[symbol.id].add(callee)
+#|         return symbol
+#| 
+#|     def add_component(self, component: Component) -> Component:
+#|         self.components[component.id] = component
+#|         return component
+#| 
+#|     def add_service(self, service: Service) -> Service:
+#|         self.services[service.id] = service
+#|         return service
+#| 
+#|     def add_dependency(self, dep: Dependency) -> Dependency:
+#|         self.dependencies[dep.id] = dep
+#|         return dep
+#| 
+#|     def add_sbom_component(self, comp: SBOMComponent) -> SBOMComponent:
+#|         self.sbom_components[comp.id] = comp
+#|         return comp
+#| 
+#|     def add_license(self, lic: LicenseInfo) -> LicenseInfo:
+#|         self.licenses[lic.id] = lic
+#|         return lic
+#| 
+#|     def add_secret_candidate(self, secret: SecretCandidate) -> SecretCandidate:
+#|         self.secret_candidates[secret.id] = secret
+#|         return secret
+#| 
+#|     def add_config_item(self, item: ConfigItem) -> ConfigItem:
+#|         self.config_items[item.id] = item
+#|         return item
+#| 
+#|     def add_finding(self, finding: SecurityFinding) -> SecurityFinding:
+#|         self.findings[finding.id] = finding
+#|         return finding
+#| 
+#|     def add_provenance(self, prov: Provenance) -> Provenance:
+#|         self.provenance[prov.id] = prov
+#|         return prov
+#| 
+#|     def add_similarity(self, sim: CodeSimilarity) -> CodeSimilarity:
+#|         self.similarities[sim.id] = sim
+#|         return sim
+#| 
+#|     def add_test(self, test: Test) -> Test:
+#|         self.tests[test.id] = test
+#|         return test
+#| 
+#|     def add_coverage(self, cov: Coverage) -> Coverage:
+#|         self.coverages[cov.id] = cov
+#|         return cov
+#| 
+#|     def add_documentation_claim(self, claim: Dict[str, Any]) -> None:
+#|         self.documentation_claims.append(claim)
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Source lineage / independence
+#|     # -----------------------------------------------------------------
+#| 
+#|     def get_source_family(self, source_id: str) -> Optional[str]:
+#|         src = self.sources.get(source_id)
+#|         if not src:
+#|             return None
+#|         seen: Set[str] = set()
+#|         cur = src
+#|         while (
+#|             cur
+#|             and cur.derived_from
+#|             and cur.derived_from in self.sources
+#|             and cur.id not in seen
+#|         ):
+#|             seen.add(cur.id)
+#|             cur = self.sources[cur.derived_from]
+#|         return cur.id if cur else source_id
+#| 
+#|     def source_families(self, source_ids: List[str]) -> Set[str]:
+#|         families: Set[str] = set()
+#|         for sid in source_ids:
+#|             fam = self.get_source_family(sid)
+#|             families.add(fam or sid)
+#|         return families
+#| 
+#|     def independence_state(self, source_ids: List[str]) -> str:
+#|         if not source_ids:
+#|             return "UNKNOWN"
+#|         families = self.source_families(source_ids)
+#|         if len(source_ids) == 1:
+#|             return "SINGLE_SOURCE"
+#|         if len(families) == 1:
+#|             return "DEPENDENT"
+#|         if len(families) == len(source_ids):
+#|             return "INDEPENDENT"
+#|         return "PARTIALLY_DEPENDENT"
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Detection / resolution
+#|     # -----------------------------------------------------------------
+#| 
+#|     def detect_languages_and_frameworks(self) -> None:
+#|         for repo in self.repositories.values():
+#|             langs: Set[Language] = set()
+#|             for file in self.files.values():
+#|                 if file.repository_id == repo.id:
+#|                     langs.add(file.language)
+#|             repo.languages = sorted(langs, key=lambda x: x.value)
+#| 
+#|             pkgs = {d.package.lower() for d in self.dependencies.values() if d.consumer == repo.id}
+#|             frameworks: Set[Framework] = set()
+#|             if "fastapi" in pkgs:
+#|                 frameworks.add(Framework.FASTAPI)
+#|             if "pytest" in pkgs:
+#|                 frameworks.add(Framework.PYTEST)
+#|             repo.frameworks = sorted(frameworks, key=lambda x: x.value) if frameworks else [Framework.UNKNOWN]
+#| 
+#|     def resolve_dependencies(self) -> None:
+#|         # Dependencies are added from manifest/lock evidence in sample.
+#|         # Here we ensure direct/transitive classification and repo dependency list.
+#|         for repo in self.repositories.values():
+#|             repo.dependencies = sorted(
+#|                 {
+#|                     d.id for d in self.dependencies.values()
+#|                     if d.consumer == repo.id
+#|                 }
+#|             )
+#| 
+#|     def reconcile_sbom(self) -> None:
+#|         dep_by_package: Dict[str, Dependency] = {}
+#|         for dep in self.dependencies.values():
+#|             if dep.directness == "DIRECT" and dep.resolved_version:
+#|                 dep_by_package[dep.package.lower()] = dep
+#| 
+#|         for sb in self.sbom_components.values():
+#|             dep = dep_by_package.get(sb.name.lower())
+#|             if not dep or not sb.version:
+#|                 continue
+#|             if dep.resolved_version and dep.resolved_version != sb.version:
+#|                 self.contradictions.append(Contradiction(
+#|                     id=new_id("CON-SBOM-", sb.id + dep.id),
+#|                     contradiction_type="SBOM_VS_LOCKFILE",
+#|                     description=(
+#|                         f"SBOM component {sb.name} version {sb.version} conflicts with lockfile resolved "
+#|                         f"version {dep.resolved_version} for dependency {dep.id}."
+#|                     ),
+#|                     repository_id=sb.repository_id,
+#|                     evidence_ids=sorted(set(sb.evidence_ids + dep.evidence_ids)),
+#|                     source_ids=sorted(set(sb.source_ids + dep.source_ids)),
+#|                     severity="MEDIUM",
+#|                     status="OPEN",
+#|                     recommended_resolution=(
+#|                         "Regenerate SBOM from authoritative lockfile/build artifact; do not treat SBOM as deployed truth."
+#|                     ),
+#|                 ))
+#| 
+#|     def compute_reachability(self) -> None:
+#|         adj: Dict[str, Set[str]] = defaultdict(set)
+#|         for caller, callees in self.symbol_calls.items():
+#|             adj[caller].update(callees)
+#|         for route_id, handler_id in self.route_handler_map.items():
+#|             adj[route_id].add(handler_id)
+#| 
+#|         visited: Set[str] = set()
+#|         q = deque(self.entrypoint_ids)
+#|         for eid in self.entrypoint_ids:
+#|             visited.add(eid)
+#| 
+#|         while q:
+#|             cur = q.popleft()
+#|             for nxt in adj.get(cur, set()):
+#|                 if nxt not in visited:
+#|                     visited.add(nxt)
+#|                     q.append(nxt)
+#| 
+#|         self.reachable_symbols = visited
+#| 
+#|         for sym in self.symbols.values():
+#|             if sym.id in visited:
+#|                 sym.reachability_state = ReachabilityState.REACHABLE_SUPPORTED
+#|             elif sym.route:
+#|                 sym.reachability_state = ReachabilityState.POSSIBLY_REACHABLE
+#|             else:
+#|                 sym.reachability_state = ReachabilityState.UNKNOWN
+#| 
+#|     def effective_reachability(self, symbol_id: Optional[str]) -> ReachabilityState:
+#|         if not symbol_id:
+#|             return ReachabilityState.UNKNOWN
+#|         sym = self.symbols.get(symbol_id)
+#|         if not sym:
+#|             return ReachabilityState.UNKNOWN
+#|         if sym.reachability_state == ReachabilityState.REACHABLE_SUPPORTED and not self.deployment_context_known:
+#|             return ReachabilityState.LIKELY_REACHABLE
+#|         return sym.reachability_state
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Contradictions
+#|     # -----------------------------------------------------------------
+#| 
+#|     def detect_documentation_drift(self) -> None:
+#|         existing = {c.description for c in self.contradictions}
+#| 
+#|         auth_gap_findings = [
+#|             f for f in self.findings.values()
+#|             if f.finding_type == FindingType.ACCESS_CONTROL_GAP_CANDIDATE
+#|         ]
+#|         if not auth_gap_findings:
+#|             return
+#| 
+#|         for claim in self.documentation_claims:
+#|             if claim.get("claim") != "all_api_routes_require_authorization":
+#|                 continue
+#|             for f in auth_gap_findings:
+#|                 desc = (
+#|                     f"Documentation claims all API routes require authorization, but finding {f.id} "
+#|                     f"identifies an access-control gap candidate at {f.file_path or 'unknown file'} "
+#|                     f"symbol {f.symbol or 'unknown symbol'}."
+#|                 )
+#|                 if desc in existing:
+#|                     continue
+#|                 self.contradictions.append(Contradiction(
+#|                     id=new_id("CON-DOC-", desc),
+#|                     contradiction_type="DOCUMENTATION_VS_CODE",
+#|                     description=desc,
+#|                     repository_id=f.repository_id,
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=sorted(set(claim.get("evidence_ids", []) + f.evidence_ids)),
+#|                     source_ids=sorted(set(claim.get("source_ids", []) + f.source_ids)),
+#|                     severity="MEDIUM",
+#|                     status="OPEN",
+#|                     recommended_resolution=(
+#|                         "Compare README/architecture claims against actual route dependencies and middleware; "
+#|                         "update either documentation or implementation through approved change process."
+#|                     ),
+#|                 ))
+#|                 existing.add(desc)
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Fact gate
+#|     # -----------------------------------------------------------------
+#| 
+#|     def fact_gate_findings(self) -> None:
+#|         for f in self.findings.values():
+#|             srcs = [self.sources[sid] for sid in f.source_ids if sid in self.sources]
+#|             if not srcs:
+#|                 f.confidence = 0.0
+#|                 f.state = FindingState.INCONCLUSIVE
+#|                 f.limitations.append("No mapped source.")
+#|                 continue
+#| 
+#|             families = self.source_families(f.source_ids)
+#|             max_rel = max((s.reliability for s in srcs), default=0.5)
+#|             direct = max((SOURCE_FACTOR.get(s.source_type, 0.65) for s in srcs), default=0.65)
+#|             base = max_rel * direct
+#| 
+#|             if len(families) >= 2:
+#|                 base = min(0.99, base * 1.05)
+#|             elif len(families) == 1 and len(f.source_ids) > 1:
+#|                 base *= 0.90
+#|                 f.limitations.append("Multiple sources share one upstream source family.")
+#| 
+#|             # Reachability adjustment.
+#|             if f.symbol:
+#|                 f.reachability = self.effective_reachability(f.symbol)
+#|             reach_mult = REACH_FACTOR.get(f.reachability, 0.5)
+#|             base *= reach_mult
+#| 
+#|             # Deployment context guard.
+#|             if not self.deployment_context_known:
+#|                 f.deployment_context = "UNKNOWN"
+#|                 base = min(base, 0.78)
+#|                 f.limitations.append(
+#|                     "Production/deployed commit is not established; source-code risk is not production vulnerability."
+#|                 )
+#| 
+#|             # Type-specific semantic guards.
+#|             if f.finding_type == FindingType.ACCESS_CONTROL_GAP_CANDIDATE:
+#|                 if base >= 0.62 and f.reachability in {
+#|                     ReachabilityState.REACHABLE_SUPPORTED,
+#|                     ReachabilityState.LIKELY_REACHABLE,
+#|                 }:
+#|                     f.state = FindingState.VULNERABILITY_CANDIDATE
+#|                 else:
+#|                     f.state = FindingState.INCONCLUSIVE
+#|                 f.limitations.extend([
+#|                     "Access-control gap candidate is not proven exploitable.",
+#|                     "Middleware/global authorization may still cover route; runtime configuration unresolved.",
+#|                     "No live probing or bypass testing performed.",
+#|                 ])
+#|                 f.specialist_handoff = f.specialist_handoff or "VULNINT"
+#| 
+#|             elif f.finding_type == FindingType.SECRET_CANDIDATE:
+#|                 f.state = FindingState.OBSERVED
+#|                 base = min(base, 0.85)
+#|                 f.limitations.extend([
+#|                     "Secret candidate is not validated.",
+#|                     "No secret was used, tested, redeemed, or authenticated with.",
+#|                     "Removal from HEAD does not equal revocation.",
+#|                 ])
+#|                 f.specialist_handoff = f.specialist_handoff or "CREDINT"
+#| 
+#|             elif f.finding_type == FindingType.SOURCE_TO_SINK_RISKY_PATTERN:
+#|                 f.state = FindingState.RISKY_PATTERN
+#|                 f.limitations.extend([
+#|                     "Source-to-sink pattern is security-relevant but not automatically exploitable.",
+#|                     "Validation, sanitization, runtime config, and reachability may mitigate.",
+#|                     "No exploit payload generation performed.",
+#|                 ])
+#|                 f.specialist_handoff = f.specialist_handoff or "VULNINT"
+#| 
+#|             elif f.finding_type == FindingType.DOCUMENTATION_DRIFT:
+#|                 f.state = FindingState.OBSERVED
+#| 
+#|             elif f.finding_type in {
+#|                 FindingType.DEPENDENCY_VERSION_CONFLICT,
+#|                 FindingType.SBOM_STALE,
+#|             }:
+#|                 f.state = FindingState.INCONCLUSIVE
+#|                 base = min(base, 0.70)
+#|                 f.limitations.append("SBOM/lockfile/build artifact may differ from deployed runtime.")
+#| 
+#|             elif f.finding_type == FindingType.TEST_COVERAGE_GAP:
+#|                 f.state = FindingState.OBSERVED
+#|                 f.limitations.append("Missing tests do not prove vulnerability; they reduce assurance.")
+#| 
+#|             elif f.finding_type == FindingType.CI_SUPPLY_CHAIN_CONTEXT:
+#|                 f.state = FindingState.OBSERVED
+#|                 f.specialist_handoff = f.specialist_handoff or "SUPPLYCHAININT"
+#|                 f.limitations.append("CI configuration observation is not pipeline compromise evidence.")
+#| 
+#|             elif f.finding_type in {
+#|                 FindingType.FORK_LINEAGE,
+#|                 FindingType.CODE_SIMILARITY,
+#|                 FindingType.PROVENANCE_CANDIDATE,
+#|             }:
+#|                 f.state = FindingState.OBSERVED
+#|                 f.limitations.append("Provenance/similarity does not establish authorship, ownership, or plagiarism.")
+#| 
+#|             elif f.finding_type == FindingType.LICENSE_CONTEXT:
+#|                 f.state = FindingState.OBSERVED
+#|                 f.specialist_handoff = f.specialist_handoff or "LEGALINT"
+#|                 f.limitations.append("License interpretation requires legal review.")
+#| 
+#|             elif f.finding_type == FindingType.MALICIOUS_BEHAVIOR_CANDIDATE:
+#|                 f.state = FindingState.RISKY_PATTERN
+#|                 f.specialist_handoff = f.specialist_handoff or "MALINT"
+#|                 f.limitations.extend([
+#|                     "Malware-like capability is not automatically malware; context matters.",
+#|                     "No sample execution or improvement performed.",
+#|                 ])
+#| 
+#|             else:
+#|                 if base >= 0.75:
+#|                     f.state = FindingState.OBSERVED
+#|                 elif base >= 0.55:
+#|                     f.state = FindingState.RISKY_PATTERN
+#|                 else:
+#|                     f.state = FindingState.INCONCLUSIVE
+#| 
+#|             f.confidence = round(max(0.0, min(0.99, base)), 3)
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Gaps / actions / recommendations / handoffs
+#|     # -----------------------------------------------------------------
+#| 
+#|     def build_knowledge_gaps(self) -> None:
+#|         existing = {g.description for g in self.gaps}
+#| 
+#|         if not self.deployment_context_known:
+#|             desc = "Deployed production commit/artifact is unknown; source findings cannot be mapped to production impact."
+#|             if desc not in existing:
+#|                 self.gaps.append(KnowledgeGap(
+#|                     id=new_id("GAP-DEPLOY-", desc),
+#|                     gap_type=GapType.DEPLOYED_VERSION_UNKNOWN,
+#|                     description=desc,
+#|                     about_repository_ids=list(self.repositories.keys()),
+#|                     importance="HIGH",
+#|                     recommended_source="Authorized deployment metadata, release artifact signatures, container image digest, cloud/CI deployment logs",
+#|                     specialist="CLOUDINT / DEPLOYMENTINT / CIINT",
+#|                     expected_information_value=0.90,
+#|                 ))
+#|                 existing.add(desc)
+#| 
+#|         for f in self.findings.values():
+#|             if f.state == FindingState.VULNERABILITY_CANDIDATE:
+#|                 desc = f"Vulnerability applicability/exploitability unresolved for finding {f.id}."
+#|                 if desc not in existing:
+#|                     self.gaps.append(KnowledgeGap(
+#|                         id=new_id("GAP-VULN-", desc),
+#|                         gap_type=GapType.VULN_APPLICABILITY_UNKNOWN,
+#|                         description=desc,
+#|                         about_finding_ids=[f.id],
+#|                         importance="HIGH",
+#|                         recommended_source="Authorized VULNINT analysis, reachability validation, patch status, runtime configuration",
+#|                         specialist="VULNINT",
+#|                         expected_information_value=0.85,
+#|                     ))
+#|                     existing.add(desc)
+#| 
+#|             if f.finding_type == FindingType.SECRET_CANDIDATE:
+#|                 desc = f"Secret candidate {f.id} validity unknown; not tested by CODEINT."
+#|                 if desc not in existing:
+#|                     self.gaps.append(KnowledgeGap(
+#|                         id=new_id("GAP-SECRET-", desc),
+#|                         gap_type=GapType.SECRET_VALIDITY_UNKNOWN,
+#|                         description=desc,
+#|                         about_finding_ids=[f.id],
+#|                         importance="HIGH",
+#|                         recommended_source="Authorized CREDINT exposure workflow; rotation if confirmed",
+#|                         specialist="CREDINT",
+#|                         expected_information_value=0.85,
+#|                     ))
+#|                     existing.add(desc)
+#| 
+#|         for c in self.contradictions:
+#|             if c.contradiction_type == "SBOM_VS_LOCKFILE":
+#|                 desc = f"SBOM freshness/reconciliation unresolved: {c.description}"
+#|                 if desc not in existing:
+#|                     self.gaps.append(KnowledgeGap(
+#|                         id=new_id("GAP-SBOM-", desc),
+#|                         gap_type=GapType.SBOM_STALE,
+#|                         description=desc,
+#|                         importance="MEDIUM",
+#|                         recommended_source="Regenerate SBOM from lockfile/build artifact",
+#|                         specialist="PACKAGEINT / SUPPLYCHAININT",
+#|                         expected_information_value=0.70,
+#|                     ))
+#|                     existing.add(desc)
+#| 
+#|         if not self.coverages:
+#|             desc = "No coverage report available; test assurance is limited."
+#|             if desc not in existing:
+#|                 self.gaps.append(KnowledgeGap(
+#|                     id=new_id("GAP-COV-", desc),
+#|                     gap_type=GapType.TEST_COVERAGE_MISSING,
+#|                     description=desc,
+#|                     importance="MEDIUM",
+#|                     recommended_source="Authorized test coverage report for analyzed commit",
+#|                     specialist="QA / CODEINT",
+#|                     expected_information_value=0.60,
+#|                 ))
+#|                 existing.add(desc)
+#| 
+#|         for prov in self.provenance.values():
+#|             if prov.state == ProvenanceState.UNKNOWN:
+#|                 desc = f"Code provenance unresolved for {prov.subject}."
+#|                 if desc not in existing:
+#|                     self.gaps.append(KnowledgeGap(
+#|                         id=new_id("GAP-PROV-", desc),
+#|                         gap_type=GapType.PROVENANCE_UNRESOLVED,
+#|                         description=desc,
+#|                         importance="MEDIUM",
+#|                         recommended_source="Upstream repository metadata, license notices, vendoring records",
+#|                         specialist="REPOINT / PACKAGEINT / LEGALINT",
+#|                         expected_information_value=0.65,
+#|                     ))
+#|                     existing.add(desc)
+#| 
+#|     def build_next_actions(self) -> None:
+#|         self.actions = [
+#|             NextAction(
+#|                 id="ACT-RESOLVE-DEPLOYED-COMMIT",
+#|                 description="Resolve deployed production commit/artifact using authorized deployment metadata before making production-impact claims.",
+#|                 priority=1,
+#|                 privacy_impact="LOW_IF_AUTHORIZED",
+#|                 expected_gain=0.90,
+#|                 specialist="CLOUDINT / DEPLOYMENTINT",
+#|                 requires_human_approval=False,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-VULNINT-HANDOFF",
+#|                 description="Hand off access-control/risky-pattern findings to VULNINT for applicability, reachability, and exploitability validation.",
+#|                 priority=2,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.85,
+#|                 specialist="VULNINT",
+#|                 requires_human_approval=False,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-CREDINT-HANDOFF",
+#|                 description="Hand off secret candidates to CREDINT. CODEINT must not test, use, or redeem secrets.",
+#|                 priority=3,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.85,
+#|                 specialist="CREDINT",
+#|                 requires_human_approval=False,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-REGEN-SBOM",
+#|                 description="Regenerate SBOM from authoritative lockfile/build artifact and reconcile with source tree.",
+#|                 priority=4,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.75,
+#|                 specialist="PACKAGEINT / SUPPLYCHAININT",
+#|                 requires_human_approval=False,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-AUTHZ-TESTS",
+#|                 description="Add or run authorized regression tests for authorization behavior on affected routes.",
+#|                 priority=5,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.80,
+#|                 specialist="QA / CODEINT",
+#|                 requires_human_approval=True,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-PIN-CI-ACTIONS",
+#|                 description="Review and pin third-party CI actions to immutable commit refs through approved change workflow.",
+#|                 priority=6,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.70,
+#|                 specialist="SUPPLYCHAININT",
+#|                 requires_human_approval=True,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-LEGAL-LICENSE",
+#|                 description="Route license conflict candidates to LEGALINT; CODEINT does not make legal compliance determinations.",
+#|                 priority=7,
+#|                 privacy_impact="LOW",
+#|                 expected_gain=0.60,
+#|                 specialist="LEGALINT",
+#|                 requires_human_approval=False,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-HUMAN-REVIEW",
+#|                 description="Require human review before patching, disclosure, blame/authorship claims, or production deployment decisions.",
+#|                 priority=8,
+#|                 privacy_impact="PROTECTIVE",
+#|                 expected_gain=0.80,
+#|                 specialist=None,
+#|                 requires_human_approval=True,
+#|             ),
+#|             NextAction(
+#|                 id="ACT-NO-OFFENSE",
+#|                 description="Do not generate exploits, test secrets, execute unknown code, bypass security controls, or tamper with repositories/CI.",
+#|                 priority=99,
+#|                 privacy_impact="PROTECTIVE",
+#|                 expected_gain=0.0,
+#|                 specialist=None,
+#|                 requires_human_approval=False,
+#|             ),
+#|         ]
+#| 
+#|     def build_recommendations(self) -> None:
+#|         recs: List[Recommendation] = []
+#| 
+#|         for f in self.findings.values():
+#|             if f.finding_type == FindingType.ACCESS_CONTROL_GAP_CANDIDATE:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-AUTH-", f.id),
+#|                     category="SECURE_CODING",
+#|                     action="Apply the shared authorization dependency/guard to the affected route handler and add regression tests.",
+#|                     target=f"{f.file_path or 'unknown'}:{f.symbol or 'unknown'}",
+#|                     rationale="Source analysis identifies an access-control gap candidate; production exploitability is not established.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.HUMAN_APPROVAL_REQUIRED,
+#|                     business_impact="May affect API behavior; requires owner review.",
+#|                     reversibility="Revertible with standard code review.",
+#|                     limitations=[
+#|                         "Do not provide bypass procedures.",
+#|                         "Validate middleware/global authorization before assuming gap is exploitable.",
+#|                     ],
+#|                 ))
+#| 
+#|             elif f.finding_type == FindingType.SECRET_CANDIDATE:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-SECRET-", f.id),
+#|                     category="SECRET_HANDLING",
+#|                     action="Route secret candidate to CREDINT and rotate through authorized workflow if confirmed; do not use or test the secret.",
+#|                     target=f"{f.file_path or 'unknown'}:{f.symbol or 'unknown'}",
+#|                     rationale="A secret-shaped candidate was observed in history; validity is unknown and raw value is not exposed.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.HUMAN_APPROVAL_REQUIRED,
+#|                     business_impact="Rotation may require service coordination.",
+#|                     reversibility="Managed through secret rotation workflow.",
+#|                     limitations=[
+#|                         "CODEINT does not test secrets.",
+#|                         "Removal from HEAD does not equal revocation.",
+#|                     ],
+#|                 ))
+#| 
+#|             elif f.finding_type in {FindingType.SBOM_STALE, FindingType.DEPENDENCY_VERSION_CONFLICT}:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-SBOM-", f.id),
+#|                     category="SBOM_HYGIENE",
+#|                     action="Regenerate SBOM from authoritative lockfile/build artifact and reconcile component versions.",
+#|                     target=f.repository_id,
+#|                     rationale="SBOM conflicts with lockfile/resolved dependency evidence.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.AUTONOMOUS_ANALYTIC,
+#|                     business_impact="LOW",
+#|                     reversibility="N/A",
+#|                     limitations=["SBOM is not deployed runtime truth without build/deployment correlation."],
+#|                 ))
+#| 
+#|             elif f.finding_type == FindingType.DOCUMENTATION_DRIFT:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-DOC-", f.id),
+#|                     category="DOCUMENTATION",
+#|                     action="Update README/architecture documentation or implementation to eliminate drift.",
+#|                     target=f.repository_id,
+#|                     rationale="Documentation claim conflicts with observed code behavior.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.HUMAN_APPROVAL_REQUIRED,
+#|                     business_impact="LOW",
+#|                     reversibility="Standard documentation change.",
+#|                     limitations=["Docs are not implementation truth."],
+#|                 ))
+#| 
+#|             elif f.finding_type == FindingType.TEST_COVERAGE_GAP:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-TEST-", f.id),
+#|                     category="TESTING",
+#|                     action="Add authorized regression/unit tests for the affected security-relevant behavior.",
+#|                     target=f"{f.file_path or 'unknown'}:{f.symbol or 'unknown'}",
+#|                     rationale="Current test corpus does not cover the security-relevant route/handler.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.HUMAN_APPROVAL_REQUIRED,
+#|                     business_impact="LOW",
+#|                     reversibility="Test addition is reversible.",
+#|                     limitations=["Tests passing does not prove absence of vulnerabilities."],
+#|                 ))
+#| 
+#|             elif f.finding_type == FindingType.CI_SUPPLY_CHAIN_CONTEXT:
+#|                 recs.append(Recommendation(
+#|                     id=new_id("REC-CI-", f.id),
+#|                     category="SUPPLY_CHAIN",
+#|                     action="Pin third-party CI actions to immutable commit SHAs and review permissions/secrets exposure.",
+#|                     target=f.repository_id,
+#|                     rationale="CI configuration references mutable third-party action ref.",
+#|                     finding_ids=[f.id],
+#|                     evidence_ids=f.evidence_ids,
+#|                     approval=Approval.HUMAN_APPROVAL_REQUIRED,
+#|                     business_impact="May require pipeline maintenance.",
+#|                     reversibility="Pipeline config change reversible.",
+#|                     limitations=["No pipeline tampering or exploitation instructions."],
+#|                 ))
+#| 
+#|         self.recommendations = recs
+#| 
+#|     def build_handoffs(self) -> None:
+#|         self.handoffs = [
+#|             {"specialist": "VULNINT", "reason": "Vulnerability applicability, CVE/CWE context, exploitability validation."},
+#|             {"specialist": "CREDINT", "reason": "Secret candidate exposure handling; CODEINT must not use/test secrets."},
+#|             {"specialist": "MALINT", "reason": "If malicious behavior candidates require sample/context analysis."},
+#|             {"specialist": "PACKAGEINT", "reason": "Package identity, versions, registry metadata, maintainer context."},
+#|             {"specialist": "SUPPLYCHAININT", "reason": "Third-party dependencies, CI actions, vendor propagation."},
+#|             {"specialist": "REPOINT", "reason": "Repository metadata, forks, contributors, releases, branch protection context."},
+#|             {"specialist": "CLOUDINT", "reason": "Deployed cloud artifact/runtime correlation if needed."},
+#|             {"specialist": "LEGALINT", "reason": "License compliance and IP interpretation."},
+#|             {"specialist": "INCIDENTINT", "reason": "If code findings connect to active incident evidence."},
+#|         ]
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Hypotheses / dual AI / summary
+#|     # -----------------------------------------------------------------
+#| 
+#|     def build_hypotheses(self) -> None:
+#|         hyps: List[Hypothesis] = []
+#| 
+#|         auth_findings = [f for f in self.findings.values() if f.finding_type == FindingType.ACCESS_CONTROL_GAP_CANDIDATE]
+#|         if auth_findings:
+#|             f = auth_findings[0]
+#|             hyps.append(Hypothesis(
+#|                 id="H-ROUTE-PRODUCTION-REACHABLE",
+#|                 statement=(
+#|                     f"The access-control gap candidate {f.id} is reachable in the deployed production environment."
+#|                 ),
+#|                 kind="PRODUCTION_REACHABILITY",
+#|                 supporting_finding_ids=[f.id],
+#|                 supporting_evidence_ids=f.evidence_ids,
+#|                 assumptions=["Deployed artifact corresponds to analyzed commit.", "No global middleware mitigates the route."],
+#|                 predictions=["Deployment metadata would show analyzed commit/tag in production.", "Runtime auth tests/logs would show missing enforcement."],
+#|                 falsification_conditions=[
+#|                     "Production runs a different commit/branch.",
+#|                     "Global middleware enforces authorization despite missing route dependency.",
+#|                     "Feature flag disables the route in production.",
+#|                     "Network/access controls prevent external reachability.",
+#|                 ],
+#|                 status=HypothesisStatus.UNRESOLVED,
+#|                 confidence=0.45,
+#|                 limitations=["Deployment context unknown.", "No live probing performed."],
+#|             ))
+#| 
+#|             hyps.append(Hypothesis(
+#|                 id="H-GLOBAL-MIDDLEWARE-MITIGATES",
+#|                 statement="A global authentication/authorization middleware may mitigate the missing route-level dependency.",
+#|                 kind="MITIGATION",
+#|                 supporting_finding_ids=[],
+#|                 supporting_evidence_ids=[],
+#|                 assumptions=["Framework middleware may apply beyond explicit dependencies."],
+#|                 predictions=["Main application startup or middleware configuration would show global guard."],
+#|                 falsification_conditions=[
+#|                     "No global guard exists.",
+#|                     "Global guard excludes this route.",
+#|                     "Guard only authenticates but does not authorize resource access.",
+#|                 ],
+#|                 status=HypothesisStatus.POSSIBLE,
+#|                 confidence=0.35,
+#|                 limitations=["Runtime configuration and middleware order unresolved."],
+#|             ))
+#| 
+#|         secret_findings = [f for f in self.findings.values() if f.finding_type == FindingType.SECRET_CANDIDATE]
+#|         if secret_findings:
+#|             f = secret_findings[0]
+#|             hyps.append(Hypothesis(
+#|                 id="H-SECRET-STILL-VALID",
+#|                 statement=f"Secret candidate {f.id} may still be valid in an external service.",
+#|                 kind="SECRET_VALIDITY",
+#|                 supporting_finding_ids=[f.id],
+#|                 supporting_evidence_ids=f.evidence_ids,
+#|                 assumptions=["Secret-shaped string was real at some point."],
+#|                 predictions=["CREDINT authorized workflow would determine validity without CODEINT testing it."],
+#|                 falsification_conditions=[
+#|                     "String was example/test/fake.",
+#|                     "Secret was rotated before exposure.",
+#|                     "Service scope never allowed access.",
+#|                 ],
+#|                 status=HypothesisStatus.UNRESOLVED,
+#|                 confidence=0.30,
+#|                 limitations=["CODEINT does not test or use secrets."],
+#|             ))
+#| 
+#|         if self.contradictions:
+#|             hyps.append(Hypothesis(
+#|                 id="H-SBOM-STALE",
+#|                 statement="SBOM is stale or generated from a different build variant than the analyzed lockfile/source.",
+#|                 kind="SBOM_FRESHNESS",
+#|                 supporting_evidence_ids=sorted({eid for c in self.contradictions for eid in c.evidence_ids}),
+#|                 assumptions=["Lockfile is closer to source resolution than SBOM export."],
+#|                 predictions=["Regenerated SBOM from lockfile/build would align versions."],
+#|                 falsification_conditions=[
+#|                     "SBOM corresponds to a different deployed artifact.",
+#|                     "Lockfile is stale relative to build.",
+#|                 ],
+#|                 status=HypothesisStatus.PROBABLE,
+#|                 confidence=0.65,
+#|                 limitations=["SBOM may be build-specific; deployment artifact correlation unavailable."],
+#|             ))
+#| 
+#|         self.hypotheses = hyps
+#| 
+#|     def dual_ai_review(self) -> Dict[str, Any]:
+#|         issues: List[str] = []
+#| 
+#|         if not self.deployment_context_known:
+#|             issues.append("Deployed production commit/artifact unknown; production impact cannot be asserted.")
+#| 
+#|         if any(f.state == FindingState.VULNERABILITY_CANDIDATE for f in self.findings.values()):
+#|             issues.append("Security findings remain candidates, not verified exploitable vulnerabilities.")
+#| 
+#|         if any(f.finding_type == FindingType.SECRET_CANDIDATE for f in self.findings.values()):
+#|             issues.append("Secret candidates are not validated; CREDINT handoff required.")
+#| 
+#|         if self.contradictions:
+#|             issues.append(f"{len(self.contradictions)} documentation/SBOM/code contradiction(s) remain open.")
+#| 
+#|         if any(g.gap_type == GapType.TEST_COVERAGE_MISSING for g in self.gaps):
+#|             issues.append("Test coverage evidence is incomplete.")
+#| 
+#|         if any(f.finding_type == FindingType.CI_SUPPLY_CHAIN_CONTEXT for f in self.findings.values()):
+#|             issues.append("CI/third-party action supply-chain context requires SUPPLYCHAININT review.")
+#| 
+#|         if not issues:
+#|             verdict = "AGREE"
+#|         elif len(issues) <= 5:
+#|             verdict = "PARTIAL_AGREEMENT"
+#|         else:
+#|             verdict = "INSUFFICIENT_EVIDENCE"
+#| 
+#|         return {
+#|             "primary_code_analyst": (
+#|                 "Static analysis of the authorized repository snapshot identifies an access-control gap candidate "
+#|                 "on a reachable API route, a historical secret-shaped candidate, documentation drift, SBOM/lockfile "
+#|                 "version conflict, and mutable CI action references. Production exploitability and secret validity "
+#|                 "remain unresolved."
+#|             ),

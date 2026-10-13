@@ -1,0 +1,1000 @@
+#|         }
+#|         records.append(record)
+#| 
+#|     # Infer undefined features.
+#|     by_feature: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for r in records:
+#|         by_feature[r["feature_id"]].append(r)
+#| 
+#|     for fid, recs in by_feature.items():
+#|         if fid in features:
+#|             continue
+#|         has_numeric = any(r.get("value") is not None for r in recs)
+#|         has_categorical = any(r.get("categorical") is not None for r in recs)
+#|         value_type = "numeric" if has_numeric and not has_categorical else ("categorical" if has_categorical and not has_numeric else "mixed")
+#|         features[fid] = {
+#|             "feature_id": fid,
+#|             "domain": "unknown",
+#|             "value_type": value_type,
+#|             "unit": None,
+#|             "direction": "both",
+#|             "policy_min": None,
+#|             "policy_max": None,
+#|             "criticality": "medium",
+#|             "sensitivity": "normal",
+#|             "description": "Inferred from observations.",
+#|             "limitations": ["Feature definition was not supplied; inferred heuristically."],
+#|         }
+#| 
+#|     return records, privacy_flags
+#| 
+#| 
+#| def deduplicate_observations(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     seen: Dict[Tuple[str, str, str, str, str], Dict[str, Any]] = {}
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     for r in records:
+#|         key = (
+#|             normalize_text(r.get("source_id")),
+#|             normalize_text(r.get("entity_id")),
+#|             normalize_text(r.get("feature_id")),
+#|             iso(r.get("timestamp")) or "NO_TS",
+#|             normalize_text(r.get("raw_value")),
+#|         )
+#|         if key in seen:
+#|             existing = seen[key]
+#|             existing["duplicate_count"] += 1
+#|             if "DUPLICATE_INGESTION" not in existing["issues"]:
+#|                 existing["issues"].append("DUPLICATE_INGESTION")
+#|             for evid in r.get("evidence_ids", []):
+#|                 if evid not in existing["evidence_ids"]:
+#|                     existing["evidence_ids"].append(evid)
+#|             continue
+#|         seen[key] = r
+#|         out.append(r)
+#| 
+#|     return out
+#| 
+#| 
+#| def detect_data_quality_issues(records: List[Dict[str, Any]], features: Dict[str, Dict[str, Any]]) -> Set[str]:
+#|     sensor_fault_obs_ids: Set[str] = set()
+#| 
+#|     # Unit mismatch.
+#|     by_ef_units: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+#|     for r in records:
+#|         if r.get("unit"):
+#|             by_ef_units[(r["entity_id"], r["feature_id"])].add(r["unit"])
+#| 
+#|     for r in records:
+#|         units = by_ef_units.get((r["entity_id"], r["feature_id"]), set())
+#|         if len(units) > 1:
+#|             r["issues"].append("UNIT_MISMATCH")
+#|             if r["data_quality"] == "OK":
+#|                 r["data_quality"] = "UNIT_MISMATCH"
+#| 
+#|     # Flatline / stuck sensor.
+#|     by_ef: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     for r in records:
+#|         if r.get("value") is not None and r.get("timestamp"):
+#|             by_ef[(r["entity_id"], r["feature_id"])].append(r)
+#| 
+#|     for recs in by_ef.values():
+#|         recs.sort(key=lambda x: x["timestamp"])
+#|         run: List[Dict[str, Any]] = []
+#|         last_val = None
+#|         for r in recs:
+#|             if last_val is not None and abs(float(r["value"]) - float(last_val)) <= 1e-12:
+#|                 run.append(r)
+#|             else:
+#|                 if len(run) >= 5:
+#|                     for x in run:
+#|                         x["issues"].append("SENSOR_FLATLINE")
+#|                         sensor_fault_obs_ids.add(x["observation_id"])
+#|                 run = [r]
+#|             last_val = r["value"]
+#|         if len(run) >= 5:
+#|             for x in run:
+#|                 x["issues"].append("SENSOR_FLATLINE")
+#|                 sensor_fault_obs_ids.add(x["observation_id"])
+#| 
+#|     # Missing timestamp / invalid numeric already set in ingest.
+#|     for r in records:
+#|         if r["data_quality"] in {"MISSING_TIMESTAMP", "INVALID_NUMERIC"}:
+#|             r["issues"].append(r["data_quality"])
+#| 
+#|     return sensor_fault_obs_ids
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Context windows: known events / maintenance / known changes
+#| # --------------------------------------------------------------------
+#| 
+#| def ingest_context_windows(manifest: Dict[str, Any], key: str, context_class: str) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for idx, c in enumerate(manifest.get(key, []) or []):
+#|         cid = normalize_text(c.get("context_id") or c.get("event_id") or f"{context_class.upper()}-{idx}")
+#|         out.append({
+#|             "context_id": cid,
+#|             "context_class": context_class,
+#|             "context_type": normalize_text(c.get("context_type", context_class)).lower(),
+#|             "entity_ids": [normalize_text(x) for x in c.get("entity_ids", []) or [] if normalize_text(x)],
+#|             "feature_ids": [normalize_text(x) for x in c.get("feature_ids", []) or [] if normalize_text(x)],
+#|             "valid_from": parse_time(c.get("valid_from") or c.get("start")),
+#|             "valid_to": parse_time(c.get("valid_to") or c.get("end")),
+#|             "description": normalize_text(c.get("description")),
+#|             "source_id": normalize_text(c.get("source_id")) or None,
+#|             "limitations": list(c.get("limitations", []) or []),
+#|         })
+#|     return out
+#| 
+#| 
+#| def all_contexts(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     return (
+#|         ingest_context_windows(manifest, "known_events", "known_event")
+#|         + ingest_context_windows(manifest, "maintenance_windows", "maintenance")
+#|         + ingest_context_windows(manifest, "known_changes", "known_change")
+#|     )
+#| 
+#| 
+#| def context_overlaps_entity_feature_time(
+#|     ctx: Dict[str, Any],
+#|     entity_id: str,
+#|     feature_id: str,
+#|     ts: Optional[datetime],
+#| ) -> bool:
+#|     if ctx.get("entity_ids") and entity_id not in ctx["entity_ids"]:
+#|         return False
+#|     if ctx.get("feature_ids") and feature_id not in ctx["feature_ids"]:
+#|         return False
+#|     if ts is None:
+#|         return False
+#|     start = ctx.get("valid_from")
+#|     end = ctx.get("valid_to")
+#|     if start is None and end is None:
+#|         return False
+#|     return intervals_overlap(ts, ts, start, end)
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Baseline statistics
+#| # --------------------------------------------------------------------
+#| 
+#| def numeric_stats(pairs: List[Tuple[Optional[datetime], float]]) -> Dict[str, Any]:
+#|     pairs = [(t, float(v)) for t, v in pairs if v is not None]
+#|     if not pairs:
+#|         return {}
+#| 
+#|     pairs.sort(key=lambda x: x[0] or FAR_FUTURE)
+#|     vals = [v for _, v in pairs]
+#|     times = [t for t, _ in pairs if t is not None]
+#| 
+#|     sorted_vals = sorted(vals)
+#|     n = len(sorted_vals)
+#|     mean = safe_mean(sorted_vals)
+#|     std = safe_stdev(sorted_vals)
+#|     med = safe_median(sorted_vals)
+#|     madv = mad(sorted_vals)
+#|     q1 = percentile(sorted_vals, 25) or med
+#|     q3 = percentile(sorted_vals, 75) or med
+#|     iqr = q3 - q1
+#|     p05 = percentile(sorted_vals, 5)
+#|     p95 = percentile(sorted_vals, 95)
+#| 
+#|     low_iqr = q1 - 1.5 * iqr
+#|     high_iqr = q3 + 1.5 * iqr
+#| 
+#|     if madv > 1e-12:
+#|         robust_low = med - 3.0 * madv
+#|         robust_high = med + 3.0 * madv
+#|     elif std > 1e-12:
+#|         robust_low = med - 3.0 * std
+#|         robust_high = med + 3.0 * std
+#|     else:
+#|         robust_low = robust_high = med
+#| 
+#|     trend_slope = None
+#|     if n >= 2:
+#|         if len(times) == n and times:
+#|             t0 = min(times)
+#|             xs = [(t - t0).total_seconds() / 86400.0 for t in times]
+#|         else:
+#|             xs = [float(i) for i in range(n)]
+#|         ys = vals
+#|         mx = safe_mean(xs)
+#|         my = safe_mean(ys)
+#|         denom = sum((x - mx) ** 2 for x in xs)
+#|         if denom > 1e-12:
+#|             trend_slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denom
+#| 
+#|     ewma = vals[0]
+#|     ewma_var = 0.0
+#|     alpha = 0.3
+#|     for v in vals[1:]:
+#|         diff = v - ewma
+#|         ewma = alpha * v + (1 - alpha) * ewma
+#|         ewma_var = (1 - alpha) * (ewma_var + alpha * diff * diff)
+#|     ewma_std = math.sqrt(ewma_var) if ewma_var > 0 else 0.0
+#| 
+#|     return {
+#|         "sample_count": n,
+#|         "mean": mean,
+#|         "std": std,
+#|         "median": med,
+#|         "mad": madv,
+#|         "min": sorted_vals[0],
+#|         "max": sorted_vals[-1],
+#|         "q1": q1,
+#|         "q3": q3,
+#|         "iqr": iqr,
+#|         "p05": p05,
+#|         "p95": p95,
+#|         "low_iqr": low_iqr,
+#|         "high_iqr": high_iqr,
+#|         "robust_low": robust_low,
+#|         "robust_high": robust_high,
+#|         "trend_slope": trend_slope,
+#|         "ewma": ewma,
+#|         "ewma_std": ewma_std,
+#|     }
+#| 
+#| 
+#| def categorical_stats(values: Iterable[str]) -> Dict[str, Any]:
+#|     vals = [normalize_text(v) for v in values if normalize_text(v)]
+#|     c = Counter(vals)
+#|     total = sum(c.values())
+#|     probs = {k: v / total for k, v in c.items()} if total else {}
+#|     return {
+#|         "sample_count": total,
+#|         "categories": sorted(c.keys()),
+#|         "counts": dict(c),
+#|         "probs": probs,
+#|     }
+#| 
+#| 
+#| def target_stats(values: Iterable[str]) -> Dict[str, Any]:
+#|     vals = [normalize_text(v) for v in values if normalize_text(v)]
+#|     c = Counter(vals)
+#|     return {
+#|         "sample_count": sum(c.values()),
+#|         "targets": sorted(c.keys()),
+#|         "counts": dict(c),
+#|     }
+#| 
+#| 
+#| def seasonality_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     hour_counts = Counter(r["timestamp"].hour for r in records if r.get("timestamp"))
+#|     dow_counts = Counter(r["timestamp"].weekday() for r in records if r.get("timestamp"))
+#|     total = sum(hour_counts.values())
+#|     hour_probs = {str(k): v / total for k, v in hour_counts.items()} if total else {}
+#|     dow_total = sum(dow_counts.values())
+#|     dow_probs = {str(k): v / dow_total for k, v in dow_counts.items()} if dow_total else {}
+#|     return {
+#|         "hour_counts": {str(k): v for k, v in hour_counts.items()},
+#|         "dow_counts": {str(k): v for k, v in dow_counts.items()},
+#|         "hour_probs": hour_probs,
+#|         "dow_probs": dow_probs,
+#|     }
+#| 
+#| 
+#| def assess_baseline_quality(
+#|     train_obs: List[Dict[str, Any]],
+#|     feature: Dict[str, Any],
+#|     contexts: List[Dict[str, Any]],
+#|     unit_mismatch: bool,
+#|     sensor_fault_count: int,
+#| ) -> Dict[str, Any]:
+#|     sample = len(train_obs)
+#|     if sample >= 30:
+#|         conf = "HIGH"
+#|     elif sample >= 10:
+#|         conf = "MODERATE"
+#|     elif sample >= 5:
+#|         conf = "LOW"
+#|     else:
+#|         conf = "INSUFFICIENT"
+#| 
+#|     times = [o["timestamp"] for o in train_obs if o.get("timestamp")]
+#|     span_days = 0
+#|     if times:
+#|         span_days = (max(times) - min(times)).days + 1
+#| 
+#|     contamination = []
+#|     if times:
+#|         start = min(times)
+#|         end = max(times)
+#|         for ctx in contexts:
+#|             if ctx.get("context_type") in CONTAMINATING_CONTEXT_TYPES or ctx.get("context_class") in {"maintenance", "known_change"}:
+#|                 if intervals_overlap(start, end, ctx.get("valid_from"), ctx.get("valid_to")):
+#|                     contamination.append(ctx.get("context_type") or ctx.get("context_class"))
+#| 
+#|     if contamination:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     bad = sum(1 for o in train_obs if o.get("data_quality") not in {"OK", "UNKNOWN"})
+#|     if sample and bad / sample > 0.2:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     if unit_mismatch:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     if sensor_fault_count:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     completeness = "PARTIAL" if bad else "UNKNOWN"
+#|     if sample >= 30 and not bad and not unit_mismatch and not sensor_fault_count:
+#|         completeness = "HIGH_COVERAGE"
+#| 
+#|     return {
+#|         "confidence": conf,
+#|         "sample_size": sample,
+#|         "span_days": span_days,
+#|         "data_completeness": completeness,
+#|         "contamination_contexts": list(dict.fromkeys(contamination)),
+#|         "unit_mismatch": unit_mismatch,
+#|         "sensor_fault_count": sensor_fault_count,
+#|         "limitations": [
+#|             "Weak or contaminated baseline produces weak anomaly conclusions.",
+#|             "Baseline is a statistical reference, not truth.",
+#|         ],
+#|     }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Baseline construction
+#| # --------------------------------------------------------------------
+#| 
+#| def split_train_eval(
+#|     records: List[Dict[str, Any]],
+#|     baseline_window: Optional[Dict[str, Any]],
+#|     comparison_window: Optional[Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     recs = sorted([r for r in records if r.get("timestamp")], key=lambda x: x["timestamp"])
+#| 
+#|     if baseline_window:
+#|         bs = parse_time(baseline_window.get("start"))
+#|         be = parse_time(baseline_window.get("end"))
+#|         train = [r for r in recs if bs and be and bs <= r["timestamp"] <= be]
+#|         if comparison_window:
+#|             cs = parse_time(comparison_window.get("start"))
+#|             ce = parse_time(comparison_window.get("end"))
+#|             evals = [r for r in recs if cs and ce and cs <= r["timestamp"] <= ce]
+#|         else:
+#|             evals = [r for r in recs if be and r["timestamp"] > be]
+#|         return train, evals
+#| 
+#|     if len(recs) >= 5:
+#|         split = max(1, int(len(recs) * 0.7))
+#|         return recs[:split], recs[split:]
+#| 
+#|     return recs, recs
+#| 
+#| 
+#| def make_baseline(
+#|     entity_id: str,
+#|     feature_id: str,
+#|     baseline_type: str,
+#|     train_obs: List[Dict[str, Any]],
+#|     eval_obs: List[Dict[str, Any]],
+#|     feature: Dict[str, Any],
+#|     contexts: List[Dict[str, Any]],
+#|     peer_group_id: Optional[str] = None,
+#| ) -> Dict[str, Any]:
+#|     numeric_pairs = [(o.get("timestamp"), o.get("value")) for o in train_obs if o.get("value") is not None]
+#|     cat_values = [o.get("categorical") for o in train_obs if o.get("categorical") is not None]
+#|     target_values = [o.get("target_entity") for o in train_obs if o.get("target_entity")]
+#| 
+#|     stats = numeric_stats(numeric_pairs) if numeric_pairs else {}
+#|     cats = categorical_stats(cat_values) if cat_values else {}
+#|     targets = target_stats(target_values) if target_values else {}
+#|     season = seasonality_stats(train_obs)
+#| 
+#|     units = {o.get("unit") for o in train_obs if o.get("unit")}
+#|     unit_mismatch = len(units) > 1
+#|     sensor_fault_count = sum(1 for o in train_obs if "SENSOR_FLATLINE" in o.get("issues", []))
+#| 
+#|     quality = assess_baseline_quality(train_obs, feature, contexts, unit_mismatch, sensor_fault_count)
+#| 
+#|     expected_range = None
+#|     if stats:
+#|         expected_range = [stats.get("robust_low"), stats.get("robust_high")]
+#|     elif feature.get("policy_min") is not None or feature.get("policy_max") is not None:
+#|         expected_range = [feature.get("policy_min"), feature.get("policy_max")]
+#|         quality["confidence"] = "HIGH"
+#|         quality["data_completeness"] = "POLICY_REFERENCE"
+#| 
+#|     return {
+#|         "baseline_id": stable_id("BASE", entity_id, feature_id, baseline_type, peer_group_id or ""),
+#|         "baseline_type": baseline_type,
+#|         "entity_id": entity_id,
+#|         "feature_id": feature_id,
+#|         "peer_group_id": peer_group_id,
+#|         "training_start": min([o["timestamp"] for o in train_obs if o.get("timestamp")], default=None),
+#|         "training_end": max([o["timestamp"] for o in train_obs if o.get("timestamp")], default=None),
+#|         "sample_count": len(train_obs),
+#|         "model_type": "ROBUST_STATISTICAL" if stats else ("CATEGORICAL" if cats else "POLICY" if expected_range else "UNKNOWN"),
+#|         "stats": stats,
+#|         "categorical_stats": cats,
+#|         "target_stats": targets,
+#|         "seasonality": season,
+#|         "expected_range": expected_range,
+#|         "quality": quality,
+#|         "training_observation_ids": [o["observation_id"] for o in train_obs],
+#|         "evaluation_observation_ids": [o["observation_id"] for o in eval_obs],
+#|         "limitations": [
+#|             "Baseline validity depends on sample size, coverage, contamination, and data quality.",
+#|             "Do not compare incompatible aggregation intervals or mixed units without normalization.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_baselines(
+#|     observations: List[Dict[str, Any]],
+#|     features: Dict[str, Dict[str, Any]],
+#|     manifest: Dict[str, Any],
+#|     contexts: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     baselines: List[Dict[str, Any]] = []
+#|     baseline_window = manifest.get("baseline_window")
+#|     comparison_window = manifest.get("comparison_window")
+#| 
+#|     by_ef: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     for o in observations:
+#|         by_ef[(o["entity_id"], o["feature_id"])].append(o)
+#| 
+#|     for (entity_id, feature_id), recs in by_ef.items():
+#|         feature = features.get(feature_id, {})
+#|         train, evals = split_train_eval(recs, baseline_window, comparison_window)
+#| 
+#|         if train:
+#|             baselines.append(make_baseline(
+#|                 entity_id=entity_id,
+#|                 feature_id=feature_id,
+#|                 baseline_type="SELF",
+#|                 train_obs=train,
+#|                 eval_obs=evals,
+#|                 feature=feature,
+#|                 contexts=contexts,
+#|             ))
+#| 
+#|         if feature.get("policy_min") is not None or feature.get("policy_max") is not None:
+#|             baselines.append(make_baseline(
+#|                 entity_id=entity_id,
+#|                 feature_id=feature_id,
+#|                 baseline_type="POLICY",
+#|                 train_obs=[],
+#|                 eval_obs=recs,
+#|                 feature=feature,
+#|                 contexts=contexts,
+#|             ))
+#| 
+#|     for group in manifest.get("peer_groups", []) or []:
+#|         group_id = normalize_text(group.get("peer_group_id") or stable_id("PEER", *(group.get("entities", []) or [])))
+#|         entities = [normalize_text(x) for x in group.get("entities", []) or [] if normalize_text(x)]
+#|         group_obs = [o for o in observations if o["entity_id"] in entities]
+#| 
+#|         for target in entities:
+#|             for feature_id in {o["feature_id"] for o in group_obs if o["entity_id"] == target}:
+#|                 target_recs = [o for o in group_obs if o["entity_id"] == target and o["feature_id"] == feature_id]
+#|                 peer_recs = [o for o in group_obs if o["entity_id"] != target and o["feature_id"] == feature_id]
+#|                 if not target_recs or not peer_recs:
+#|                     continue
+#| 
+#|                 ptrain, _ = split_train_eval(peer_recs, baseline_window, comparison_window)
+#|                 _, tevals = split_train_eval(target_recs, baseline_window, comparison_window)
+#|                 if not tevals:
+#|                     tevals = target_recs
+#| 
+#|                 if ptrain:
+#|                     baselines.append(make_baseline(
+#|                         entity_id=target,
+#|                         feature_id=feature_id,
+#|                         baseline_type="PEER",
+#|                         train_obs=ptrain,
+#|                         eval_obs=tevals,
+#|                         feature=features.get(feature_id, {}),
+#|                         contexts=contexts,
+#|                         peer_group_id=group_id,
+#|                     ))
+#| 
+#|     return baselines
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Anomaly detection
+#| # --------------------------------------------------------------------
+#| 
+#| def threshold_settings(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     th = dict(manifest.get("thresholds", {}) or {})
+#|     sensitivity = normalize_text(th.get("sensitivity", "medium")).lower()
+#|     z_map = {"high": 2.5, "medium": 3.0, "low": 3.5}
+#|     th.setdefault("z_score", z_map.get(sensitivity, 3.0))
+#|     th.setdefault("iqr_multiplier", 1.5)
+#|     th.setdefault("rare_category_prob", 0.02)
+#|     th.setdefault("time_bucket_minutes", 15)
+#|     th.setdefault("episode_window_hours", 2.0)
+#|     th.setdefault("persistence_window_hours", 6.0)
+#|     return th
+#| 
+#| 
+#| def severity_from_score(score: float, feature: Dict[str, Any], data_quality: str, corroboration_count: int = 0) -> str:
+#|     if score >= 5.0:
+#|         sev = "HIGH_REVIEW"
+#|     elif score >= 3.0:
+#|         sev = "MEDIUM_REVIEW"
+#|     elif score >= 2.0:
+#|         sev = "LOW_REVIEW"
+#|     else:
+#|         sev = "INFORMATIONAL"
+#| 
+#|     if normalize_text(feature.get("criticality")).lower() in {"high", "critical"} and score >= 2.0:
+#|         sev = bump_confidence(sev.replace("_REVIEW", "").replace("_", "_"), 0)  # no-op placeholder
+#|         if sev == "LOW_REVIEW":
+#|             sev = "MEDIUM_REVIEW"
+#|         elif sev == "MEDIUM_REVIEW":
+#|             sev = "HIGH_REVIEW"
+#| 
+#|     if corroboration_count >= 2 and sev in {"LOW_REVIEW", "MEDIUM_REVIEW"}:
+#|         sev = "HIGH_REVIEW" if sev == "MEDIUM_REVIEW" else "MEDIUM_REVIEW"
+#| 
+#|     if data_quality not in {"OK", "POLICY_REFERENCE"}:
+#|         if sev == "HIGH_REVIEW":
+#|             sev = "MEDIUM_REVIEW"
+#|         elif sev == "MEDIUM_REVIEW":
+#|             sev = "LOW_REVIEW"
+#| 
+#|     return sev
+#| 
+#| 
+#| def confidence_from_baseline_quality(quality: Dict[str, Any], data_quality: str, independence: str, duplicate_count: int) -> str:
+#|     qconf = normalize_text(quality.get("confidence", "LOW")).upper()
+#|     mapping = {
+#|         "HIGH": "MODERATE",
+#|         "MODERATE": "LOW",
+#|         "LOW": "LOW",
+#|         "INSUFFICIENT": "VERY_LOW",
+#|     }
+#|     conf = mapping.get(qconf, "LOW")
+#| 
+#|     if data_quality in {"OK", "POLICY_REFERENCE"}:
+#|         conf = bump_confidence(conf, 1)
+#|     else:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     if independence == "INDEPENDENT" and duplicate_count == 0:
+#|         conf = bump_confidence(conf, 1)
+#|     elif independence == "DEPENDENT":
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     if conf == "HIGH" and qconf != "HIGH":
+#|         conf = "MODERATE"
+#| 
+#|     return conf
+#| 
+#| 
+#| def make_anomaly(
+#|     obs: Dict[str, Any],
+#|     baseline: Dict[str, Any],
+#|     feature: Dict[str, Any],
+#|     triggered: List[str],
+#|     score: float,
+#|     threshold: float,
+#|     sources: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#| ) -> Dict[str, Any]:
+#|     value = obs.get("value")
+#|     median = baseline.get("stats", {}).get("median")
+#|     expected_range = baseline.get("expected_range")
+#| 
+#|     deviation = None
+#|     direction = "UNKNOWN"
+#|     if value is not None and median is not None:
+#|         deviation = float(value) - float(median)
+#|         direction = "HIGH" if deviation > 0 else "LOW" if deviation < 0 else "EQUAL"
+#|     elif value is not None and expected_range and expected_range[0] is not None and expected_range[1] is not None:
+#|         low, high = expected_range
+#|         if value < low:
+#|             deviation = float(low) - float(value)
+#|             direction = "LOW"
+#|         elif value > high:
+#|             deviation = float(value) - float(high)
+#|             direction = "HIGH"
+#| 
+#|     source_ids = [obs.get("source_id")] if obs.get("source_id") else []
+#|     families = source_family_ids(source_ids, source_roots)
+#|     indep = independence_state(families, sources, source_ids)
+#| 
+#|     anomaly_type = "UNIVARIATE_OUTLIER"
+#|     if "POLICY" in triggered:
+#|         anomaly_type = "POLICY_DEVIATION"
+#|     elif "NOVEL_CATEGORY" in triggered or "NEW_COUNTERPARTY" in triggered:
+#|         anomaly_type = "NOVELTY"
+#|     elif "RARE_CATEGORY" in triggered:
+#|         anomaly_type = "DISTRIBUTION_ANOMALY"
+#|     elif "EWMA" in triggered:
+#|         anomaly_type = "TIME_SERIES_ANOMALY"
+#| 
+#|     return {
+#|         "anomaly_id": stable_id("ANOM", obs["observation_id"], baseline["baseline_id"], *triggered),
+#|         "entity_id": obs["entity_id"],
+#|         "entity_display": mask_entity(obs["entity_id"]),
+#|         "entity_type": obs.get("entity_type"),
+#|         "feature_id": obs["feature_id"],
+#|         "domain": feature.get("domain", "unknown"),
+#|         "anomaly_type": anomaly_type,
+#|         "observation_id": obs["observation_id"],
+#|         "timestamp": obs.get("timestamp"),
+#|         "observed_value": obs.get("raw_value"),
+#|         "observed_numeric": value,
+#|         "observed_categorical": obs.get("categorical"),
+#|         "expected_range": expected_range,
+#|         "baseline_id": baseline["baseline_id"],
+#|         "baseline_type": baseline["baseline_type"],
+#|         "deviation": deviation,
+#|         "direction": direction,
+#|         "score": round(float(score), 4),
+#|         "score_method": triggered,
+#|         "threshold": threshold,
+#|         "severity": severity_from_score(score, feature, obs.get("data_quality", "UNKNOWN")),
+#|         "confidence": confidence_from_baseline_quality(baseline.get("quality", {}), obs.get("data_quality", "UNKNOWN"), indep, obs.get("duplicate_count", 0)),
+#|         "data_quality": obs.get("data_quality", "UNKNOWN"),
+#|         "persistence": "UNKNOWN",
+#|         "recurrence": "UNKNOWN",
+#|         "context": [],
+#|         "possible_explanations": [],
+#|         "corroborating_signals": [],
+#|         "contradicting_signals": [],
+#|         "status": "CANDIDATE",
+#|         "evidence_ids": obs.get("evidence_ids", []),
+#|         "source_ids": source_ids,
+#|         "source_independence_state": indep,
+#|         "independent_source_family_count": len(families),
+#|         "limitations": [
+#|             "Anomaly means deviation from a baseline, not malice, intent, fraud, incident, or compromise.",
+#|             "Statistical rarity is not evidence of criminality or policy violation.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def detect_anomalies(
+#|     observations: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     features: Dict[str, Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#|     thresholds: Dict[str, Any],
+#| ) -> List[Dict[str, Any]]:
+#|     obs_by_id = {o["observation_id"]: o for o in observations}
+#|     anomalies: List[Dict[str, Any]] = []
+#|     z_threshold = float(thresholds.get("z_score", 3.0))
+#|     rare_prob = float(thresholds.get("rare_category_prob", 0.02))
+#| 
+#|     for b in baselines:
+#|         qconf = normalize_text(b.get("quality", {}).get("confidence", "LOW")).upper()
+#|         if b["baseline_type"] != "POLICY" and qconf == "INSUFFICIENT":
+#|             continue
+#| 
+#|         for oid in b.get("evaluation_observation_ids", []):
+#|             obs = obs_by_id.get(oid)
+#|             if not obs:
+#|                 continue
+#| 
+#|             feature = features.get(obs["feature_id"], {})
+#|             triggered: List[str] = []
+#|             score = 0.0
+#| 
+#|             stats = b.get("stats", {})
+#|             if obs.get("value") is not None and stats:
+#|                 med = float(stats.get("median", 0.0))
+#|                 madv = float(stats.get("mad", 0.0))
+#|                 std = float(stats.get("std", 0.0))
+#|                 rz = robust_z(float(obs["value"]), med, madv, std)
+#|                 if abs(rz) >= z_threshold:
+#|                     triggered.append("ROBUST_Z")
+#|                     score = max(score, abs(rz))
+#| 
+#|                 low_iqr = stats.get("low_iqr")
+#|                 high_iqr = stats.get("high_iqr")
+#|                 if low_iqr is not None and high_iqr is not None:
+#|                     if float(obs["value"]) < float(low_iqr) or float(obs["value"]) > float(high_iqr):
+#|                         triggered.append("IQR")
+#|                         score = max(score, 3.0)
+#| 
+#|                 p05 = stats.get("p05")
+#|                 p95 = stats.get("p95")
+#|                 if p05 is not None and p95 is not None:
+#|                     if float(obs["value"]) < float(p05) or float(obs["value"]) > float(p95):
+#|                         triggered.append("PERCENTILE")
+#|                         score = max(score, 2.5)
+#| 
+#|                 ewma = stats.get("ewma")
+#|                 ewma_std = stats.get("ewma_std")
+#|                 if ewma is not None and ewma_std and float(ewma_std) > 1e-12:
+#|                     ez = abs(float(obs["value"]) - float(ewma)) / float(ewma_std)
+#|                     if ez >= z_threshold:
+#|                         triggered.append("EWMA")
+#|                         score = max(score, ez)
+#| 
+#|             if feature.get("policy_min") is not None or feature.get("policy_max") is not None:
+#|                 vmin = feature.get("policy_min")
+#|                 vmax = feature.get("policy_max")
+#|                 val = obs.get("value")
+#|                 if val is not None:
+#|                     if (vmin is not None and float(val) < float(vmin)) or (vmax is not None and float(val) > float(vmax)):
+#|                         triggered.append("POLICY")
+#|                         score = max(score, 4.0)
+#| 
+#|             cats = b.get("categorical_stats", {})
+#|             if obs.get("categorical") is not None and cats:
+#|                 if obs["categorical"] not in cats.get("categories", []):
+#|                     triggered.append("NOVEL_CATEGORY")
+#|                     score = max(score, 3.0)
+#|                 elif float(cats.get("probs", {}).get(obs["categorical"], 1.0)) < rare_prob:
+#|                     triggered.append("RARE_CATEGORY")
+#|                     score = max(score, 2.5)
+#| 
+#|             targets = b.get("target_stats", {})
+#|             if obs.get("target_entity") and targets:
+#|                 if obs["target_entity"] not in targets.get("targets", []):
+#|                     triggered.append("NEW_COUNTERPARTY")
+#|                     score = max(score, 2.0)
+#| 
+#|             if not triggered:
+#|                 continue
+#| 
+#|             anomalies.append(make_anomaly(
+#|                 obs=obs,
+#|                 baseline=b,
+#|                 feature=feature,
+#|                 triggered=list(dict.fromkeys(triggered)),
+#|                 score=score,
+#|                 threshold=z_threshold,
+#|                 sources=sources,
+#|                 source_roots=source_roots,
+#|             ))
+#| 
+#|     return unique_preserve(anomalies)[:1000]
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Enrichment: benign explanations, corroboration, contradictions, persistence
+#| # --------------------------------------------------------------------
+#| 
+#| def enrich_with_context(
+#|     anomalies: List[Dict[str, Any]],
+#|     observations: List[Dict[str, Any]],
+#|     contexts: List[Dict[str, Any]],
+#|     sensor_fault_obs_ids: Set[str],
+#| ) -> None:
+#|     obs_by_id = {o["observation_id"]: o for o in observations}
+#| 
+#|     for a in anomalies:
+#|         obs = obs_by_id.get(a["observation_id"], {})
+#|         explanations = []
+#|         status = a["status"]
+#| 
+#|         for ctx in contexts:
+#|             if context_overlaps_entity_feature_time(ctx, a["entity_id"], a["feature_id"], a.get("timestamp")):
+#|                 desc = ctx.get("description") or ctx.get("context_id")
+#|                 cls = ctx.get("context_class")
+#|                 typ = ctx.get("context_type")
+#|                 explanations.append(f"{cls}:{typ} overlap ({desc})")
+#|                 if cls == "maintenance":
+#|                     status = "RELATED_TO_KNOWN_EVENT"
+#|                 elif cls in {"known_event", "known_change"}:
+#|                     status = "CONTEXT_EXPLAINED"
+#| 
+#|         if obs.get("data_quality") not in {"OK", "POLICY_REFERENCE"}:
+#|             explanations.append(f"Data-quality issue: {obs.get('data_quality')}")
+#|             status = "DATA_QUALITY_ISSUE"
+#| 
+#|         if obs.get("observation_id") in sensor_fault_obs_ids:
+#|             explanations.append("Sensor flatline / stuck-value candidate")
+#|             status = "SENSOR_FAULT_CANDIDATE"
+#| 
+#|         if obs.get("duplicate_count", 0) > 0:
+#|             explanations.append("Duplicate ingestion may inflate volume/count signals")
+#| 
+#|         baseline_sample = None
+#|         # Cold start heuristic: if entity/feature has very few total observations.
+#|         total_same_ef = sum(1 for o in observations if o["entity_id"] == a["entity_id"] and o["feature_id"] == a["feature_id"])
+#|         if total_same_ef < 5:
+#|             explanations.append("Cold-start / insufficient history for this entity-feature")
+#| 
+#|         a["possible_explanations"] = list(dict.fromkeys(explanations))
+#| 
+#|         # Final status priority.
+#|         if status == "DATA_QUALITY_ISSUE":
+#|             a["status"] = "DATA_QUALITY_ISSUE"
+#|         elif status == "SENSOR_FAULT_CANDIDATE":
+#|             a["status"] = "SENSOR_FAULT_CANDIDATE"
+#|         elif any("Cold-start" in x for x in explanations):
+#|             a["status"] = "CANDIDATE"
+#|         elif status in {"CONTEXT_EXPLAINED", "RELATED_TO_KNOWN_EVENT"}:
+#|             a["status"] = status
+#|         elif a.get("confidence") in {"MODERATE", "HIGH"}:
+#|             a["status"] = "VALIDATED_ANOMALY"
+#|         else:
+#|             a["status"] = "CANDIDATE"
+#| 
+#|         a["context"] = list(dict.fromkeys([x for x in explanations if "overlap" in x]))
+#| 
+#| 
+#| def enrich_corroboration_and_contradictions(
+#|     anomalies: List[Dict[str, Any]],
+#|     observations: List[Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#|     thresholds: Dict[str, Any],
+#| ) -> None:
+#|     obs_by_id = {o["observation_id"]: o for o in observations}
+#|     bucket_minutes = int(thresholds.get("time_bucket_minutes", 15))
+#| 
+#|     groups: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     for a in anomalies:
+#|         key = (a["entity_id"], a["feature_id"], time_bucket(a.get("timestamp"), bucket_minutes))
+#|         groups[key].append(a)
+#| 
+#|     for key, lst in groups.items():
+#|         source_ids = sorted({sid for a in lst for sid in a.get("source_ids", []) if sid})
+#|         families = source_family_ids(source_ids, source_roots)
+#|         indep = independence_state(families, sources, source_ids)
+#| 
+#|         if len(families) >= 2 and indep == "INDEPENDENT":
+#|             for a in lst:
+#|                 a["corroborating_signals"].append("independent_source_corroboration")
+#|                 a["source_independence_state"] = indep
+#|                 a["independent_source_family_count"] = len(families)
+#|                 if a["confidence"] in {"LOW", "VERY_LOW"}:
+#|                     a["confidence"] = bump_confidence(a["confidence"], 1)
+#| 
+#|         # Contradiction: different sources report materially different values for same entity/feature/time bucket.
+#|         vals = []
+#|         for a in lst:
+#|             obs = obs_by_id.get(a["observation_id"])
+#|             if obs and obs.get("value") is not None:
+#|                 vals.append((a, float(obs["value"])))
+#|         if len({sid for a, _ in vals for sid in a.get("source_ids", [])}) > 1 and len(vals) >= 2:
+#|             values = [v for _, v in vals]
+#|             med = safe_median(values)
+#|             spread = max(values) - min(values)
+#|             tolerance = max(1e-9, 0.2 * abs(med))
+#|             if spread > tolerance:
+#|                 for a, _ in vals:
+#|                     a["contradicting_signals"].append("source_value_disagreement_in_same_window")
+#| 
+#| 
+#| def enrich_persistence_and_recurrence(
+#|     anomalies: List[Dict[str, Any]],
+#|     thresholds: Dict[str, Any],
+#| ) -> None:
+#|     persistence_hours = float(thresholds.get("persistence_window_hours", 6.0))
+#|     by_ef: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     for a in anomalies:
+#|         if a.get("timestamp"):
+#|             by_ef[(a["entity_id"], a["feature_id"])].append(a)
+#| 
+#|     for lst in by_ef.values():
+#|         lst.sort(key=lambda x: x["timestamp"])
+#|         if len(lst) == 1:
+#|             lst[0]["persistence"] = "TRANSIENT"
+#|             lst[0]["recurrence"] = "SINGLE_OBSERVATION"
+#|             continue
+#| 
+#|         clusters = []
+#|         cur = [lst[0]]
+#|         for prev, nxt in zip(lst, lst[1:]):
+#|             gap_hours = (nxt["timestamp"] - prev["timestamp"]).total_seconds() / 3600.0
+#|             if gap_hours <= persistence_hours:
+#|                 cur.append(nxt)
+#|             else:
+#|                 clusters.append(cur)
+#|                 cur = [nxt]
+#|         clusters.append(cur)
+#| 
+#|         for cluster in clusters:
+#|             for a in cluster:
+#|                 a["persistence"] = "PERSISTENT" if len(cluster) > 1 else "TRANSIENT"
+#|         if len(clusters) > 1:
+#|             for a in lst:
+#|                 a["recurrence"] = "RECURRING"
+#|         else:
+#|             for a in lst:
+#|                 a["recurrence"] = "CONTINUOUS_CLUSTER"
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Episodes / multivariate / root-cause candidates / ACH
+#| # --------------------------------------------------------------------
+#| 
+#| def make_episode(anomalies: List[Dict[str, Any]], thresholds: Dict[str, Any]) -> Dict[str, Any]:
+#|     anomalies = sorted([a for a in anomalies if a.get("timestamp")], key=lambda x: x["timestamp"])
+#|     if not anomalies:
+#|         return {}
+#| 
+#|     entity_id = anomalies[0]["entity_id"]
+#|     features = sorted({a["feature_id"] for a in anomalies})
+#|     domains = sorted({a.get("domain", "unknown") for a in anomalies})
+#|     severities = [a.get("severity", "UNKNOWN") for a in anomalies]
+#|     max_severity = max(severities, key=lambda s: SEVERITY_RANK.get(s, -1))
+#|     statuses = [a.get("status", "CANDIDATE") for a in anomalies]
+#|     max_status = max(statuses, key=lambda s: STATUS_RANK.get(s, -1))
+#| 
+#|     data_quality_issue = any(a.get("status") == "DATA_QUALITY_ISSUE" or a.get("data_quality") not in {"OK", "POLICY_REFERENCE"} for a in anomalies)
+#|     sensor_fault = any(a.get("status") == "SENSOR_FAULT_CANDIDATE" for a in anomalies)
+#|     known_maintenance = any(any("maintenance" in str(x).lower() for x in a.get("context", [])) for a in anomalies)
+#|     corroborated = any("independent_source_corroboration" in a.get("corroborating_signals", []) for a in anomalies)
+#|     novelty = any(a.get("anomaly_type") == "NOVELTY" or "NOVEL_CATEGORY" in a.get("score_method", []) or "NEW_COUNTERPARTY" in a.get("score_method", []) for a in anomalies)
+#|     policy = any("POLICY" in a.get("score_method", []) for a in anomalies)
+#|     multivariate = len(features) > 1
+#|     max_score = max(float(a.get("score", 0.0)) for a in anomalies)
+#| 
+#|     root_candidates = ["unknown"]
+#|     if known_maintenance:
+#|         root_candidates.extend(["maintenance", "configuration_change", "software_release"])
+#|     if data_quality_issue or sensor_fault:
+#|         root_candidates.extend(["sensor_fault", "pipeline_error", "parser_error"])
+#|     if novelty:
+#|         root_candidates.extend(["legitimate_business_change", "new_vendor_or_customer", "new_device_or_location"])
+#|     if policy:
+#|         root_candidates.extend(["policy_exception", "configuration_error"])
+#|     if "cyber" in domains or "identity" in domains or "network" in domains:
+#|         root_candidates.append("security_incident_candidate")
+#|     if "financial" in domains or "fraud" in domains:
+#|         root_candidates.append("financial_anomaly_candidate")
+#|     if "trade" in domains or "supply_chain" in domains or "logistics" in domains:
+#|         root_candidates.append("supply_or_trade_disruption_candidate")
+#|     if "environmental" in domains or "sensor" in domains:
+#|         root_candidates.append("environmental_or_sensor_event_candidate")
+#| 
+#|     return {
+#|         "episode_id": stable_id("EP", entity_id, iso(anomalies[0].get("timestamp")), iso(anomalies[-1].get("timestamp")), *features),
+#|         "entity_id": entity_id,
+#|         "entity_display": mask_entity(entity_id),
+#|         "start_utc": anomalies[0].get("timestamp"),
+#|         "end_utc": anomalies[-1].get("timestamp"),
+#|         "anomaly_ids": [a["anomaly_id"] for a in anomalies],
+#|         "features": features,
+#|         "domains": domains,
+#|         "severity": max_severity,
+#|         "status": max_status,
+#|         "multivariate_context": multivariate,
+#|         "data_quality_issue": data_quality_issue,
+#|         "sensor_fault": sensor_fault,
+#|         "known_maintenance": known_maintenance,
+#|         "source_independent_corroboration": corroborated,
+#|         "novelty": novelty,
+#|         "policy_violation": policy,
+#|         "max_score": round(max_score, 4),
+#|         "root_cause_candidates": list(dict.fromkeys(root_candidates)),
+#|         "limitations": [
+#|             "Episode is a cluster of anomaly candidates, not an incident, fraud, or malicious verdict.",
+#|             "Root-cause candidates require specialist and/or human verification.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_episodes(anomalies: List[Dict[str, Any]], thresholds: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     episode_window = timedelta(hours=float(thresholds.get("episode_window_hours", 2.0)))
+#|     anomalies = sorted([a for a in anomalies if a.get("timestamp")], key=lambda x: (x["entity_id"], x["timestamp"]))
+#|     episodes = []
+#|     cur: List[Dict[str, Any]] = []
+#| 
+#|     for a in anomalies:
+#|         if not cur:
+#|             cur = [a]
+#|             continue
+#|         if a["entity_id"] == cur[-1]["entity_id"] and (a["timestamp"] - cur[-1]["timestamp"]) <= episode_window:
+#|             cur.append(a)
+#|         else:
+#|             ep = make_episode(cur, thresholds)
+#|             if ep:
+#|                 episodes.append(ep)
+#|             cur = [a]
+#| 
+#|     if cur:
+#|         ep = make_episode(cur, thresholds)
+#|         if ep:
+#|             episodes.append(ep)
+#| 
+#|     return episodes
+#| 

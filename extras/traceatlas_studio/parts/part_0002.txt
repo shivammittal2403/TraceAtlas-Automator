@@ -1,0 +1,1000 @@
+#|         ),
+#|         "SCHOLARLY_FABRICATION_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(plagiariz|copy verbatim|paraphras.*evad.*plagiarism|spin.?author|paper.?mill|ghostwrit)\b"
+#|         ),
+#|         "PLAGIARISM_OR_PAPER_MILL_ENABLEMENT",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(manipulat.*peer review|fake reviewer|review ring|coercive citation|citation ring|inflate h-index|game citation|citation manipulation)\b"
+#|         ),
+#|         "PEER_REVIEW_OR_CITATION_MANIPULATION",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(bypass|break|evade|defeat)\s+"
+#|             r"(paywall|publisher authentication|access control|library login|university credential|institutional access)\b"
+#|         ),
+#|         "ACCESS_CONTROL_BYPASS",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(use|leverate|login with|authenticate with)\s+"
+#|             r"(stolen|leaked|shared|borrowed)\s+(credential|password|token|library access|university login|vpn)\b"
+#|         ),
+#|         "STOLEN_CREDENTIAL_USE",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(pirate|download illegally|unauthorized copy|sci-hub-like)\s+(paper|article|pdf|research|publication)\b"
+#|         ),
+#|         "PAPERY_PIRACY_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(deanonymi[sz]e|identify|unmask|discover)\s+"
+#|             r"(anonymous|blind|private|confidential)\s+(peer reviewer|reviewer)\b"
+#|         ),
+#|         "REVIEWER_DEANONYMIZATION",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(dox|harass|threaten|home address|private email|personal phone|family information)\b.*"
+#|             r"\b(researcher|author|academic|reviewer|student)\b"
+#|         ),
+#|         "RESEARCHER_DOXXING_OR_HARASSMENT",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(infer|guess|profile|determine)\s+"
+#|             r"(religion|ethnicity|sexual orientation|political belief|ideology|medical condition)\b.*"
+#|             r"\b(researcher|author|academic|reviewer)\b"
+#|         ),
+#|         "UNJUSTIFIED_SENSITIVE_TRAIT_INFERENCE",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(cheat|exam answer|assignment solution|contract cheating|ghostwrite|write my thesis)\b"
+#|         ),
+#|         "EXAM_OR_ASSIGNMENT_CHEATING",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(access|enter|steal|exfiltrate)\s+"
+#|             r"(private lab|unpublished research|internal lab system|pre-submission manuscript)\b"
+#|         ),
+#|         "UNAUTHORIZED_RESEARCH_ACCESS",
+#|     ),
+#| ]
+#| 
+#| SOURCE_RELIABILITY: Dict[str, float] = {
+#|     "version_of_record": 0.92,
+#|     "doi_registry": 0.90,
+#|     "official_publisher": 0.88,
+#|     "institutional_repository": 0.84,
+#|     "government_research_database": 0.84,
+#|     "clinical_trial_registry": 0.82,
+#|     "preprint_server": 0.78,
+#|     "bibliographic_index": 0.72,
+#|     "data_repository": 0.72,
+#|     "code_repository": 0.70,
+#|     "author_profile": 0.65,
+#|     "university_page": 0.68,
+#|     "lab_page": 0.62,
+#|     "grant_database": 0.78,
+#|     "retraction_database": 0.82,
+#|     "media_summary": 0.45,
+#|     "secondary_review": 0.55,
+#|     "anonymous_post": 0.15,
+#|     "unknown": 0.30,
+#| }
+#| 
+#| HIGH_AUTHORITY_SOURCE_TYPES = {
+#|     "version_of_record",
+#|     "doi_registry",
+#|     "official_publisher",
+#|     "institutional_repository",
+#|     "government_research_database",
+#|     "clinical_trial_registry",
+#|     "grant_database",
+#|     "retraction_database",
+#| }
+#| 
+#| PUBLICATION_TYPES = {
+#|     "JOURNAL_ARTICLE",
+#|     "CONFERENCE_PAPER",
+#|     "PREPRINT",
+#|     "WORKING_PAPER",
+#|     "TECHNICAL_REPORT",
+#|     "THESIS",
+#|     "DISSERTATION",
+#|     "BOOK",
+#|     "BOOK_CHAPTER",
+#|     "REVIEW",
+#|     "SYSTEMATIC_REVIEW",
+#|     "META_ANALYSIS",
+#|     "CASE_REPORT",
+#|     "DATA_PAPER",
+#|     "METHODS_PAPER",
+#|     "PROTOCOL",
+#|     "EDITORIAL",
+#|     "LETTER",
+#|     "POSTER",
+#|     "OTHER",
+#|     "UNKNOWN",
+#| }
+#| 
+#| VERSION_STATES = {
+#|     "SUBMITTED_MANUSCRIPT",
+#|     "PREPRINT",
+#|     "ACCEPTED_MANUSCRIPT",
+#|     "AUTHOR_ACCEPTED_VERSION",
+#|     "PROOF",
+#|     "VERSION_OF_RECORD",
+#|     "REVISED_VERSION",
+#|     "CORRECTED_VERSION",
+#|     "WITHDRAWN",
+#|     "RETRACTED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| PEER_REVIEW_STATES = {
+#|     "PEER_REVIEWED_REPORTED",
+#|     "EDITORIALLY_REVIEWED",
+#|     "PREPRINT",
+#|     "UNDER_REVIEW",
+#|     "ACCEPTED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| PUBLICATION_STATUSES = {
+#|     "ACTIVE",
+#|     "CORRECTED",
+#|     "RETRACTED",
+#|     "WITHDRAWN",
+#|     "EXPRESSION_OF_CONCERN",
+#|     "SUPERSEDED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| CLAIM_TYPES = {
+#|     "DESCRIPTIVE",
+#|     "ASSOCIATIONAL",
+#|     "CORRELATIONAL",
+#|     "CAUSAL",
+#|     "MECHANISTIC",
+#|     "PREDICTIVE",
+#|     "COMPARATIVE",
+#|     "NEGATIVE_RESULT",
+#|     "METHODOLOGICAL",
+#|     "THEORETICAL",
+#|     "SPECULATIVE",
+#|     "UNKNOWN",
+#| }
+#| 
+#| STUDY_DESIGNS = {
+#|     "RCT",
+#|     "COHORT",
+#|     "CASE_CONTROL",
+#|     "CROSS_SECTIONAL",
+#|     "LONGITUDINAL",
+#|     "CASE_SERIES",
+#|     "SURVEY",
+#|     "EXPERIMENT",
+#|     "SIMULATION",
+#|     "BENCHMARK",
+#|     "OBSERVATIONAL",
+#|     "QUALITATIVE",
+#|     "MIXED_METHODS",
+#|     "SYSTEMATIC_REVIEW",
+#|     "META_ANALYSIS",
+#|     "OTHER",
+#|     "UNKNOWN",
+#| }
+#| 
+#| CITATION_PURPOSES = {
+#|     "SUPPORT",
+#|     "BACKGROUND",
+#|     "METHOD",
+#|     "CONTRAST",
+#|     "CRITICISM",
+#|     "EXTENSION",
+#|     "REPLICATION",
+#|     "DATA_SOURCE",
+#|     "UNKNOWN",
+#| }
+#| 
+#| REPLICATION_DIRECTIONS = {
+#|     "SUPPORTS",
+#|     "PARTIAL_SUPPORTS",
+#|     "CONTRADICTS",
+#|     "NULL",
+#|     "INCONCLUSIVE",
+#|     "UNKNOWN",
+#| }
+#| 
+#| CONSENSUS_STATES = {
+#|     "STRONG_CONSENSUS",
+#|     "MODERATE_CONSENSUS",
+#|     "EMERGING_CONSENSUS",
+#|     "MIXED_EVIDENCE",
+#|     "ACTIVE_DEBATE",
+#|     "WEAK_EVIDENCE",
+#|     "INSUFFICIENT_EVIDENCE",
+#|     "UNKNOWN",
+#| }
+#| 
+#| # --------------------------------------------------------------------
+#| # Generic helpers
+#| # --------------------------------------------------------------------
+#| 
+#| def utc_now() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(json_safe(p)) for p in parts)
+#|     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+#|     return f"{prefix}-{digest}"
+#| 
+#| 
+#| def json_safe(obj: Any) -> Any:
+#|     if isinstance(obj, dict):
+#|         return {str(k): json_safe(v) for k, v in obj.items()}
+#|     if isinstance(obj, (list, tuple, set)):
+#|         return [json_safe(x) for x in obj]
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, timedelta):
+#|         return obj.total_seconds()
+#|     if isinstance(obj, bytes):
+#|         return obj.hex()
+#|     if isinstance(obj, (str, int, float, bool, type(None))):
+#|         return obj
+#|     return str(obj)
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     if value is None:
+#|         return ""
+#|     s = unicodedata.normalize("NFKC", str(value))
+#|     s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+#|     return s.strip()
+#| 
+#| 
+#| def collapse_ws(value: str) -> str:
+#|     return re.sub(r"\s+", " ", value).strip()
+#| 
+#| 
+#| def iso(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+#|     return max(lo, min(hi, value))
+#| 
+#| 
+#| def unique_preserve(items: Iterable[Any]) -> List[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         key = json_safe(item)
+#|         if isinstance(key, (dict, list)):
+#|             key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def add_unique(lst: List[Any], item: Any) -> None:
+#|     if item is None:
+#|         return
+#|     key = json_safe(item)
+#|     if isinstance(key, (dict, list)):
+#|         key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+#|     for existing in lst:
+#|         ex_key = json_safe(existing)
+#|         if isinstance(ex_key, (dict, list)):
+#|             ex_key = json.dumps(ex_key, sort_keys=True, ensure_ascii=False)
+#|         if ex_key == key:
+#|             return
+#|     lst.append(item)
+#| 
+#| 
+#| def parse_time(value: Any) -> Optional[datetime]:
+#|     if not value:
+#|         return None
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     if s.endswith("Z"):
+#|         s = s[:-1] + "+00:00"
+#|     try:
+#|         dt = datetime.fromisoformat(s)
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt
+#|     except Exception:
+#|         pass
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d",
+#|         "%d/%m/%Y",
+#|         "%m/%d/%Y",
+#|         "%Y-%m",
+#|         "%Y",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(s, fmt)
+#|             if dt.tzinfo is None:
+#|                 dt = dt.replace(tzinfo=timezone.utc)
+#|             return dt
+#|         except Exception:
+#|             continue
+#|     return None
+#| 
+#| 
+#| def sha256_hex(value: str) -> str:
+#|     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+#| 
+#| 
+#| def mask_value(value: Any, keep_prefix: int = 3, keep_suffix: int = 2) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     if len(s) <= keep_prefix + keep_suffix:
+#|         return "*" * len(s)
+#|     return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+#| 
+#| 
+#| def source_list(*items: Any) -> List[str]:
+#|     out = []
+#|     for it in items:
+#|         if it is None:
+#|             continue
+#|         if isinstance(it, list):
+#|             out.extend(normalize_text(x) for x in it if normalize_text(x))
+#|         else:
+#|             s = normalize_text(it)
+#|             if s:
+#|                 out.append(s)
+#|     return list(dict.fromkeys(out))
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Academic normalizers
+#| # --------------------------------------------------------------------
+#| 
+#| def normalize_doi(value: Any) -> Optional[str]:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     s = re.sub(r"(?i)^https?://(dx\.)?doi\.org/", "", s)
+#|     s = re.sub(r"(?i)^doi:\s*", "", s)
+#|     s = s.strip().lower()
+#|     if re.fullmatch(r"10\.\d{4,9}/[^\s]+", s):
+#|         return s
+#|     return None
+#| 
+#| 
+#| def parse_orcid(value: Any) -> Tuple[Optional[str], bool]:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None, False
+#|     s = re.sub(r"(?i)^https?://orcid\.org/", "", s)
+#|     s = re.sub(r"[^0-9Xx]", "", s)
+#|     if len(s) != 16:
+#|         return (s.upper() if s else None), False
+#|     su = s.upper()
+#|     total = 0
+#|     for ch in su[:-1]:
+#|         if not ch.isdigit():
+#|             return su, False
+#|         total = (total + int(ch)) * 2
+#|     rem = total % 11
+#|     expected = (12 - rem) % 11
+#|     expected_char = "X" if expected == 10 else str(expected)
+#|     return su, su[-1] == expected_char
+#| 
+#| 
+#| def normalize_issn(value: Any) -> Optional[str]:
+#|     s = normalize_text(value).upper().replace(" ", "")
+#|     s = re.sub(r"(?i)^ISSN[:\s]*", "", s)
+#|     if re.fullmatch(r"\d{4}-?\d{3}[\dX]", s):
+#|         s = s.replace("-", "")
+#|         return f"{s[:4]}-{s[4:]}"
+#|     return None
+#| 
+#| 
+#| def strip_diacritics(value: str) -> str:
+#|     nfkd = unicodedata.normalize("NFKD", value)
+#|     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
+#| 
+#| 
+#| def normalize_person_name(value: Any) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     s = strip_diacritics(s).lower()
+#|     s = re.sub(r"[^a-z0-9\s-]", " ", s)
+#|     s = re.sub(r"\s+", " ", s).strip()
+#|     return s
+#| 
+#| 
+#| def normalize_title(value: Any) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     s = strip_diacritics(s).lower()
+#|     s = re.sub(r"[^a-z0-9\s]", " ", s)
+#|     s = re.sub(r"\s+", " ", s).strip()
+#|     return s
+#| 
+#| 
+#| def normalize_claim_text(value: Any) -> str:
+#|     return normalize_title(value)
+#| 
+#| 
+#| def name_tokens(value: Any) -> Set[str]:
+#|     return set(normalize_person_name(value).split())
+#| 
+#| 
+#| def initials(value: Any) -> str:
+#|     parts = normalize_person_name(value).split()
+#|     return "".join(p[0] for p in parts[:3] if p)
+#| 
+#| 
+#| def surname_candidate(value: Any) -> str:
+#|     parts = normalize_person_name(value).split()
+#|     return parts[-1] if parts else ""
+#| 
+#| 
+#| def token_jaccard(a: Set[str], b: Set[str]) -> float:
+#|     if not a and not b:
+#|         return 1.0
+#|     if not a or not b:
+#|         return 0.0
+#|     return len(a & b) / float(len(a | b))
+#| 
+#| 
+#| def year_from_any(value: Any, date: Optional[datetime]) -> Optional[int]:
+#|     y = normalize_text(value)
+#|     if y.isdigit() and len(y) == 4:
+#|         return int(y)
+#|     if date:
+#|         return date.year
+#|     m = re.search(r"(19|20)\d{2}", normalize_text(value))
+#|     if m:
+#|         return int(m.group())
+#|     return None
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / authorization
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_intent_text(manifest: Dict[str, Any]) -> str:
+#|     parts = [
+#|         normalize_text(manifest.get("objective", "")),
+#|         " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+#|         " ".join(normalize_text(x) for x in manifest.get("requested_actions", []) or []),
+#|     ]
+#|     return " ".join(parts)
+#| 
+#| 
+#| def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+#|     blob = collect_intent_text(manifest)
+#|     blocked = []
+#|     for pat, label in PROHIBITED_PATTERNS:
+#|         if pat.search(blob):
+#|             blocked.append(label)
+#|     return list(dict.fromkeys(blocked))
+#| 
+#| 
+#| def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+#|     auth = manifest.get("authorization") or {}
+#|     reasons: List[str] = []
+#| 
+#|     if not auth.get("approved"):
+#|         reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+#| 
+#|     scope = auth.get("scope", "provided_records_only")
+#|     if scope not in ALLOWED_SCOPES:
+#|         reasons.append("UNSUPPORTED_SCOPE")
+#| 
+#|     model_mode = auth.get("model_mode", "LOCAL_ONLY")
+#|     if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+#|         reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+#| 
+#|     if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+#|         reasons.append("UNKNOWN_MODEL_MODE")
+#| 
+#|     if manifest.get("private_lab_records") and not auth.get("private_research_approved"):
+#|         reasons.append("PRIVATE_RESEARCH_RECORDS_NOT_APPROVED")
+#| 
+#|     return (len(reasons) == 0), reasons
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Sources / pedigree / independence
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_referenced_source_ids(manifest: Dict[str, Any]) -> Set[str]:
+#|     ids = set()
+#|     buckets = (
+#|         "sources",
+#|         "publications",
+#|         "authors",
+#|         "institutions",
+#|         "journals",
+#|         "conferences",
+#|         "publishers",
+#|         "claims",
+#|         "citations",
+#|         "datasets",
+#|         "repositories",
+#|         "grants",
+#|         "funders",
+#|         "corrections",
+#|         "retractions",
+#|         "expressions_of_concern",
+#|         "replications",
+#|         "integrity_signals",
+#|     )
+#|     for bucket in buckets:
+#|         for item in manifest.get(bucket, []) or []:
+#|             for sid in item.get("source_ids", []) or []:
+#|                 sid = normalize_text(sid)
+#|                 if sid:
+#|                     ids.add(sid)
+#|             sid = normalize_text(item.get("source_id"))
+#|             if sid:
+#|                 ids.add(sid)
+#|     return ids
+#| 
+#| 
+#| def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     sources: Dict[str, Dict[str, Any]] = {}
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if not sid:
+#|             continue
+#|         stype = normalize_text(s.get("source_type", "unknown")).lower()
+#|         reliability = s.get("reliability")
+#|         if reliability is None:
+#|             reliability = SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"])
+#|         sources[sid] = {
+#|             "source_id": sid,
+#|             "source_type": stype,
+#|             "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+#|             "reliability": clamp(float(reliability)),
+#|             "observed_at": normalize_text(s.get("observed_at")) or None,
+#|             "url": s.get("url"),
+#|             "limitations": list(s.get("limitations", []) or []),
+#|         }
+#| 
+#|     for sid in collect_referenced_source_ids(manifest):
+#|         if sid not in sources:
+#|             sources[sid] = {
+#|                 "source_id": sid,
+#|                 "source_type": "unknown",
+#|                 "upstream_source_id": None,
+#|                 "reliability": SOURCE_RELIABILITY["unknown"],
+#|                 "observed_at": None,
+#|                 "url": None,
+#|                 "limitations": ["Source referenced but not defined in manifest."],
+#|             }
+#|     return sources
+#| 
+#| 
+#| def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+#|     if sid in memo:
+#|         return memo[sid]
+#|     if sid in visiting:
+#|         return sid
+#|     visiting.add(sid)
+#|     src = sources.get(sid)
+#|     if not src or not src.get("upstream_source_id"):
+#|         memo[sid] = sid
+#|         visiting.discard(sid)
+#|         return sid
+#|     root = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+#|     memo[sid] = root
+#|     visiting.discard(sid)
+#|     return root
+#| 
+#| 
+#| def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+#|     memo: Dict[str, str] = {}
+#|     for sid in sources:
+#|         resolve_source_root(sid, sources, memo, set())
+#|     return memo
+#| 
+#| 
+#| def source_family_ids(source_ids: List[str], source_roots: Dict[str, str]) -> List[str]:
+#|     roots = []
+#|     for sid in source_ids:
+#|         roots.append(source_roots.get(sid, sid))
+#|     return list(dict.fromkeys(roots))
+#| 
+#| 
+#| def source_quality(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> Tuple[float, float]:
+#|     vals = [float(sources.get(sid, {}).get("reliability", SOURCE_RELIABILITY["unknown"])) for sid in source_ids]
+#|     if not vals:
+#|         return SOURCE_RELIABILITY["unknown"], SOURCE_RELIABILITY["unknown"]
+#|     return max(vals), sum(vals) / len(vals)
+#| 
+#| 
+#| def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+#|     if not source_ids:
+#|         return "UNKNOWN"
+#|     if len(families) <= 1:
+#|         return "DEPENDENT"
+#|     types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+#|     rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+#|     if len(types) == 1 and max(rels) < 0.70:
+#|         return "PARTIALLY_DEPENDENT"
+#|     if max(rels) >= 0.70:
+#|         return "INDEPENDENT"
+#|     return "PARTIALLY_DEPENDENT"
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Entity ensure helpers
+#| # --------------------------------------------------------------------
+#| 
+#| def ensure_institution(
+#|     institutions: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     source_ids: Optional[List[str]] = None,
+#|     reason: str = "",
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         iid = normalize_text(ref.get("institution_id") or ref.get("id"))
+#|         name = normalize_text(ref.get("name") or ref.get("institution") or iid)
+#|         country = normalize_text(ref.get("country")) or None
+#|         itype = normalize_text(ref.get("type", "UNKNOWN")).upper()
+#|         parent = normalize_text(ref.get("parent_institution") or ref.get("parent")) or None
+#|         aliases = source_list(ref.get("aliases", []))
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         iid = normalize_text(stable_id("INST", normalize_person_name(s)))
+#|         name = s
+#|         country = None
+#|         itype = "UNKNOWN"
+#|         parent = None
+#|         aliases = []
+#|         sids = source_list(source_ids)
+#| 
+#|     if not iid:
+#|         return None
+#| 
+#|     if iid not in institutions:
+#|         institutions[iid] = {
+#|             "institution_id": iid,
+#|             "name": name or iid,
+#|             "type": itype if itype in {"UNIVERSITY", "COLLEGE", "INSTITUTE", "RESEARCH_CENTER", "LABORATORY", "HOSPITAL", "COMPANY_RESEARCH_LAB", "GOVERNMENT_LAB", "THINK_TANK", "FOUNDATION", "OTHER"} else "UNKNOWN",
+#|             "country": country,
+#|             "parent_institution": parent,
+#|             "aliases": aliases,
+#|             "source_ids": sids,
+#|             "limitations": list(([f"Placeholder created because: {reason}."] if reason else [])) + [
+#|                 "Institution name/affiliation on a publication is not automatically current employment.",
+#|                 "Lab is not automatically a separate legal entity.",
+#|             ],
+#|         }
+#|     else:
+#|         inst = institutions[iid]
+#|         if name and not inst.get("name"):
+#|             inst["name"] = name
+#|         for sid in sids:
+#|             add_unique(inst["source_ids"], sid)
+#|         for alias in aliases:
+#|             add_unique(inst["aliases"], alias)
+#|     return iid
+#| 
+#| 
+#| def ensure_journal(
+#|     journals: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     publishers: Dict[str, Dict[str, Any]],
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         jid = normalize_text(ref.get("journal_id") or ref.get("id"))
+#|         title = normalize_text(ref.get("title") or ref.get("name") or jid)
+#|         issn = normalize_issn(ref.get("issn"))
+#|         publisher_ref = ref.get("publisher")
+#|         subject_areas = source_list(ref.get("subject_areas", []), ref.get("fields", []))
+#|         review_model = normalize_text(ref.get("review_model", "UNKNOWN")).upper()
+#|         risk_state = normalize_text(ref.get("risk_state", "UNKNOWN")).upper()
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         jid = stable_id("JOURNAL", normalize_title(s))
+#|         title = s
+#|         issn = None
+#|         publisher_ref = None
+#|         subject_areas = []
+#|         review_model = "UNKNOWN"
+#|         risk_state = "UNKNOWN"
+#|         sids = source_list(source_ids)
+#| 
+#|     publisher_id = ensure_publisher(publishers, publisher_ref, sids) if publisher_ref else None
+#| 
+#|     if jid not in journals:
+#|         journals[jid] = {
+#|             "journal_id": jid,
+#|             "title": title or jid,
+#|             "issn": issn,
+#|             "publisher_id": publisher_id,
+#|             "subject_areas": subject_areas,
+#|             "review_model": review_model if review_model in {"PEER_REVIEWED", "EDITORIAL", "OPEN", "UNKNOWN"} else "UNKNOWN",
+#|             "risk_state": risk_state if risk_state in {"ESTABLISHED", "LIMITED_INFORMATION", "QUALITY_CONCERNS_REPORTED", "QUESTIONABLE_PRACTICES_CANDIDATE", "FORMALLY_SANCTIONED_OR_DELISTED", "UNKNOWN"} else "UNKNOWN",
+#|             "source_ids": sids,
+#|             "limitations": [
+#|                 "Journal identity is not paper quality.",
+#|                 "Impact factor is a journal-level metric, not individual paper validity.",
+#|                 "Open access is not automatically low quality; paywall is not automatically high quality.",
+#|             ],
+#|         }
+#|     else:
+#|         j = journals[jid]
+#|         for sid in sids:
+#|             add_unique(j["source_ids"], sid)
+#|         if issn and not j.get("issn"):
+#|             j["issn"] = issn
+#|         if publisher_id and not j.get("publisher_id"):
+#|             j["publisher_id"] = publisher_id
+#|     return jid
+#| 
+#| 
+#| def ensure_conference(
+#|     conferences: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     publishers: Dict[str, Dict[str, Any]],
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         cid = normalize_text(ref.get("conference_id") or ref.get("id"))
+#|         name = normalize_text(ref.get("name") or ref.get("title") or cid)
+#|         series = normalize_text(ref.get("series")) or None
+#|         year = ref.get("year")
+#|         location = normalize_text(ref.get("location")) or None
+#|         organizer = normalize_text(ref.get("organizer")) or None
+#|         publisher_ref = ref.get("publisher")
+#|         review_context = normalize_text(ref.get("review_context", "UNKNOWN")).upper()
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         cid = stable_id("CONF", normalize_title(s))
+#|         name = s
+#|         series = None
+#|         year = None
+#|         location = None
+#|         organizer = None
+#|         publisher_ref = None
+#|         review_context = "UNKNOWN"
+#|         sids = source_list(source_ids)
+#| 
+#|     publisher_id = ensure_publisher(publishers, publisher_ref, sids) if publisher_ref else None
+#| 
+#|     if cid not in conferences:
+#|         conferences[cid] = {
+#|             "conference_id": cid,
+#|             "name": name or cid,
+#|             "series": series,
+#|             "year": year,
+#|             "location": location,
+#|             "organizer": organizer,
+#|             "publisher_id": publisher_id,
+#|             "review_context": review_context if review_context in {"PEER_REVIEWED", "EDITORIAL", "WORKSHOP", "UNKNOWN"} else "UNKNOWN",
+#|             "source_ids": sids,
+#|             "limitations": [
+#|                 "Conference quality norms vary by field.",
+#|                 "Similar conference names may be clones; resolve organizer/series/proceedings.",
+#|             ],
+#|         }
+#|     return cid
+#| 
+#| 
+#| def ensure_publisher(
+#|     publishers: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         pid = normalize_text(ref.get("publisher_id") or ref.get("id"))
+#|         name = normalize_text(ref.get("name") or pid)
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         pid = stable_id("PUBLISHER", normalize_title(s))
+#|         name = s
+#|         sids = source_list(source_ids)
+#|     if pid not in publishers:
+#|         publishers[pid] = {
+#|             "publisher_id": pid,
+#|             "name": name or pid,
+#|             "source_ids": sids,
+#|             "limitations": ["Publisher is not journal; publisher identity is not paper quality."],
+#|         }
+#|     return pid
+#| 
+#| 
+#| def ensure_dataset(
+#|     datasets: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     publication_id: Optional[str] = None,
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         did = normalize_text(ref.get("dataset_id") or ref.get("id"))
+#|         name = normalize_text(ref.get("name") or ref.get("title") or did)
+#|         version = normalize_text(ref.get("version")) or None
+#|         doi = normalize_doi(ref.get("doi"))
+#|         repository_id = normalize_text(ref.get("repository_id") or ref.get("repository")) or None
+#|         license_ = normalize_text(ref.get("license")) or None
+#|         availability = normalize_text(ref.get("availability", "UNKNOWN")).upper()
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         did = stable_id("DATASET", normalize_title(s))
+#|         name = s
+#|         version = None
+#|         doi = None
+#|         repository_id = None
+#|         license_ = None
+#|         availability = "UNKNOWN"
+#|         sids = source_list(source_ids)
+#| 
+#|     if did not in datasets:
+#|         datasets[did] = {
+#|             "dataset_id": did,
+#|             "name": name or did,
+#|             "version": version,
+#|             "doi": doi,
+#|             "repository_id": repository_id,
+#|             "license": license_,
+#|             "availability": availability if availability in {"OPEN", "RESTRICTED", "UPON_REQUEST", "NOT_AVAILABLE", "UNKNOWN"} else "UNKNOWN",
+#|             "publication_ids": [],
+#|             "source_ids": sids,
+#|             "limitations": [
+#|                 "Dataset availability is not proof that this exact version was used.",
+#|                 "Dataset quality/provenance requires DATASETINT analysis.",
+#|             ],
+#|         }
+#|     if publication_id:
+#|         add_unique(datasets[did]["publication_ids"], publication_id)
+#|     return did
+#| 
+#| 
+#| def ensure_repository(
+#|     repositories: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     publication_id: Optional[str] = None,
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         rid = normalize_text(ref.get("repository_id") or ref.get("id"))
+#|         url = normalize_text(ref.get("url") or ref.get("repository_url")) or None
+#|         name = normalize_text(ref.get("name") or url or rid)
+#|         license_ = normalize_text(ref.get("license")) or None
+#|         archived = bool(ref.get("archived", False))
+#|         availability = normalize_text(ref.get("availability", "UNKNOWN")).upper()
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         rid = stable_id("REPO", normalize_title(s))
+#|         url = s if s.startswith("http") else None
+#|         name = s
+#|         license_ = None
+#|         archived = False
+#|         availability = "UNKNOWN"
+#|         sids = source_list(source_ids)
+#| 
+#|     if rid not in repositories:
+#|         repositories[rid] = {
+#|             "repository_id": rid,
+#|             "name": name or rid,
+#|             "url": url,
+#|             "license": license_,
+#|             "archived": archived,
+#|             "availability": availability if availability in {"OPEN", "RESTRICTED", "UPON_REQUEST", "NOT_AVAILABLE", "UNKNOWN"} else "UNKNOWN",
+#|             "publication_ids": [],
+#|             "source_ids": sids,
+#|             "limitations": [
+#|                 "Code availability is not automatic reproducibility.",
+#|                 "Repository maintainer is not automatically paper author.",
+#|             ],
+#|         }
+#|     if publication_id:
+#|         add_unique(repositories[rid]["publication_ids"], publication_id)
+#|     return rid
+#| 
+#| 
+#| def ensure_funder(
+#|     funders: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         fid = normalize_text(ref.get("funder_id") or ref.get("id"))
+#|         name = normalize_text(ref.get("name") or fid)
+#|         country = normalize_text(ref.get("country")) or None
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None
+#|         fid = stable_id("FUNDER", normalize_title(s))
+#|         name = s
+#|         country = None
+#|         sids = source_list(source_ids)
+#|     if fid not in funders:
+#|         funders[fid] = {
+#|             "funder_id": fid,
+#|             "name": name or fid,
+#|             "country": country,
+#|             "source_ids": sids,
+#|             "limitations": ["Funding support is not automatic funder control or research invalidity."],
+#|         }
+#|     return fid
+#| 
+#| 
+#| def ensure_grant(
+#|     grants: Dict[str, Dict[str, Any]],
+#|     funders: Dict[str, Dict[str, Any]],
+#|     ref: Any,
+#|     publication_id: Optional[str] = None,
+#|     source_ids: Optional[List[str]] = None,
+#| ) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         gid = normalize_text(ref.get("grant_id") or ref.get("id"))
+#|         funder_id = ensure_funder(funders, ref.get("funder"), source_ids)
+#|         recipient_institution_id = normalize_text(ref.get("recipient_institution_id") or ref.get("institution")) or None
+#|         recipient_author_id = normalize_text(ref.get("recipient_author_id") or ref.get("author")) or None
+#|         program = normalize_text(ref.get("program")) or None
+#|         amount = ref.get("amount")
+#|         currency = normalize_text(ref.get("currency")) or None
+#|         period = normalize_text(ref.get("period")) or None
+#|         sids = source_list(ref.get("source_ids", []), ref.get("source_id"), source_ids)
+#|     else:
+#|         s = normalize_text(ref)
+#|         if not s:
+#|             return None

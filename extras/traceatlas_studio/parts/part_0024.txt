@@ -1,0 +1,1000 @@
+#| TRACEATLAS — AISINT
+#| AIS / MARITIME INTELLIGENCE AI EMPLOYEE
+#| Python Implementation (Lawful / Evidence-First / Safety-Aware)
+#| ======================================================================
+#| 
+#| Purpose:
+#| - Preserve raw AIS evidence
+#| - Normalize time / identifiers / positions
+#| - Resolve vessel identity with IMO / MMSI / call sign / name history
+#| - Reconstruct AIS tracks without inventing missing points
+#| - Detect AIS gaps, coverage uncertainty, impossible movement candidates
+#| - Analyze port calls, anchorages, loitering, proximity, rendezvous, STS candidates
+#| - Apply Fact Gate, competing hypotheses, falsification, dual-AI review
+#| - Write to graphical memory and produce defensible report
+#| 
+#| Hard boundary:
+#| - NOT a targeting system
+#| - NOT an interception planner
+#| - NOT an AIS spoofing / jamming / evasion tool
+#| - NOT a sanctions-evasion or smuggling-route planner
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import itertools
+#| import json
+#| import hashlib
+#| import logging
+#| import math
+#| import re
+#| import unicodedata
+#| import uuid
+#| from dataclasses import dataclass, field
+#| from datetime import datetime, timedelta, timezone
+#| from enum import Enum, IntEnum
+#| from typing import Any, Iterable, Optional
+#| 
+#| logging.basicConfig(
+#|     level=logging.INFO,
+#|     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+#| )
+#| logger = logging.getLogger("AISINT")
+#| 
+#| # Optional real AIS NMEA decoder. If unavailable, code accepts decoded JSON payloads.
+#| try:
+#|     import pyais  # type: ignore
+#|     PYAIS_AVAILABLE = True
+#| except Exception:
+#|     PYAIS_AVAILABLE = False
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 1 — ENUMS
+#| # ======================================================================
+#| 
+#| class ModelMode(str, Enum):
+#|     LOCAL_ONLY = "LOCAL_ONLY"
+#|     HYBRID = "HYBRID"
+#|     CLOUD = "CLOUD"
+#| 
+#| 
+#| class SourceType(str, Enum):
+#|     TERRESTRIAL_AIS = "TERRESTRIAL_AIS"
+#|     SATELLITE_AIS = "SATELLITE_AIS"
+#|     PORT_AIS = "PORT_AIS"
+#|     AUTHORIZED_PRIVATE_RECEIVER = "AUTHORIZED_PRIVATE_RECEIVER"
+#|     AGGREGATED_FEED = "AGGREGATED_FEED"
+#|     RADAR = "RADAR"
+#|     SATELLITE_IMAGERY = "SATELLITE_IMAGERY"
+#|     OFFICIAL_REGISTRY = "OFFICIAL_REGISTRY"
+#|     PORT_AUTHORITY = "PORT_AUTHORITY"
+#|     TRADE_RECORD = "TRADE_RECORD"
+#|     NEWS_REPORT = "NEWS_REPORT"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class Confidence(str, Enum):
+#|     LOW = "LOW"
+#|     MEDIUM = "MEDIUM"
+#|     HIGH = "HIGH"
+#|     VERIFIED = "VERIFIED"
+#| 
+#| 
+#| class NavStatus(IntEnum):
+#|     UNDER_WAY_USING_ENGINE = 0
+#|     AT_ANCHOR = 1
+#|     NOT_UNDER_COMMAND = 2
+#|     RESTRICTED_MANOEUVRABILITY = 3
+#|     CONSTRAINED_BY_DRAUGHT = 4
+#|     MOORED = 5
+#|     AGROUND = 6
+#|     ENGAGED_IN_FISHING = 7
+#|     UNDER_WAY_SAILING = 8
+#|     RESERVED_9 = 9
+#|     RESERVED_10 = 10
+#|     RESERVED_11 = 11
+#|     RESERVED_12 = 12
+#|     RESERVED_13 = 13
+#|     AIS_TRANSCEIVER = 14
+#|     AIS_TRANSCEIVER_INACTIVE = 15
+#| 
+#| 
+#| class PortCallState(str, Enum):
+#|     PORT_CALL_VERIFIED = "PORT_CALL_VERIFIED"
+#|     PORT_CALL_SUPPORTED = "PORT_CALL_SUPPORTED"
+#|     PORT_CALL_CANDIDATE = "PORT_CALL_CANDIDATE"
+#|     TRANSIT_ONLY = "TRANSIT_ONLY"
+#|     ANCHORAGE_ONLY = "ANCHORAGE_ONLY"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class STSStatus(str, Enum):
+#|     UNKNOWN = "UNKNOWN"
+#|     PROXIMITY_ONLY = "PROXIMITY_ONLY"
+#|     STS_CANDIDATE = "STS_CANDIDATE"
+#|     STS_SUPPORTED = "STS_SUPPORTED"
+#| 
+#| 
+#| class SpoofingConfidence(str, Enum):
+#|     NO_SPOOFING_EVIDENCE = "NO_SPOOFING_EVIDENCE"
+#|     ANOMALOUS = "ANOMALOUS"
+#|     POSSIBLE_SPOOFING = "POSSIBLE_SPOOFING"
+#|     SUPPORTED_SPOOFING = "SUPPORTED_SPOOFING"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#| 
+#| 
+#| class CoverageState(str, Enum):
+#|     COVERAGE_EXPECTED = "COVERAGE_EXPECTED"
+#|     COVERAGE_PARTIAL = "COVERAGE_PARTIAL"
+#|     COVERAGE_POOR = "COVERAGE_POOR"
+#|     COVERAGE_UNKNOWN = "COVERAGE_UNKNOWN"
+#| 
+#| 
+#| class FactStatus(str, Enum):
+#|     FACT = "FACT"
+#|     SUPPORTED = "SUPPORTED"
+#|     CANDIDATE = "CANDIDATE"
+#|     DISPUTED = "DISPUTED"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class ReviewStatus(str, Enum):
+#|     AGREE = "AGREE"
+#|     PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+#|     DISAGREE = "DISAGREE"
+#|     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+#| 
+#| 
+#| class PolicyDecision(str, Enum):
+#|     ALLOW = "ALLOW"
+#|     POLICY_BLOCKED = "POLICY_BLOCKED"
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 2 — SMALL UTILITIES
+#| # ======================================================================
+#| 
+#| def new_id(prefix: str) -> str:
+#|     return f"{prefix}_{uuid.uuid4().hex[:12]}"
+#| 
+#| 
+#| def utcnow() -> datetime:
+#|     return datetime.now(timezone.utc)
+#| 
+#| 
+#| def _json_default(obj: Any) -> Any:
+#|     if isinstance(obj, Enum):
+#|         return obj.value
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     return str(obj)
+#| 
+#| 
+#| def safe_float(value: Any) -> Optional[float]:
+#|     if value is None or value == "":
+#|         return None
+#|     try:
+#|         return float(value)
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def safe_int(value: Any) -> Optional[int]:
+#|     if value is None or value == "":
+#|         return None
+#|     try:
+#|         return int(value)
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def normalize_text(value: Any, upper: bool = True) -> Optional[str]:
+#|     if value is None:
+#|         return None
+#|     s = unicodedata.normalize("NFKC", str(value)).strip()
+#|     if not s:
+#|         return None
+#|     return s.upper() if upper else s
+#| 
+#| 
+#| def to_datetime(value: Any) -> Optional[datetime]:
+#|     """
+#|     Normalize timestamps to UTC.
+#|     Accepts datetime, ISO string, Unix timestamp.
+#|     Naive datetimes are assumed UTC.
+#|     """
+#|     if value is None:
+#|         return None
+#| 
+#|     if isinstance(value, datetime):
+#|         dt = value
+#|     elif isinstance(value, (int, float)):
+#|         try:
+#|             dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+#|         except Exception:
+#|             return None
+#|     elif isinstance(value, str):
+#|         s = value.strip()
+#|         if not s:
+#|             return None
+#|         s = s.replace("Z", "+00:00")
+#|         try:
+#|             dt = datetime.fromisoformat(s)
+#|         except Exception:
+#|             for fmt in (
+#|                 "%Y-%m-%dT%H:%M:%S%z",
+#|                 "%Y-%m-%dT%H:%M:%S",
+#|                 "%Y-%m-%d %H:%M:%S",
+#|                 "%Y/%m/%d %H:%M:%S",
+#|             ):
+#|                 try:
+#|                     dt = datetime.strptime(s, fmt)
+#|                     break
+#|                 except Exception:
+#|                     dt = None
+#|             if dt is None:
+#|                 return None
+#|     else:
+#|         return None
+#| 
+#|     if dt.tzinfo is None:
+#|         dt = dt.replace(tzinfo=timezone.utc)
+#|     return dt.astimezone(timezone.utc)
+#| 
+#| 
+#| def unique_list(items: Iterable[Any]) -> list[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         if item is None:
+#|             continue
+#|         key = item.value if isinstance(item, Enum) else item
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def median(values: Iterable[Optional[float]]) -> Optional[float]:
+#|     vals = sorted(v for v in values if v is not None)
+#|     if not vals:
+#|         return None
+#|     n = len(vals)
+#|     mid = n // 2
+#|     if n % 2 == 1:
+#|         return vals[mid]
+#|     return (vals[mid - 1] + vals[mid]) / 2.0
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 3 — GEOSPATIAL / MARITIME DETERMINISTIC HELPERS
+#| # ======================================================================
+#| 
+#| EARTH_RADIUS_NM = 3440.065
+#| 
+#| 
+#| def haversine_nm(
+#|     lat1: Optional[float],
+#|     lon1: Optional[float],
+#|     lat2: Optional[float],
+#|     lon2: Optional[float],
+#| ) -> Optional[float]:
+#|     """Great-circle distance in nautical miles."""
+#|     if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+#|         return None
+#|     try:
+#|         phi1 = math.radians(float(lat1))
+#|         phi2 = math.radians(float(lat2))
+#|         dphi = math.radians(float(lat2) - float(lat1))
+#|         dlmb = math.radians(float(lon2) - float(lon1))
+#|         a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
+#|         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+#|         return EARTH_RADIUS_NM * c
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def implied_speed_kn(distance_nm: Optional[float], time_delta: Optional[timedelta]) -> Optional[float]:
+#|     if distance_nm is None or time_delta is None:
+#|         return None
+#|     hours = time_delta.total_seconds() / 3600.0
+#|     if hours <= 0:
+#|         return None
+#|     return distance_nm / hours
+#| 
+#| 
+#| def coordinate_valid(lat: Optional[float], lon: Optional[float]) -> bool:
+#|     if lat is None or lon is None:
+#|         return False
+#|     return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
+#| 
+#| 
+#| def is_zero_placeholder(lat: Optional[float], lon: Optional[float]) -> bool:
+#|     return lat == 0.0 and lon == 0.0
+#| 
+#| 
+#| def relative_speed_kn(a: "Observation", b: "Observation") -> Optional[float]:
+#|     """
+#|     Approximate relative speed from SOG/COG.
+#|     This is not a substitute for radar/AST, but useful for candidate detection.
+#|     """
+#|     if a.sog is None or b.sog is None:
+#|         return None
+#|     if a.cog is None or b.cog is None:
+#|         return abs(a.sog - b.sog)
+#| 
+#|     delta_cog = math.radians((a.cog - b.cog) % 360.0)
+#|     try:
+#|         return math.sqrt(
+#|             a.sog ** 2 + b.sog ** 2 - 2 * a.sog * b.sog * math.cos(delta_cog)
+#|         )
+#|     except Exception:
+#|         return abs(a.sog - b.sog)
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 4 — IDENTIFIER VALIDATION
+#| # ======================================================================
+#| 
+#| def validate_mmsi(mmsi: Optional[str]) -> tuple[bool, str]:
+#|     if mmsi is None:
+#|         return False, "missing"
+#|     s = str(mmsi).strip()
+#|     if not s.isdigit():
+#|         return False, "non-numeric"
+#|     if len(s) != 9:
+#|         return False, "length must be 9 digits"
+#|     mid = int(s[:3])
+#|     if not (200 <= mid <= 789):
+#|         return False, "MID outside typical vessel range"
+#|     return True, "valid"
+#| 
+#| 
+#| def validate_imo(imo: Optional[str]) -> tuple[bool, str]:
+#|     """
+#|     IMO number check digit validation.
+#|     IMO is generally 7 digits: first 6 digits + check digit.
+#|     """
+#|     if imo is None:
+#|         return False, "missing"
+#|     s = str(imo).strip().upper()
+#|     s = s.replace("IMO", "").replace("-", "").replace(" ", "")
+#|     if not s.isdigit():
+#|         return False, "non-numeric"
+#|     if len(s) != 7:
+#|         return False, "length must be 7 digits"
+#|     digits = [int(ch) for ch in s]
+#|     checksum = (
+#|         digits[0] * 1
+#|         + digits[1] * 2
+#|         + digits[2] * 3
+#|         + digits[3] * 4
+#|         + digits[4] * 5
+#|         + digits[5] * 6
+#|     ) % 10
+#|     if checksum != digits[6]:
+#|         return False, "checksum failed"
+#|     return True, "valid"
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 5 — POLICY GUARD / PROMPT INJECTION DEFENSE
+#| # ======================================================================
+#| 
+#| @dataclass
+#| class PolicyResult:
+#|     decision: PolicyDecision
+#|     reason: str = ""
+#| 
+#| 
+#| class PolicyGuard:
+#|     """
+#|     Blocks requests seeking harmful maritime operational guidance.
+#|     Does not provide instructions for evasion, spoofing, jamming, interception, etc.
+#|     """
+#| 
+#|     PROHIBITED_PATTERNS = [
+#|         r"(?:how\s+to|guide\s+to|instructions?\s+to|teach\s+me).*(?:spoof|fake|mask|hide|disable|jam|evade|avoid detection).*?(?:ais|gnss|gps|transponder|tracking|detection)",
+#|         r"\b(?:ais|gnss|gps)\s+(?:spoofing|jamming|manipulation|evasion)\b",
+#|         r"\b(?:sanctions?|smuggling)\s+evasion\s+(?:route|plan|voyage|strategy)\b",
+#|         r"\b(?:vessel|ship)\s+(?:interception|boarding|attack|targeting)\b",
+#|         r"\bweapons?[-\s]targeting\b",
+#|         r"\bAIS[-\s]dark\b",
+#|         r"\bcovert\s+STS\b",
+#|         r"\btransponder\s+(?:disable|off|shutdown)\b",
+#|         r"\bMMSI\s+(?:manipulation|change|spoof)\b",
+#|     ]
+#| 
+#|     def __init__(self) -> None:
+#|         self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+#| 
+#|     def check_request(self, text: str) -> PolicyResult:
+#|         t = text or ""
+#|         for rx in self._compiled:
+#|             if rx.search(t):
+#|                 return PolicyResult(
+#|                     decision=PolicyDecision.POLICY_BLOCKED,
+#|                     reason="Request seeks prohibited operational maritime guidance.",
+#|                 )
+#|         return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+#| 
+#|     def is_safe_action(self, action: str) -> bool:
+#|         return self.check_request(action).decision == PolicyDecision.ALLOW
+#| 
+#| 
+#| class PromptInjectionDefense:
+#|     """
+#|     AIS destination text, vessel names, provider metadata, documents, and port records
+#|     are untrusted data. This sanitizer neutralizes obvious control-token style injections
+#|     while preserving original evidence separately.
+#|     """
+#| 
+#|     CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+#|     INSTRUCTION_RX = re.compile(
+#|         r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?)\b"
+#|     )
+#| 
+#|     def sanitize(self, text: Any, max_len: int = 500) -> Optional[str]:
+#|         if text is None:
+#|             return None
+#|         s = str(text)
+#|         s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+#|         s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+#|         return s[:max_len]
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 6 — CORE DATA OBJECTS
+#| # ======================================================================
+#| 
+#| @dataclass
+#| class Evidence:
+#|     evidence_id: str
+#|     case_id: str
+#|     source_id: str
+#|     source_type: SourceType
+#|     receiver_type: SourceType
+#|     message_id: str
+#|     message_type: str
+#|     raw_payload_reference: str
+#|     decoded_payload: dict[str, Any]
+#|     received_at: datetime
+#|     transmitted_at: Optional[datetime] = None
+#|     retrieved_at: Optional[datetime] = None
+#|     content_hash: str = ""
+#|     parser_version: str = "AISINT-decoder-0.1.0"
+#|     normalizer_version: str = "AISINT-normalizer-0.1.0"
+#|     authorization_context: str = ""
+#| 
+#| 
+#| @dataclass
+#| class Observation:
+#|     observation_id: str
+#|     vessel_candidate_id: str
+#|     timestamp: datetime
+#|     mmsi: Optional[str] = None
+#|     imo_candidate: Optional[str] = None
+#|     latitude: Optional[float] = None
+#|     longitude: Optional[float] = None
+#|     sog: Optional[float] = None
+#|     cog: Optional[float] = None
+#|     heading: Optional[float] = None
+#|     rate_of_turn: Optional[float] = None
+#|     nav_status: Optional[NavStatus] = None
+#|     position_accuracy: Optional[float] = None
+#|     receiver_type: SourceType = SourceType.UNKNOWN
+#|     source_id: str = ""
+#|     confidence: Confidence = Confidence.LOW
+#|     quality_flags: list[str] = field(default_factory=list)
+#|     evidence_id: str = ""
+#| 
+#|     # Static / voyage fields, treated as reported/manual where applicable
+#|     name: Optional[str] = None
+#|     callsign: Optional[str] = None
+#|     ship_type: Optional[int] = None
+#|     length: Optional[float] = None
+#|     beam: Optional[float] = None
+#|     draught: Optional[float] = None
+#|     destination: Optional[str] = None
+#|     raw_destination: Optional[str] = None
+#|     eta: Optional[datetime] = None
+#| 
+#| 
+#| @dataclass
+#| class VesselIdentityEra:
+#|     vessel_id: str
+#|     valid_from: datetime
+#|     valid_to: datetime
+#|     name: Optional[str] = None
+#|     mmsi: Optional[str] = None
+#|     imo: Optional[str] = None
+#|     callsign: Optional[str] = None
+#|     flag: Optional[str] = None
+#|     ship_type: Optional[int] = None
+#|     length: Optional[float] = None
+#|     beam: Optional[float] = None
+#|     registered_owner: Optional[str] = None
+#|     operator: Optional[str] = None
+#|     manager: Optional[str] = None
+#|     source_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class MMSIUsageEra:
+#|     mmsi: str
+#|     vessel_id: str
+#|     valid_from: datetime
+#|     valid_to: datetime
+#|     source_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class Vessel:
+#|     vessel_id: str
+#|     current_name: Optional[str] = None
+#|     historical_names: list[str] = field(default_factory=list)
+#|     imo: Optional[str] = None
+#|     call_sign: Optional[str] = None
+#|     flag: Optional[str] = None
+#|     ship_type: Optional[int] = None
+#|     length: Optional[float] = None
+#|     beam: Optional[float] = None
+#|     registered_owner: Optional[str] = None
+#|     operator: Optional[str] = None
+#|     manager: Optional[str] = None
+#|     technical_manager: Optional[str] = None
+#|     charterer: Optional[str] = None
+#|     fleet: Optional[str] = None
+#|     status: str = "UNKNOWN"
+#|     identity_eras: list[VesselIdentityEra] = field(default_factory=list)
+#|     mmsi_usage_eras: list[MMSIUsageEra] = field(default_factory=list)
+#|     source_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class TrackSegment:
+#|     segment_id: str
+#|     vessel_id: str
+#|     start_time: datetime
+#|     end_time: datetime
+#|     start_latitude: Optional[float] = None
+#|     start_longitude: Optional[float] = None
+#|     end_latitude: Optional[float] = None
+#|     end_longitude: Optional[float] = None
+#|     observation_count: int = 0
+#|     source_mix: list[str] = field(default_factory=list)
+#|     distance_nm: Optional[float] = None
+#|     average_speed_kn: Optional[float] = None
+#|     confidence: Confidence = Confidence.LOW
+#|     gap_flags: list[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class AISGap:
+#|     gap_id: str
+#|     vessel_id: str
+#|     gap_start: datetime
+#|     gap_end: datetime
+#|     last_pre_observation_id: Optional[str] = None
+#|     first_post_observation_id: Optional[str] = None
+#|     duration_minutes: Optional[float] = None
+#|     distance_nm: Optional[float] = None
+#|     implied_speed_kn: Optional[float] = None
+#|     coverage_state: CoverageState = CoverageState.COVERAGE_UNKNOWN
+#|     possible_causes: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class Port:
+#|     port_id: str
+#|     name: str
+#|     latitude: float
+#|     longitude: float
+#|     radius_nm: float
+#|     unlocode: Optional[str] = None
+#|     source_id: str = ""
+#| 
+#| 
+#| @dataclass
+#| class PortCall:
+#|     port_call_id: str
+#|     vessel_id: str
+#|     port_id: str
+#|     arrival_time: Optional[datetime] = None
+#|     departure_time: Optional[datetime] = None
+#|     dwell_minutes: Optional[float] = None
+#|     average_speed_kn: Optional[float] = None
+#|     state: PortCallState = PortCallState.UNKNOWN
+#|     evidence_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#|     notes: list[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ProximityEvent:
+#|     event_id: str
+#|     vessel_a: str
+#|     vessel_b: str
+#|     start_time: datetime
+#|     end_time: datetime
+#|     minimum_distance_nm: Optional[float] = None
+#|     median_relative_speed_kn: Optional[float] = None
+#|     location_latitude: Optional[float] = None
+#|     location_longitude: Optional[float] = None
+#|     source_coverage: CoverageState = CoverageState.COVERAGE_UNKNOWN
+#|     confidence: Confidence = Confidence.LOW
+#|     evidence_ids: list[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class RendezvousCandidate:
+#|     candidate_id: str
+#|     vessel_a: str
+#|     vessel_b: str
+#|     proximity_event_id: str
+#|     status: str = "PROXIMITY_ONLY"
+#|     alternative_explanations: list[str] = field(default_factory=list)
+#|     evidence_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class STSCandidate:
+#|     sts_id: str
+#|     vessel_a: str
+#|     vessel_b: str
+#|     proximity_event_id: str
+#|     status: STSStatus = STSStatus.UNKNOWN
+#|     supporting_factors: list[str] = field(default_factory=list)
+#|     missing_corroboration: list[str] = field(default_factory=list)
+#|     evidence_ids: list[str] = field(default_factory=list)
+#|     confidence: Confidence = Confidence.LOW
+#| 
+#| 
+#| @dataclass
+#| class Contradiction:
+#|     contradiction_id: str
+#|     contradiction_type: str
+#|     description: str
+#|     evidence_ids: list[str] = field(default_factory=list)
+#|     candidate_resolutions: list[str] = field(default_factory=list)
+#|     status: str = "OPEN"
+#| 
+#| 
+#| @dataclass
+#| class Hypothesis:
+#|     hypothesis_id: str
+#|     statement: str
+#|     supports: list[str] = field(default_factory=list)
+#|     oppositions: list[str] = field(default_factory=list)
+#|     unknowns: list[str] = field(default_factory=list)
+#|     falsification_tests: list[str] = field(default_factory=list)
+#|     status: str = "OPEN"
+#| 
+#| 
+#| @dataclass
+#| class Fact:
+#|     fact_id: str
+#|     statement: str
+#|     status: FactStatus
+#|     evidence_ids: list[str] = field(default_factory=list)
+#|     limitations: list[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class KnowledgeGap:
+#|     gap_id: str
+#|     description: str
+#|     importance: str = "MEDIUM"
+#|     recommended_source: str = ""
+#|     specialist: str = ""
+#|     expected_information_value: str = ""
+#| 
+#| 
+#| @dataclass
+#| class NextAction:
+#|     action_id: str
+#|     description: str
+#|     rationale: str = ""
+#|     priority: str = "MEDIUM"
+#|     safety_ok: bool = True
+#| 
+#| 
+#| @dataclass
+#| class SpecialistHandoff:
+#|     handoff_id: str
+#|     specialist: str
+#|     reason: str
+#|     payload: dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class AISINTResult:
+#|     case_id: str
+#|     task_id: str
+#|     objective: str
+#|     status: str
+#|     policy_decision: PolicyDecision = PolicyDecision.ALLOW
+#| 
+#|     evidence: list[Evidence] = field(default_factory=list)
+#|     observations: list[Observation] = field(default_factory=list)
+#|     vessels: list[Vessel] = field(default_factory=list)
+#|     vessel_identity_eras: list[VesselIdentityEra] = field(default_factory=list)
+#|     mmsi_usage_eras: list[MMSIUsageEra] = field(default_factory=list)
+#| 
+#|     track_segments: list[TrackSegment] = field(default_factory=list)
+#|     ais_gaps: list[AISGap] = field(default_factory=list)
+#|     port_calls: list[PortCall] = field(default_factory=list)
+#|     stationary_patterns: list[dict[str, Any]] = field(default_factory=list)
+#| 
+#|     proximity_events: list[ProximityEvent] = field(default_factory=list)
+#|     rendezvous_candidates: list[RendezvousCandidate] = field(default_factory=list)
+#|     sts_candidates: list[STSCandidate] = field(default_factory=list)
+#| 
+#|     contradictions: list[Contradiction] = field(default_factory=list)
+#|     facts: list[Fact] = field(default_factory=list)
+#|     hypotheses: list[Hypothesis] = field(default_factory=list)
+#| 
+#|     knowledge_gaps: list[KnowledgeGap] = field(default_factory=list)
+#|     next_actions: list[NextAction] = field(default_factory=list)
+#|     specialist_handoffs: list[SpecialistHandoff] = field(default_factory=list)
+#| 
+#|     source_independence: dict[str, Any] = field(default_factory=dict)
+#|     spoofing_confidence: SpoofingConfidence = SpoofingConfidence.NO_SPOOFING_EVIDENCE
+#|     spoofing_indicators: list[str] = field(default_factory=list)
+#| 
+#|     review: dict[str, Any] = field(default_factory=dict)
+#|     graph: dict[str, Any] = field(default_factory=dict)
+#|     report: str = ""
+#| 
+#|     unknowns: list[str] = field(default_factory=list)
+#|     limitations: list[str] = field(default_factory=list)
+#|     safety_flags: list[str] = field(default_factory=list)
+#|     privacy_flags: list[str] = field(default_factory=list)
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 7 — AIS DECODER / INGESTION
+#| # ======================================================================
+#| 
+#| class AISDecoder:
+#|     """
+#|     Ingests raw AIS evidence.
+#| 
+#|     Supported inputs:
+#|     1) Decoded JSON/dict payload with fields like:
+#|        mmsi, imo, timestamp, lat, lon, sog, cog, heading, nav_status,
+#|        name, callsign, ship_type, length, beam, draught, destination, eta
+#|     2) NMEA string if pyais is installed.
+#| 
+#|     The decoder preserves evidence even if an observation cannot be built.
+#|     It never invents missing AIS points.
+#|     """
+#| 
+#|     PARSER_VERSION = "AISINT-decoder-0.1.0"
+#|     NORMALIZER_VERSION = "AISINT-normalizer-0.1.0"
+#| 
+#|     def __init__(self, injection_defense: Optional[PromptInjectionDefense] = None):
+#|         self.injection_defense = injection_defense or PromptInjectionDefense()
+#| 
+#|     @staticmethod
+#|     def _to_source_type(value: Any) -> SourceType:
+#|         if isinstance(value, SourceType):
+#|             return value
+#|         try:
+#|             return SourceType(str(value).upper())
+#|         except Exception:
+#|             return SourceType.UNKNOWN
+#| 
+#|     def ingest(
+#|         self,
+#|         case_id: str,
+#|         source_id: str,
+#|         source_type: Any,
+#|         receiver_type: Any,
+#|         raw: Any,
+#|         received_at: Any = None,
+#|         transmitted_at: Any = None,
+#|         authorization_context: str = "",
+#|     ) -> tuple[Evidence, Optional[Observation]]:
+#|         source_type = self._to_source_type(source_type)
+#|         receiver_type = self._to_source_type(receiver_type)
+#|         received_at_dt = to_datetime(received_at) or utcnow()
+#|         transmitted_at_dt = to_datetime(transmitted_at)
+#| 
+#|         if isinstance(raw, dict):
+#|             payload = dict(raw)
+#|             message_type = str(payload.get("message_type", "DECODED_PAYLOAD"))
+#|             raw_ref = json.dumps(payload, sort_keys=True, default=_json_default)[:1000]
+#|         elif isinstance(raw, str):
+#|             if PYAIS_AVAILABLE and raw.startswith("!"):
+#|                 try:
+#|                     msg = pyais.decode(raw)  # type: ignore[attr-defined]
+#|                     payload = msg.as_dict()
+#|                     message_type = f"AIS_TYPE_{payload.get('type', getattr(msg, 'msg_type', 'UNKNOWN'))}"
+#|                 except Exception:
+#|                     payload = {"raw": raw}
+#|                     message_type = "UNDECODED_NMEA"
+#|             else:
+#|                 payload = {"raw": raw}
+#|                 message_type = "RAW_TEXT"
+#|         else:
+#|             payload = {"raw": str(raw)}
+#|             message_type = "UNKNOWN"
+#| 
+#|         # Preserve untrusted text but sanitize what may later be sent to models.
+#|         for key in ("destination", "name", "callsign"):
+#|             if key in payload:
+#|                 payload[f"_sanitized_{key}"] = self.injection_defense.sanitize(payload.get(key))
+#| 
+#|         canonical = json.dumps(payload, sort_keys=True, default=_json_default)
+#|         content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+#| 
+#|         evidence = Evidence(
+#|             evidence_id=new_id("EV"),
+#|             case_id=case_id,
+#|             source_id=source_id,
+#|             source_type=source_type,
+#|             receiver_type=receiver_type,
+#|             message_id=str(payload.get("message_id", new_id("MSG"))),
+#|             message_type=message_type,
+#|             raw_payload_reference=raw_ref,
+#|             decoded_payload=payload,
+#|             received_at=received_at_dt,
+#|             transmitted_at=transmitted_at_dt,
+#|             retrieved_at=utcnow(),
+#|             content_hash=content_hash,
+#|             parser_version=self.PARSER_VERSION,
+#|             normalizer_version=self.NORMALIZER_VERSION,
+#|             authorization_context=authorization_context,
+#|         )
+#| 
+#|         observation = self._payload_to_observation(payload, evidence)
+#|         return evidence, observation
+#| 
+#|     def _payload_to_observation(
+#|         self,
+#|         payload: dict[str, Any],
+#|         evidence: Evidence,
+#|     ) -> Optional[Observation]:
+#|         timestamp = to_datetime(
+#|             payload.get("timestamp")
+#|             or payload.get("time")
+#|             or payload.get("event_time")
+#|         )
+#|         if timestamp is None:
+#|             # Evidence is preserved, but no timed observation can be reconstructed.
+#|             return None
+#| 
+#|         mmsi = normalize_text(payload.get("mmsi"), upper=False)
+#|         imo = normalize_text(payload.get("imo"), upper=False)
+#|         lat = safe_float(payload.get("lat", payload.get("latitude")))
+#|         lon = safe_float(payload.get("lon", payload.get("longitude")))
+#|         sog = safe_float(payload.get("sog"))
+#|         cog = safe_float(payload.get("cog"))
+#|         heading = safe_float(payload.get("heading"))
+#|         rot = safe_float(payload.get("rot", payload.get("rate_of_turn")))
+#|         position_accuracy = safe_float(payload.get("position_accuracy"))
+#| 
+#|         nav_raw = payload.get("nav_status", payload.get("navigation_status"))
+#|         nav_status: Optional[NavStatus] = None
+#|         if nav_raw is not None:
+#|             try:
+#|                 nav_status = NavStatus(int(nav_raw))
+#|             except Exception:
+#|                 nav_status = None
+#| 
+#|         name = normalize_text(payload.get("name"))
+#|         callsign = normalize_text(payload.get("callsign", payload.get("call_sign")))
+#|         ship_type = safe_int(payload.get("ship_type", payload.get("type")))
+#|         length = safe_float(payload.get("length"))
+#|         beam = safe_float(payload.get("beam"))
+#|         draught = safe_float(payload.get("draught"))
+#|         raw_destination = payload.get("destination")
+#|         destination = normalize_text(raw_destination)
+#|         eta = to_datetime(payload.get("eta"))
+#| 
+#|         quality_flags: list[str] = []
+#| 
+#|         if not mmsi and not imo:
+#|             quality_flags.append("MISSING_IDENTIFIER")
+#| 
+#|         if mmsi:
+#|             ok, note = validate_mmsi(mmsi)
+#|             if not ok:
+#|                 quality_flags.append(f"INVALID_MMSI:{note}")
+#| 
+#|         if imo:
+#|             ok, note = validate_imo(imo)
+#|             if not ok:
+#|                 quality_flags.append(f"INVALID_IMO:{note}")
+#| 
+#|         if lat is None or lon is None:
+#|             quality_flags.append("MISSING_POSITION")
+#|         else:
+#|             if not coordinate_valid(lat, lon):
+#|                 quality_flags.append("INVALID_COORDINATE")
+#|             if is_zero_placeholder(lat, lon):
+#|                 quality_flags.append("ZERO_POSITION_PLACEHOLDER_SUSPECT")
+#| 
+#|         if sog is not None and sog > 60.0:
+#|             quality_flags.append("HIGH_SOG_SUSPECT")
+#| 
+#|         # Manual / reported fields are not independently verified by AIS alone.
+#|         if destination is not None:
+#|             quality_flags.append("MANUAL_OR_REPORTED_DESTINATION")
+#|         if eta is not None:
+#|             quality_flags.append("MANUAL_OR_REPORTED_ETA")
+#|         if draught is not None:
+#|             quality_flags.append("MANUAL_OR_REPORTED_DRAUGHT")
+#|         if nav_status is not None:
+#|             quality_flags.append("REPORTED_NAV_STATUS")
+#| 
+#|         confidence = Confidence.LOW
+#|         if (mmsi or imo) and timestamp is not None and lat is not None and lon is not None:
+#|             confidence = Confidence.MEDIUM
+#| 
+#|         vessel_candidate_id = f"CAND_{mmsi or imo or evidence.evidence_id}"
+#| 
+#|         return Observation(
+#|             observation_id=new_id("OBS"),
+#|             vessel_candidate_id=vessel_candidate_id,
+#|             timestamp=timestamp,
+#|             mmsi=mmsi,
+#|             imo_candidate=imo,
+#|             latitude=lat,
+#|             longitude=lon,
+#|             sog=sog,
+#|             cog=cog,
+#|             heading=heading,
+#|             rate_of_turn=rot,
+#|             nav_status=nav_status,
+#|             position_accuracy=position_accuracy,
+#|             receiver_type=evidence.receiver_type,
+#|             source_id=evidence.source_id,
+#|             confidence=confidence,
+#|             quality_flags=quality_flags,
+#|             evidence_id=evidence.evidence_id,
+#|             name=name,
+#|             callsign=callsign,
+#|             ship_type=ship_type,
+#|             length=length,
+#|             beam=beam,
+#|             draught=draught,
+#|             destination=destination,
+#|             raw_destination=str(raw_destination) if raw_destination is not None else None,
+#|             eta=eta,
+#|         )
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 8 — VESSEL IDENTITY RESOLUTION
+#| # ======================================================================
+#| 
+#| class VesselResolver:
+#|     """
+#|     Resolves vessel candidates using IMO, MMSI, call sign, name, dimensions.
+#|     Maintains identity eras and MMSI usage eras.
+#|     Prevents historical identity contamination where possible.
+#|     """
+#| 
+#|     def resolve(
+#|         self,
+#|         observations: list[Observation],
+#|     ) -> tuple[
+#|         list[Vessel],
+#|         list[VesselIdentityEra],
+#|         list[MMSIUsageEra],
+#|         list[Contradiction],
+#|     ]:
+#|         obs = sorted(
+#|             [o for o in observations if o.timestamp is not None],
+#|             key=lambda x: x.timestamp,
+#|         )
+#| 
+#|         obs_by_key: dict[str, list[Observation]] = {}

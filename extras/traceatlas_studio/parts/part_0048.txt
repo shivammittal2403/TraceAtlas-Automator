@@ -1,0 +1,1000 @@
+#|             return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
+#|         except Exception:
+#|             pass
+#| 
+#|     return None
+#| 
+#| 
+#| def get_field(rec: Dict[str, Any], keys: List[str], as_list: bool = False) -> Any:
+#|     if not isinstance(rec, dict):
+#|         return [] if as_list else None
+#| 
+#|     lower = {normalize_key(k): v for k, v in rec.items()}
+#|     for key in keys:
+#|         nk = normalize_key(key)
+#|         if nk in lower and lower[nk] not in (None, ""):
+#|             val = lower[nk]
+#|             if as_list:
+#|                 return listify(val)
+#|             if isinstance(val, list):
+#|                 return val[0] if val else None
+#|             return val
+#|     return [] if as_list else None
+#| 
+#| 
+#| def extract_temporal(rec: Dict[str, Any]) -> Dict[str, str]:
+#|     temporal: Dict[str, str] = {}
+#|     mappings = {
+#|         "first_seen": ["first_seen", "firstseen", "first_observed", "created", "start_time", "start"],
+#|         "last_seen": ["last_seen", "lastseen", "last_observed", "updated", "end_time", "end", "modified"],
+#|         "observed_at": ["observed_at", "observedat", "timestamp", "time", "observed"],
+#|         "published_at": ["published_at", "publishedat", "publication_date", "published"],
+#|         "retrieved_at": ["retrieved_at", "retrievedat", "collected_at", "snapshot_at"],
+#|         "breach_date": ["breach_date", "compromise_date", "incident_date"],
+#|     }
+#| 
+#|     for canonical, aliases in mappings.items():
+#|         val = get_field(rec, aliases)
+#|         if val not in (None, ""):
+#|             temporal[canonical] = str(val)
+#| 
+#|     return temporal
+#| 
+#| 
+#| def collect_tags(rec: Dict[str, Any]) -> List[str]:
+#|     tags: List[str] = []
+#| 
+#|     for key in ["tags", "labels", "markings", "x_misp_tags", "tag", "label"]:
+#|         val = rec.get(key)
+#|         for item in listify(val):
+#|             if isinstance(item, dict):
+#|                 name = item.get("name") or item.get("value") or item.get("label")
+#|                 if name:
+#|                     tags.append(str(name))
+#|             elif item not in (None, ""):
+#|                 tags.append(str(item))
+#| 
+#|     return unique_preserve_order(tags)[:200]
+#| 
+#| 
+#| def content_tokens(text: str) -> List[str]:
+#|     redacted, _ = redact_secrets(str(text or ""))
+#|     low = normalize_text(redacted)
+#|     return re.findall(r"[a-z0-9]+", low)
+#| 
+#| 
+#| def content_fingerprint(text: str) -> str:
+#|     tokens = content_tokens(text)
+#|     if not tokens:
+#|         return ""
+#|     return sha256_text(" ".join(sorted(set(tokens))))[:32]
+#| 
+#| 
+#| def extract_domains(text: str) -> List[str]:
+#|     out = []
+#|     for m in DOMAIN_RE.finditer(text or ""):
+#|         d = normalize_domain(m.group(0))
+#|         if d and d not in out and not d.endswith(".onion"):
+#|             out.append(d)
+#|     return out
+#| 
+#| 
+#| def extract_emails(text: str) -> List[str]:
+#|     out = []
+#|     for m in EMAIL_RE.finditer(text or ""):
+#|         e = m.group(0).lower()
+#|         if e not in out:
+#|             out.append(e)
+#|     return out
+#| 
+#| 
+#| def extract_ips(text: str) -> List[str]:
+#|     out = []
+#|     for m in IPV4_RE.finditer(text or ""):
+#|         candidate = m.group(0).strip(".,;:")
+#|         parts = candidate.split(".")
+#|         try:
+#|             if len(parts) == 4 and all(0 <= int(p) <= 255 for p in parts):
+#|                 if candidate not in out:
+#|                     out.append(candidate)
+#|         except Exception:
+#|             pass
+#|     return out
+#| 
+#| 
+#| def extract_hashes(text: str) -> List[str]:
+#|     out = []
+#|     for m in SHA256_RE.finditer(text or ""):
+#|         h = m.group(0).lower()
+#|         if h not in out:
+#|             out.append(h)
+#|     return out
+#| 
+#| 
+#| def extract_record_count(text: str) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for m in RECORD_COUNT_RE.finditer(text or ""):
+#|         raw = m.group(0)
+#|         num_str = m.group(1).replace(",", "")
+#|         unit = m.group(2).lower()
+#|         try:
+#|             num = float(num_str)
+#|         except Exception:
+#|             continue
+#| 
+#|         if unit in {"million", "m"}:
+#|             value = int(num * 1_000_000)
+#|             kind = "claimed_count"
+#|         elif unit == "billion" or unit == "bn":
+#|             value = int(num * 1_000_000_000)
+#|             kind = "claimed_count"
+#|         elif unit in {"thousand", "k"}:
+#|             value = int(num * 1_000)
+#|             kind = "claimed_count"
+#|         elif unit == "gb":
+#|             value = int(num * 1_000_000_000)
+#|             kind = "data_size_bytes"
+#|         elif unit == "tb":
+#|             value = int(num * 1_000_000_000_000)
+#|             kind = "data_size_bytes"
+#|         elif unit == "mb":
+#|             value = int(num * 1_000_000)
+#|             kind = "data_size_bytes"
+#|         else:
+#|             value = int(num)
+#|             kind = "claimed_count"
+#| 
+#|         out.append({
+#|             "raw": raw,
+#|             "value": value,
+#|             "unit": unit,
+#|             "kind": kind,
+#|         })
+#| 
+#|     return unique_preserve_order(out)
+#| 
+#| 
+#| def classify_data_categories(text: str) -> List[str]:
+#|     low = normalize_text(text)
+#|     cats = []
+#|     for cat, kws in DATA_CATEGORY_KEYWORDS.items():
+#|         if any(k in low for k in kws):
+#|             cats.append(cat)
+#|     return unique_preserve_order(cats)
+#| 
+#| 
+#| def classify_sensitive_flags(text: str, categories: List[str], secret_flags: List[str]) -> List[str]:
+#|     low = normalize_text(text)
+#|     flags = []
+#| 
+#|     if any(f in secret_flags for f in ["PASSWORD_OR_TOKEN_ASSIGNMENT", "USERNAME_PASSWORD_PAIR", "PRIVATE_KEY_BLOCK", "PGP_PRIVATE_KEY_BLOCK", "BEARER_TOKEN", "AWS_ACCESS_KEY", "JWT_LIKE_TOKEN"]):
+#|         flags.append("CREDENTIAL_DATA")
+#|         flags.append("AUTHENTICATION_SECRET")
+#| 
+#|     for flag, kws in SENSITIVE_FLAG_KEYWORDS.items():
+#|         if any(k in low for k in kws):
+#|             flags.append(flag)
+#| 
+#|     if "PASSWORD_OR_HASH" in categories or "AUTHENTICATION_SECRET" in categories:
+#|         flags.append("CREDENTIAL_DATA")
+#| 
+#|     if any(f in flags for f in ["HEALTH_DATA", "FINANCIAL_DATA", "IDENTITY_DOCUMENT", "AUTHENTICATION_SECRET", "MINOR_RELATED_DATA", "PRIVATE_COMMUNICATION"]):
+#|         flags.append("HIGHLY_SENSITIVE_PERSONAL_DATA")
+#| 
+#|     return unique_preserve_order(flags)
+#| 
+#| 
+#| def infer_origin_candidates(text: str, categories: List[str], secret_flags: List[str]) -> List[str]:
+#|     low = normalize_text(text)
+#|     out = []
+#| 
+#|     if any(k in low for k in COMBO_KEYWORDS):
+#|         out.append("COMBO_LIST")
+#|     if any(k in low for k in STEALER_KEYWORDS):
+#|         out.append("STEALER_LOG")
+#|     if any(k in low for k in THIRD_PARTY_KEYWORDS):
+#|         out.append("THIRD_PARTY_CANDIDATE")
+#|     if any(k in low for k in SUPPLY_CHAIN_KEYWORDS):
+#|         out.append("SUPPLY_CHAIN_CANDIDATE")
+#|     if any(k in low for k in PUBLIC_DATA_KEYWORDS):
+#|         out.append("PUBLIC_DATA_CANDIDATE")
+#|     if any(k in low for k in SCRAPED_KEYWORDS):
+#|         out.append("SCRAPED_DATA_CANDIDATE")
+#|     if any(k in low for k in RECYCLED_KEYWORDS):
+#|         out.append("RECYCLED_CANDIDATE")
+#|     if any(k in low for k in SOURCE_CODE_KEYWORDS):
+#|         out.append("SOURCE_CODE_EXPOSURE_CANDIDATE")
+#|     if any(k in low for k in REPOSITORY_KEYWORDS):
+#|         out.append("REPOSITORY_EXPOSURE_CANDIDATE")
+#|     if any(k in low for k in CLOUD_KEYWORDS):
+#|         out.append("CLOUD_EXPOSURE_CANDIDATE")
+#|     if any(k in low for k in DOCUMENT_KEYWORDS):
+#|         out.append("DOCUMENT_EXPOSURE_CANDIDATE")
+#|     if any(k in low for k in MISCONFIG_KEYWORDS):
+#|         out.append("MISCONFIGURATION_CANDIDATE")
+#| 
+#|     if any(k in low for k in ["first-party", "our network", "our systems", "our servers", "our infrastructure"]):
+#|         out.append("FIRST_PARTY_CANDIDATE")
+#| 
+#|     return unique_preserve_order(out)
+#| 
+#| 
+#| def infer_freshness(text: str, temporal: Optional[Dict[str, Any]] = None) -> str:
+#|     low = normalize_text(text)
+#| 
+#|     if any(k in low for k in ["mixed", "multiple dates", "old and new"]):
+#|         return "MIXED"
+#|     if any(k in low for k in ["current", "latest", "new breach", "fresh"]):
+#|         return "CURRENT"
+#|     if any(k in low for k in ["recent", "last week", "last month"]):
+#|         return "RECENT"
+#|     if any(k in low for k in ["old", "previous", "historical", "recycled", "reposted", "2015", "2016", "2017", "2018", "2019", "2020", "2021"]):
+#|         return "HISTORICAL"
+#|     if temporal and temporal.get("first_seen"):
+#|         dt = parse_datetime(temporal.get("first_seen"))
+#|         if dt:
+#|             age_days = (datetime.now(timezone.utc) - dt).days
+#|             if age_days <= 30:
+#|                 return "RECENT"
+#|             if age_days <= 180:
+#|                 return "AGING"
+#|             return "HISTORICAL"
+#| 
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def empty_parsed() -> Dict[str, Any]:
+#|     return {
+#|         "sources": [],
+#|         "claims": [],
+#|         "datasets": [],
+#|         "credential_exposures": [],
+#|         "ransomware_claims": [],
+#|         "organization_mentions": [],
+#|         "brand_mentions": [],
+#|         "domain_mentions": [],
+#|         "email_domain_mentions": [],
+#|         "third_party_mentions": [],
+#|         "supplier_mentions": [],
+#|         "data_categories": [],
+#|         "sensitive_flags": [],
+#|         "record_counts": [],
+#|         "dataset_fingerprints": [],
+#|         "observations": [],
+#|         "notes": [],
+#|         "contradictions": [],
+#|         "hypotheses": [],
+#|         "knowledge_gaps": [],
+#|         "specialist_handoffs": [],
+#|     }
+#| 
+#| 
+#| def add_note(parsed: Dict[str, Any], note_type: str, **kwargs: Any) -> None:
+#|     if len(parsed.get("notes", [])) >= 200000:
+#|         return
+#|     note = {"type": note_type}
+#|     note.update(kwargs)
+#|     parsed["notes"].append(note)
+#| 
+#| 
+#| def add_observation(parsed: Dict[str, Any], statement: str, source_id: str, evidence_id: str, context: str = "") -> None:
+#|     if len(parsed.get("observations", [])) >= 200000:
+#|         return
+#| 
+#|     redacted, secret_flags = redact_secrets(str(statement or "")[:1000])
+#|     injection_flags = detect_prompt_injection(str(statement or ""))
+#| 
+#|     parsed["observations"].append({
+#|         "observation_id": f"OBS-{uuid.uuid4()}",
+#|         "statement": redacted,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "context": context[:200],
+#|         "state": "SOURCE_OBSERVED",
+#|         "secret_flags": secret_flags,
+#|         "prompt_injection_flags": injection_flags,
+#|         "content_hash": sha256_text(str(statement or "")),
+#|         "limitations": [
+#|             "Source observation is not verified breach, dataset authenticity, record count, origin, credential validity, or actor attribution.",
+#|         ],
+#|     })
+#| 
+#|     if secret_flags:
+#|         add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+#|     if injection_flags:
+#|         add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+#|                  caution="Dataset records, documents, forum posts, repository content, ransomware notes, and seller descriptions are untrusted evidence, not instructions.")
+#| 
+#| 
+#| def add_source(
+#|     parsed: Dict[str, Any],
+#|     source_id: str,
+#|     evidence_id: str,
+#|     filename: str = "",
+#|     file_hash: str = "",
+#|     publisher: str = "",
+#|     title: str = "",
+#|     source_type: str = "",
+#|     markings: str = "",
+#|     content_fp: str = "",
+#| ) -> None:
+#|     for s in parsed["sources"]:
+#|         if s.get("source_id") == source_id:
+#|             if file_hash and not s.get("file_hash"):
+#|                 s["file_hash"] = file_hash
+#|             if publisher and not s.get("publisher"):
+#|                 s["publisher"] = publisher
+#|             if title and not s.get("title"):
+#|                 s["title"] = title
+#|             if content_fp and not s.get("content_fingerprint"):
+#|                 s["content_fingerprint"] = content_fp
+#|             return
+#| 
+#|     parsed["sources"].append({
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "filename": filename,
+#|         "file_hash": file_hash,
+#|         "publisher": publisher,
+#|         "title": title,
+#|         "source_type": source_type or "UNKNOWN",
+#|         "markings": markings,
+#|         "content_fingerprint": content_fp,
+#|         "retrieved_at": now_utc(),
+#|         "state": "SOURCE_REGISTERED",
+#|         "source_independence_state": "UNKNOWN",
+#|         "limitations": [
+#|             "Source registration is local provenance metadata, not independence verification.",
+#|             "Republishing/aggregation is not corroboration.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_mention(parsed: Dict[str, Any], bucket: str, mention_type: str, value: Any, source_id: str, evidence_id: str, context: str = "", temporal: Optional[Dict[str, Any]] = None) -> None:
+#|     v = safe_str(value, 300)
+#|     if not v:
+#|         return
+#| 
+#|     for item in parsed[bucket]:
+#|         if item.get("value") == v and item.get("source_id") == source_id:
+#|             return
+#| 
+#|     parsed[bucket].append({
+#|         "mention_id": f"MEN-{uuid.uuid4()}",
+#|         "mention_type": mention_type,
+#|         "value": v,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "context": safe_str(context, 300),
+#|         "temporal": temporal or {},
+#|         "state": "SOURCE_MENTION",
+#|         "limitations": [
+#|             "Mention is not verification of breach, exposure, affiliation, or identity.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_claim(
+#|     parsed: Dict[str, Any],
+#|     claim_type: Any,
+#|     text: Any,
+#|     subject: Any = None,
+#|     claimant: Any = None,
+#|     organization: Any = None,
+#|     domain: Any = None,
+#|     record_count: Any = None,
+#|     data_categories: Optional[List[str]] = None,
+#|     origin: Any = None,
+#|     freshness: Any = None,
+#|     source_id: str = "",
+#|     evidence_id: str = "",
+#|     temporal: Optional[Dict[str, Any]] = None,
+#|     confidence: str = "LOW",
+#|     state: str = "SOURCE_CLAIM",
+#| ) -> None:
+#|     ct = safe_str(claim_type, 100).upper() or "BREACH_CLAIM"
+#|     redacted, secret_flags = redact_secrets(str(text or "")[:500])
+#|     if not redacted.strip():
+#|         return
+#| 
+#|     injection_flags = detect_prompt_injection(str(text or ""))
+#| 
+#|     parsed["claims"].append({
+#|         "claim_id": f"CLM-{uuid.uuid4()}",
+#|         "claim_type": ct,
+#|         "text": redacted,
+#|         "subject": safe_str(subject, 300),
+#|         "claimant": safe_str(claimant, 200),
+#|         "organization": safe_str(organization, 300),
+#|         "domain": safe_str(domain, 300),
+#|         "record_count": safe_str(record_count, 120),
+#|         "data_categories": data_categories or [],
+#|         "origin": safe_str(origin, 100),
+#|         "freshness": safe_str(freshness, 50),
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "confidence": confidence,
+#|         "state": state,
+#|         "secret_flags": secret_flags,
+#|         "prompt_injection_flags": injection_flags,
+#|         "limitations": [
+#|             "Breach/exposure claim is source-reported, not verified fact.",
+#|             "Claimed record count, dataset size, origin, freshness, and actor remain unverified unless corroborated.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_dataset(
+#|     parsed: Dict[str, Any],
+#|     dataset_name: Any = None,
+#|     claimed_origin: Any = None,
+#|     suspected_origin: Any = None,
+#|     record_count_claimed: Any = None,
+#|     schema: Any = None,
+#|     data_categories: Optional[List[str]] = None,
+#|     sample_hashes: Optional[List[str]] = None,
+#|     fingerprint: Any = None,
+#|     freshness: Any = None,
+#|     status: str = "DATASET_CLAIM",
+#|     source_id: str = "",
+#|     evidence_id: str = "",
+#|     temporal: Optional[Dict[str, Any]] = None,
+#| ) -> None:
+#|     name = safe_str(dataset_name, 300)
+#|     if not any([name, claimed_origin, suspected_origin, record_count_claimed, schema, data_categories, sample_hashes, fingerprint]):
+#|         return
+#| 
+#|     parsed["datasets"].append({
+#|         "dataset_id": f"DAT-{uuid.uuid4()}",
+#|         "dataset_name": name,
+#|         "claimed_origin": safe_str(claimed_origin, 200),
+#|         "suspected_origin": safe_str(suspected_origin, 200),
+#|         "record_count_claimed": safe_str(record_count_claimed, 120),
+#|         "schema": safe_str(schema, 500),
+#|         "data_categories": data_categories or [],
+#|         "sample_hashes": sample_hashes or [],
+#|         "dataset_fingerprint": safe_str(fingerprint, 200),
+#|         "freshness": safe_str(freshness, 50),
+#|         "status": status,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "limitations": [
+#|             "Dataset metadata is claim/source-derived unless authorized verification exists.",
+#|             "Sample does not prove full dataset existence or exact record count.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_credential_exposure(
+#|     parsed: Dict[str, Any],
+#|     exposure_type: Any,
+#|     affected_domain: Any = None,
+#|     redacted_identifier: Any = None,
+#|     credential_category: Any = None,
+#|     validity: str = "VALIDITY_UNKNOWN",
+#|     freshness: str = "UNKNOWN",
+#|     source_id: str = "",
+#|     evidence_id: str = "",
+#|     temporal: Optional[Dict[str, Any]] = None,
+#| ) -> None:
+#|     et = safe_str(exposure_type, 100).upper() or "CREDENTIAL_EXPOSURE"
+#|     dom = safe_str(affected_domain, 300)
+#|     ident = safe_str(redacted_identifier, 200)
+#|     if not any([et, dom, ident, credential_category]):
+#|         return
+#| 
+#|     parsed["credential_exposures"].append({
+#|         "credential_id": f"CRD-{uuid.uuid4()}",
+#|         "exposure_type": et,
+#|         "affected_domain": dom,
+#|         "redacted_identifier": ident,
+#|         "credential_category": safe_str(credential_category, 200),
+#|         "validity": validity,
+#|         "freshness": freshness,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "state": "CREDENTIAL_EXPOSURE_METADATA",
+#|         "limitations": [
+#|             "Credential exposure metadata is not proof of current validity.",
+#|             "Do not test, login, replay, redeem, or use credentials/tokens/keys.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_ransomware_claim(
+#|     parsed: Dict[str, Any],
+#|     group: Any = None,
+#|     victim: Any = None,
+#|     claim_date: Any = None,
+#|     data_publication_claim: Any = None,
+#|     sample_claim: Any = None,
+#|     extortion_status: Any = None,
+#|     source_id: str = "",
+#|     evidence_id: str = "",
+#|     temporal: Optional[Dict[str, Any]] = None,
+#| ) -> None:
+#|     g = safe_str(group, 300)
+#|     v = safe_str(victim, 300)
+#|     if not any([g, v, claim_date, data_publication_claim, sample_claim, extortion_status]):
+#|         return
+#| 
+#|     parsed["ransomware_claims"].append({
+#|         "ransom_id": f"RNS-{uuid.uuid4()}",
+#|         "group_label": g,
+#|         "victim_claim": v,
+#|         "claim_date": safe_str(claim_date, 100),
+#|         "data_publication_claim": safe_str(data_publication_claim, 300),
+#|         "sample_claim": safe_str(sample_claim, 300),
+#|         "extortion_status": safe_str(extortion_status, 200),
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "state": "RANSOMWARE_SOURCE_CLAIM",
+#|         "limitations": [
+#|             "Ransomware leak-site/actor claim is not verified breach or verified exfiltration.",
+#|             "Do not contact, negotiate, pay, or operationalize coercion techniques.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_data_category(parsed: Dict[str, Any], category: Any, source_id: str, evidence_id: str, context: str = "", temporal: Optional[Dict[str, Any]] = None) -> None:
+#|     c = safe_str(category, 100).upper()
+#|     if not c:
+#|         return
+#| 
+#|     for item in parsed["data_categories"]:
+#|         if item.get("category") == c and item.get("source_id") == source_id:
+#|             return
+#| 
+#|     parsed["data_categories"].append({
+#|         "category_id": f"CAT-{uuid.uuid4()}",
+#|         "category": c,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "context": safe_str(context, 300),
+#|         "temporal": temporal or {},
+#|         "state": "SOURCE_OBSERVED_DATA_CATEGORY_METADATA",
+#|         "limitations": [
+#|             "Data-category classification is high-level metadata, not reproduction of sensitive content.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_sensitive_flag(parsed: Dict[str, Any], flag: Any, source_id: str, evidence_id: str, context: str = "", temporal: Optional[Dict[str, Any]] = None) -> None:
+#|     f = safe_str(flag, 100).upper()
+#|     if not f:
+#|         return
+#| 
+#|     for item in parsed["sensitive_flags"]:
+#|         if item.get("flag") == f and item.get("source_id") == source_id:
+#|             return
+#| 
+#|     parsed["sensitive_flags"].append({
+#|         "flag_id": f"FLG-{uuid.uuid4()}",
+#|         "flag": f,
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "context": safe_str(context, 300),
+#|         "temporal": temporal or {},
+#|         "state": "SENSITIVE_DATA_FLAG",
+#|         "limitations": [
+#|             "Sensitive-data flag triggers stricter privacy/legal handling and human review.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_record_count(parsed: Dict[str, Any], rc: Dict[str, Any], subject: Any, source_id: str, evidence_id: str, temporal: Optional[Dict[str, Any]] = None) -> None:
+#|     parsed["record_counts"].append({
+#|         "record_count_id": f"RCN-{uuid.uuid4()}",
+#|         "subject": safe_str(subject, 300),
+#|         "raw": safe_str(rc.get("raw"), 120),
+#|         "value": rc.get("value"),
+#|         "unit": safe_str(rc.get("unit"), 50),
+#|         "kind": safe_str(rc.get("kind"), 50),
+#|         "state": "SOURCE_CLAIMED_COUNT",
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "limitations": [
+#|             "Claimed record count is not verified count.",
+#|             "Record count may include duplicates and does not equal unique individuals.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def add_fingerprint(parsed: Dict[str, Any], kind: Any, value: Any, subject: Any, source_id: str, evidence_id: str, temporal: Optional[Dict[str, Any]] = None) -> None:
+#|     v = safe_str(value, 200)
+#|     if not v:
+#|         return
+#| 
+#|     for item in parsed["dataset_fingerprints"]:
+#|         if item.get("value") == v and item.get("source_id") == source_id:
+#|             return
+#| 
+#|     parsed["dataset_fingerprints"].append({
+#|         "fingerprint_id": f"FPR-{uuid.uuid4()}",
+#|         "kind": safe_str(kind, 100).upper(),
+#|         "value": v,
+#|         "subject": safe_str(subject, 300),
+#|         "source_id": source_id,
+#|         "evidence_id": evidence_id,
+#|         "temporal": temporal or {},
+#|         "state": "DATASET_FINGERPRINT_METADATA",
+#|         "limitations": [
+#|             "Fingerprint supports duplicate/lineage analysis, not breach authenticity by itself.",
+#|         ],
+#|     })
+#| 
+#| 
+#| def process_text_block(
+#|     text: str,
+#|     source_id: str,
+#|     evidence_id: str,
+#|     parsed: Dict[str, Any],
+#|     context: str = "",
+#|     temporal: Optional[Dict[str, Any]] = None,
+#|     organization_hint: Any = None,
+#|     domain_hint: Any = None,
+#| ) -> None:
+#|     raw = str(text or "")
+#|     if not raw.strip():
+#|         return
+#| 
+#|     redacted, secret_flags = redact_secrets(raw)
+#|     injection_flags = detect_prompt_injection(raw)
+#| 
+#|     if secret_flags:
+#|         add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+#|     if injection_flags:
+#|         add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+#|                  caution="Embedded instructions in breach/dataset/source content are ignored.")
+#| 
+#|     add_observation(parsed, redacted[:1000], source_id, evidence_id, context=context)
+#| 
+#|     low = normalize_text(redacted)
+#|     domains = extract_domains(redacted)
+#|     subject = organization_hint or domain_hint or (domains[0] if domains else None)
+#|     freshness = infer_freshness(redacted, temporal)
+#|     categories = classify_data_categories(redacted)
+#|     origin_candidates = infer_origin_candidates(redacted, categories, secret_flags)
+#|     sensitive_flags = classify_sensitive_flags(redacted, categories, secret_flags)
+#|     record_counts = extract_record_count(redacted)
+#|     first_record_count = record_counts[0]["raw"] if record_counts else None
+#| 
+#|     for d in domains[:200]:
+#|         add_mention(parsed, "domain_mentions", "DOMAIN", d, source_id, evidence_id, context=context, temporal=temporal)
+#| 
+#|     emails = extract_emails(raw)
+#|     for e in emails[:200]:
+#|         dom = e.split("@", 1)[1].lower() if "@" in e else None
+#|         red = redact_email_identifier(e)
+#|         if dom:
+#|             add_mention(parsed, "email_domain_mentions", "EMAIL_DOMAIN", dom, source_id, evidence_id, context=context, temporal=temporal)
+#|         add_mention(parsed, "organization_mentions", "EMAIL_IDENTIFIER_REDACTED", red, source_id, evidence_id, context=context, temporal=temporal)
+#| 
+#|     cred_types = []
+#|     if EMAIL_PASS_RE.search(raw):
+#|         cred_types.append("PLAINTEXT_PASSWORD_REPORTED")
+#|     if any(k in low for k in ["password", "passwd", "pwd"]):
+#|         cred_types.append("PASSWORD_REPORTED")
+#|     if any(k in low for k in ["hash", "md5", "sha1", "sha256"]):
+#|         cred_types.append("PASSWORD_HASH")
+#|     if any(k in low for k in ["token", "session", "cookie"]):
+#|         cred_types.append("SESSION_TOKEN_REPORTED")
+#|     if any(k in low for k in ["api key", "apikey", "access key", "secret"]):
+#|         cred_types.append("API_SECRET_REPORTED")
+#|     if any(k in low for k in ["private key", "pem", "ssh key"]):
+#|         cred_types.append("PRIVATE_KEY_REPORTED")
+#| 
+#|     for ct in unique_preserve_order(cred_types):
+#|         affected_domain = domain_hint or (domains[0] if domains else None)
+#|         redacted_identifier = None
+#|         m = EMAIL_PASS_RE.search(raw)
+#|         if m:
+#|             redacted_identifier = redact_email_identifier(m.group(1))
+#|         add_credential_exposure(
+#|             parsed,
+#|             exposure_type=ct,
+#|             affected_domain=affected_domain,
+#|             redacted_identifier=redacted_identifier,
+#|             credential_category=ct,
+#|             validity="VALIDITY_UNKNOWN",
+#|             freshness=freshness,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     for rc in record_counts[:100]:
+#|         add_record_count(parsed, rc, subject, source_id, evidence_id, temporal=temporal)
+#| 
+#|     if any(k in low for k in BREACH_KEYWORDS):
+#|         add_claim(
+#|             parsed,
+#|             "BREACH_CLAIM",
+#|             redacted[:500],
+#|             subject=subject,
+#|             organization=organization_hint,
+#|             domain=domain_hint or (domains[0] if domains else None),
+#|             record_count=first_record_count,
+#|             data_categories=categories,
+#|             origin=origin_candidates[0] if origin_candidates else None,
+#|             freshness=freshness,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|             confidence="LOW",
+#|             state="SOURCE_CLAIM",
+#|         )
+#| 
+#|     if any(k in low for k in DATASET_KEYWORDS):
+#|         add_dataset(
+#|             parsed,
+#|             dataset_name=subject,
+#|             claimed_origin=origin_candidates[0] if origin_candidates else None,
+#|             suspected_origin=origin_candidates[0] if origin_candidates else "UNKNOWN",
+#|             record_count_claimed=first_record_count,
+#|             data_categories=categories,
+#|             freshness=freshness,
+#|             status="DATASET_CLAIM",
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     if any(k in low for k in RANSOMWARE_KEYWORDS):
+#|         add_ransomware_claim(
+#|             parsed,
+#|             victim=subject,
+#|             data_publication_claim="claimed" if "publish" in low or "leak" in low else None,
+#|             sample_claim="claimed" if "sample" in low else None,
+#|             extortion_status="source_claimed_extortion" if "extort" in low or "ransom" in low else None,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     for oc in origin_candidates[:50]:
+#|         add_claim(
+#|             parsed,
+#|             oc,
+#|             redacted[:500],
+#|             subject=subject,
+#|             organization=organization_hint,
+#|             domain=domain_hint,
+#|             record_count=first_record_count,
+#|             data_categories=categories,
+#|             origin=oc,
+#|             freshness=freshness,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|             confidence="LOW",
+#|             state="SOURCE_CLAIM",
+#|         )
+#| 
+#|     for cat in categories[:100]:
+#|         add_data_category(parsed, cat, source_id, evidence_id, context=context, temporal=temporal)
+#| 
+#|     for flag in sensitive_flags[:100]:
+#|         add_sensitive_flag(parsed, flag, source_id, evidence_id, context=context, temporal=temporal)
+#| 
+#|     for h in extract_hashes(redacted)[:200]:
+#|         add_fingerprint(parsed, "SHA256", h, subject, source_id, evidence_id, temporal=temporal)
+#| 
+#| 
+#| def classify_json_payload(data: Any, filename: str = "") -> str:
+#|     if isinstance(data, list):
+#|         return "JSON_ARRAY"
+#|     if not isinstance(data, dict):
+#|         return "GENERIC_JSON"
+#| 
+#|     keys = {normalize_key(k) for k in data.keys()}
+#|     low = json.dumps(data, ensure_ascii=False, default=str)[:20000].lower()
+#|     fname = normalize_text(filename)
+#| 
+#|     if data.get("type") == "bundle" or "objects" in keys:
+#|         return "STIX_PACKAGE"
+#|     if "Event" in data or "Attribute" in data or "Object" in data or "misp" in fname:
+#|         return "MISP_EVENT"
+#|     if "breach" in fname or "breach" in keys or "compromis" in low:
+#|         return "BREACH_CLAIM"
+#|     if "dataset" in fname or "schema" in keys or "record_count" in keys:
+#|         return "DATASET_METADATA"
+#|     if "credential" in fname or "password" in low or "combo" in low:
+#|         return "CREDENTIAL_EXPOSURE_METADATA"
+#|     if "ransom" in fname or "leak" in fname or "victim" in keys:
+#|         return "RANSOMWARE_LEAK_METADATA"
+#|     if "incident" in fname or "telemetry" in fname:
+#|         return "AUTHORIZED_INCIDENT_DATA"
+#|     if "historical" in fname or "old" in fname:
+#|         return "HISTORICAL_BREACH_METADATA"
+#|     if "stealer" in fname or "infostealer" in low:
+#|         return "STEALER_LOG_METADATA"
+#|     if "supply" in fname or "vendor" in low or "third_party" in keys:
+#|         return "SUPPLY_CHAIN_EXPOSURE"
+#|     if "repo" in fname or "source_code" in fname or "git" in low:
+#|         return "REPOSITORY_OR_SOURCE_CODE_EXPOSURE"
+#|     if "cloud" in fname or "bucket" in low or "storage" in low:
+#|         return "CLOUD_EXPOSURE"
+#|     if "document" in fname or "pdf" in low:
+#|         return "DOCUMENT_EXPOSURE"
+#| 
+#|     return "GENERIC_JSON"
+#| 
+#| 
+#| def process_json_record(
+#|     rec: Dict[str, Any],
+#|     source_id: str,
+#|     evidence_id: str,
+#|     parsed: Dict[str, Any],
+#|     context: str = "",
+#|     organization_hint: Any = None,
+#|     domain_hint: Any = None,
+#| ) -> None:
+#|     if not isinstance(rec, dict):
+#|         return
+#| 
+#|     temporal = extract_temporal(rec)
+#|     tags = collect_tags(rec)
+#|     rec_context = context or "json_record"
+#| 
+#|     organization = get_field(rec, ["organization", "company", "victim_org", "target_org", "org"]) or organization_hint
+#|     brand = get_field(rec, ["brand", "product"])
+#|     domain = get_field(rec, ["domain", "target_domain"]) or domain_hint
+#|     email_domain = get_field(rec, ["email_domain", "affected_email_domain"])
+#|     subsidiary = get_field(rec, ["subsidiary", "parent_company"])
+#|     third_party = get_field(rec, ["third_party", "vendor", "saas", "processor"])
+#|     supplier = get_field(rec, ["supplier", "partner", "msp"])
+#|     claim_type = get_field(rec, ["claim_type", "type"])
+#|     claim_text = get_field(rec, ["claim_text", "text", "description", "summary", "evidence"])
+#|     claimant = get_field(rec, ["claimant", "seller", "persona", "source_actor"])
+#|     dataset_name = get_field(rec, ["dataset_name", "dataset", "dump_name"])
+#|     record_count = get_field(rec, ["record_count", "claimed_records", "rows", "count"])
+#|     data_size = get_field(rec, ["data_size", "size"])
+#|     data_categories = get_field(rec, ["data_categories", "claimed_data", "categories"], as_list=True)
+#|     credential_type = get_field(rec, ["credential_type", "exposure_type", "secret_type"])
+#|     affected_domain = get_field(rec, ["affected_domain", "domain"]) or domain
+#|     identifier = get_field(rec, ["identifier", "username", "email", "redacted_identifier"])
+#|     ransomware_group = get_field(rec, ["ransomware_group", "group", "actor_label", "leak_site"])
+#|     victim = get_field(rec, ["victim", "victim_name", "target"])
+#|     origin = get_field(rec, ["origin", "suspected_origin", "claimed_origin"])
+#|     freshness = get_field(rec, ["freshness", "data_freshness"])
+#|     schema = get_field(rec, ["schema", "fields", "columns"])
+#|     sample_hash = get_field(rec, ["sample_hash", "sample_hashes"], as_list=True)
+#|     dataset_hash = get_field(rec, ["dataset_hash", "fingerprint", "content_hash"])
+#| 
+#|     subject = organization or domain or victim or dataset_name
+#| 
+#|     if organization:
+#|         add_mention(parsed, "organization_mentions", "ORGANIZATION", organization, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if brand:
+#|         add_mention(parsed, "brand_mentions", "BRAND", brand, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if domain:
+#|         add_mention(parsed, "domain_mentions", "DOMAIN", domain, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if email_domain:
+#|         add_mention(parsed, "email_domain_mentions", "EMAIL_DOMAIN", email_domain, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if subsidiary:
+#|         add_mention(parsed, "organization_mentions", "SUBSIDIARY_OR_PARENT", subsidiary, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if third_party:
+#|         add_mention(parsed, "third_party_mentions", "THIRD_PARTY", third_party, source_id, evidence_id, context=rec_context, temporal=temporal)
+#|     if supplier:
+#|         add_mention(parsed, "supplier_mentions", "SUPPLIER", supplier, source_id, evidence_id, context=rec_context, temporal=temporal)
+#| 
+#|     if identifier and "@" in str(identifier):
+#|         add_mention(parsed, "organization_mentions", "EMAIL_IDENTIFIER_REDACTED", redact_email_identifier(identifier), source_id, evidence_id, context=rec_context, temporal=temporal)
+#| 
+#|     if claim_text or claim_type:
+#|         add_claim(
+#|             parsed,
+#|             claim_type=claim_type or "BREACH_CLAIM",
+#|             text=claim_text or json.dumps(rec, ensure_ascii=False, default=str)[:500],
+#|             subject=subject,
+#|             claimant=claimant,
+#|             organization=organization,
+#|             domain=domain,
+#|             record_count=record_count or data_size,
+#|             data_categories=[str(x) for x in data_categories if x],
+#|             origin=origin,
+#|             freshness=freshness,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|             confidence="LOW",
+#|             state="SOURCE_CLAIM",
+#|         )
+#| 
+#|     if any([dataset_name, record_count, data_size, schema, dataset_hash, sample_hash]):
+#|         add_dataset(
+#|             parsed,
+#|             dataset_name=dataset_name or subject,
+#|             claimed_origin=origin,
+#|             suspected_origin=origin or "UNKNOWN",
+#|             record_count_claimed=record_count or data_size,
+#|             schema=schema,
+#|             data_categories=[str(x) for x in data_categories if x],
+#|             sample_hashes=[str(x) for x in sample_hash if x],
+#|             fingerprint=dataset_hash,
+#|             freshness=freshness,
+#|             status="DATASET_METADATA_PARSED",
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     if any([credential_type, identifier, affected_domain]):
+#|         add_credential_exposure(
+#|             parsed,
+#|             exposure_type=credential_type or "CREDENTIAL_EXPOSURE",
+#|             affected_domain=affected_domain,
+#|             redacted_identifier=redact_email_identifier(identifier) if identifier and "@" in str(identifier) else safe_str(identifier, 200),
+#|             credential_category=credential_type,
+#|             validity="VALIDITY_UNKNOWN",
+#|             freshness=freshness or "UNKNOWN",
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     if any([ransomware_group, victim, claim_type and "RANSOM" in str(claim_type).upper()]):
+#|         add_ransomware_claim(
+#|             parsed,
+#|             group=ransomware_group,
+#|             victim=victim or subject,
+#|             claim_date=temporal.get("published_at") or temporal.get("first_seen"),
+#|             data_publication_claim="claimed" if "publish" in normalize_text(json.dumps(rec, default=str)) else None,
+#|             sample_claim="claimed" if "sample" in normalize_text(json.dumps(rec, default=str)) else None,
+#|             extortion_status="source_claimed_extortion" if "extort" in normalize_text(json.dumps(rec, default=str)) else None,
+#|             source_id=source_id,
+#|             evidence_id=evidence_id,
+#|             temporal=temporal,
+#|         )
+#| 
+#|     if dataset_hash:
+#|         add_fingerprint(parsed, "DATASET_HASH", dataset_hash, subject, source_id, evidence_id, temporal=temporal)
+#|     for sh in sample_hash[:50]:
+#|         add_fingerprint(parsed, "SAMPLE_HASH", sh, subject, source_id, evidence_id, temporal=temporal)
+#| 
+#|     rec_text = json.dumps(rec, ensure_ascii=False, default=str)[:5000]
+#|     process_text_block(
+#|         rec_text,
+#|         source_id,
+#|         evidence_id,
+#|         parsed,
+#|         context=f"json:{rec_context}",
+#|         temporal=temporal,
+#|         organization_hint=organization,
+#|         domain_hint=domain,
+#|     )
+#| 
+#| 
+#| def walk_json(
+#|     data: Any,
+#|     source_id: str,
+#|     evidence_id: str,
+#|     parsed: Dict[str, Any],
+#|     depth: int = 0,
+#|     path: str = "",
+#|     organization_hint: Any = None,
+#|     domain_hint: Any = None,
+#| ) -> None:
+#|     if depth > 14 or len(parsed.get("observations", [])) > 200000:
+#|         return
+#| 
+#|     if isinstance(data, dict):
+#|         process_json_record(data, source_id, evidence_id, parsed, context=path or "json", organization_hint=organization_hint, domain_hint=domain_hint)
+#|         for k, v in data.items():
+#|             new_path = f"{path}.{k}" if path else str(k)
+#|             walk_json(v, source_id, evidence_id, parsed, depth + 1, new_path, organization_hint, domain_hint)
+#|     elif isinstance(data, list):
+#|         for item in data[:100000]:
+#|             walk_json(item, source_id, evidence_id, parsed, depth + 1, path, organization_hint, domain_hint)
+#|     elif isinstance(data, str):
+#|         process_text_block(data, source_id, evidence_id, parsed, context=path or "json_string", organization_hint=organization_hint, domain_hint=domain_hint)
+#| 
+#| 
+#| def process_json_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+#|     parsed = empty_parsed()

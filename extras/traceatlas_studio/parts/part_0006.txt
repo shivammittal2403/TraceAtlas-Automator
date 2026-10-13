@@ -1,0 +1,1000 @@
+#| ) -> Optional[float]:
+#|     if None in (lat1, lon1, lat2, lon2):
+#|         return None
+#|     try:
+#|         lat1_f = float(lat1)
+#|         lon1_f = float(lon1)
+#|         lat2_f = float(lat2)
+#|         lon2_f = float(lon2)
+#|     except Exception:
+#|         return None
+#| 
+#|     r = 6371.0
+#|     phi1 = math.radians(lat1_f)
+#|     phi2 = math.radians(lat2_f)
+#|     dphi = math.radians(lat2_f - lat1_f)
+#|     dlmb = math.radians(lon2_f - lon1_f)
+#| 
+#|     a = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2.0) ** 2
+#|     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+#|     return r * c
+#| 
+#| 
+#| def haversine_m(
+#|     lat1: Optional[float],
+#|     lon1: Optional[float],
+#|     lat2: Optional[float],
+#|     lon2: Optional[float],
+#| ) -> Optional[float]:
+#|     d = haversine_km(lat1, lon1, lat2, lon2)
+#|     return None if d is None else d * 1000.0
+#| 
+#| 
+#| def normalize_deg(value: Any) -> Optional[float]:
+#|     v = to_float(value)
+#|     if v is None:
+#|         return None
+#|     v = v % 360.0
+#|     if v < 0:
+#|         v += 360.0
+#|     return v
+#| 
+#| 
+#| def circular_mean_deg(values: List[Optional[float]]) -> Optional[float]:
+#|     vals = [normalize_deg(v) for v in values if normalize_deg(v) is not None]
+#|     if not vals:
+#|         return None
+#|     sin_sum = sum(math.sin(math.radians(v)) for v in vals)
+#|     cos_sum = sum(math.cos(math.radians(v)) for v in vals)
+#|     angle = math.degrees(math.atan2(sin_sum, cos_sum)) % 360.0
+#|     return angle
+#| 
+#| 
+#| def circular_std_deg(values: List[Optional[float]]) -> Optional[float]:
+#|     vals = [normalize_deg(v) for v in values if normalize_deg(v) is not None]
+#|     if not vals:
+#|         return None
+#|     n = len(vals)
+#|     sin_sum = sum(math.sin(math.radians(v)) for v in vals) / n
+#|     cos_sum = sum(math.cos(math.radians(v)) for v in vals) / n
+#|     r = math.sqrt(sin_sum * sin_sum + cos_sum * cos_sum)
+#|     if r <= 0:
+#|         return 180.0
+#|     if r >= 1:
+#|         return 0.0
+#|     return math.degrees(math.sqrt(-2.0 * math.log(r)))
+#| 
+#| 
+#| def local_enu(lat: float, lon: float, lat0: float, lon0: float) -> Tuple[float, float]:
+#|     r = 6371000.0
+#|     x = math.radians(lon - lon0) * r * math.cos(math.radians(lat0))
+#|     y = math.radians(lat - lat0) * r
+#|     return x, y
+#| 
+#| 
+#| def enu_to_latlon(x: float, y: float, lat0: float, lon0: float) -> Tuple[float, float]:
+#|     r = 6371000.0
+#|     lat = lat0 + math.degrees(y / r)
+#|     lon = lon0 + math.degrees(x / (r * math.cos(math.radians(lat0))))
+#|     return lat, lon
+#| 
+#| 
+#| def bearing_vector_deg(bearing_deg: float) -> Tuple[float, float]:
+#|     theta = math.radians(normalize_deg(bearing_deg) or 0.0)
+#|     return math.sin(theta), math.cos(theta)  # east, north
+#| 
+#| 
+#| def cross2(a: Tuple[float, float], b: Tuple[float, float]) -> float:
+#|     return a[0] * b[1] - a[1] * b[0]
+#| 
+#| 
+#| def line_intersection(
+#|     p1: Tuple[float, float],
+#|     d1: Tuple[float, float],
+#|     p2: Tuple[float, float],
+#|     d2: Tuple[float, float],
+#| ) -> Optional[Tuple[Tuple[float, float], float, float]]:
+#|     denom = cross2(d1, d2)
+#|     if abs(denom) < 1e-9:
+#|         return None
+#|     dp = (p2[0] - p1[0], p2[1] - p1[1])
+#|     t = cross2(dp, d2) / denom
+#|     u = cross2(dp, d1) / denom
+#|     point = (p1[0] + t * d1[0], p1[1] + t * d1[1])
+#|     return point, t, u
+#| 
+#| 
+#| def cosine_similarity(a: List[float], b: List[float]) -> Optional[float]:
+#|     if len(a) != len(b) or not a:
+#|         return None
+#|     dot = sum(x * y for x, y in zip(a, b))
+#|     na = math.sqrt(sum(x * x for x in a))
+#|     nb = math.sqrt(sum(y * y for y in b))
+#|     if na == 0 or nb == 0:
+#|         return None
+#|     return dot / (na * nb)
+#| 
+#| 
+#| def l2_normalize(vec: List[float]) -> Optional[List[float]]:
+#|     n = math.sqrt(sum(x * x for x in vec))
+#|     if n == 0:
+#|         return None
+#|     return [x / n for x in vec]
+#| 
+#| 
+#| def transform_feature_value(value: Optional[float]) -> float:
+#|     if value is None:
+#|         return 0.0
+#|     if value > 0:
+#|         return math.log1p(value)
+#|     return value
+#| 
+#| 
+#| def vector_from_mapping(mapping: Dict[str, Any]) -> Optional[List[float]]:
+#|     raw = []
+#|     for key in FEATURE_KEYS:
+#|         raw.append(transform_feature_value(to_float(mapping.get(key))))
+#|     vec = l2_normalize(raw)
+#|     return vec
+#| 
+#| 
+#| def extract_spectral_features_from_bands(bands: Any) -> Optional[Dict[str, Any]]:
+#|     if not isinstance(bands, list) or not bands:
+#|         return None
+#| 
+#|     centers: List[float] = []
+#|     powers: List[float] = []
+#| 
+#|     for b in bands:
+#|         if not isinstance(b, dict):
+#|             continue
+#|         c = to_float(b.get("center_hz") or b.get("frequency_hz") or b.get("center"))
+#|         p_lin = to_float(b.get("power_linear") or b.get("power"))
+#|         p_db = to_float(
+#|             b.get("power_db")
+#|             or b.get("power_dbfs")
+#|             or b.get("power_db spl")
+#|             or b.get("power_dbm")
+#|         )
+#| 
+#|         if c is None:
+#|             continue
+#|         if p_lin is None and p_db is not None:
+#|             p_lin = 10.0 ** (p_db / 10.0)
+#|         if p_lin is None:
+#|             continue
+#| 
+#|         centers.append(c)
+#|         powers.append(max(0.0, p_lin))
+#| 
+#|     if not centers or not powers:
+#|         return None
+#| 
+#|     total = sum(powers)
+#|     if total <= 0:
+#|         return None
+#| 
+#|     centroid = sum(c * p for c, p in zip(centers, powers)) / total
+#|     max_power = max(powers)
+#|     max_idx = powers.index(max_power)
+#| 
+#|     sorted_pairs = sorted(zip(centers, powers), key=lambda x: x[0])
+#|     cum = 0.0
+#|     rolloff = sorted_pairs[-1][0]
+#|     for c, p in sorted_pairs:
+#|         cum += p
+#|         if cum >= 0.85 * total:
+#|             rolloff = c
+#|             break
+#| 
+#|     # Spectral flatness: geometric mean / arithmetic mean, epsilon-guarded.
+#|     eps = 1e-12
+#|     log_sum = sum(math.log(p + eps) for _, p in sorted_pairs)
+#|     geo_mean = math.exp(log_sum / len(sorted_pairs))
+#|     arith_mean = total / len(sorted_pairs)
+#|     flatness = geo_mean / arith_mean if arith_mean > 0 else None
+#| 
+#|     return {
+#|         "band_count": len(centers),
+#|         "total_power_linear": total,
+#|         "max_power_linear": max_power,
+#|         "dominant_frequency_hz": centers[max_idx],
+#|         "spectral_centroid_hz": centroid,
+#|         "spectral_rolloff_hz": rolloff,
+#|         "spectral_flatness": flatness,
+#|         "method": "deterministic_summary_from_supplied_bands",
+#|         "limitation": "No FFT was performed by this script; features come only from supplied band data.",
+#|     }
+#| 
+#| 
+#| def get_event_metric(ev: Dict[str, Any], key: str) -> Optional[float]:
+#|     sf = ev.get("_spectral_features") or {}
+#| 
+#|     direct_map = {
+#|         "spectral_centroid_hz": sf.get("spectral_centroid_hz"),
+#|         "spectral_rolloff_hz": sf.get("spectral_rolloff_hz"),
+#|         "spectral_flatness": sf.get("spectral_flatness"),
+#|         "dominant_frequency_hz": sf.get("dominant_frequency_hz") or ev.get("dominant_frequency_hz"),
+#|         "band_energy_total": sf.get("total_power_linear"),
+#|         "duration_s": ev.get("_duration_s") or ev.get("duration_s"),
+#|         "periodicity_interval_s": (
+#|             ev.get("periodicity_interval_s")
+#|             or (ev.get("periodicity") or {}).get("interval_s")
+#|         ),
+#|         "impulsiveness": ev.get("impulsiveness"),
+#|         "snr_db": ev.get("snr_db") or ev.get("_snr_db"),
+#|         "rise_time_ms": ev.get("rise_time_ms"),
+#|     }
+#| 
+#|     return to_float(direct_map.get(key))
+#| 
+#| 
+#| def build_event_vector(ev: Dict[str, Any]) -> Optional[List[float]]:
+#|     fv = ev.get("feature_vector")
+#|     if isinstance(fv, list):
+#|         nums = [to_float(x) for x in fv]
+#|         nums = [x for x in nums if x is not None]
+#|         if nums:
+#|             transformed = [transform_feature_value(x) for x in nums]
+#|             return l2_normalize(transformed)
+#| 
+#|     mapping = {key: get_event_metric(ev, key) for key in FEATURE_KEYS}
+#|     return vector_from_mapping(mapping)
+#| 
+#| 
+#| def build_reference_vector(ref: Dict[str, Any]) -> Optional[List[float]]:
+#|     fv = ref.get("feature_vector")
+#|     if isinstance(fv, list):
+#|         nums = [to_float(x) for x in fv]
+#|         nums = [x for x in nums if x is not None]
+#|         if nums:
+#|             transformed = [transform_feature_value(x) for x in nums]
+#|             return l2_normalize(transformed)
+#| 
+#|     sf = ref.get("spectral_features") or extract_spectral_features_from_bands(ref.get("band_energy"))
+#|     if not isinstance(sf, dict):
+#|         sf = {}
+#| 
+#|     mapping = {
+#|         "spectral_centroid_hz": sf.get("spectral_centroid_hz"),
+#|         "spectral_rolloff_hz": sf.get("spectral_rolloff_hz"),
+#|         "spectral_flatness": sf.get("spectral_flatness"),
+#|         "dominant_frequency_hz": sf.get("dominant_frequency_hz") or ref.get("dominant_frequency_hz"),
+#|         "band_energy_total": sf.get("total_power_linear"),
+#|         "duration_s": ref.get("duration_s"),
+#|         "periodicity_interval_s": (
+#|             ref.get("periodicity_interval_s")
+#|             or (ref.get("periodicity") or {}).get("interval_s")
+#|         ),
+#|         "impulsiveness": ref.get("impulsiveness"),
+#|         "snr_db": ref.get("snr_db"),
+#|         "rise_time_ms": ref.get("rise_time_ms"),
+#|     }
+#| 
+#|     return vector_from_mapping(mapping)
+#| 
+#| 
+#| def average_vectors(vectors: List[List[float]]) -> Optional[List[float]]:
+#|     vectors = [v for v in vectors if v]
+#|     if not vectors:
+#|         return None
+#|     dim = len(vectors[0])
+#|     vectors = [v for v in vectors if len(v) == dim]
+#|     if not vectors:
+#|         return None
+#|     avg = [statistics.fmean([v[i] for v in vectors]) for i in range(dim)]
+#|     return l2_normalize(avg)
+#| 
+#| 
+#| def sound_speed_m_s(environment: Dict[str, Any]) -> Optional[float]:
+#|     c = to_float(environment.get("sound_speed_m_s"))
+#|     if c is not None and c > 0:
+#|         return c
+#| 
+#|     temp_c = to_float(
+#|         (environment.get("weather") or {}).get("temperature_c")
+#|         or environment.get("temperature_c")
+#|     )
+#|     if temp_c is not None:
+#|         # Standard approximate dry-air speed. Humidity/pressure effects are not invented here.
+#|         c = 331.3 + 0.606 * temp_c
+#|         if c > 0:
+#|             return c
+#| 
+#|     return None
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Policy gate
+#| # -----------------------------------------------------------------------------
+#| 
+#| def policy_block_reasons(case: Dict[str, Any]) -> List[str]:
+#|     reasons: List[str] = []
+#| 
+#|     scanned_parts: List[str] = []
+#|     for key in ("objective", "questions", "scope", "authorization", "requested_outputs", "tags", "next_action_requests"):
+#|         val = case.get(key)
+#|         if val is not None:
+#|             scanned_parts.append(json.dumps(val, ensure_ascii=False, default=str))
+#| 
+#|     text = " ".join(scanned_parts).lower()
+#| 
+#|     for phrase in BLOCK_PHRASES:
+#|         if phrase in text:
+#|             reasons.append(f"Forbidden ACOUSTINT action/request detected: '{phrase}'")
+#| 
+#|     scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+#|     auth = case.get("authorization") if isinstance(case.get("authorization"), dict) else {}
+#|     requested = case.get("requested_outputs") if isinstance(case.get("requested_outputs"), dict) else {}
+#| 
+#|     if scope.get("authorized_only") is not True:
+#|         reasons.append("scope.authorized_only must be true")
+#| 
+#|     if scope.get("passive_only") is False:
+#|         reasons.append("scope.passive_only must be true")
+#| 
+#|     if scope.get("no_person_tracking") is False:
+#|         reasons.append("scope.no_person_tracking must be true")
+#| 
+#|     if scope.get("voice_biometric") is True:
+#|         reasons.append("scope.voice_biometric is prohibited")
+#| 
+#|     if scope.get("covert_recording") is True:
+#|         reasons.append("scope.covert_recording is prohibited")
+#| 
+#|     if scope.get("weapon_targeting") is True:
+#|         reasons.append("scope.weapon_targeting is prohibited")
+#| 
+#|     if scope.get("military_target_localization") is True:
+#|         reasons.append("scope.military_target_localization is prohibited")
+#| 
+#|     if requested.get("person_location") is True:
+#|         reasons.append("requested_outputs.person_location is prohibited")
+#| 
+#|     if requested.get("speaker_identity") is True:
+#|         reasons.append("requested_outputs.speaker_identity is prohibited")
+#| 
+#|     if requested.get("weapon_targeting") is True:
+#|         reasons.append("requested_outputs.weapon_targeting is prohibited")
+#| 
+#|     if not auth.get("lawful_basis"):
+#|         reasons.append("authorization.lawful_basis is missing")
+#| 
+#|     if not auth.get("purpose"):
+#|         reasons.append("authorization.purpose is missing")
+#| 
+#|     return reasons
+#| 
+#| 
+#| def blocked_result(
+#|     case: Dict[str, Any],
+#|     reasons: List[str],
+#|     started: str,
+#|     input_path: Optional[str],
+#|     input_hash: Optional[str],
+#| ) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": case.get("case_id"),
+#|         "task_id": case.get("task_id"),
+#|         "objective": case.get("objective"),
+#|         "status": "POLICY_BLOCKED",
+#|         "policy_block_reasons": reasons,
+#|         "mode": case.get("model_mode", "LOCAL_ONLY"),
+#|         "safety_flags": [
+#|             "NO_COVERT_LISTENING",
+#|             "NO_PRIVATE_SPEECH_INTERCEPTION",
+#|             "NO_VOICE_BIOMETRIC_IDENTIFICATION",
+#|             "NO_PERSON_TRACKING",
+#|             "NO_SONIC_WEAPON",
+#|             "NO_ULTRASONIC_HARASSMENT",
+#|             "NO_WEAPON_TARGETING",
+#|             "NO_SHOOTER_TARGETING",
+#|             "NO_MILITARY_TARGET_LOCALIZATION",
+#|             "NO_SONAR_EVASION",
+#|             "NO_ACOUSTIC_STEALTH_OPTIMIZATION",
+#|             "NO_JAMMING_PUBLIC_SAFETY_ACOUSTIC_SYSTEMS",
+#|         ],
+#|         "privacy_flags": [
+#|             "NO_SPEECH_TRANSCRIPTION_WITHOUT_AUTHORIZATION",
+#|             "NO_SPEAKER_IDENTIFICATION",
+#|             "NO_SENSITIVE_TRAIT_INFERENCE",
+#|             "METADATA_MINIMIZATION",
+#|         ],
+#|         "recommended_next_actions": [
+#|             "Restate objective as authorized passive acoustic event/signature analysis",
+#|             "Use authorized sensor exports with calibration and clock metadata",
+#|             "Hand speech content questions to AUDINT only under separate authorization",
+#|             "Use multi-sensor uncertainty-aware localization for event regions only",
+#|             "Escalate consequential public-safety findings to authorized human responders",
+#|         ],
+#|         "limitations": [
+#|             "Requested or detected use crosses ACOUSTINT defensive boundary.",
+#|             "No covert listening, private speech interception, voice biometrics, person tracking, sonic weapons, targeting, military localization, sonar evasion, or acoustic stealth support is provided.",
+#|         ],
+#|         "replay_manifest": {
+#|             "generated_at": started,
+#|             "finished_at": utcnow_iso(),
+#|             "code_version": VERSION,
+#|             "input_path": input_path,
+#|             "input_sha256": input_hash,
+#|         },
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Validation
+#| # -----------------------------------------------------------------------------
+#| 
+#| def validate_sensors(case: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+#|     issues: List[str] = []
+#|     sensors: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     for idx, s in enumerate(case.get("sensors") or []):
+#|         if not isinstance(s, dict):
+#|             issues.append(f"sensors[{idx}] is not an object")
+#|             continue
+#| 
+#|         sid = s.get("sensor_id")
+#|         if not sid:
+#|             issues.append(f"sensors[{idx}] missing sensor_id")
+#|             continue
+#| 
+#|         cal = str(s.get("calibration_status", "CALIBRATION_UNKNOWN")).strip().upper()
+#|         if cal not in ALLOWED_CALIBRATION:
+#|             issues.append(f"sensor {sid} unknown calibration_status={cal}; set CALIBRATION_UNKNOWN")
+#|             cal = "CALIBRATION_UNKNOWN"
+#|         s["_calibration_status"] = cal
+#| 
+#|         sync = str(s.get("clock_sync_state", "UNKNOWN")).strip().upper()
+#|         if sync not in ALLOWED_SYNC:
+#|             issues.append(f"sensor {sid} unknown clock_sync_state={sync}; set UNKNOWN")
+#|             sync = "UNKNOWN"
+#|         s["_clock_sync_state"] = sync
+#| 
+#|         loc = s.get("position") if isinstance(s.get("position"), dict) else {}
+#|         lat = to_float(loc.get("latitude") if loc.get("latitude") is not None else loc.get("lat"))
+#|         lon = to_float(loc.get("longitude") if loc.get("longitude") is not None else loc.get("lon"))
+#|         alt = to_float(loc.get("altitude_m") if loc.get("altitude_m") is not None else loc.get("alt"))
+#|         pos_acc = to_float(loc.get("accuracy_m") or loc.get("uncertainty_m"))
+#| 
+#|         if lat is not None and not (-90.0 <= lat <= 90.0):
+#|             lat = None
+#|         if lon is not None and not (-180.0 <= lon <= 180.0):
+#|             lon = None
+#| 
+#|         s["_lat"] = lat
+#|         s["_lon"] = lon
+#|         s["_alt"] = alt
+#|         s["_position_accuracy_m"] = pos_acc
+#| 
+#|         if lat is None or lon is None:
+#|             add_flag(s, "sensor_position_missing")
+#| 
+#|         if cal != "CALIBRATED":
+#|             add_flag(s, "uncalibrated" if cal == "UNCALIBRATED" else cal.lower())
+#| 
+#|         if sync == "UNSYNCHRONIZED":
+#|             add_flag(s, "clock_unsynchronized")
+#| 
+#|         sensors[sid] = s
+#| 
+#|     if not sensors:
+#|         issues.append("No authorized acoustic sensors supplied")
+#| 
+#|     return sensors, issues
+#| 
+#| 
+#| def validate_recordings(
+#|     case: Dict[str, Any],
+#|     sensors: Dict[str, Dict[str, Any]],
+#| ) -> Tuple[Dict[str, Dict[str, Any]], List[str], List[str]]:
+#|     issues: List[str] = []
+#|     warnings: List[str] = []
+#|     recordings: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     signal_quality = case.get("signal_quality") if isinstance(case.get("signal_quality"), dict) else {}
+#| 
+#|     for idx, r in enumerate(case.get("recordings") or []):
+#|         if not isinstance(r, dict):
+#|             issues.append(f"recordings[{idx}] is not an object")
+#|             continue
+#| 
+#|         rid = r.get("recording_id") or f"REC-{idx + 1}"
+#|         r["recording_id"] = rid
+#| 
+#|         sid = r.get("sensor_id")
+#|         if sid not in sensors:
+#|             issues.append(f"recording {rid} references unknown sensor_id={sid}")
+#| 
+#|         sensor = sensors.get(sid, {})
+#| 
+#|         start = parse_dt(r.get("start_time"))
+#|         end = parse_dt(r.get("end_time"))
+#|         if start and end and end < start:
+#|             issues.append(f"recording {rid} has end_time before start_time")
+#| 
+#|         r["_start"] = start
+#|         r["_end"] = end
+#| 
+#|         sr = to_float(r.get("sample_rate_hz") or r.get("sample_rate") or sensor.get("sample_rate_hz"))
+#|         r["_sample_rate_hz"] = sr
+#|         if sr is not None and sr <= 0:
+#|             add_flag(r, "invalid_sample_rate")
+#|             r["_sample_rate_hz"] = None
+#| 
+#|         r["_nyquist_hz"] = (r["_sample_rate_hz"] / 2.0) if r["_sample_rate_hz"] else None
+#| 
+#|         if not r.get("content_hash"):
+#|             add_flag(r, "provenance_missing")
+#| 
+#|         sq = signal_quality.get(rid, {}) if isinstance(signal_quality.get(rid), dict) else {}
+#|         for k, v in sq.items():
+#|             r.setdefault(k, v)
+#| 
+#|         r["_noise_floor_db"] = to_float(r.get("noise_floor_db") or r.get("noise_floor_dbfs"))
+#|         r["_snr_db"] = to_float(r.get("snr_db"))
+#|         r["_clipping"] = bool(r.get("clipping_detected") or r.get("clipping"))
+#|         r["_saturation"] = bool(r.get("saturation"))
+#|         r["_dropout"] = bool(r.get("dropout_detected") or r.get("dropout"))
+#|         r["_agc_active"] = bool(r.get("agc_active") or r.get("agc"))
+#|         r["_lossy_compression"] = bool(r.get("lossy_compression") or r.get("lossy"))
+#|         r["_generated_or_reconstructed"] = bool(r.get("generated_or_reconstructed_audio") or r.get("generated_audio"))
+#|         r["_synthetic_indicators"] = bool(r.get("synthetic_indicators_present") or r.get("synthetic_candidate"))
+#|         r["_metadata_time_uncertainty_s"] = to_float(r.get("metadata_time_uncertainty_s"))
+#| 
+#|         if r["_clipping"]:
+#|             add_flag(r, "clipping")
+#|         if r["_saturation"]:
+#|             add_flag(r, "saturation")
+#|         if r["_dropout"]:
+#|             add_flag(r, "dropout")
+#|         if r["_agc_active"]:
+#|             add_flag(r, "agc_active")
+#|         if r["_lossy_compression"]:
+#|             add_flag(r, "lossy_compression")
+#|         if r["_generated_or_reconstructed"]:
+#|             add_flag(r, "generated_audio")
+#|         if r["_synthetic_indicators"]:
+#|             add_flag(r, "synthetic_candidate")
+#|         if r["_snr_db"] is not None and r["_snr_db"] < 3.0:
+#|             add_flag(r, "low_snr")
+#| 
+#|         if sensor.get("_clock_sync_state") == "UNSYNCHRONIZED":
+#|             add_flag(r, "clock_unsynchronized")
+#| 
+#|         if sensor.get("_calibration_status") in ("UNCALIBRATED", "CALIBRATION_UNKNOWN"):
+#|             add_flag(r, sensor.get("_calibration_status", "calibration_unknown").lower())
+#| 
+#|         if r.get("absolute_spl_claimed") is True:
+#|             if sensor.get("_calibration_status") != "CALIBRATED" or not r.get("gain") or not r.get("reference_pressure"):
+#|                 add_flag(r, "absolute_spl_unsupported")
+#|                 warnings.append(f"recording {rid}: absolute SPL claimed without sufficient calibration/gain/reference metadata")
+#| 
+#|         recordings[rid] = r
+#| 
+#|     if not recordings:
+#|         issues.append("No recordings supplied")
+#| 
+#|     return recordings, issues, warnings
+#| 
+#| 
+#| def validate_events(
+#|     case: Dict[str, Any],
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     recordings: Dict[str, Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+#|     issues: List[str] = []
+#|     warnings: List[str] = []
+#|     events: List[Dict[str, Any]] = []
+#| 
+#|     for idx, ev in enumerate(case.get("acoustic_events") or []):
+#|         if not isinstance(ev, dict):
+#|             issues.append(f"acoustic_events[{idx}] is not an object")
+#|             continue
+#| 
+#|         eid = ev.get("event_id") or f"EVT-{idx + 1}"
+#|         ev["event_id"] = eid
+#| 
+#|         rid = ev.get("recording_id")
+#|         if rid and rid not in recordings:
+#|             issues.append(f"event {eid} references unknown recording_id={rid}")
+#| 
+#|         rec = recordings.get(rid, {}) if rid else {}
+#|         sensor_ids = [x for x in ensure_list(ev.get("sensor_ids")) if x]
+#|         if not sensor_ids and rec.get("sensor_id"):
+#|             sensor_ids = [rec["sensor_id"]]
+#|         ev["_sensor_ids"] = sensor_ids
+#| 
+#|         for sid in sensor_ids:
+#|             if sid not in sensors:
+#|                 issues.append(f"event {eid} references unknown sensor_id={sid}")
+#| 
+#|         start = parse_dt(ev.get("start_time"))
+#|         end = parse_dt(ev.get("end_time"))
+#|         if start is None and rec.get("_start") is not None:
+#|             # Recording start is not event onset. Preserve as recording window only.
+#|             ev["_recording_start"] = rec.get("_start")
+#|             add_flag(ev, "missing_event_time")
+#|         else:
+#|             ev["_recording_start"] = rec.get("_start")
+#| 
+#|         if start and end and end < start:
+#|             issues.append(f"event {eid} has end_time before start_time")
+#| 
+#|         ev["_start"] = start
+#|         ev["_end"] = end
+#| 
+#|         duration = to_float(ev.get("duration_s") or ev.get("duration"))
+#|         if duration is None and start and end:
+#|             duration = (end - start).total_seconds()
+#|         ev["_duration_s"] = duration
+#|         if duration is not None and duration < 0:
+#|             add_flag(ev, "negative_duration")
+#| 
+#|         event_types = [str(x).strip().upper() for x in ensure_list(ev.get("event_type_candidate") or ev.get("event_types")) if x]
+#|         unknown_types = [t for t in event_types if t not in EVENT_TYPES]
+#|         if unknown_types:
+#|             warnings.append(f"event {eid} has unknown event_type_candidate(s): {unknown_types}")
+#|         ev["_event_types"] = event_types or ["UNKNOWN"]
+#| 
+#|         source_categories = [str(x).strip().lower() for x in ensure_list(ev.get("source_category") or ev.get("source_categories")) if x]
+#|         derived_categories = [TYPE_TO_CATEGORY.get(t, "unknown") for t in ev["_event_types"]]
+#|         ev["_source_categories"] = sorted(set(source_categories + derived_categories)) or ["unknown"]
+#| 
+#|         freq_range = ev.get("frequency_range_hz")
+#|         if isinstance(freq_range, list) and len(freq_range) >= 2:
+#|             ev["_freq_min_hz"] = to_float(freq_range[0])
+#|             ev["_freq_max_hz"] = to_float(freq_range[1])
+#|         else:
+#|             ev["_freq_min_hz"] = to_float(ev.get("frequency_min_hz"))
+#|             ev["_freq_max_hz"] = to_float(ev.get("frequency_max_hz"))
+#| 
+#|         dominant = [to_float(x) for x in ensure_list(ev.get("dominant_frequencies_hz") or ev.get("dominant_frequency_hz"))]
+#|         ev["_dominant_frequencies_hz"] = [x for x in dominant if x is not None]
+#| 
+#|         # Nyquist check using available sample rates.
+#|         sample_rates = []
+#|         if rec.get("_nyquist_hz") is not None:
+#|             sample_rates.append(rec["_nyquist_hz"])
+#|         for sid in sensor_ids:
+#|             s = sensors.get(sid, {})
+#|             sr = to_float(s.get("sample_rate_hz"))
+#|             if sr:
+#|                 sample_rates.append(sr / 2.0)
+#| 
+#|         nyq = min(sample_rates) if sample_rates else None
+#|         ev["_nyquist_hz"] = nyq
+#|         if nyq is not None:
+#|             for f in [ev.get("_freq_max_hz")] + ev.get("_dominant_frequencies_hz", []):
+#|                 if f is not None and f > nyq * 1.001:
+#|                     add_flag(ev, "above_nyquist")
+#|                     warnings.append(f"event {eid}: frequency {f} Hz exceeds supplied Nyquist limit {nyq} Hz")
+#|                     break
+#| 
+#|         spectral_features = ev.get("spectral_features")
+#|         if not isinstance(spectral_features, dict):
+#|             spectral_features = extract_spectral_features_from_bands(ev.get("band_energy"))
+#|         ev["_spectral_features"] = spectral_features or {}
+#| 
+#|         ev["_snr_db"] = to_float(ev.get("snr_db") or rec.get("_snr_db"))
+#|         ev["_impulsiveness"] = to_float(ev.get("impulsiveness"))
+#|         ev["_rise_time_ms"] = to_float(ev.get("rise_time_ms"))
+#|         ev["_periodicity_interval_s"] = to_float(
+#|             ev.get("periodicity_interval_s")
+#|             or (ev.get("periodicity") or {}).get("interval_s")
+#|         )
+#| 
+#|         ev["_classification_confidence"] = to_float(ev.get("classification_confidence"))
+#|         ev["_classifier_model"] = ev.get("classifier_model")
+#|         ev["_classifier_version"] = ev.get("classifier_version")
+#|         ev["_ood_candidate"] = bool(ev.get("ood_candidate") or ev.get("out_of_distribution"))
+#| 
+#|         if ev["_ood_candidate"]:
+#|             add_flag(ev, "model_ood")
+#| 
+#|         # Copy recording quality flags into event, but do not erase event-specific flags.
+#|         for flag in rec.get("_quality_flags", []):
+#|             add_flag(ev, flag)
+#| 
+#|         if any(t in PERSON_RELATED_EVENT_TYPES for t in ev["_event_types"]):
+#|             add_flag(ev, "speech_or_human_activity_present")
+#| 
+#|         ev["_feature_vector"] = build_event_vector(ev)
+#|         ev["_source_ids"] = [x for x in ensure_list(ev.get("source_id") or ev.get("source_ids")) if x]
+#|         ev["_evidence_ids"] = [x for x in ensure_list(ev.get("evidence_id") or ev.get("evidence_ids")) if x]
+#| 
+#|         events.append(ev)
+#| 
+#|     if not events:
+#|         issues.append("No acoustic events supplied")
+#| 
+#|     return events, issues, warnings
+#| 
+#| 
+#| def validate_doa(
+#|     case: Dict[str, Any],
+#|     sensors: Dict[str, Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], List[str]]:
+#|     issues: List[str] = []
+#|     observations: List[Dict[str, Any]] = []
+#| 
+#|     for idx, d in enumerate(case.get("doa_observations") or []):
+#|         if not isinstance(d, dict):
+#|             issues.append(f"doa_observations[{idx}] is not an object")
+#|             continue
+#| 
+#|         oid = d.get("observation_id") or f"DOA-{idx + 1}"
+#|         d["observation_id"] = oid
+#| 
+#|         sid = d.get("sensor_id") or d.get("array_id")
+#|         d["_sensor_id"] = sid
+#|         sensor = sensors.get(sid, {})
+#| 
+#|         bearing = normalize_deg(d.get("bearing_deg") or d.get("azimuth_deg"))
+#|         unc = to_float(d.get("bearing_uncertainty_deg") or d.get("uncertainty_deg"))
+#|         ts = parse_dt(d.get("timestamp"))
+#| 
+#|         d["_bearing_deg"] = bearing
+#|         d["_uncertainty_deg"] = unc
+#|         d["_timestamp"] = ts
+#|         d["_event_id"] = d.get("event_id")
+#|         d["_lat"] = sensor.get("_lat")
+#|         d["_lon"] = sensor.get("_lon")
+#|         d["_position_accuracy_m"] = sensor.get("_position_accuracy_m")
+#| 
+#|         if bearing is None:
+#|             issues.append(f"DOA {oid} missing valid bearing_deg")
+#|             continue
+#|         if d["_lat"] is None or d["_lon"] is None:
+#|             add_flag(d, "sensor_position_missing")
+#|         if unc is None:
+#|             add_flag(d, "doa_uncertainty_missing")
+#|         if sensor.get("_clock_sync_state") == "UNSYNCHRONIZED":
+#|             add_flag(d, "clock_unsynchronized")
+#| 
+#|         observations.append(d)
+#| 
+#|     return observations, issues
+#| 
+#| 
+#| def validate_tdoa(
+#|     case: Dict[str, Any],
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     environment: Dict[str, Any],
+#| ) -> Tuple[List[Dict[str, Any]], List[str]]:
+#|     issues: List[str] = []
+#|     observations: List[Dict[str, Any]] = []
+#|     c = sound_speed_m_s(environment)
+#| 
+#|     for idx, t in enumerate(case.get("tdoa_observations") or []):
+#|         if not isinstance(t, dict):
+#|             issues.append(f"tdoa_observations[{idx}] is not an object")
+#|             continue
+#| 
+#|         oid = t.get("observation_id") or f"TDOA-{idx + 1}"
+#|         t["observation_id"] = oid
+#| 
+#|         pair = t.get("sensor_pair") or t.get("sensor_ids")
+#|         if isinstance(pair, list) and len(pair) >= 2:
+#|             s1, s2 = pair[0], pair[1]
+#|         else:
+#|             s1 = t.get("sensor_id_1")
+#|             s2 = t.get("sensor_id_2")
+#| 
+#|         t["_sensor_pair"] = [s1, s2]
+#|         t["_event_id"] = t.get("event_id")
+#|         t["_timestamp"] = parse_dt(t.get("timestamp"))
+#|         t["_time_difference_s"] = to_float(t.get("time_difference_s") or t.get("tdoa_s"))
+#|         t["_uncertainty_s"] = to_float(t.get("uncertainty_s") or t.get("time_uncertainty_s"))
+#|         t["_sound_speed_m_s"] = to_float(t.get("sound_speed_m_s")) or c
+#| 
+#|         for sid in [s1, s2]:
+#|             sensor = sensors.get(sid, {})
+#|             if sensor.get("_lat") is None or sensor.get("_lon") is None:
+#|                 add_flag(t, "sensor_position_missing")
+#|             if sensor.get("_clock_sync_state") == "UNSYNCHRONIZED":
+#|                 add_flag(t, "clock_unsynchronized")
+#| 
+#|         if t["_time_difference_s"] is None:
+#|             issues.append(f"TDOA {oid} missing time_difference_s")
+#|             continue
+#|         if t["_uncertainty_s"] is None:
+#|             add_flag(t, "tdoa_uncertainty_missing")
+#|         if t["_sound_speed_m_s"] is None:
+#|             add_flag(t, "tdoa_sound_speed_missing")
+#| 
+#|         observations.append(t)
+#| 
+#|     return observations, issues
+#| 
+#| 
+#| def validate_supplied_location_candidates(
+#|     case: Dict[str, Any],
+#| ) -> List[Dict[str, Any]]:
+#|     candidates: List[Dict[str, Any]] = []
+#| 
+#|     for idx, c in enumerate(case.get("localization_candidates") or []):
+#|         if not isinstance(c, dict):
+#|             continue
+#|         cid = c.get("candidate_id") or f"LOC-{idx + 1}"
+#|         c["candidate_id"] = cid
+#|         c["_lat"] = to_float(c.get("latitude") or c.get("lat"))
+#|         c["_lon"] = to_float(c.get("longitude") or c.get("lon"))
+#|         c["_uncertainty_radius_m"] = to_float(c.get("uncertainty_radius_m") or c.get("radius_m"))
+#|         c["_event_id"] = c.get("event_id")
+#|         c["_cluster_id"] = c.get("cluster_id")
+#|         c["_timestamp"] = parse_dt(c.get("timestamp"))
+#|         c["_method"] = str(c.get("method", "SUPPLIED_DETERMINISTIC_SOLVER")).upper()
+#|         c["_confidence"] = str(c.get("confidence", "UNKNOWN")).upper()
+#|         c["_precision"] = str(c.get("precision", "UNKNOWN")).upper()
+#|         candidates.append(c)
+#| 
+#|     return candidates
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Independence / duplication
+#| # -----------------------------------------------------------------------------
+#| 
+#| def sensor_independence(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+#|     if not a or not b:
+#|         return "UNKNOWN"
+#|     if a.get("sensor_id") == b.get("sensor_id"):
+#|         return "DEPENDENT"
+#| 
+#|     shared_keys = [
+#|         "upstream_recording_id",
+#|         "processor_id",
+#|         "array_id",
+#|         "independence_group",
+#|         "calibration_reference",
+#|     ]
+#| 
+#|     for k in shared_keys:
+#|         av = a.get(k)
+#|         bv = b.get(k)
+#|         if av is not None and bv is not None and av == bv:
+#|             return "DEPENDENT"
+#| 
+#|     if a.get("clock_source") is not None and a.get("clock_source") == b.get("clock_source"):
+#|         # Same clock can still be independent sensors, but evidence pedigree is weaker.
+#|         return "PARTIALLY_DEPENDENT"
+#| 
+#|     if a.get("_lat") is None or b.get("_lat") is None:
+#|         return "UNKNOWN"
+#| 
+#|     if a.get("sensor_type") == b.get("sensor_type") and a.get("platform") == b.get("platform"):
+#|         return "PARTIALLY_DEPENDENT"
+#| 
+#|     return "INDEPENDENT"
+#| 
+#| 
+#| def recording_independence(ra: Dict[str, Any], rb: Dict[str, Any]) -> str:
+#|     if not ra or not rb:
+#|         return "UNKNOWN"
+#|     if ra.get("recording_id") == rb.get("recording_id"):
+#|         return "DEPENDENT"
+#|     ha = ra.get("content_hash")
+#|     hb = rb.get("content_hash")
+#|     if ha and hb and ha == hb:
+#|         return "DEPENDENT"
+#|     sa = ra.get("segment_hash")
+#|     sb = rb.get("segment_hash")
+#|     if sa and sb and sa == sb:
+#|         return "PARTIALLY_DEPENDENT"
+#|     if ra.get("upstream_recording_id") and ra.get("upstream_recording_id") == rb.get("upstream_recording_id"):
+#|         return "DEPENDENT"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def summarize_independence(
+#|     sensor_ids: List[str],
+#|     recording_ids: List[str],
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     recordings: Dict[str, Dict[str, Any]],
+#| ) -> str:
+#|     ids = [s for s in sensor_ids if s]
+#|     if len(ids) < 2:
+#|         return "SINGLE_SENSOR"
+#| 
+#|     states: List[str] = []
+#| 
+#|     for i in range(len(ids)):
+#|         for j in range(i + 1, len(ids)):
+#|             states.append(sensor_independence(sensors.get(ids[i], {}), sensors.get(ids[j], {})))
+#| 
+#|     rids = [r for r in recording_ids if r]
+#|     for i in range(len(rids)):
+#|         for j in range(i + 1, len(rids)):
+#|             states.append(recording_independence(recordings.get(rids[i], {}), recordings.get(rids[j], {})))
+#| 
+#|     if all(s == "INDEPENDENT" for s in states):
+#|         return "INDEPENDENT"
+#|     if any(s == "DEPENDENT" for s in states):
+#|         return "DEPENDENT_OR_UNKNOWN"
+#|     if any(s == "PARTIALLY_DEPENDENT" for s in states):
+#|         return "PARTIALLY_DEPENDENT"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def detect_duplicate_recordings(recordings: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by_hash: Dict[str, List[str]] = defaultdict(list)
+#|     duplicates: List[Dict[str, Any]] = []
+#| 
+#|     for rid, r in recordings.items():
+#|         h = r.get("content_hash")
+#|         if h:
+#|             by_hash[h].append(rid)
+#| 
+#|     for h, rids in by_hash.items():
+#|         if len(rids) > 1:
+#|             duplicates.append(
+#|                 {
+#|                     "content_hash": h,
+#|                     "recording_ids": sorted(rids),
+#|                     "independence_state": "DEPENDENT",
+#|                     "note": "Multiple recording IDs share the same content hash. These are copies, not independent acoustic evidence.",
+#|                 }
+#|             )
+#| 
+#|     return duplicates
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Event correlation
+#| # -----------------------------------------------------------------------------
+#| 
+#| def time_overlap_or_close(a: Dict[str, Any], b: Dict[str, Any], window_s: float) -> bool:
+#|     a_start = a.get("_start")
+#|     a_end = a.get("_end") or a_start
+#|     b_start = b.get("_start")
+#|     b_end = b.get("_end") or b_start
+#| 
+#|     if not a_start or not b_start:
+#|         return False
+#| 
+#|     # If intervals exist, check overlap or proximity.
+#|     if a_end and b_end:
+#|         if a_start <= b_end and b_start <= a_end:
+#|             return True
+#| 
+#|     delta = abs((a_start - b_start).total_seconds())
+#|     return delta <= window_s
+#| 
+#| 
+#| def event_types_compatible(a: List[str], b: List[str]) -> bool:
+#|     sa = set(a)
+#|     sb = set(b)
+#|     if "UNKNOWN" in sa or "UNKNOWN" in sb:
+#|         return True
+#|     return bool(sa & sb)
+#| 
+#| 
+#| def source_categories_compatible(a: List[str], b: List[str]) -> bool:
+#|     sa = set(a)
+#|     sb = set(b)
+#|     if "unknown" in sa or "unknown" in sb:
+#|         return True
+#|     return bool(sa & sb)
+#| 
+#| 
+#| def correlate_events(
+#|     events: List[Dict[str, Any]],
+#|     supplied_correlations: List[Dict[str, Any]],
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     recordings: Dict[str, Dict[str, Any]],
+#|     settings: Dict[str, float],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     clusters: List[Dict[str, Any]] = []
+#|     contradictions: List[Dict[str, Any]] = []
+#|     event_by_id = {e.get("event_id"): e for e in events}
+#|     used_event_ids: set = set()
+#| 
+#|     # 1) Use supplied multi-sensor correlations first.
+#|     for idx, corr in enumerate(supplied_correlations or [], 1):
+#|         if not isinstance(corr, dict):
+#|             continue
+#|         eids = [x for x in ensure_list(corr.get("event_ids")) if x in event_by_id]
+#|         if len(eids) < 2:
+#|             continue
+#| 

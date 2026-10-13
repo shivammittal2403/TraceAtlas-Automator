@@ -1,0 +1,1000 @@
+#|         safety_notes.append(
+#|             "Third-party/supply-chain context detected. Do not incorrectly label customer infrastructure breached without evidence."
+#|         )
+#| 
+#|     path_fields = [
+#|         "breach_claim_paths",
+#|         "dataset_metadata_paths",
+#|         "credential_exposure_paths",
+#|         "ransomware_leak_paths",
+#|         "exposure_report_paths",
+#|         "incident_data_paths",
+#|         "historical_breach_paths",
+#|         "combo_list_paths",
+#|         "stealer_log_paths",
+#|         "supply_chain_paths",
+#|         "repository_exposure_paths",
+#|         "cloud_exposure_paths",
+#|         "document_exposure_paths",
+#|         "source_code_exposure_paths",
+#|         "stix_misp_paths",
+#|     ]
+#| 
+#|     if any(payload.get(f) for f in path_fields):
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Breach evidence file context detected. Source claims are untrusted evidence, not verified breach, dataset authenticity, record count, origin, credential validity, or actor attribution."
+#|         )
+#| 
+#|     if blocked_reasons:
+#|         return {
+#|             "status": "POLICY_BLOCKED",
+#|             "reasons": sorted(set(blocked_reasons)),
+#|             "human_review_required": True,
+#|             "safety_notes": safety_notes,
+#|             "explanation": (
+#|                 "The requested task appears to require purchasing stolen data/credentials/access, testing/logging in with credentials, replaying tokens, "
+#|                 "contacting sellers/actors, negotiating ransoms, downloading unnecessary full stolen datasets, redistributing sensitive data, "
+#|                 "unauthorized access, exploitation, or credential stuffing."
+#|             ),
+#|             "safe_alternatives": SAFE_ALTERNATIVES,
+#|         }
+#| 
+#|     if human_review_required:
+#|         return {
+#|             "status": "HUMAN_REVIEW_REQUIRED",
+#|             "reasons": [],
+#|             "human_review_required": True,
+#|             "safety_notes": safety_notes,
+#|             "explanation": (
+#|                 "No obvious hard policy violation detected, but sensitive breach, dataset, credential, ransomware, incident, third-party, supply-chain, repository, cloud, document, or personal-data context applies. "
+#|                 "Conclusions must remain defensive, privacy-aware, evidence-linked, and human-reviewed before consequential notification, legal action, or remediation."
+#|             ),
+#|             "safe_alternatives": SAFE_ALTERNATIVES,
+#|         }
+#| 
+#|     return {
+#|         "status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+#|         "reasons": [],
+#|         "human_review_required": False,
+#|         "safety_notes": [],
+#|         "explanation": (
+#|             "No obvious policy violation detected. Execution remains planning-only unless authorized/public/licensed breach, dataset, credential, ransomware, incident, historical breach, or STIX/MISP connectors/artifacts are configured."
+#|         ),
+#|         "safe_alternatives": [],
+#|     }
+#| 
+#| 
+#| def validate_payload(payload: Dict[str, Any]) -> List[str]:
+#|     warnings: List[str] = []
+#| 
+#|     required = ["case_id", "task_id", "objective", "target", "target_type"]
+#|     for field in required:
+#|         if not payload.get(field):
+#|             warnings.append(f"Missing required field: {field}")
+#| 
+#|     if not payload.get("questions"):
+#|         warnings.append("No BREACHINT questions provided. Default questions will be inferred.")
+#| 
+#|     evidence_keys = [
+#|         "organizations",
+#|         "brands",
+#|         "domains",
+#|         "email_domains",
+#|         "subsidiaries",
+#|         "third_parties",
+#|         "suppliers",
+#|         "breach_claims",
+#|         "dataset_claims",
+#|         "credential_claims",
+#|         "ransomware_claims",
+#|         "exposure_sources",
+#|         "incident_context",
+#|         "known_accounts_if_authorized",
+#|         "known_assets_if_authorized",
+#|         "breach_claim_paths",
+#|         "dataset_metadata_paths",
+#|         "credential_exposure_paths",
+#|         "ransomware_leak_paths",
+#|         "exposure_report_paths",
+#|         "incident_data_paths",
+#|         "historical_breach_paths",
+#|         "combo_list_paths",
+#|         "stealer_log_paths",
+#|         "supply_chain_paths",
+#|         "repository_exposure_paths",
+#|         "cloud_exposure_paths",
+#|         "document_exposure_paths",
+#|         "source_code_exposure_paths",
+#|         "stix_misp_paths",
+#|     ]
+#| 
+#|     if not any(payload.get(k) for k in evidence_keys):
+#|         warnings.append("No breach/dataset/credential/ransomware/incident/historical/supply-chain/repository/cloud/document evidence provided. Output remains planning-only.")
+#| 
+#|     if not payload.get("time_range"):
+#|         warnings.append("No time range provided. Breach freshness, dataset lineage, credential currency, and publication timeline are temporal.")
+#| 
+#|     if not payload.get("configured_connectors"):
+#|         warnings.append("No breach-monitoring/credential-monitoring/STIX/MISP/incident connectors configured. External correlation remains planning-only.")
+#| 
+#|     if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+#|         warnings.append(
+#|             "Sensitive breach/exposure context triggers defensive/privacy/legal controls. "
+#|             "No purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full stolen-dataset acquisition, redistribution, unauthorized access, or exploitation is permitted."
+#|         )
+#| 
+#|     return warnings
+#| 
+#| 
+#| def default_questions(payload: Dict[str, Any]) -> List[str]:
+#|     return [
+#|         "What breach/exposure is being claimed, by whom, and when?",
+#|         "Which organization/entity is allegedly affected, and is organization identity correctly resolved?",
+#|         "Does evidence support a real breach, or only a claim/sample/listing?",
+#|         "Is the exposure likely first-party, third-party, supply-chain, combo list, stealer log, public/scraped, recycled, or unknown?",
+#|         "What data categories are claimed versus actually observed/verified at metadata level?",
+#|         "What record count is claimed, observed in sample, estimated unique, and verified if authorized?",
+#|         "Are credentials/secrets exposed, and are they current, historical, reused, or validity unknown?",
+#|         "Are samples authentic, fabricated, public, recycled, or inconclusive?",
+#|         "Are multiple sources independent, or reposts/aggregators/mirrors of one claim?",
+#|         "What incident telemetry/identity/cloud/DLP evidence is needed for corroboration?",
+#|         "What privacy/legal flags apply, and what human review is required?",
+#|         "What defensive actions should be prioritized without testing or using exposed secrets?",
+#|         "What remains unknown, and what next authorized action provides the most defensive value?",
+#|     ]
+#| 
+#| 
+#| class TraceAtlasBREACHINTPanel(tk.Tk):
+#|     def __init__(self) -> None:
+#|         super().__init__()
+#|         self.title(APP_TITLE)
+#|         self.geometry("1380x940")
+#|         self.minsize(1100, 760)
+#| 
+#|         self.entries: Dict[str, Any] = {}
+#|         self.last_result: Dict[str, Any] = {}
+#| 
+#|         self.analyzed_files: List[Dict[str, Any]] = []
+#|         self.parsed: Dict[str, Any] = empty_parsed()
+#| 
+#|         self._configure_style()
+#|         self._build_ui()
+#|         self._set_defaults()
+#| 
+#|     def _configure_style(self) -> None:
+#|         style = ttk.Style(self)
+#| 
+#|         try:
+#|             style.theme_use("clam")
+#|         except tk.TclError:
+#|             pass
+#| 
+#|         self.configure(bg="#0b0f19")
+#| 
+#|         style.configure("TFrame", background="#0b0f19")
+#|         style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+#|         style.configure(
+#|             "Header.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#fb7185",
+#|             font=("Segoe UI", 17, "bold"),
+#|         )
+#|         style.configure(
+#|             "Subheader.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#94a3b8",
+#|             font=("Segoe UI", 9),
+#|         )
+#|         style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+#|         style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+#| 
+#|         style.configure(
+#|             "TEntry",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             insertcolor="#ffffff",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TCombobox",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             arrowcolor="#e5e7eb",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TButton",
+#|             padding=7,
+#|             font=("Segoe UI", 10, "bold"),
+#|             background="#1f2937",
+#|             foreground="#e5e7eb",
+#|             bordercolor="#475569",
+#|             lightcolor="#475569",
+#|             darkcolor="#475569",
+#|         )
+#| 
+#|         style.map(
+#|             "TButton",
+#|             background=[("active", "#334155")],
+#|             foreground=[("active", "#ffffff")],
+#|         )
+#| 
+#|         style.configure(
+#|             "Vertical.TScrollbar",
+#|             background="#1f2937",
+#|             troughcolor="#0b0f19",
+#|             arrowcolor="#e5e7eb",
+#|         )
+#| 
+#|     def _build_ui(self) -> None:
+#|         header = ttk.Frame(self)
+#|         header.pack(fill="x", padx=16, pady=(14, 8))
+#| 
+#|         ttk.Label(header, text="TraceAtlas BREACHINT AI Employee", style="Header.TLabel").pack(anchor="w")
+#| 
+#|         ttk.Label(
+#|             header,
+#|             text=(
+#|                 "Defensive / authorized / privacy-aware / evidence-first breach intelligence • Planning-only by default • "
+#|                 "Local deterministic JSON/CSV/TXT breach/dataset/credential/ransomware metadata parsing only • "
+#|                 "No purchase / credential testing / login / token replay / seller contact / ransomware negotiation / full stolen-dataset acquisition / redistribution / unauthorized access / exploitation • "
+#|                 "Claim != verified breach • sample != full dataset • email domain != first-party breach • stealer log != website breach"
+#|             ),
+#|             style="Subheader.TLabel",
+#|             wraplength=1280,
+#|             justify="left",
+#|         ).pack(anchor="w", pady=(2, 0))
+#| 
+#|         self.notebook = ttk.Notebook(self)
+#|         self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+#| 
+#|         self.input_tab = ttk.Frame(self.notebook)
+#|         self.output_tab = ttk.Frame(self.notebook)
+#| 
+#|         self.notebook.add(self.input_tab, text="BREACHINT Task Input")
+#|         self.notebook.add(self.output_tab, text="Output / BREACHINT Plan / Evidence")
+#| 
+#|         self._build_input_tab()
+#|         self._build_output_tab()
+#| 
+#|     def _build_input_tab(self) -> None:
+#|         container = ttk.Frame(self.input_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+#|         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+#|         self.form = ttk.Frame(self.canvas)
+#| 
+#|         self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+#|         self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+#|         self.canvas.configure(yscrollcommand=scrollbar.set)
+#| 
+#|         self.canvas.pack(side="left", fill="both", expand=True)
+#|         scrollbar.pack(side="right", fill="y")
+#| 
+#|         row = 0
+#| 
+#|         for key, label, kind in FIELDS:
+#|             ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+#| 
+#|             if kind == "entry":
+#|                 widget = ttk.Entry(self.form, width=102)
+#| 
+#|             elif kind == "combo":
+#|                 widget = ttk.Combobox(
+#|                     self.form,
+#|                     values=TARGET_TYPES if key == "target_type" else [],
+#|                     width=100,
+#|                     state="readonly",
+#|                 )
+#| 
+#|             else:
+#|                 widget = tk.Text(
+#|                     self.form,
+#|                     height=3,
+#|                     width=102,
+#|                     bg="#111827",
+#|                     fg="#e5e7eb",
+#|                     insertbackground="white",
+#|                     relief="flat",
+#|                     highlightthickness=1,
+#|                     highlightbackground="#334155",
+#|                     font=("Segoe UI", 10),
+#|                     wrap="word",
+#|                 )
+#| 
+#|             widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+#|             self.entries[key] = widget
+#|             row += 1
+#| 
+#|         self.form.columnconfigure(1, weight=1)
+#| 
+#|         buttons1 = ttk.Frame(self.input_tab)
+#|         buttons1.pack(fill="x", padx=10, pady=(12, 4))
+#| 
+#|         buttons2 = ttk.Frame(self.input_tab)
+#|         buttons2.pack(fill="x", padx=10, pady=(0, 12))
+#| 
+#|         ttk.Button(buttons1, text="Add Breach Claims", command=self.add_breach_claims).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Dataset Metadata", command=self.add_dataset_metadata).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Credential Exposure", command=self.add_credential_exposure).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Ransomware Leak", command=self.add_ransomware_leak).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Exposure Reports", command=self.add_exposure_reports).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Incident Data", command=self.add_incident_data).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Historical Breaches", command=self.add_historical_breaches).pack(side="left", padx=4)
+#| 
+#|         ttk.Button(buttons2, text="Add Combo / Stealer Metadata", command=self.add_combo_stealer).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Add Supply Chain / Repo / Cloud / Docs", command=self.add_supply_repo_cloud_docs).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Add STIX / MISP", command=self.add_stix_misp).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Analyze Local BREACHINT Evidence", command=self.analyze_local_breachint).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Generate BREACHINT Plan", command=self.generate_plan).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+#| 
+#|     def _build_output_tab(self) -> None:
+#|         container = ttk.Frame(self.output_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.output = tk.Text(
+#|             container,
+#|             wrap="word",
+#|             bg="#020617",
+#|             fg="#fecdd3",
+#|             insertbackground="white",
+#|             relief="flat",
+#|             highlightthickness=1,
+#|             highlightbackground="#334155",
+#|             font=("Consolas", 11),
+#|         )
+#| 
+#|         output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+#|         self.output.configure(yscrollcommand=output_scroll.set)
+#| 
+#|         self.output.pack(side="left", fill="both", expand=True)
+#|         output_scroll.pack(side="right", fill="y")
+#| 
+#|     def _set_defaults(self) -> None:
+#|         self.set_widget_value("case_id", "BREACHINT-CASE-001")
+#|         self.set_widget_value("task_id", "BREACHINT-TASK-001")
+#|         self.set_widget_value(
+#|             "objective",
+#|             "Analyze authorized or publicly documented breach/exposure intelligence using defensive, privacy-aware, evidence-first BREACHINT methods. "
+#|             "Preserve originals, parse safe breach/dataset/credential/ransomware/incident metadata deterministically, resolve organizations cautiously, separate claim from fact, "
+#|             "analyze dataset fingerprints/lineage/deduplication, distinguish first-party vs third-party/supply-chain/combo/stealer/public/recycled origin, classify data categories and sensitive flags, "
+#|             "preserve record-count uncertainty, assess credential/secret exposure without testing, assess source reliability/independence, preserve contradictions and competing hypotheses, "
+#|             "and produce defensive escalation recommendations without purchasing stolen data, testing credentials, logging in, replaying tokens, contacting sellers, negotiating ransoms, "
+#|             "downloading unnecessary full stolen datasets, redistributing sensitive data, unauthorized access, or exploitation.",
+#|         )
+#|         self.set_widget_value("target", "Illustrative example.com / authorized breach context")
+#|         self.set_widget_value("target_type", "breach_claim")
+#|         self.set_widget_value(
+#|             "questions",
+#|             "\n".join(default_questions({"target": "Illustrative example.com / authorized breach context"})),
+#|         )
+#| 
+#|         for field in [
+#|             "organizations",
+#|             "brands",
+#|             "domains",
+#|             "email_domains",
+#|             "subsidiaries",
+#|             "third_parties",
+#|             "suppliers",
+#|             "breach_claims",
+#|             "dataset_claims",
+#|             "credential_claims",
+#|             "ransomware_claims",
+#|             "exposure_sources",
+#|             "incident_context",
+#|             "known_accounts_if_authorized",
+#|             "known_assets_if_authorized",
+#|             "breach_claim_paths",
+#|             "dataset_metadata_paths",
+#|             "credential_exposure_paths",
+#|             "ransomware_leak_paths",
+#|             "exposure_report_paths",
+#|             "incident_data_paths",
+#|             "historical_breach_paths",
+#|             "combo_list_paths",
+#|             "stealer_log_paths",
+#|             "supply_chain_paths",
+#|             "repository_exposure_paths",
+#|             "cloud_exposure_paths",
+#|             "document_exposure_paths",
+#|             "source_code_exposure_paths",
+#|             "stix_misp_paths",
+#|         ]:
+#|             self.set_widget_value(field, "")
+#| 
+#|         self.set_widget_value(
+#|             "time_range",
+#|             json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+#|         )
+#|         self.set_widget_value("jurisdiction", "")
+#|         self.set_widget_value(
+#|             "scope",
+#|             json.dumps(
+#|                 {
+#|                     "allowed_source_types": [
+#|                         "official organization disclosures",
+#|                         "regulatory notifications",
+#|                         "government advisories",
+#|                         "CERT reports",
+#|                         "public incident reports",
+#|                         "public breach notifications",
+#|                         "ransomware leak-site metadata",
+#|                         "licensed dark-web providers",
+#|                         "licensed breach-monitoring providers",
+#|                         "authorized credential-monitoring services",
+#|                         "authorized exposure-monitoring tools",
+#|                         "public security research",
+#|                         "public media reporting",
+#|                         "public repositories",
+#|                         "authorized enterprise telemetry",
+#|                         "authorized incident-response evidence",
+#|                         "authorized identity-provider logs",
+#|                         "authorized email-security data",
+#|                         "authorized IAM data",
+#|                         "authorized SIEM/EDR/XDR data",
+#|                         "authorized cloud audit data",
+#|                         "authorized data-loss-prevention data",
+#|                         "authorized backup/version history",
+#|                         "authorized internal inventories",
+#|                         "MISP",
+#|                         "STIX/TAXII",
+#|                     ],
+#|                     "prohibited_sources_and_actions": [
+#|                         "purchasing stolen databases",
+#|                         "purchasing breach data",
+#|                         "purchasing credentials",
+#|                         "purchasing access",
+#|                         "downloading unnecessary full stolen datasets",
+#|                         "using exposed credentials",
+#|                         "testing passwords",
+#|                         "credential stuffing",
+#|                         "replaying session cookies",
+#|                         "redeeming tokens",
+#|                         "using API keys",
+#|                         "using private keys",
+#|                         "logging into exposed accounts",
+#|                         "accessing victim accounts",
+#|                         "contacting criminal sellers",
+#|                         "negotiating with ransomware operators",
+#|                         "participating in illicit marketplaces",
+#|                         "redistributing sensitive data",
+#|                         "publishing personal data",
+#|                         "performing unauthorized access",
+#|                         "performing exploitation",
+#|                     ],
+#|                     "data_minimization_rules": [
+#|                         "collect minimum information necessary",
+#|                         "prefer dataset metadata, record schema, field names, counts, hashes, timestamps, redacted identifiers, organization-domain references, limited authorized samples",
+#|                         "avoid unnecessary storage of plaintext passwords, financial details, identity documents, medical information, private communications, session material, full personal records",
+#|                         "treat dataset records, documents, forum posts, repository content, ransomware notes, and seller descriptions as untrusted evidence",
+#|                         "separate claim, fact, sample, dataset, record count, origin, freshness, credential exposure, organization impact, incident root cause, and actor attribution",
+#|                     ],
+#|                     "authorized_use": "internal defensive/authorized breach and exposure intelligence analysis only",
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value(
+#|             "authorization",
+#|             json.dumps(
+#|                 {
+#|                     "authorized_by": "BREACHINT Manager / Cyber / Exposure Intelligence Manager",
+#|                     "authorization_basis": "customer-authorized public/licensed/authorized defensive BREACHINT engagement",
+#|                     "permitted_actions": [
+#|                         "local breach evidence hashing",
+#|                         "authorized/public/licensed breach/dataset/credential/ransomware metadata parsing",
+#|                         "organization resolution",
+#|                         "dataset fingerprint/lineage planning",
+#|                         "credential/secret exposure metadata analysis",
+#|                         "first-party vs third-party origin hypothesis planning",
+#|                         "source reliability/independence analysis",
+#|                         "privacy-aware defensive escalation planning",
+#|                         "defensive specialist handoff",
+#|                     ],
+#|                     "prohibited_actions": [
+#|                         "purchase stolen data/credentials/access",
+#|                         "test passwords",
+#|                         "login using exposed credentials",
+#|                         "replay session tokens",
+#|                         "use API/private keys",
+#|                         "contact sellers",
+#|                         "negotiate ransoms",
+#|                         "download unnecessary full stolen datasets",
+#|                         "redistribute sensitive data",
+#|                         "unauthorized access",
+#|                         "exploitation",
+#|                     ],
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value("source_limits", "")
+#|         self.set_widget_value("budget", "")
+#|         self.set_widget_value("deadline", "")
+#|         self.set_widget_value(
+#|             "configured_connectors",
+#|             "None configured. No breach-monitoring/credential-monitoring/STIX/MISP/incident connector invoked. Planning-only for external enrichment.",
+#|         )
+#| 
+#|     def get_widget_value(self, key: str) -> str:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return ""
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             return widget.get("1.0", "end-1c").strip()
+#| 
+#|         if isinstance(widget, ttk.Combobox):
+#|             return widget.get().strip()
+#| 
+#|         if isinstance(widget, ttk.Entry):
+#|             return widget.get().strip()
+#| 
+#|         return ""
+#| 
+#|     def set_widget_value(self, key: str, value: str) -> None:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             widget.delete("1.0", "end")
+#|             widget.insert("1.0", value)
+#|         elif isinstance(widget, ttk.Combobox):
+#|             widget.set(value)
+#|         elif isinstance(widget, ttk.Entry):
+#|             widget.delete(0, "end")
+#|             widget.insert(0, value)
+#| 
+#|     def collect_payload(self) -> Dict[str, Any]:
+#|         payload: Dict[str, Any] = {}
+#| 
+#|         for key, _, _ in FIELDS:
+#|             raw = self.get_widget_value(key)
+#| 
+#|             if key in LIST_FIELDS:
+#|                 payload[key] = parse_list(raw)
+#|             elif key in DICT_FIELDS:
+#|                 payload[key] = parse_dict(raw)
+#|             else:
+#|                 payload[key] = raw
+#| 
+#|         payload["generated_at"] = now_utc()
+#|         payload["panel_version"] = APP_VERSION
+#|         payload["operating_mode"] = "PLANNING_ONLY_DEFENSIVE_PRIVACY_AWARE_EVIDENCE_FIRST"
+#|         payload["source_boundary"] = "DEFENSIVE_AUTHORIZED_PRIVACY_AWARE_EVIDENCE_FIRST_BREACHINT_ONLY"
+#|         return payload
+#| 
+#|     def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
+#|         if not paths:
+#|             return
+#| 
+#|         current = self.get_widget_value(field)
+#|         added = "\n".join(paths)
+#|         new_value = current + ("\n" if current else "") + added
+#|         self.set_widget_value(field, new_value)
+#|         messagebox.showinfo(title, f"{len(paths)} path(s) added to {field}.")
+#| 
+#|     def _add_paths_to_fields(self, fields: List[str], paths: Tuple[str, ...], title: str) -> None:
+#|         if not paths:
+#|             return
+#| 
+#|         for field in fields:
+#|             current = self.get_widget_value(field)
+#|             added = "\n".join(paths)
+#|             new_value = current + ("\n" if current else "") + added
+#|             self.set_widget_value(field, new_value)
+#| 
+#|         messagebox.showinfo(title, f"{len(paths)} path(s) added to: {', '.join(fields)}.")
+#| 
+#|     def add_breach_claims(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select breach claim export files",
+#|             filetypes=[
+#|                 ("Breach claims", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("breach_claim_paths", paths, "Breach Claim Files Added")
+#| 
+#|     def add_dataset_metadata(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select dataset metadata export files",
+#|             filetypes=[
+#|                 ("Dataset metadata", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("dataset_metadata_paths", paths, "Dataset Metadata Files Added")
+#| 
+#|     def add_credential_exposure(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select credential exposure metadata files",
+#|             filetypes=[
+#|                 ("Credential exposure", "*.json *.csv *.tsv *.txt *.log"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("credential_exposure_paths", paths, "Credential Exposure Files Added")
+#| 
+#|     def add_ransomware_leak(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select ransomware leak-site metadata files",
+#|             filetypes=[
+#|                 ("Ransomware leak metadata", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("ransomware_leak_paths", paths, "Ransomware Leak Files Added")
+#| 
+#|     def add_exposure_reports(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select exposure report files",
+#|             filetypes=[
+#|                 ("Exposure reports", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("exposure_report_paths", paths, "Exposure Report Files Added")
+#| 
+#|     def add_incident_data(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select authorized incident data files",
+#|             filetypes=[
+#|                 ("Incident data", "*.json *.csv *.tsv *.txt *.log"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("incident_data_paths", paths, "Incident Data Files Added")
+#| 
+#|     def add_historical_breaches(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select historical breach / known leak files",
+#|             filetypes=[
+#|                 ("Historical breaches", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("historical_breach_paths", paths, "Historical Breach Files Added")
+#| 
+#|     def add_combo_stealer(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select combo list / stealer log metadata files",
+#|             filetypes=[
+#|                 ("Combo/stealer metadata", "*.json *.csv *.tsv *.txt *.log"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._add_paths_to_fields(["combo_list_paths", "stealer_log_paths"], paths, "Combo / Stealer Metadata Files Added")
+#| 
+#|     def add_supply_repo_cloud_docs(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select supply-chain / repository / cloud / document / source-code exposure files",
+#|             filetypes=[
+#|                 ("Exposure metadata", "*.json *.csv *.tsv *.txt *.log *.md"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._add_paths_to_fields(
+#|             [
+#|                 "supply_chain_paths",
+#|                 "repository_exposure_paths",
+#|                 "cloud_exposure_paths",
+#|                 "document_exposure_paths",
+#|                 "source_code_exposure_paths",
+#|             ],
+#|             paths,
+#|             "Supply Chain / Repository / Cloud / Document / Source Code Files Added",
+#|         )
+#| 
+#|     def add_stix_misp(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select STIX / MISP export files",
+#|             filetypes=[
+#|                 ("STIX / MISP", "*.json *.xml *.csv *.tsv *.txt *.stix *.taxii *.misp"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#|         self._append_paths("stix_misp_paths", paths, "STIX / MISP Files Added")
+#| 
+#|     def run_policy_screen(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = policy_screen(payload)
+#| 
+#|         result = {
+#|             "mode": "POLICY_SCREEN_ONLY",
+#|             "panel_version": APP_VERSION,
+#|             "policy_screen": policy,
+#|             "payload_preview": {
+#|                 "case_id": payload.get("case_id"),
+#|                 "task_id": payload.get("task_id"),
+#|                 "objective": payload.get("objective"),
+#|                 "target": payload.get("target"),
+#|                 "target_type": payload.get("target_type"),
+#|                 "has_organizations": bool(payload.get("organizations")),
+#|                 "has_domains": bool(payload.get("domains")),
+#|                 "has_email_domains": bool(payload.get("email_domains")),
+#|                 "has_breach_claims": bool(payload.get("breach_claims")),
+#|                 "has_dataset_claims": bool(payload.get("dataset_claims")),
+#|                 "has_credential_claims": bool(payload.get("credential_claims")),
+#|                 "has_ransomware_claims": bool(payload.get("ransomware_claims")),
+#|                 "has_incident_context": bool(payload.get("incident_context")),
+#|                 "has_breach_claim_paths": bool(payload.get("breach_claim_paths")),
+#|                 "has_dataset_metadata_paths": bool(payload.get("dataset_metadata_paths")),
+#|                 "has_credential_exposure_paths": bool(payload.get("credential_exposure_paths")),
+#|                 "has_ransomware_leak_paths": bool(payload.get("ransomware_leak_paths")),
+#|                 "has_exposure_report_paths": bool(payload.get("exposure_report_paths")),
+#|                 "has_incident_data_paths": bool(payload.get("incident_data_paths")),
+#|                 "has_historical_breach_paths": bool(payload.get("historical_breach_paths")),
+#|                 "has_combo_list_paths": bool(payload.get("combo_list_paths")),
+#|                 "has_stealer_log_paths": bool(payload.get("stealer_log_paths")),
+#|                 "has_supply_chain_paths": bool(payload.get("supply_chain_paths")),
+#|                 "has_repository_exposure_paths": bool(payload.get("repository_exposure_paths")),
+#|                 "has_cloud_exposure_paths": bool(payload.get("cloud_exposure_paths")),
+#|                 "has_document_exposure_paths": bool(payload.get("document_exposure_paths")),
+#|                 "has_source_code_exposure_paths": bool(payload.get("source_code_exposure_paths")),
+#|                 "has_stix_misp_paths": bool(payload.get("stix_misp_paths")),
+#|             },
+#|         }
+#| 
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             messagebox.showwarning(
+#|                 "Policy Blocked",
+#|                 "This BREACHINT request is policy-blocked.\n\n"
+#|                 + "\n".join(policy["reasons"])
+#|                 + "\n\nUse only defensive/authorized alternatives.",
+#|             )
+#|         elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+#|             messagebox.showwarning(
+#|                 "Human Review Required",
+#|                 "No hard policy block detected, but sensitive breach/dataset/credential/ransomware/incident/third-party context applies.",
+#|             )
+#|         else:
+#|             messagebox.showinfo(
+#|                 "Policy Screen",
+#|                 "No obvious policy violation detected. Planning-only mode remains active.",
+#|             )
+#| 
+#|     def analyze_local_breachint(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = policy_screen(payload)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             result = {
+#|                 "mode": "POLICY_BLOCKED",
+#|                 "panel_version": APP_VERSION,
+#|                 "policy_screen": policy,
+#|                 "evidence_inventory": [],
+#|                 "breach_summary": {},
+#|                 "claims_preview": [],
+#|                 "datasets_preview": [],
+#|                 "credential_exposures_preview": [],
+#|                 "ransomware_claims_preview": [],
+#|                 "observations": [],
+#|                 "candidate_facts": [],
+#|             }
+#|             self.last_result = result
+#|             self._write_output(result)
+#|             messagebox.showwarning("Policy Blocked", "Local BREACHINT evidence analysis blocked by policy screen.")
+#|             return
+#| 
+#|         path_fields = [
+#|             "breach_claim_paths",
+#|             "dataset_metadata_paths",
+#|             "credential_exposure_paths",
+#|             "ransomware_leak_paths",
+#|             "exposure_report_paths",
+#|             "incident_data_paths",
+#|             "historical_breach_paths",
+#|             "combo_list_paths",
+#|             "stealer_log_paths",
+#|             "supply_chain_paths",
+#|             "repository_exposure_paths",
+#|             "cloud_exposure_paths",
+#|             "document_exposure_paths",
+#|             "source_code_exposure_paths",
+#|             "stix_misp_paths",
+#|         ]
+#| 
+#|         all_paths: List[str] = []
+#|         seen = set()
+#| 
+#|         for field in path_fields:
+#|             for p in payload.get(field, []):
+#|                 sp = str(p).strip()
+#|                 if sp and sp not in seen:
+#|                     seen.add(sp)
+#|                     all_paths.append(sp)
+#| 
+#|         if not all_paths:
+#|             messagebox.showwarning("No BREACHINT Evidence", "Add local authorized/public/licensed breach evidence files first.")
+#|             return
+#| 
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", "Analyzing local authorized/public/licensed BREACHINT evidence. Hashing and parsing may take time...\n")
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         files: List[Dict[str, Any]] = []
+#|         parsed_list: List[Dict[str, Any]] = []
+#| 
+#|         for p in all_paths[:30]:
+#|             f, parsed = analyze_breach_file(p, payload.get("case_id", ""), payload.get("task_id", ""))
+#|             files.append(f)
+#|             parsed_list.append(parsed)
+#| 
+#|         aggregated = finalize_parsed(aggregate_parsed(parsed_list), payload, files)
+#| 
+#|         self.analyzed_files = files
+#|         self.parsed = aggregated
+#| 
+#|         report = self._build_local_analysis_report(
+#|             files=files,
+#|             parsed=aggregated,
+#|             payload=payload,
+#|             policy=policy,
+#|         )
+#| 
+#|         self.last_result = report
+#|         self._write_output(report)
+#| 
+#|         succeeded = sum(1 for f in files if str(f.get("status", "")).startswith("SUCCEEDED"))
+#|         summary = aggregated.get("breach_summary", {})
+#|         messagebox.showinfo(
+#|             "Local BREACHINT Evidence Analysis Complete",
+#|             f"Processed {len(files)} evidence file(s).\n"
+#|             f"Succeeded/partial: {succeeded}\n"
+#|             f"Claims: {summary.get('claim_count', 0)}\n"
+#|             f"Datasets: {summary.get('dataset_count', 0)}\n"
+#|             f"Credential exposures: {summary.get('credential_exposure_count', 0)}\n"
+#|             f"Ransomware claims: {summary.get('ransomware_claim_count', 0)}\n"
+#|             f"Record-count candidates: {summary.get('record_count_candidate_count', 0)}\n"
+#|             f"Fingerprints: {summary.get('fingerprint_count', 0)}\n"
+#|             "Review output for limitations and next actions.",
+#|         )
+#| 
+#|     def generate_plan(self) -> None:
+#|         payload = self.collect_payload()
+#|         warnings = validate_payload(payload)
+#|         policy = policy_screen(payload)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             result = {
+#|                 "mode": "POLICY_BLOCKED",
+#|                 "panel_version": APP_VERSION,
+#|                 "policy_screen": policy,
+#|                 "warnings": warnings,
+#|                 "payload": payload,
+#|                 "breachint_collection_plan": [],
+#|                 "next_best_action": {
+#|                     "action": "Revise task to remove prohibited purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full stolen-dataset acquisition, redistribution, unauthorized access, or exploitation behavior.",
+#|                     "owner": "BREACHINT Manager",
+#|                     "expected_output": "Policy-compliant defensive BREACHINT scope and question set.",
+#|                 },
+#|             }
+#|             self.last_result = result
+#|             self._write_output(result)
+#|             messagebox.showwarning(
+#|                 "Policy Blocked",
+#|                 "BREACHINT plan not generated because the request is policy-blocked.",
+#|             )
+#|             return
+#| 
+#|         questions = payload.get("questions") or default_questions(payload)
+#| 
+#|         if not self.parsed.get("claims") and not self.parsed.get("datasets"):
+#|             self.parsed = finalize_parsed(empty_parsed(), payload, self.analyzed_files)
+#| 
+#|         files = self.analyzed_files
+#|         parsed = self.parsed
+#| 
+#|         next_action = build_next_best_action(payload, policy, files, parsed)
+#|         collection_plan = build_collection_plan(payload, questions, files, parsed)
+#| 
+#|         overall_status = "PLANNING_ONLY"
+#|         if policy["status"] == "HUMAN_REVIEW_REQUIRED":
+#|             overall_status = "HUMAN_REVIEW_REQUIRED"
+#|         if files or parsed.get("claims") or parsed.get("datasets"):
+#|             overall_status = "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE"
+#| 
+#|         result = {
+#|             "mode": overall_status,
+#|             "panel_version": APP_VERSION,
+#|             "policy": (
+#|                 "This output does not purchase stolen data/breach data/credentials/access, download unnecessary full stolen datasets, use exposed credentials, test passwords, "
+#|                 "perform credential stuffing, replay session tokens, use API/private keys, login to exposed accounts, contact sellers/criminal actors, negotiate ransoms, "
+#|                 "redistribute sensitive data, publish personal data, perform unauthorized access, or exploit resources. "
+#|                 "Local deterministic analysis is limited to hashing, safe JSON/CSV/TXT breach/dataset/credential/ransomware/incident metadata parsing, organization resolution, "
+#|                 "dataset fingerprint/lineage planning, record-count caution, data-category classification, sensitive-data flagging, credential/secret exposure metadata, "
+#|                 "first-party vs third-party/supply-chain/combo/stealer/public/recycled origin hypotheses, source reliability/independence, contradiction detection, "
+#|                 "competing hypotheses, falsification, secret redaction, prompt-injection flagging, privacy-aware impact assessment, and defensive specialist handoff planning. "
+#|                 "Live breach-monitoring/credential-monitoring/STIX/MISP/incident enrichment, notification, legal action, and consequential remediation remain planning-only unless configured/authorized/human-reviewed."
+#|             ),
+#|             "policy_screen": policy,
+#|             "warnings": warnings,
+#|             "payload": payload,
+#|             "intelligence_questions": questions,
+#|             "evidence_inventory": files,
+#|             "breach_summary": parsed.get("breach_summary", {}),
+#|             "claims_preview": parsed.get("claims", [])[:300],
+#|             "datasets_preview": parsed.get("datasets", [])[:300],
+#|             "credential_exposures_preview": parsed.get("credential_exposures", [])[:300],
+#|             "ransomware_claims_preview": parsed.get("ransomware_claims", [])[:300],
+#|             "organization_mentions_preview": parsed.get("organization_mentions", [])[:300],
+#|             "domain_mentions_preview": parsed.get("domain_mentions", [])[:300],
+#|             "email_domain_mentions_preview": parsed.get("email_domain_mentions", [])[:300],
+#|             "third_party_mentions_preview": parsed.get("third_party_mentions", [])[:300],
+#|             "supplier_mentions_preview": parsed.get("supplier_mentions", [])[:300],
+#|             "data_categories_preview": parsed.get("data_categories", [])[:300],
+#|             "sensitive_flags_preview": parsed.get("sensitive_flags", [])[:300],
+#|             "record_counts_preview": parsed.get("record_counts", [])[:300],
+#|             "dataset_fingerprints_preview": parsed.get("dataset_fingerprints", [])[:300],
+#|             "contradictions": parsed.get("contradictions", [])[:1000],
+#|             "hypotheses": parsed.get("hypotheses", [])[:1000],
+#|             "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+#|             "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+#|             "next_best_action": next_action,
+#|             "breachint_collection_plan": collection_plan,
+#|             **self._policy_sections(),
+#|             **self._schemas(),
+#|         }
+#| 
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         if warnings:
+#|             messagebox.showwarning(
+#|                 "Validation Warnings",
+#|                 "BREACHINT plan generated with warnings:\n\n" + "\n".join(warnings),
+#|             )
+#| 
+#|     def _build_local_analysis_report(
+#|         self,
+#|         files: List[Dict[str, Any]],
+#|         parsed: Dict[str, Any],
+#|         payload: Dict[str, Any],
+#|         policy: Dict[str, Any],
+#|     ) -> Dict[str, Any]:
+#|         next_action = build_next_best_action(payload, policy, files, parsed)
+#|         collection_plan = build_collection_plan(payload, default_questions(payload), files, parsed)
+#|         summary = parsed.get("breach_summary", {})
+#| 
+#|         observations: List[Dict[str, Any]] = []
+#| 
+#|         for f in files:
+#|             observations.append({
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"A local authorized/public/licensed BREACHINT evidence file was accessed and hashed: {f.get('filename')}.",
+#|                 "evidence_id": f.get("evidence_id"),
+#|                 "source_id": f.get("source_id"),
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "local_deterministic_file_hash",
+#|                 "limitations": "File hash does not prove breach, dataset authenticity, record count, origin, credential validity, or actor attribution.",
+#|             })
+#| 
+#|         observations.extend([
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(files)} BREACHINT evidence file(s) were parsed locally.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "safe_json_csv_text_breach_parser",
+#|                 "limitations": "Parser output is normalized evidence, not verified external reality.",

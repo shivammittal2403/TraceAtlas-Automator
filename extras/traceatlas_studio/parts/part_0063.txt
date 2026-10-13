@@ -1,0 +1,1000 @@
+#|     "allow_modify_production_image",
+#|     "allow_container_exploitation",
+#|     "allow_container_escape",
+#|     "allow_kubernetes_exploitation",
+#|     "allow_privileged_container_deployment",
+#|     "allow_offensive_host_mount_use",
+#|     "allow_docker_socket_abuse",
+#|     "allow_cryptocurrency_miner_deployment",
+#|     "allow_malware_deployment",
+#|     "allow_runtime_persistence",
+#|     "allow_secret_extraction_for_reuse",
+#|     "allow_authentication_with_discovered_secret",
+#|     "allow_destructive_runtime_testing",
+#|     "allow_denial_of_service_testing",
+#|     "allow_execute_unknown_image",
+#|     "allow_execute_unknown_binary",
+#| )
+#| 
+#| PROHIBITED_OBJECTIVE_KEYWORDS = (
+#|     "brute force registry",
+#|     "guess registry credential",
+#|     "bypass registry authentication",
+#|     "pull private image without authorization",
+#|     "push image",
+#|     "overwrite manifest",
+#|     "delete tag",
+#|     "delete image",
+#|     "tamper registry metadata",
+#|     "poison base image",
+#|     "poison package",
+#|     "inject backdoor",
+#|     "modify production image",
+#|     "exploit container",
+#|     "container escape",
+#|     "exploit kubernetes",
+#|     "privileged container deployment",
+#|     "abuse docker socket",
+#|     "host mount offensively",
+#|     "deploy miner",
+#|     "deploy malware",
+#|     "runtime persistence",
+#|     "extract secret for reuse",
+#|     "use discovered secret",
+#|     "test discovered token",
+#|     "destructive runtime testing",
+#|     "denial of service testing",
+#|     "execute unknown image",
+#|     "run unknown binary",
+#| )
+#| 
+#| 
+#| def enforce_policy(objective: str, scope: Dict[str, Any]) -> None:
+#|     """
+#|     Enforces CONTAINERINT hard restrictions.
+#| 
+#|     Defensive, authorized, static-first container/image/registry intelligence only.
+#|     """
+#|     if not isinstance(scope, dict):
+#|         raise PolicyViolation("POLICY_BLOCKED: scope must be a dictionary.")
+#| 
+#|     mode = str(scope.get("mode", "AUTHORIZED_STATIC")).upper()
+#|     allowed_modes = {
+#|         "AUTHORIZED_STATIC",
+#|         "AUTHORIZED_READONLY",
+#|         "AUTHORIZED_SANDBOX_DYNAMIC_IF_EXPLICITLY_APPROVED",
+#|     }
+#| 
+#|     if mode not in allowed_modes:
+#|         raise PolicyViolation(
+#|             "POLICY_BLOCKED: CONTAINERINT requires authorized static/read-only mode. "
+#|             "Dynamic execution requires explicit sandbox authorization."
+#|         )
+#| 
+#|     if mode == "AUTHORIZED_SANDBOX_DYNAMIC_IF_EXPLICITLY_APPROVED":
+#|         if not scope.get("authorized_isolated_sandbox", False):
+#|             raise PolicyViolation(
+#|                 "POLICY_BLOCKED: dynamic container analysis requires explicit isolated sandbox authorization, "
+#|                 "network controls, host isolation, resource limits, logging, and approved artifact."
+#|             )
+#| 
+#|     for flag in PROHIBITED_SCOPE_FLAGS:
+#|         if scope.get(flag, False):
+#|             raise PolicyViolation(f"POLICY_BLOCKED: prohibited scope flag '{flag}'.")
+#| 
+#|     objective_lower = (objective or "").lower()
+#|     for keyword in PROHIBITED_OBJECTIVE_KEYWORDS:
+#|         if keyword in objective_lower:
+#|             raise PolicyViolation(
+#|                 f"POLICY_BLOCKED: objective contains prohibited concept '{keyword}'."
+#|             )
+#| 
+#| 
+#| # ==============================================================================
+#| # ENUMS / STATES
+#| # ==============================================================================
+#| 
+#| class RegistryType(Enum):
+#|     PUBLIC_REGISTRY = auto()
+#|     PRIVATE_REGISTRY = auto()
+#|     ENTERPRISE_REGISTRY = auto()
+#|     CLOUD_REGISTRY = auto()
+#|     LOCAL_REGISTRY = auto()
+#|     MIRROR = auto()
+#|     PROXY_CACHE = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class DigestScope(Enum):
+#|     MANIFEST = auto()
+#|     INDEX = auto()
+#|     CONFIG = auto()
+#|     LAYER = auto()
+#|     FILESYSTEM = auto()
+#|     FILE = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class TagState(Enum):
+#|     CURRENT = auto()
+#|     HISTORICAL = auto()
+#|     MUTABLE = auto()
+#|     IMMUTABLE_VERIFIED = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class LineageState(Enum):
+#|     VERIFIED_BASE_IMAGE = auto()
+#|     SUPPORTED_BASE_IMAGE = auto()
+#|     PROBABLE_BASE_IMAGE = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class ImageRelationState(Enum):
+#|     EXACT_SAME_DIGEST = auto()
+#|     SAME_CONFIG_DIFFERENT_MANIFEST = auto()
+#|     NEAR_DUPLICATE = auto()
+#|     DERIVED_IMAGE = auto()
+#|     REBUILT_IMAGE = auto()
+#|     DISTINCT = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class SbomValidationState(Enum):
+#|     MATCHES_IMAGE_STRONGLY = auto()
+#|     PARTIAL_MATCH = auto()
+#|     STALE_CANDIDATE = auto()
+#|     DIFFERENT_BUILD_CANDIDATE = auto()
+#|     UNVERIFIED = auto()
+#|     INCONCLUSIVE = auto()
+#| 
+#| 
+#| class SignatureState(Enum):
+#|     VERIFIED = auto()
+#|     INVALID = auto()
+#|     UNVERIFIED = auto()
+#|     ABSENT = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class ProvenanceState(Enum):
+#|     VERIFIED_BUILD_SOURCE = auto()
+#|     SUPPORTED_BUILD_SOURCE = auto()
+#|     SOURCE_CLAIMED = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class VulnerabilityState(Enum):
+#|     CANDIDATE = auto()
+#|     APPLICABILITY_UNRESOLVED = auto()
+#|     NOT_AFFECTED_PER_VEX = auto()
+#|     FIXED_PER_VEX = auto()
+#|     UNDER_INVESTIGATION = auto()
+#|     DISPUTED = auto()
+#| 
+#| 
+#| class DeploymentDriftType(Enum):
+#|     TAG_DRIFT = auto()
+#|     DEPLOYMENT_DRIFT = auto()
+#|     RUNTIME_FILESYSTEM_DRIFT = auto()
+#|     MUTABLE_REFERENCE_RISK = auto()
+#|     NO_DRIFT_EVIDENCE = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class SecretState(Enum):
+#|     PRESENT = auto()
+#|     HISTORICAL_LAYER_PRESENT = auto()
+#|     REDACTED = auto()
+#|     VALIDITY_NOT_TESTED = auto()
+#| 
+#| 
+#| class MalwareState(Enum):
+#|     CLEAN_INDICATOR_ABSENT = auto()
+#|     MALICIOUS_ARTIFACT_CANDIDATE = auto()
+#|     SUSPICIOUS_ARTIFACT_CANDIDATE = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class SourceIndependenceState(Enum):
+#|     INDEPENDENT = auto()
+#|     PARTIALLY_DEPENDENT = auto()
+#|     DEPENDENT = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| class VerificationState(Enum):
+#|     SUPPORTED = auto()
+#|     PARTIALLY_SUPPORTED = auto()
+#|     DISPUTED = auto()
+#|     UNSUPPORTED = auto()
+#|     INCONCLUSIVE = auto()
+#| 
+#| 
+#| class HypothesisStatus(Enum):
+#|     ACTIVE = auto()
+#|     REJECTED = auto()
+#|     CONFIRMED = auto()
+#|     CANDIDATE = auto()
+#|     INCONCLUSIVE = auto()
+#| 
+#| 
+#| class PolicyComplianceState(Enum):
+#|     COMPLIANT = auto()
+#|     PARTIALLY_COMPLIANT = auto()
+#|     NON_COMPLIANT = auto()
+#|     NOT_ASSESSED = auto()
+#| 
+#| 
+#| class HardeningState(Enum):
+#|     BASELINE = auto()
+#|     ELEVATED_RISK_CONFIGURATION = auto()
+#|     HIGH_RISK_RUNTIME_CONFIGURATION = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| # ==============================================================================
+#| # DATA OBJECTS
+#| # ==============================================================================
+#| 
+#| @dataclass
+#| class EvidenceRef:
+#|     evidence_id: str
+#|     case_id: str
+#|     source_id: str
+#|     upstream_source_id: str
+#|     source_type: str
+#|     kind: str
+#|     observed_at: Optional[datetime]
+#|     reliability: float
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class RegistryObject:
+#|     registry_id: str
+#|     hostname: Optional[str] = None
+#|     provider: Optional[str] = None
+#|     registry_type: RegistryType = RegistryType.UNKNOWN
+#|     authorization_context: Optional[str] = None
+#|     repositories: List[str] = field(default_factory=list)
+#|     first_seen: Optional[datetime] = None
+#|     last_seen: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class RepositoryObject:
+#|     registry_id: str
+#|     repository_name: str
+#|     namespace: Optional[str] = None
+#|     owner_candidate: Optional[str] = None
+#|     visibility: Optional[str] = None
+#|     tags: List[str] = field(default_factory=list)
+#|     digests: List[str] = field(default_factory=list)
+#|     first_seen: Optional[datetime] = None
+#|     last_seen: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ImageReferenceObject:
+#|     image_reference_id: str
+#|     registry_id: Optional[str] = None
+#|     repository: Optional[str] = None
+#|     tag: Optional[str] = None
+#|     digest: Optional[str] = None
+#|     original_reference: Optional[str] = None
+#|     resolved_reference: Optional[str] = None
+#|     observed_at: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     confidence: float = 0.5
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class TagHistoryEntry:
+#|     entry_id: str
+#|     tag: str
+#|     digest: str
+#|     valid_from: Optional[datetime] = None
+#|     valid_to: Optional[datetime] = None
+#|     observed_at: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class PlatformVariant:
+#|     os: Optional[str] = None
+#|     architecture: Optional[str] = None
+#|     variant: Optional[str] = None
+#|     features: List[str] = field(default_factory=list)
+#|     manifest_digest: Optional[str] = None
+#|     config_digest: Optional[str] = None
+#|     layer_digests: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ManifestObject:
+#|     manifest_digest: Optional[str] = None
+#|     media_type: Optional[str] = None
+#|     config_digest: Optional[str] = None
+#|     layer_digests: List[str] = field(default_factory=list)
+#|     platform_context: Optional[PlatformVariant] = None
+#|     annotations: Dict[str, Any] = field(default_factory=dict)
+#|     size: Optional[int] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ImageConfigObject:
+#|     created_claim: Optional[datetime] = None
+#|     architecture: Optional[str] = None
+#|     os: Optional[str] = None
+#|     environment: Dict[str, str] = field(default_factory=dict)
+#|     entrypoint: List[str] = field(default_factory=list)
+#|     cmd: List[str] = field(default_factory=list)
+#|     user: Optional[str] = None
+#|     working_directory: Optional[str] = None
+#|     labels: Dict[str, str] = field(default_factory=dict)
+#|     history: List[str] = field(default_factory=list)
+#|     volumes: List[str] = field(default_factory=list)
+#|     exposed_ports: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class LayerObject:
+#|     layer_index: int
+#|     digest: Optional[str] = None
+#|     media_type: Optional[str] = None
+#|     compressed_size: Optional[int] = None
+#|     uncompressed_size: Optional[int] = None
+#|     parent_layer: Optional[str] = None
+#|     files_added: List[str] = field(default_factory=list)
+#|     files_modified: List[str] = field(default_factory=list)
+#|     files_deleted: List[str] = field(default_factory=list)
+#|     whiteouts: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class FilesystemArtifact:
+#|     artifact_id: str
+#|     path: Optional[str] = None
+#|     filename: Optional[str] = None
+#|     size: Optional[int] = None
+#|     sha256: Optional[str] = None
+#|     layer_index: Optional[int] = None
+#|     current_present: bool = True
+#|     historical_present: bool = True
+#|     deleted_in_layer: Optional[int] = None
+#|     file_type: Optional[str] = None
+#|     mime_type: Optional[str] = None
+#|     permissions: Optional[str] = None
+#|     owner: Optional[str] = None
+#|     content_snippet: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class PackageObject:
+#|     package_id: str
+#|     name: str
+#|     version: Optional[str] = None
+#|     ecosystem: Optional[str] = None
+#|     purl: Optional[str] = None
+#|     cpe: Optional[str] = None
+#|     architecture: Optional[str] = None
+#|     location: Optional[str] = None
+#|     layer_index: Optional[int] = None
+#|     direct_or_inherited: Optional[str] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class BinaryObject:
+#|     binary_id: str
+#|     path: Optional[str] = None
+#|     sha256: Optional[str] = None
+#|     file_type: Optional[str] = None
+#|     architecture: Optional[str] = None
+#|     signing: Optional[Dict[str, Any]] = None
+#|     package_association: Optional[str] = None
+#|     layer_index: Optional[int] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SbomComponent:
+#|     name: str
+#|     version: Optional[str] = None
+#|     ecosystem: Optional[str] = None
+#|     purl: Optional[str] = None
+#|     cpe: Optional[str] = None
+#|     licenses: List[str] = field(default_factory=list)
+#|     hashes: Dict[str, str] = field(default_factory=dict)
+#|     supplier: Optional[str] = None
+#| 
+#| 
+#| @dataclass
+#| class SbomObject:
+#|     sbom_id: str
+#|     format: Optional[str] = None
+#|     version: Optional[str] = None
+#|     components: List[SbomComponent] = field(default_factory=list)
+#|     dependency_edges: List[Dict[str, Any]] = field(default_factory=list)
+#|     generated_at: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     hash: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SbomValidation:
+#|     validation_id: str
+#|     sbom_id: str
+#|     state: SbomValidationState
+#|     matched_components: List[str] = field(default_factory=list)
+#|     missing_in_sbom: List[str] = field(default_factory=list)
+#|     extra_in_sbom: List[str] = field(default_factory=list)
+#|     version_conflicts: List[Dict[str, Any]] = field(default_factory=list)
+#|     explanation: str = ""
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class VexRecord:
+#|     vex_id: str
+#|     vulnerability_id: Optional[str] = None
+#|     product: Optional[str] = None
+#|     purl: Optional[str] = None
+#|     version: Optional[str] = None
+#|     status: Optional[str] = None
+#|     justification: Optional[str] = None
+#|     issuer: Optional[str] = None
+#|     timestamp: Optional[datetime] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SignatureObject:
+#|     signature_id: str
+#|     digest_covered: Optional[str] = None
+#|     signer_identity_claim: Optional[str] = None
+#|     certificate_subject: Optional[str] = None
+#|     transparency_log: Optional[str] = None
+#|     verification_result: Optional[str] = None
+#|     verification_time: Optional[datetime] = None
+#|     policy: Optional[str] = None
+#|     state: SignatureState = SignatureState.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class AttestationObject:
+#|     attestation_id: str
+#|     attestation_type: Optional[str] = None
+#|     predicate: Dict[str, Any] = field(default_factory=dict)
+#|     signer: Optional[str] = None
+#|     subject_digest: Optional[str] = None
+#|     verified: Optional[bool] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ProvenanceObject:
+#|     provenance_id: str
+#|     builder: Optional[str] = None
+#|     source_repository: Optional[str] = None
+#|     commit: Optional[str] = None
+#|     build_workflow: Optional[str] = None
+#|     materials: List[Dict[str, Any]] = field(default_factory=list)
+#|     timestamp: Optional[datetime] = None
+#|     artifact_digest: Optional[str] = None
+#|     state: ProvenanceState = ProvenanceState.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class BuildSourceObject:
+#|     build_id: str
+#|     repository: Optional[str] = None
+#|     commit: Optional[str] = None
+#|     pipeline: Optional[str] = None
+#|     build_time: Optional[datetime] = None
+#|     image_digest: Optional[str] = None
+#|     state: ProvenanceState = ProvenanceState.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SecretExposure:
+#|     secret_id: str
+#|     secret_type: str
+#|     redacted_value: str
+#|     fingerprint: str
+#|     path: Optional[str] = None
+#|     layer_index: Optional[int] = None
+#|     environment_variable: Optional[str] = None
+#|     state: SecretState = SecretState.REDACTED
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class MalwareIndicator:
+#|     indicator_id: str
+#|     indicator_type: str
+#|     value: str
+#|     source: Optional[str] = None
+#|     match_object_type: Optional[str] = None
+#|     match_object_id: Optional[str] = None
+#|     state: MalwareState = MalwareState.UNKNOWN
+#|     family: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class VulnerabilityCandidate:
+#|     vulnerability_id: str
+#|     cve: Optional[str] = None
+#|     package_name: str
+#|     package_version: Optional[str] = None
+#|     purl: Optional[str] = None
+#|     cpe: Optional[str] = None
+#|     severity: Optional[str] = None
+#|     epss: Optional[float] = None
+#|     kev: bool = False
+#|     fixed_version: Optional[str] = None
+#|     affected_range: Optional[str] = None
+#|     source: Optional[str] = None
+#|     state: VulnerabilityState = VulnerabilityState.CANDIDATE
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ContainerInstance:
+#|     container_id: str
+#|     image_digest: Optional[str] = None
+#|     runtime: Optional[str] = None
+#|     host_or_node_reference: Optional[str] = None
+#|     started_at: Optional[datetime] = None
+#|     status: Optional[str] = None
+#|     workload_reference: Optional[str] = None
+#|     restart_count: Optional[int] = None
+#|     security_context: Dict[str, Any] = field(default_factory=dict)
+#|     runtime_filesystem_drift: bool = False
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class KubernetesWorkload:
+#|     workload_id: str
+#|     kind: Optional[str] = None
+#|     namespace: Optional[str] = None
+#|     cluster: Optional[str] = None
+#|     pod_name: Optional[str] = None
+#|     container_name: Optional[str] = None
+#|     image_reference: Optional[str] = None
+#|     image_digest: Optional[str] = None
+#|     init_containers: List[Dict[str, Any]] = field(default_factory=list)
+#|     sidecars: List[Dict[str, Any]] = field(default_factory=list)
+#|     security_context: Dict[str, Any] = field(default_factory=dict)
+#|     image_pull_policy: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class CloudContext:
+#|     context_id: str
+#|     service: Optional[str] = None
+#|     account_ref: Optional[str] = None
+#|     region: Optional[str] = None
+#|     registry_ref: Optional[str] = None
+#|     workload_ref: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class DeploymentDigest:
+#|     deployment_id: str
+#|     workload_id: Optional[str] = None
+#|     approved_digest: Optional[str] = None
+#|     observed_digest: Optional[str] = None
+#|     tag: Optional[str] = None
+#|     observed_at: Optional[datetime] = None
+#|     state: DeploymentDriftType = DeploymentDriftType.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class DriftFinding:
+#|     drift_id: str
+#|     drift_type: DeploymentDriftType
+#|     object_id: Optional[str] = None
+#|     expected: Optional[str] = None
+#|     observed: Optional[str] = None
+#|     time_range: Optional[Dict[str, Any]] = None
+#|     state: VerificationState = VerificationState.INCONCLUSIVE
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Contradiction:
+#|     contradiction_id: str
+#|     contradiction_type: str
+#|     description: str
+#|     object_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     severity: str = "MEDIUM"
+#| 
+#| 
+#| @dataclass
+#| class Hypothesis:
+#|     id: str
+#|     description: str
+#|     support_evidence: List[str] = field(default_factory=list)
+#|     opposition_evidence: List[str] = field(default_factory=list)
+#|     unknowns: List[str] = field(default_factory=list)
+#|     falsification_criteria: str = ""
+#|     status: HypothesisStatus = HypothesisStatus.INCONCLUSIVE
+#| 
+#| 
+#| @dataclass
+#| class FactRecord:
+#|     fact_id: str
+#|     statement: str
+#|     claim_type: str
+#|     verification_state: VerificationState
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     object_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class GraphNode:
+#|     node_id: str
+#|     type: str
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class GraphEdge:
+#|     edge_id: str
+#|     source_node_id: str
+#|     target_node_id: str
+#|     relation: str
+#|     confidence: float = 0.5
+#|     evidence_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Gap:
+#|     gap_id: str
+#|     description: str
+#|     importance: str
+#|     recommended_source: str
+#|     specialist: str
+#|     expected_information_value: str
+#| 
+#| 
+#| # ==============================================================================
+#| # CONSTANTS
+#| # ==============================================================================
+#| 
+#| SOURCE_RELIABILITY = {
+#|     "oci_registry_api": 0.92,
+#|     "oci_manifest": 0.94,
+#|     "cryptographic_digest": 0.96,
+#|     "image_tarball": 0.88,
+#|     "filesystem_export": 0.86,
+#|     "sbom_cyclonedx": 0.82,
+#|     "sbom_spdx": 0.82,
+#|     "vex_record": 0.78,
+#|     "cosign_signature": 0.88,
+#|     "sigstore_transparency_log": 0.86,
+#|     "in_toto_attestation": 0.84,
+#|     "slsa_provenance": 0.86,
+#|     "build_metadata": 0.80,
+#|     "dockerfile": 0.72,
+#|     "containerfile": 0.72,
+#|     "ci_cd_build_record": 0.82,
+#|     "repository_metadata": 0.74,
+#|     "kubernetes_inventory": 0.84,
+#|     "runtime_inventory": 0.86,
+#|     "cloud_inventory": 0.82,
+#|     "vulnerability_database": 0.76,
+#|     "vendor_advisory": 0.80,
+#|     "kev_catalog": 0.84,
+#|     "epss_feed": 0.70,
+#|     "malware_intelligence": 0.72,
+#|     "approved_scanner_result": 0.78,
+#|     "user_report": 0.45,
+#|     "third_party_aggregator": 0.30,
+#|     "unknown": 0.20,
+#| }
+#| 
+#| SECRET_REGEXES = [
+#|     ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+#|     ("private_key_marker", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+#|     ("jwt_like_token", re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")),
+#|     ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]+")),
+#|     (
+#|         "generic_secret_assignment",
+#|         re.compile(
+#|             r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|apikey|"
+#|             r"private[_-]?key|cookie|session[_-]?id|mfa|otp|credential)\b\s*[:=]\s*([^\s,;&]+)"
+#|         ),
+#|     ),
+#| ]
+#| 
+#| SENSITIVE_ENV_KEYS = (
+#|     "password",
+#|     "passwd",
+#|     "pwd",
+#|     "token",
+#|     "api_key",
+#|     "apikey",
+#|     "secret",
+#|     "private_key",
+#|     "privatekey",
+#|     "cookie",
+#|     "session",
+#|     "mfa",
+#|     "otp",
+#|     "credential",
+#|     "aws_access_key_id",
+#|     "aws_secret_access_key",
+#|     "azure_client_secret",
+#|     "gcp_service_account",
+#| )
+#| 
+#| SUSPICIOUS_TEMP_PATHS = (
+#|     "/tmp/",
+#|     "/var/tmp/",
+#|     "appdata\\local\\temp\\",
+#|     "c:\\users\\",
+#| )
+#| 
+#| 
+#| # ==============================================================================
+#| # HELPERS
+#| # ==============================================================================
+#| 
+#| def new_id(prefix: str) -> str:
+#|     return f"{prefix}_{uuid.uuid4().hex[:12]}"
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(p) for p in parts)
+#|     digest = hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()
+#|     return f"{prefix}_{digest[:12]}"
+#| 
+#| 
+#| def json_serial(obj: Any) -> Any:
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, Enum):
+#|         return obj.name
+#|     if hasattr(obj, "__dataclass_fields__"):
+#|         return asdict(obj)
+#|     if isinstance(obj, set):
+#|         return sorted(obj)
+#|     return str(obj)
+#| 
+#| 
+#| def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+#|     return max(low, min(high, value))
+#| 
+#| 
+#| def enum_from_name(enum_cls: Any, name: Any, default: Any) -> Any:
+#|     try:
+#|         return enum_cls[str(name).upper()]
+#|     except Exception:
+#|         return default
+#| 
+#| 
+#| def parse_dt(value: Any) -> Optional[datetime]:
+#|     if value is None:
+#|         return None
+#| 
+#|     if isinstance(value, datetime):
+#|         if value.tzinfo is None:
+#|             return value.replace(tzinfo=timezone.utc)
+#|         return value.astimezone(timezone.utc)
+#| 
+#|     text = str(value).strip()
+#|     if not text:
+#|         return None
+#| 
+#|     text = text.replace("Z", "+00:00")
+#| 
+#|     try:
+#|         dt = datetime.fromisoformat(text)
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt.astimezone(timezone.utc)
+#|     except ValueError:
+#|         pass
+#| 
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S.%f%z",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d %H:%M",
+#|         "%Y-%m-%d",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(text, fmt)
+#|             if dt.tzinfo is None:
+#|                 dt = dt.replace(tzinfo=timezone.utc)
+#|             return dt.astimezone(timezone.utc)
+#|         except ValueError:
+#|             continue
+#| 
+#|     return None
+#| 
+#| 
+#| def normalize_digest(value: Any) -> Optional[str]:
+#|     if value is None:
+#|         return None
+#|     s = str(value).strip().lower()
+#|     if not s:
+#|         return None
+#|     if not s.startswith("sha256:"):
+#|         s = f"sha256:{s}"
+#|     return s
+#| 
+#| 
+#| def version_tuple(value: str) -> Tuple[int, ...]:
+#|     parts = re.split(r"[.\-+]", str(value or ""))
+#|     out: List[int] = []
+#|     for p in parts:
+#|         if p.isdigit():
+#|             out.append(int(p))
+#|         else:
+#|             out.append(0)
+#|     return tuple(out)
+#| 
+#| 
+#| def version_lte(a: Optional[str], b: Optional[str]) -> bool:
+#|     if not a or not b:
+#|         return False
+#|     try:
+#|         return version_tuple(a) <= version_tuple(b)
+#|     except Exception:
+#|         return False
+#| 
+#| 
+#| def make_evidence(
+#|     item: Dict[str, Any],
+#|     case_id: str,
+#|     kind: str,
+#|     now: datetime,
+#|     default_source_type: str = "unknown",
+#| ) -> EvidenceRef:
+#|     source_type = str(item.get("source_type") or default_source_type)
+#|     reliability = float(item.get("reliability", SOURCE_RELIABILITY.get(source_type, 0.20)))
+#| 
+#|     observed_at = parse_dt(
+#|         item.get("observed_at")
+#|         or item.get("first_seen")
+#|         or item.get("last_seen")
+#|         or item.get("timestamp")
+#|         or item.get("generated_at")
+#|         or item.get("verification_time")
+#|         or item.get("build_time")
+#|         or item.get("started_at")
+#|         or item.get("valid_from")
+#|     )
+#| 
+#|     limitations: List[str] = list(item.get("limitations", []) or [])
+#| 
+#|     if observed_at is None:
+#|         limitations.append("OBSERVATION_TIME_UNRESOLVED")
+#| 
+#|     if source_type in {"user_report", "third_party_aggregator", "unknown"}:
+#|         limitations.append("LOWER_SOURCE_AUTHORITY")
+#| 
+#|     ev = EvidenceRef(
+#|         evidence_id=new_id("EVID"),
+#|         case_id=case_id,
+#|         source_id=str(item.get("source_id") or "UNKNOWN_SOURCE"),
+#|         upstream_source_id=str(item.get("upstream_source_id") or item.get("source_id") or "UNKNOWN_UPSTREAM"),
+#|         source_type=source_type,
+#|         kind=kind,
+#|         observed_at=observed_at,
+#|         reliability=clamp(reliability),
+#|         limitations=sorted(set(limitations)),
+#|     )
+#| 
+#|     item.setdefault("evidence_ids", [])
+#|     item["evidence_ids"].append(ev.evidence_id)
+#| 
+#|     item.setdefault("confidence", ev.reliability)
+#|     item.setdefault("limitations", [])
+#|     item["limitations"] = sorted(set(list(item["limitations"]) + ev.limitations))
+#| 
+#|     return ev
+#| 
+#| 
+#| def detect_secrets_in_text(text: Optional[str]) -> List[Dict[str, str]]:
+#|     if not text:
+#|         return []
+#| 
+#|     found: List[Dict[str, str]] = []
+#|     s = str(text)
+#| 
+#|     for secret_type, rx in SECRET_REGEXES:
+#|         for m in rx.finditer(s):
+#|             if secret_type == "generic_secret_assignment":
+#|                 raw_secret = m.group(2) or m.group(0)
+#|             else:
+#|                 raw_secret = m.group(0)
+#| 
+#|             fingerprint = hashlib.sha256(raw_secret.encode("utf-8", errors="ignore")).hexdigest()[:16]
+#| 
+#|             found.append(
+#|                 {
+#|                     "secret_type": secret_type,
+#|                     "redacted_value": "[REDACTED]",
+#|                     "fingerprint": fingerprint,
+#|                 }
+#|             )
+#| 
+#|     # Deduplicate by fingerprint/type.
+#|     unique: Dict[Tuple[str, str], Dict[str, str]] = {}

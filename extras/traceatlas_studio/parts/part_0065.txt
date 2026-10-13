@@ -1,0 +1,1000 @@
+#| 
+#|     for item in vulnerability_data or []:
+#|         ev = make_evidence(item, case_id, "vulnerability_context", now, "vulnerability_database")
+#|         evidences.append(ev)
+#| 
+#|         vuln_pkg = str(item.get("package") or item.get("product") or "").lower()
+#|         vuln_eco = str(item.get("ecosystem") or "").lower()
+#|         affected_versions = [str(x).lower() for x in item.get("affected_versions", []) or []]
+#|         affected_max = item.get("affected_max_version")
+#|         fixed_version = item.get("fixed_version")
+#| 
+#|         for p in packages:
+#|             if str(p.name).lower() != vuln_pkg:
+#|                 continue
+#| 
+#|             if vuln_eco and str(p.ecosystem or "").lower() != vuln_eco:
+#|                 continue
+#| 
+#|             matched = False
+#| 
+#|             if p.version and str(p.version).lower() in affected_versions:
+#|                 matched = True
+#|             elif affected_max and version_lte(p.version, str(affected_max)):
+#|                 matched = True
+#|             elif item.get("match_exact_version") and p.version == item.get("match_exact_version"):
+#|                 matched = True
+#| 
+#|             if not matched:
+#|                 continue
+#| 
+#|             state = VulnerabilityState.CANDIDATE
+#|             limitations = [
+#|                 "Package presence does not prove vulnerability applicability.",
+#|                 "Reachability and exploitability require VULNINT analysis.",
+#|                 "Distribution backports may invalidate naive upstream version comparison.",
+#|                 "Build-only packages may not be present in runtime image.",
+#|             ]
+#| 
+#|             # Apply VEX.
+#|             for vex in vex_records:
+#|                 product_match = (
+#|                     str(vex.product or "").lower() == str(p.name).lower()
+#|                     or str(vex.purl or "").lower() == str(p.purl or "").lower()
+#|                 )
+#|                 version_match = (
+#|                     vex.version is None
+#|                     or str(vex.version).lower() == str(p.version or "").lower()
+#|                 )
+#|                 cve_match = vex.vulnerability_id == item.get("cve")
+#| 
+#|                 if product_match and version_match and cve_match:
+#|                     status = str(vex.status or "").lower()
+#|                     if status == "not_affected":
+#|                         state = VulnerabilityState.NOT_AFFECTED_PER_VEX
+#|                         limitations.append("VEX states not affected; validate against actual image/configuration context.")
+#|                     elif status == "fixed":
+#|                         state = VulnerabilityState.FIXED_PER_VEX
+#|                         limitations.append("VEX states fixed; verify fixed version/backport in observed image.")
+#|                     elif status == "under_investigation":
+#|                         state = VulnerabilityState.UNDER_INVESTIGATION
+#|                         limitations.append("VEX under investigation; applicability unresolved.")
+#| 
+#|             out.append(
+#|                 VulnerabilityCandidate(
+#|                     vulnerability_id=str(item.get("vulnerability_id") or stable_id("VULN", item.get("cve"), p.package_id)),
+#|                     cve=item.get("cve"),
+#|                     package_name=p.name,
+#|                     package_version=p.version,
+#|                     purl=p.purl,
+#|                     cpe=p.cpe or item.get("cpe"),
+#|                     severity=item.get("severity"),
+#|                     epss=float(item["epss"]) if item.get("epss") is not None else None,
+#|                     kev=bool(item.get("kev")),
+#|                     fixed_version=fixed_version,
+#|                     affected_range=item.get("affected_range") or ",".join(affected_versions),
+#|                     source=item.get("source") or ev.source_id,
+#|                     state=state,
+#|                     evidence_ids=[ev.evidence_id] + p.evidence_ids,
+#|                     confidence=clamp(float(item.get("confidence", ev.reliability)) * p.confidence),
+#|                     limitations=sorted(set(limitations)),
+#|                 )
+#|             )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_runtime_instances(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ContainerInstance]:
+#|     out: List[ContainerInstance] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "runtime_instance", now, "runtime_inventory")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             ContainerInstance(
+#|                 container_id=str(item.get("container_id") or stable_id("CTR", item.get("image_digest"), item.get("host_or_node_reference"))),
+#|                 image_digest=normalize_digest(item.get("image_digest")),
+#|                 runtime=item.get("runtime"),
+#|                 host_or_node_reference=item.get("host_or_node_reference"),
+#|                 started_at=parse_dt(item.get("started_at")),
+#|                 status=item.get("status"),
+#|                 workload_reference=item.get("workload_reference"),
+#|                 restart_count=int(item["restart_count"]) if item.get("restart_count") is not None else None,
+#|                 security_context=dict(item.get("security_context", {}) or {}),
+#|                 runtime_filesystem_drift=bool(item.get("runtime_filesystem_drift", False)),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_kubernetes_workloads(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[KubernetesWorkload]:
+#|     out: List[KubernetesWorkload] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "kubernetes_workload", now, "kubernetes_inventory")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             KubernetesWorkload(
+#|                 workload_id=str(item.get("workload_id") or stable_id("K8S", item.get("kind"), item.get("namespace"), item.get("pod_name"))),
+#|                 kind=item.get("kind"),
+#|                 namespace=item.get("namespace"),
+#|                 cluster=item.get("cluster"),
+#|                 pod_name=item.get("pod_name"),
+#|                 container_name=item.get("container_name"),
+#|                 image_reference=item.get("image_reference"),
+#|                 image_digest=normalize_digest(item.get("image_digest")),
+#|                 init_containers=[dict(x) for x in item.get("init_containers", []) or []],
+#|                 sidecars=[dict(x) for x in item.get("sidecars", []) or []],
+#|                 security_context=dict(item.get("security_context", {}) or {}),
+#|                 image_pull_policy=item.get("image_pull_policy"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_cloud_context(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[CloudContext]:
+#|     out: List[CloudContext] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "cloud_context", now, "cloud_inventory")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             CloudContext(
+#|                 context_id=str(item.get("context_id") or stable_id("CLOUD", item.get("service"), item.get("account_ref"))),
+#|                 service=item.get("service"),
+#|                 account_ref=item.get("account_ref"),
+#|                 region=item.get("region"),
+#|                 registry_ref=item.get("registry_ref"),
+#|                 workload_ref=item.get("workload_ref"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_deployment_digests(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[DeploymentDigest]:
+#|     out: List[DeploymentDigest] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "deployment_digest", now, "kubernetes_inventory")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             DeploymentDigest(
+#|                 deployment_id=str(item.get("deployment_id") or stable_id("DEP", item.get("workload_id"), item.get("observed_digest"))),
+#|                 workload_id=item.get("workload_id"),
+#|                 approved_digest=normalize_digest(item.get("approved_digest")),
+#|                 observed_digest=normalize_digest(item.get("observed_digest")),
+#|                 tag=item.get("tag"),
+#|                 observed_at=parse_dt(item.get("observed_at")) or ev.observed_at,
+#|                 state=DeploymentDriftType.UNKNOWN,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| # ==============================================================================
+#| # ANALYSIS
+#| # ==============================================================================
+#| 
+#| def resolve_base_image(
+#|     provenance: List[ProvenanceObject],
+#|     configs: List[ImageConfigObject],
+#|     layers: List[LayerObject],
+#|     image_digest: Optional[str],
+#| ) -> Tuple[Optional[str], LineageState, List[str]]:
+#|     evidence_ids: List[str] = []
+#| 
+#|     # Preferred: provenance materials.
+#|     for prov in provenance:
+#|         if image_digest and prov.artifact_digest != image_digest:
+#|             continue
+#| 
+#|         for mat in prov.materials:
+#|             uri = str(mat.get("uri") or "")
+#|             digest = normalize_digest(mat.get("digest"))
+#|             if digest and ("@" in uri or "sha256" in digest):
+#|                 evidence_ids.extend(prov.evidence_ids)
+#|                 return digest, LineageState.SUPPORTED_BASE_IMAGE, sorted(set(evidence_ids))
+#| 
+#|     # Secondary: config history FROM lines.
+#|     for cfg in configs:
+#|         for hist in cfg.history:
+#|             m = re.search(r"(?i)^#\s*\[.*?\]\s*FROM\s+(\S+)", hist)
+#|             if m:
+#|                 base = m.group(1)
+#|                 evidence_ids.extend(cfg.evidence_ids)
+#|                 return base, LineageState.PROBABLE_BASE_IMAGE, sorted(set(evidence_ids))
+#| 
+#|     # Tertiary: first layer fingerprint heuristic is weak.
+#|     if layers:
+#|         first = layers[0]
+#|         if first.digest:
+#|             evidence_ids.extend(first.evidence_ids)
+#|             return first.digest, LineageState.UNKNOWN, sorted(set(evidence_ids))
+#| 
+#|     return None, LineageState.UNKNOWN, []
+#| 
+#| 
+#| def compute_drift_findings(
+#|     image_references: List[ImageReferenceObject],
+#|     tag_history: List[TagHistoryEntry],
+#|     deployment_digests: List[DeploymentDigest],
+#|     runtime_instances: List[ContainerInstance],
+#|     workloads: List[KubernetesWorkload],
+#|     policy: Dict[str, Any],
+#| ) -> List[DriftFinding]:
+#|     findings: List[DriftFinding] = []
+#| 
+#|     # Tag drift.
+#|     by_tag: Dict[str, Set[str]] = defaultdict(set)
+#|     tag_evidence: Dict[str, List[str]] = defaultdict(list)
+#| 
+#|     for th in tag_history:
+#|         by_tag[th.tag].add(th.digest)
+#|         tag_evidence[th.tag].extend(th.evidence_ids)
+#| 
+#|     for tag, digests in by_tag.items():
+#|         if len(digests) > 1:
+#|             findings.append(
+#|                 DriftFinding(
+#|                     drift_id=new_id("DRIFT"),
+#|                     drift_type=DeploymentDriftType.TAG_DRIFT,
+#|                     object_id=tag,
+#|                     expected="single immutable digest per tag if enforced",
+#|                     observed=", ".join(sorted(digests)),
+#|                     time_range={"tag": tag},
+#|                     state=VerificationState.SUPPORTED,
+#|                     evidence_ids=sorted(set(tag_evidence[tag])),
+#|                     confidence=0.85,
+#|                     limitations=[
+#|                         "Tag drift may be normal CI/CD behavior.",
+#|                         "Tag drift alone does not prove malicious replacement.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|     # Deployment drift.
+#|     ref_by_tag = {r.tag: r for r in image_references if r.tag}
+#|     workload_by_id = {w.workload_id: w for w in workloads}
+#| 
+#|     for dep in deployment_digests:
+#|         expected = dep.approved_digest
+#|         observed = dep.observed_digest
+#| 
+#|         if not expected and dep.tag and dep.tag in ref_by_tag:
+#|             expected = ref_by_tag[dep.tag].digest
+#| 
+#|         if expected and observed and expected != observed:
+#|             dep.state = DeploymentDriftType.DEPLOYMENT_DRIFT
+#|             findings.append(
+#|                 DriftFinding(
+#|                     drift_id=new_id("DRIFT"),
+#|                     drift_type=DeploymentDriftType.DEPLOYMENT_DRIFT,
+#|                     object_id=dep.deployment_id,
+#|                     expected=expected,
+#|                     observed=observed,
+#|                     time_range={"observed_at": dep.observed_at},
+#|                     state=VerificationState.SUPPORTED,
+#|                     evidence_ids=dep.evidence_ids,
+#|                     confidence=dep.confidence,
+#|                     limitations=[
+#|                         "Deployment drift requires authorization/change-ticket review before incident escalation.",
+#|                         "Could be approved rollout, rollback, mirror, or inventory lag.",
+#|                     ],
+#|                 )
+#|             )
+#|         elif not observed and dep.tag:
+#|             findings.append(
+#|                 DriftFinding(
+#|                     drift_id=new_id("DRIFT"),
+#|                     drift_type=DeploymentDriftType.MUTABLE_REFERENCE_RISK,
+#|                     object_id=dep.deployment_id,
+#|                     expected="digest-pinned reference",
+#|                     observed=f"tag:{dep.tag}",
+#|                     state=VerificationState.PARTIALLY_SUPPORTED,
+#|                     evidence_ids=dep.evidence_ids,
+#|                     confidence=0.65,
+#|                     limitations=["Mutable tag deployment increases reproducibility risk."],
+#|                 )
+#|             )
+#| 
+#|     # Runtime drift.
+#|     workload_by_pod = {w.pod_name: w for w in workloads if w.pod_name}
+#| 
+#|     for inst in runtime_instances:
+#|         if inst.runtime_filesystem_drift:
+#|             findings.append(
+#|                 DriftFinding(
+#|                     drift_id=new_id("DRIFT"),
+#|                     drift_type=DeploymentDriftType.RUNTIME_FILESYSTEM_DRIFT,
+#|                     object_id=inst.container_id,
+#|                     expected=inst.image_digest,
+#|                     observed="runtime filesystem differs from immutable image baseline",
+#|                     state=VerificationState.PARTIALLY_SUPPORTED,
+#|                     evidence_ids=inst.evidence_ids,
+#|                     confidence=inst.confidence,
+#|                     limitations=[
+#|                         "Runtime filesystem drift may be logs, cache, app-generated files, patching, or compromise.",
+#|                         "Do not label compromise automatically.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|         wl = workload_by_id.get(inst.workload_reference or "") or workload_by_pod.get(inst.host_or_node_reference or "")
+#|         if wl and wl.image_digest and inst.image_digest and wl.image_digest != inst.image_digest:
+#|             findings.append(
+#|                 DriftFinding(
+#|                     drift_id=new_id("DRIFT"),
+#|                     drift_type=DeploymentDriftType.DEPLOYMENT_DRIFT,
+#|                     object_id=inst.container_id,
+#|                     expected=wl.image_digest,
+#|                     observed=inst.image_digest,
+#|                     state=VerificationState.PARTIALLY_SUPPORTED,
+#|                     evidence_ids=inst.evidence_ids + wl.evidence_ids,
+#|                     confidence=min(inst.confidence, wl.confidence),
+#|                     limitations=["Workload inventory and runtime instance digest differ; resolve timing/inventory staleness."],
+#|                 )
+#|             )
+#| 
+#|     return findings
+#| 
+#| 
+#| def assess_hardening(
+#|     configs: List[ImageConfigObject],
+#|     workloads: List[KubernetesWorkload],
+#|     instances: List[ContainerInstance],
+#| ) -> Dict[str, Any]:
+#|     observations: List[str] = []
+#|     risk_level = HardeningState.BASELINE
+#| 
+#|     for cfg in configs:
+#|         user = str(cfg.user or "").lower()
+#|         if user in {"root", "0"}:
+#|             observations.append("Image config specifies root user.")
+#|             risk_level = HardeningState.ELEVATED_RISK_CONFIGURATION
+#| 
+#|         if cfg.exposed_ports:
+#|             observations.append(f"Exposed port metadata present: {', '.join(cfg.exposed_ports)}.")
+#|             observations.append("Exposed port metadata does not prove Internet exposure.")
+#| 
+#|     for wl in workloads:
+#|         sc = wl.security_context or {}
+#|         if sc.get("privileged") is True:
+#|             observations.append("Workload securityContext indicates privileged container.")
+#|             risk_level = HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION
+#| 
+#|         host_paths = sc.get("hostPaths") or sc.get("host_paths") or []
+#|         if host_paths:
+#|             observations.append(f"Workload mounts host paths: {host_paths}.")
+#|             risk_level = HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION
+#| 
+#|         if sc.get("dockerSocket") or sc.get("docker_socket"):
+#|             observations.append("Workload mounts container runtime socket.")
+#|             risk_level = HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION
+#| 
+#|         caps = sc.get("capabilities") or {}
+#|         add_caps = caps.get("add") or []
+#|         if any(c in {"SYS_ADMIN", "NET_ADMIN", "SYS_PTRACE", "DAC_OVERRIDE"} for c in add_caps):
+#|             observations.append(f"Workload adds sensitive Linux capabilities: {add_caps}.")
+#|             risk_level = HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION
+#| 
+#|         if sc.get("readOnlyRootFilesystem") is False:
+#|             observations.append("Workload does not enforce read-only root filesystem.")
+#| 
+#|     for inst in instances:
+#|         sc = inst.security_context or {}
+#|         if sc.get("privileged") is True:
+#|             observations.append(f"Runtime instance {inst.container_id} observed privileged.")
+#|             risk_level = HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION
+#| 
+#|     limitations = [
+#|         "Hardening observations are defensive configuration context.",
+#|         "Root user or privileged config does not prove compromise.",
+#|         "No container-escape or exploitation instructions are provided.",
+#|     ]
+#| 
+#|     return {
+#|         "state": risk_level.name,
+#|         "observations": sorted(set(observations)),
+#|         "limitations": limitations,
+#|     }
+#| 
+#| 
+#| def evaluate_policy_compliance(
+#|     policy: Dict[str, Any],
+#|     registries: List[RegistryObject],
+#|     image_references: List[ImageReferenceObject],
+#|     signatures: List[SignatureObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     configs: List[ImageConfigObject],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     drift_findings: List[DriftFinding],
+#| ) -> Dict[str, Any]:
+#|     if not policy:
+#|         return {
+#|             "state": PolicyComplianceState.NOT_ASSESSED.name,
+#|             "checks": [],
+#|             "limitations": ["No organization policy supplied."],
+#|         }
+#| 
+#|     checks: List[Dict[str, Any]] = []
+#|     failures = 0
+#|     warnings = 0
+#| 
+#|     approved_registries = {str(x).lower() for x in policy.get("approved_registries", []) or []}
+#|     if approved_registries:
+#|         for reg in registries:
+#|             ok = str(reg.hostname or "").lower() in approved_registries
+#|             checks.append({"check": "approved_registry", "object_id": reg.registry_id, "passed": ok})
+#|             if not ok:
+#|                 failures += 1
+#| 
+#|     if policy.get("require_digest_pinning"):
+#|         for ref in image_references:
+#|             ok = bool(ref.digest)
+#|             checks.append({"check": "digest_pinning", "object_id": ref.image_reference_id, "passed": ok})
+#|             if not ok:
+#|                 warnings += 1
+#| 
+#|         for dr in drift_findings:
+#|             if dr.drift_type == DeploymentDriftType.MUTABLE_REFERENCE_RISK:
+#|                 warnings += 1
+#| 
+#|     if policy.get("require_signature"):
+#|         verified_digests = {s.digest_covered for s in signatures if s.state == SignatureState.VERIFIED}
+#|         for ref in image_references:
+#|             if ref.digest:
+#|                 ok = ref.digest in verified_digests
+#|                 checks.append({"check": "signature_verified", "object_id": ref.image_reference_id, "passed": ok})
+#|                 if not ok:
+#|                     failures += 1
+#| 
+#|     if policy.get("require_sbom"):
+#|         ok = sbom_validation is not None and sbom_validation.state in (
+#|             SbomValidationState.MATCHES_IMAGE_STRONGLY,
+#|             SbomValidationState.PARTIAL_MATCH,
+#|         )
+#|         checks.append({"check": "sbom_present_and_validated", "object_id": sbom_validation.sbom_id if sbom_validation else None, "passed": ok})
+#|         if not ok:
+#|             failures += 1
+#| 
+#|     if policy.get("prohibit_root_user"):
+#|         for cfg in configs:
+#|             ok = str(cfg.user or "").lower() not in {"root", "0"}
+#|             checks.append({"check": "non_root_user", "object_id": cfg.evidence_ids[0] if cfg.evidence_ids else None, "passed": ok})
+#|             if not ok:
+#|                 failures += 1
+#| 
+#|     max_critical = policy.get("max_unresolved_critical_vulnerabilities")
+#|     if max_critical is not None:
+#|         unresolved_critical = [
+#|             v for v in vulnerabilities
+#|             if str(v.severity or "").lower() in {"critical", "high"}
+#|             and v.state in (VulnerabilityState.CANDIDATE, VulnerabilityState.APPLICABILITY_UNRESOLVED, VulnerabilityState.UNDER_INVESTIGATION)
+#|         ]
+#|         ok = len(unresolved_critical) <= int(max_critical)
+#|         checks.append({"check": "vulnerability_threshold", "object_id": None, "passed": ok, "count": len(unresolved_critical)})
+#|         if not ok:
+#|             failures += 1
+#| 
+#|     if failures:
+#|         state = PolicyComplianceState.NON_COMPLIANT
+#|     elif warnings:
+#|         state = PolicyComplianceState.PARTIALLY_COMPLIANT
+#|     else:
+#|         state = PolicyComplianceState.COMPLIANT
+#| 
+#|     return {
+#|         "state": state.name,
+#|         "checks": checks,
+#|         "limitations": [
+#|             "Policy compliance is separate from actual security, vulnerability applicability, or compromise.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def detect_contradictions(
+#|     image_references: List[ImageReferenceObject],
+#|     tag_history: List[TagHistoryEntry],
+#|     deployment_digests: List[DeploymentDigest],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     packages: List[PackageObject],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     drift_findings: List[DriftFinding],
+#|     secrets: List[SecretExposure],
+#| ) -> List[Contradiction]:
+#|     out: List[Contradiction] = []
+#| 
+#|     # Tag resolved digest vs deployment observed digest.
+#|     ref_by_tag = {r.tag: r for r in image_references if r.tag and r.digest}
+#|     for dep in deployment_digests:
+#|         ref = ref_by_tag.get(dep.tag or "")
+#|         if ref and ref.digest and dep.observed_digest and ref.digest != dep.observed_digest:
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="TAG_DEPLOYMENT_DIGEST_MISMATCH",
+#|                     description=f"Tag '{dep.tag}' resolved to {ref.digest}, but deployment observed {dep.observed_digest}.",
+#|                     object_ids=[dep.deployment_id],
+#|                     evidence_ids=ref.evidence_ids + dep.evidence_ids,
+#|                     severity="HIGH",
+#|                 )
+#|             )
+#| 
+#|     # Signature/provenance for approved digest but deployment uses different digest.
+#|     verified_digests = {s.digest_covered for s in signatures if s.state == SignatureState.VERIFIED}
+#|     provenance_digests = {p.artifact_digest for p in provenance if p.artifact_digest}
+#| 
+#|     for dep in deployment_digests:
+#|         if dep.observed_digest and dep.approved_digest and dep.observed_digest != dep.approved_digest:
+#|             if dep.approved_digest in verified_digests and dep.observed_digest not in verified_digests:
+#|                 out.append(
+#|                     Contradiction(
+#|                         contradiction_id=new_id("CONTRA"),
+#|                         contradiction_type="SIGNATURE_COVERAGE_MISMATCH",
+#|                         description="Approved digest has verified signature, but observed deployment digest does not.",
+#|                         object_ids=[dep.deployment_id],
+#|                         evidence_ids=dep.evidence_ids,
+#|                         severity="HIGH",
+#|                     )
+#|                 )
+#| 
+#|             if dep.approved_digest in provenance_digests and dep.observed_digest not in provenance_digests:
+#|                 out.append(
+#|                     Contradiction(
+#|                         contradiction_id=new_id("CONTRA"),
+#|                         contradiction_type="PROVENANCE_COVERAGE_MISMATCH",
+#|                         description="Approved digest has provenance, but observed deployment digest does not.",
+#|                         object_ids=[dep.deployment_id],
+#|                         evidence_ids=dep.evidence_ids,
+#|                         severity="MEDIUM",
+#|                     )
+#|                 )
+#| 
+#|     # SBOM mismatch.
+#|     if sbom_validation and sbom_validation.state in (
+#|         SbomValidationState.PARTIAL_MATCH,
+#|         SbomValidationState.STALE_CANDIDATE,
+#|         SbomValidationState.DIFFERENT_BUILD_CANDIDATE,
+#|         SbomValidationState.INCONCLUSIVE,
+#|     ):
+#|         out.append(
+#|             Contradiction(
+#|                 contradiction_id=new_id("CONTRA"),
+#|                 contradiction_type="SBOM_IMAGE_MISMATCH",
+#|                 description=sbom_validation.explanation,
+#|                 object_ids=[sbom_validation.sbom_id],
+#|                 evidence_ids=sbom_validation.evidence_ids,
+#|                 severity="MEDIUM",
+#|             )
+#|         )
+#| 
+#|     # Package version conflicts already in SBOM validation.
+#|     if sbom_validation and sbom_validation.version_conflicts:
+#|         out.append(
+#|             Contradiction(
+#|                 contradiction_id=new_id("CONTRA"),
+#|                 contradiction_type="PACKAGE_VERSION_CONFLICT",
+#|                 description=f"SBOM and image package inventory disagree on {len(sbom_validation.version_conflicts)} component version(s).",
+#|                 object_ids=[sbom_validation.sbom_id],
+#|                 evidence_ids=sbom_validation.evidence_ids,
+#|                 severity="MEDIUM",
+#|             )
+#|         )
+#| 
+#|     # Historical secret deleted but present.
+#|     for sec in secrets:
+#|         if sec.state == SecretState.HISTORICAL_LAYER_PRESENT:
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="HISTORICAL_LAYER_SECRET",
+#|                     description="Secret evidence appears in historical layer despite later deletion; deletion does not remove image-history exposure.",
+#|                     object_ids=[sec.secret_id],
+#|                     evidence_ids=sec.evidence_ids,
+#|                     severity="HIGH",
+#|                 )
+#|             )
+#| 
+#|     # VEX vs vulnerability candidate.
+#|     for v in vulnerabilities:
+#|         if v.state == VulnerabilityState.NOT_AFFECTED_PER_VEX:
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="VEX_VS_SCANNER_CANDIDATE",
+#|                     description=f"Vulnerability candidate {v.cve} for {v.package_name} is marked not affected by VEX; preserve both signals.",
+#|                     object_ids=[v.vulnerability_id],
+#|                     evidence_ids=v.evidence_ids,
+#|                     severity="LOW",
+#|                 )
+#|             )
+#| 
+#|     return out
+#| 
+#| 
+#| def build_hypotheses(
+#|     image_references: List[ImageReferenceObject],
+#|     deployment_digests: List[DeploymentDigest],
+#|     drift_findings: List[DriftFinding],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     hardening: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     known_facts: Dict[str, Any],
+#| ) -> List[Hypothesis]:
+#|     hypotheses: List[Hypothesis] = []
+#| 
+#|     deployment_drift = any(d.drift_type == DeploymentDriftType.DEPLOYMENT_DRIFT for d in drift_findings)
+#|     tag_drift = any(d.drift_type == DeploymentDriftType.TAG_DRIFT for d in drift_findings)
+#|     runtime_drift = any(d.drift_type == DeploymentDriftType.RUNTIME_FILESYSTEM_DRIFT for d in drift_findings)
+#|     malware_candidate = any(m.state == MalwareState.MALICIOUS_ARTIFACT_CANDIDATE for m in malware)
+#|     secret_present = any(s.state in (SecretState.PRESENT, SecretState.HISTORICAL_LAYER_PRESENT) for s in secrets)
+#|     sbom_mismatch = bool(sbom_validation and sbom_validation.state != SbomValidationState.MATCHES_IMAGE_STRONGLY)
+#|     high_risk_hardening = hardening.get("state") == HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION.name
+#| 
+#|     approved_digests = {d.approved_digest for d in deployment_digests if d.approved_digest}
+#|     observed_digests = {d.observed_digest for d in deployment_digests if d.observed_digest}
+#|     verified_digests = {s.digest_covered for s in signatures if s.state == SignatureState.VERIFIED}
+#|     provenance_digests = {p.artifact_digest for p in provenance if p.artifact_digest}
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H1",
+#|             description="Deployment runs approved, signed, provenance-backed image digest.",
+#|             support_evidence=[
+#|                 "No deployment drift finding." if not deployment_drift else "",
+#|                 "Observed digest has verified signature." if observed_digests & verified_digests else "",
+#|                 "Observed digest has provenance." if observed_digests & provenance_digests else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "Deployment drift observed." if deployment_drift else "",
+#|                 "Observed digest lacks verified signature." if observed_digests and not (observed_digests & verified_digests) else "",
+#|                 "Observed digest lacks provenance." if observed_digests and not (observed_digests & provenance_digests) else "",
+#|             ],
+#|             unknowns=["Authorization of any digest change", "Registry mirror/proxy behavior"],
+#|             falsification_criteria="Reject if deployed digest differs from approved digest without authorized change evidence.",
+#|             status=HypothesisStatus.CANDIDATE if not deployment_drift else HypothesisStatus.REJECTED,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H2",
+#|             description="Mutable tag caused workload to pull newer unapproved digest.",
+#|             support_evidence=[
+#|                 "Tag drift observed." if tag_drift else "",
+#|                 "Deployment drift observed." if deployment_drift else "",
+#|                 "Mutable reference risk observed." if any(d.drift_type == DeploymentDriftType.MUTABLE_REFERENCE_RISK for d in drift_findings) else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "Digest pinning enforced." if known_facts.get("digest_pinning_enforced") else "",
+#|                 "No tag drift." if not tag_drift else "",
+#|             ],
+#|             unknowns=["CI/CD release intent", "Approval record"],
+#|             falsification_criteria="Reject if deployed digest matches approved digest or change ticket authorizes digest movement.",
+#|             status=HypothesisStatus.ACTIVE if tag_drift or deployment_drift else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H3",
+#|             description="Inventory is stale and workload already updated to approved newer digest.",
+#|             support_evidence=[
+#|                 "Deployment drift observed." if deployment_drift else "",
+#|                 "Tag drift observed." if tag_drift else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "Runtime inventory timestamp recent." if known_facts.get("runtime_inventory_fresh") else "",
+#|                 "Approved digest and observed digest match." if not deployment_drift else "",
+#|             ],
+#|             unknowns=["Inventory collection time", "Rollout completion status"],
+#|             falsification_criteria="Reject if authorized deployment history confirms observed digest was not approved.",
+#|             status=HypothesisStatus.CANDIDATE if deployment_drift else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H4",
+#|             description="Registry mirror/proxy served equivalent signed artifact with different manifest digest.",
+#|             support_evidence=[
+#|                 "Deployment drift observed." if deployment_drift else "",
+#|                 "Mirror/proxy registry type present." if any(r.registry_type == RegistryType.MIRROR or r.registry_type == RegistryType.PROXY_CACHE for r in []) else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "Digest is content-addressed and should match for identical manifest.",
+#|                 "No mirror evidence supplied.",
+#|             ],
+#|             unknowns=["Mirror digest mapping", "Upstream artifact equivalence"],
+#|             falsification_criteria="Reject if observed digest is not cryptographically equivalent to approved artifact.",
+#|             status=HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H5",
+#|             description="Runtime container was modified after start (runtime compromise or operational change).",
+#|             support_evidence=[
+#|                 "Runtime filesystem drift observed." if runtime_drift else "",
+#|                 "High-risk runtime configuration present." if high_risk_hardening else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "Runtime drift may be logs/cache/application files.",
+#|                 "No process/network forensic evidence supplied.",
+#|             ],
+#|             unknowns ["Process lineage", "Network egress", "File integrity", "Incident scope"],
+#|             falsification_criteria="Reject if runtime differences are explained by authorized application behavior and integrity checks.",
+#|             status=HypothesisStatus.CANDIDATE if runtime_drift or high_risk_hardening else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H6",
+#|             description="Image contains malicious or suspicious artifact introduced through supply chain.",
+#|             support_evidence=[
+#|                 "Malware artifact candidate observed." if malware_candidate else "",
+#|                 "Secret exposure present." if secret_present else "",
+#|                 "SBOM/image mismatch." if sbom_mismatch else "",
+#|                 "Material contradictions." if contradictions else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "No malware indicator match." if not malware_candidate else "",
+#|                 "Signature/provenance verified for deployed digest." if observed_digests & verified_digests and observed_digests & provenance_digests else "",
+#|             ],
+#|             unknowns=["Malware family", "Build pipeline compromise", "Base image compromise", "Dependency compromise"],
+#|             falsification_criteria="Reject if suspicious artifact is explained by legitimate package/build artifact and independent provenance validates image.",
+#|             status=HypothesisStatus.CANDIDATE if malware_candidate or (secret_present and sbom_mismatch) else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H7",
+#|             description="Vulnerability candidates are present but applicability is unresolved.",
+#|             support_evidence=[
+#|                 f"{len(vulnerabilities)} vulnerability candidate(s) mapped." if vulnerabilities else "",
+#|             ],
+#|             opposition_evidence=[
+#|                 "VEX marks some components not affected." if any(v.state == VulnerabilityState.NOT_AFFECTED_PER_VEX for v in vulnerabilities) else "",
+#|             ],
+#|             unknowns=["Reachability", "Configuration", "Backports", "Runtime exposure"],
+#|             falsification_criteria="Downgrade if VULNINT confirms not applicable or fixed by backport.",
+#|             status=HypothesisStatus.ACTIVE if vulnerabilities else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     return [h for h in hypotheses if h.support_evidence or h.opposition_evidence or h.status != HypothesisStatus.REJECTED]
+#| 
+#| 
+#| def independent_skeptic_review(
+#|     drift_findings: List[DriftFinding],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     contradictions: List[Contradiction],
+#|     hardening: Dict[str, Any],
+#|     known_facts: Dict[str, Any],
+#| ) -> Dict[str, Any]:
+#|     flags: List[str] = []
+#|     alternatives: List[str] = []
+#|     questions: List[str] = []
+#| 
+#|     deployment_drift = any(d.drift_type == DeploymentDriftType.DEPLOYMENT_DRIFT for d in drift_findings)
+#|     runtime_drift = any(d.drift_type == DeploymentDriftType.RUNTIME_FILESYSTEM_DRIFT for d in drift_findings)
+#|     malware_candidate = any(m.state == MalwareState.MALICIOUS_ARTIFACT_CANDIDATE for m in malware)
+#|     secret_present = any(s.state in (SecretState.PRESENT, SecretState.HISTORICAL_LAYER_PRESENT) for s in secrets)
+#|     sbom_mismatch = bool(sbom_validation and sbom_validation.state != SbomValidationState.MATCHES_IMAGE_STRONGLY)
+#| 
+#|     if deployment_drift:
+#|         alternatives.extend(
+#|             [
+#|                 "Approved CI/CD rollout.",
+#|                 "Authorized rollback.",
+#|                 "Registry mirror/proxy digest mapping.",
+#|                 "Stale deployment inventory.",
+#|             ]
+#|         )
+#|         flags.append("DEPLOYMENT_DRIFT_REQUIRES_AUTHORIZATION_REVIEW")
+#| 
+#|     if runtime_drift:
+#|         alternatives.extend(
+#|             [
+#|                 "Application logs/cache.",
+#|                 "Temporary runtime files.",
+#|                 "Authorized in-container patching.",
+#|                 "Runtime compromise.",
+#|             ]
+#|         )
+#|         flags.append("RUNTIME_DRIFT_NOT_AUTOMATIC_COMPROMISE")
+#| 
+#|     if malware_candidate:
+#|         alternatives.extend(
+#|             [
+#|                 "Known benign dual-use tool.",
+#|                 "False positive from hash reputation feed.",
+#|                 "Build artifact temporarily present.",
+#|                 "Legitimate package with suspicious path.",
+#|             ]
+#|         )
+#|         flags.append("MALWARE_CANDIDATE_REQUIRES_MALINT")
+#| 
+#|     if secret_present:
+#|         alternatives.extend(
+#|             [
+#|                 "Placeholder/example secret.",
+#|                 "Expired credential.",
+#|                 "Test fixture.",
+#|                 "Historical layer artifact.",
+#|             ]
+#|         )
+#|         flags.append("SECRET_VALIDITY_NOT_TESTED")
+#| 
+#|     if sbom_mismatch:
+#|         alternatives.extend(
+#|             [
+#|                 "SBOM generated for different architecture.",
+#|                 "SBOM generated from source not final image.",
+#|                 "Scanner/SBOM tool coverage gap.",
+#|                 "Stale SBOM.",
+#|             ]
+#|         )
+#|         flags.append("SBOM_MISMATCH_NOT_AUTOMATIC_TAMPERING")
+#| 
+#|     if vulnerabilities:
+#|         alternatives.extend(
+#|             [
+#|                 "Distro backport fixes vulnerability without version change.",
+#|                 "Package present but not reachable.",
+#|                 "Build-only dependency not in runtime image.",
+#|                 "VEX not affected statement.",
+#|             ]
+#|         )
+#|         flags.append("VULNERABILITY_APPLICABILITY_UNRESOLVED")
+#| 
+#|     if hardening.get("state") == HardeningState.HIGH_RISK_RUNTIME_CONFIGURATION.name:
+#|         alternatives.append("High-risk runtime configuration may be legacy, authorized, or misconfigured rather than exploited.")
+#|         flags.append("HIGH_RISK_CONFIGURATION_NOT_ACTIVE_EXPLOITATION")
+#| 
+#|     if contradictions:
+#|         flags.append("CONTRADICTIONS_PRESENT")
+#|         alternatives.append("Contradictions may reflect timing, mirror, stale inventory, parser gap, or multi-arch differences.")
+#| 
+#|     questions.extend(
+#|         [
+#|             "Did we resolve the immutable digest rather than trust the tag?",
+#|             "Could the tag have legitimately moved through CI/CD?",
+#|             "Does the SBOM correspond to the same platform/build?",
+#|             "Could vulnerable package be build-only or backported?",
+#|             "Could secret be placeholder, expired, or historical-layer only?",
+#|             "Are multiple scanner findings dependent on same vulnerability feed?",
+#|             "Does signature prove what we think it proves?",
+#|             "Does provenance prove source-code trust or only build relationship?",
+#|             "Is runtime drift operational noise or forensic signal?",
+#|             "What evidence would disprove supply-chain compromise?",
+#|         ]
+#|     )
+#| 
+#|     return {
+#|         "flags": sorted(set(flags)),
+#|         "alternative_explanations": sorted(set(alternatives)),
+#|         "diagnostic_questions": questions,
+#|         "review_outcome": "PARTIAL_AGREEMENT" if flags else "AGREE",
+#|         "boundary": "Static-first, no execution, no secret use, no registry tampering, no container exploitation.",
+#|     }
+#| 
+#| 
+#| def build_facts(
+#|     image_references: List[ImageReferenceObject],
+#|     manifests: List[ManifestObject],
+#|     layers: List[LayerObject],
+#|     packages: List[PackageObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     drift_findings: List[DriftFinding],
+#|     hardening: Dict[str, Any],
+#|     policy_compliance: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#| ) -> List[FactRecord]:
+#|     facts: List[FactRecord] = []
+#| 
+#|     for ref in image_references:
+#|         if ref.digest:
+#|             facts.append(
+#|                 FactRecord(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=f"Image reference resolved to immutable digest {ref.digest}.",
+#|                     claim_type="DIRECT_ARTIFACT_FACT",
+#|                     verification_state=VerificationState.SUPPORTED,
+#|                     evidence_ids=ref.evidence_ids,
+#|                     object_ids=[ref.image_reference_id],
+#|                     confidence=ref.confidence,
+#|                     limitations=["Digest identifies content manifest; platform variant must be resolved separately."],
+#|                 )
+#|             )
+#|         else:
+#|             facts.append(
+#|                 FactRecord(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=f"Image reference {ref.original_reference} is tag-based and mutable.",
+#|                     claim_type="DIRECT_ARTIFACT_FACT",
+#|                     verification_state=VerificationState.SUPPORTED,
+#|                     evidence_ids=ref.evidence_ids,
+#|                     object_ids=[ref.image_reference_id],
+#|                     confidence=ref.confidence,
+#|                     limitations=["Tag alone does not establish image identity."],
+#|                 )
+#|             )
+#| 
+#|     for m in manifests:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"OCI manifest observed: digest={m.manifest_digest}, layers={len(m.layer_digests)}.",
+#|                 claim_type="DIRECT_ARTIFACT_FACT",
+#|                 verification_state=VerificationState.SUPPORTED,
+#|                 evidence_ids=m.evidence_ids,
+#|                 object_ids=[m.manifest_digest or "unknown"],
+#|                 confidence=m.confidence,
+#|                 limitations=["Manifest digest is not layer digest or file hash."],
+#|             )
+#|         )
+#| 
+#|     for p in packages[:50]:
+#|         facts.append(
+#|             FactRecord(

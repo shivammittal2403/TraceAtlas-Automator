@@ -1,0 +1,1000 @@
+#|     Synthetic demo only.
+#|     No live AIS access. No real vessel accusation.
+#|     """
+#|     employee = AISIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+#| 
+#|     case = {
+#|         "case_id": "DEMO-AISINT-001",
+#|         "task_id": "DEMO-TASK-001",
+#|         "objective": (
+#|             "Lawful maritime compliance research: verify vessel identity, reconstruct AIS track, "
+#|             "assess AIS gap and offshore proximity without alleging wrongdoing."
+#|         ),
+#|         "questions": [
+#|             "Which vessel is observed?",
+#|             "Is the AIS gap explained by coverage uncertainty?",
+#|             "Is offshore proximity only a candidate or corroborated STS?",
+#|         ],
+#|         "authorization": "PUBLIC_DATA_LAWFUL_RESEARCH",
+#|         "time_range": {
+#|             "start": "2026-10-01T00:00:00Z",
+#|             "end": "2026-10-01T14:00:00Z",
+#|         },
+#|         "ports": [
+#|             {
+#|                 "port_id": "PORT_RTM_DEMO",
+#|                 "name": "Rotterdam Approach (Demo Geometry)",
+#|                 "latitude": 51.90,
+#|                 "longitude": 4.10,
+#|                 "radius_nm": 10.0,
+#|                 "source_id": "demo_port_geometry",
+#|             }
+#|         ],
+#|         "ais_messages": [
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000001",
+#|                 "imo": "9074723",
+#|                 "timestamp": "2026-10-01T00:00:00Z",
+#|                 "lat": 51.95,
+#|                 "lon": 4.05,
+#|                 "sog": 0.1,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 5,
+#|                 "name": "DEMO VESSEL ALPHA",
+#|                 "callsign": "DEMOA",
+#|                 "ship_type": 70,
+#|                 "length": 180.0,
+#|                 "beam": 30.0,
+#|                 "draught": 10.5,
+#|                 "destination": "ROTTERDAM",
+#|                 "eta": "2026-10-01T06:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000001",
+#|                 "imo": "9074723",
+#|                 "timestamp": "2026-10-01T06:00:00Z",
+#|                 "lat": 51.90,
+#|                 "lon": 4.10,
+#|                 "sog": 0.2,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 5,
+#|                 "name": "DEMO VESSEL ALPHA",
+#|                 "callsign": "DEMOA",
+#|                 "ship_type": 70,
+#|                 "length": 180.0,
+#|                 "beam": 30.0,
+#|                 "draught": 10.5,
+#|                 "destination": "ROTTERDAM",
+#|                 "eta": "2026-10-01T06:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000001",
+#|                 "imo": "9074723",
+#|                 "timestamp": "2026-10-01T13:00:00Z",
+#|                 "lat": 51.0000,
+#|                 "lon": 3.0000,
+#|                 "sog": 12.0,
+#|                 "cog": 250.0,
+#|                 "heading": 250.0,
+#|                 "nav_status": 0,
+#|                 "name": "DEMO VESSEL ALPHA",
+#|                 "callsign": "DEMOA",
+#|                 "ship_type": 70,
+#|                 "length": 180.0,
+#|                 "beam": 30.0,
+#|                 "draught": 10.5,
+#|                 "destination": "ANTWERP",
+#|                 "eta": "2026-10-01T18:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000001",
+#|                 "imo": "9074723",
+#|                 "timestamp": "2026-10-01T13:15:00Z",
+#|                 "lat": 51.0005,
+#|                 "lon": 3.0005,
+#|                 "sog": 0.3,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 0,
+#|                 "name": "DEMO VESSEL ALPHA",
+#|                 "callsign": "DEMOA",
+#|                 "ship_type": 70,
+#|                 "length": 180.0,
+#|                 "beam": 30.0,
+#|                 "draught": 10.5,
+#|                 "destination": "ANTWERP",
+#|                 "eta": "2026-10-01T18:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000001",
+#|                 "imo": "9074723",
+#|                 "timestamp": "2026-10-01T13:30:00Z",
+#|                 "lat": 51.0010,
+#|                 "lon": 3.0010,
+#|                 "sog": 0.2,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 0,
+#|                 "name": "DEMO VESSEL ALPHA",
+#|                 "callsign": "DEMOA",
+#|                 "ship_type": 70,
+#|                 "length": 180.0,
+#|                 "beam": 30.0,
+#|                 "draught": 10.5,
+#|                 "destination": "ANTWERP",
+#|                 "eta": "2026-10-01T18:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000002",
+#|                 "imo": "9074739",
+#|                 "timestamp": "2026-10-01T13:00:00Z",
+#|                 "lat": 51.0010,
+#|                 "lon": 3.0010,
+#|                 "sog": 0.2,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 1,
+#|                 "name": "DEMO VESSEL BRAVO",
+#|                 "callsign": "DEMOB",
+#|                 "ship_type": 80,
+#|                 "length": 120.0,
+#|                 "beam": 20.0,
+#|                 "draught": 8.0,
+#|                 "destination": "ANCHORAGE",
+#|                 "eta": "2026-10-01T13:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000002",
+#|                 "imo": "9074739",
+#|                 "timestamp": "2026-10-01T13:15:00Z",
+#|                 "lat": 51.0010,
+#|                 "lon": 3.0010,
+#|                 "sog": 0.1,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 1,
+#|                 "name": "DEMO VESSEL BRAVO",
+#|                 "callsign": "DEMOB",
+#|                 "ship_type": 80,
+#|                 "length": 120.0,
+#|                 "beam": 20.0,
+#|                 "draught": 8.0,
+#|                 "destination": "ANCHORAGE",
+#|                 "eta": "2026-10-01T13:00:00Z",
+#|             },
+#|             {
+#|                 "source_id": "public_ais_demo_1",
+#|                 "source_type": "TERRESTRIAL_AIS",
+#|                 "mmsi": "219000002",
+#|                 "imo": "9074739",
+#|                 "timestamp": "2026-10-01T13:30:00Z",
+#|                 "lat": 51.0010,
+#|                 "lon": 3.0010,
+#|                 "sog": 0.1,
+#|                 "cog": 0.0,
+#|                 "heading": 0.0,
+#|                 "nav_status": 1,
+#|                 "name": "DEMO VESSEL BRAVO",
+#|                 "callsign": "DEMOB",
+#|                 "ship_type": 80,
+#|                 "length": 120.0,
+#|                 "beam": 20.0,
+#|                 "draught": 8.0,
+#|                 "destination": "ANCHORAGE",
+#|                 "eta": "2026-10-01T13:00:00Z",
+#|             },
+#|         ],
+#|         "satellite_context": [],
+#|         "trade_context": [],
+#|         "sanctions_context": [],
+#|         "weather_context": [],
+#|         "corroborations": [],
+#|         "port_records": [],
+#|     }
+#| 
+#|     result = employee.run_case(case)
+#|     print(result.report)
+#| 
+#|     # Example: serialize compact result
+#|     # print(json.dumps({"facts": [f.statement for f in result.facts]}, indent=2, default=_json_default))
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     demo()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aisint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE anomalyint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS ANOMALYINT — Safe Python Starter Implementation
+#| 
+#| Purpose:
+#|   Evidence-first cross-domain anomaly detection, explanation, and defensive triage.
+#| 
+#| Hard boundaries enforced in code:
+#|   - Does NOT autonomously accuse, convict, punish, terminate, suspend, freeze, block, or blacklist.
+#|   - Does NOT infer guilt, criminality, fraud verdict, malware verdict, or incident verdict from anomaly score.
+#|   - Does NOT infer sensitive traits: religion, ethnicity, race, political belief, sexual orientation, health, mental health.
+#|   - Does NOT perform unauthorized surveillance, biometric identification, or private-person tracking.
+#|   - Does NOT generate attack paths, chokepoints, sabotage plans, or detection-evasion guidance.
+#|   - Treats anomaly as deviation, not malice.
+#|   - Treats model score as analytical signal, not fact.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import math
+#| import re
+#| import sys
+#| import unicodedata
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timedelta, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+#| 
+#| VERSION = "0.1.0-anomalyint-safe-starter"
+#| FAR_FUTURE = datetime(9999, 12, 31, tzinfo=timezone.utc)
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / privacy constants
+#| # --------------------------------------------------------------------
+#| 
+#| ALLOWED_SCOPES = {
+#|     "public_and_authorized_records",
+#|     "authorized_case_evidence",
+#|     "authorized_enterprise_telemetry",
+#|     "authorized_security_operations",
+#|     "provided_records_only",
+#| }
+#| 
+#| PERSON_ENTITY_TYPES = {
+#|     "PERSON_CANDIDATE",
+#|     "LEGAL_PERSON",
+#|     "EMPLOYEE",
+#|     "INDIVIDUAL",
+#|     "HUMAN",
+#| }
+#| 
+#| SENSITIVE_KEYS = {
+#|     "race",
+#|     "ethnicity",
+#|     "religion",
+#|     "faith",
+#|     "sexual_orientation",
+#|     "sex_life",
+#|     "health",
+#|     "medical_condition",
+#|     "disability",
+#|     "mental_health",
+#|     "psychological_profile",
+#|     "personality",
+#|     "political_belief",
+#|     "political_affiliation",
+#|     "union_membership",
+#|     "biometric",
+#|     "face",
+#|     "facial",
+#|     "voiceprint",
+#|     "gait",
+#|     "fingerprint",
+#|     "iris",
+#|     "dna",
+#|     "lie_detector",
+#|     "deception",
+#|     "dangerousness",
+#|     "criminality",
+#|     "criminal_propensity",
+#|     "loyalty",
+#|     "extremism",
+#|     "terrorism_probability",
+#|     "fraudster_score",
+#| }
+#| 
+#| CONTENT_KEYS = {
+#|     "message_body",
+#|     "email_body",
+#|     "chat_log",
+#|     "content",
+#|     "transcript",
+#|     "recording",
+#|     "private_message",
+#|     "dm",
+#| }
+#| 
+#| EXACT_LOCATION_KEYS = {
+#|     "latitude",
+#|     "longitude",
+#|     "lat",
+#|     "lon",
+#|     "gps",
+#|     "home_address",
+#|     "private_address",
+#|     "street_address",
+#|     "exact_location",
+#| }
+#| 
+#| PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+#|     (
+#|         re.compile(r"(?i)\b(autonomously|automatically|auto)\b.*\b(accuse|convict|punish|terminate|suspend|freeze|block|blacklist|discipline|arrest)\b"),
+#|         "AUTONOMOUS_ACCUSATION_OR_PUNITIVE_ACTION",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(employee discipline|account suspension|fund freeze|vendor termination|legal action|criminal referral)\b"),
+#|         "PUNITIVE_OR_LEGAL_ACTION_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(attack (path|route|target|surface)|chokepoint|sabotage|evasion|penetration|exploit|weaponize)\b"),
+#|         "ATTACK_OPTIMIZATION_OR_SABOTAGE_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(infer|classify|score|detect)\s+(religion|ethnicity|race|political belief|sexual orientation|health|medical condition|mental health|criminality|guilt|dangerousness|loyalty)\b"),
+#|         "SENSITIVE_TRAIT_OR_RISK_PROFILING",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(track|surveil|stalk|monitor)\s+(person|individual|employee|target|someone)\b"),
+#|         "PRIVATE_TRACKING_OR_SURVEILLANCE",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(face recognition|voiceprint|biometric identif|gait recognition|typing cadence.*identify)\b"),
+#|         "BIOMETRIC_IDENTIFICATION_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(dox|harass|target individual|retaliate)\b"),
+#|         "DOXXING_OR_HARASSMENT",
+#|     ),
+#| ]
+#| 
+#| SOURCE_RELIABILITY: Dict[str, float] = {
+#|     "signed_system_log": 0.92,
+#|     "identity_log": 0.88,
+#|     "application_log": 0.82,
+#|     "endpoint_telemetry": 0.82,
+#|     "network_telemetry": 0.78,
+#|     "cloud_audit_log": 0.84,
+#|     "siem_event": 0.80,
+#|     "authorized_workflow": 0.82,
+#|     "authorized_ticketing": 0.78,
+#|     "transaction_record": 0.88,
+#|     "payment_metadata": 0.86,
+#|     "fraud_telemetry": 0.72,
+#|     "sensor_feed": 0.70,
+#|     "environmental_measurement": 0.70,
+#|     "public_repository": 0.58,
+#|     "public_website": 0.55,
+#|     "public_social_post": 0.45,
+#|     "self_reported": 0.35,
+#|     "third_party_report": 0.40,
+#|     "unknown": 0.30,
+#| }
+#| 
+#| HIGH_AUTHORITY_SOURCE_TYPES = {
+#|     "signed_system_log",
+#|     "identity_log",
+#|     "application_log",
+#|     "endpoint_telemetry",
+#|     "network_telemetry",
+#|     "cloud_audit_log",
+#|     "siem_event",
+#|     "authorized_workflow",
+#|     "transaction_record",
+#|     "payment_metadata",
+#| }
+#| 
+#| DOMAIN_HANDOFF: Dict[str, str] = {
+#|     "cyber": "INCIDENTINT / CTI",
+#|     "network": "NETINT",
+#|     "dns": "DNSINT",
+#|     "routing": "BGPINT",
+#|     "identity": "CREDINT / LOGINT",
+#|     "credentials": "CREDINT",
+#|     "malware": "MALINT",
+#|     "financial": "FININT / FRAUDINT",
+#|     "fraud": "FRAUDINT",
+#|     "trade": "TRADEINT",
+#|     "supply_chain": "SUPPLYCHAININT",
+#|     "logistics": "LOGINT / TRANSPORTINT",
+#|     "organizational": "ORGINT",
+#|     "behavioral": "BEHAVIOURALINT",
+#|     "environmental": "ENVINT",
+#|     "satellite": "SATINT / IMINT / GEOINT",
+#|     "maritime": "AISINT / TRANSPORTINT",
+#|     "radar": "RADINT",
+#|     "seismic": "SEISINT",
+#|     "narrative": "NARRATIVEINT / MEMEINT",
+#|     "operational": "OPSINT / LOGINT",
+#|     "data_quality": "LOGINT / DATA_STEWARD",
+#|     "sensor": "SENSORINT / LOGINT",
+#|     "unknown": "ANOMALYINT / HUMAN_REVIEW",
+#| }
+#| 
+#| BENIGN_CONTEXT_TYPES = {
+#|     "role_change",
+#|     "system_migration",
+#|     "maintenance",
+#|     "project",
+#|     "automation",
+#|     "scheduled_process",
+#|     "policy_change",
+#|     "business_event",
+#|     "holiday",
+#|     "deployment",
+#|     "incident_response",
+#|     "travel",
+#|     "new_vendor",
+#|     "new_customer",
+#|     "new_employee",
+#|     "known_change",
+#| }
+#| 
+#| CONTAMINATING_CONTEXT_TYPES = {
+#|     "incident",
+#|     "abuse",
+#|     "migration",
+#|     "special_project",
+#|     "holiday",
+#|     "outage",
+#|     "data_backfill",
+#|     "maintenance",
+#|     "deployment",
+#| }
+#| 
+#| SEVERITY_RANK = {
+#|     "INFORMATIONAL": 0,
+#|     "LOW_REVIEW": 1,
+#|     "MEDIUM_REVIEW": 2,
+#|     "HIGH_REVIEW": 3,
+#|     "CRITICAL_REVIEW": 4,
+#|     "UNKNOWN": -1,
+#| }
+#| 
+#| CONFIDENCE_RANK = {
+#|     "VERY_LOW": 0,
+#|     "LOW": 1,
+#|     "MODERATE": 2,
+#|     "HIGH": 3,
+#|     "UNKNOWN": -1,
+#| }
+#| 
+#| STATUS_RANK = {
+#|     "DATA_QUALITY_ISSUE": 5,
+#|     "SENSOR_FAULT_CANDIDATE": 4,
+#|     "BENIGN_EXPLAINED": 3,
+#|     "CONTEXT_EXPLAINED": 3,
+#|     "RELATED_TO_KNOWN_EVENT": 2,
+#|     "VALIDATED_ANOMALY": 2,
+#|     "ESCALATION_CANDIDATE": 3,
+#|     "EXTERNAL_EVENT_CANDIDATE": 2,
+#|     "UNRESOLVED": 1,
+#|     "CANDIDATE": 1,
+#|     "DISMISSED": 0,
+#| }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Generic helpers
+#| # --------------------------------------------------------------------
+#| 
+#| def utc_now() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(json_safe(p)) for p in parts)
+#|     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+#|     return f"{prefix}-{digest}"
+#| 
+#| 
+#| def json_safe(obj: Any) -> Any:
+#|     if isinstance(obj, dict):
+#|         return {str(k): json_safe(v) for k, v in obj.items()}
+#|     if isinstance(obj, (list, tuple, set)):
+#|         return [json_safe(x) for x in obj]
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, timedelta):
+#|         return obj.total_seconds()
+#|     if isinstance(obj, bytes):
+#|         return obj.hex()
+#|     if isinstance(obj, (str, int, float, bool, type(None))):
+#|         return obj
+#|     return str(obj)
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     if value is None:
+#|         return ""
+#|     s = unicodedata.normalize("NFKC", str(value))
+#|     s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+#|     return s.strip()
+#| 
+#| 
+#| def collapse_ws(value: str) -> str:
+#|     return re.sub(r"\s+", " ", value).strip()
+#| 
+#| 
+#| def iso(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+#|     return max(lo, min(hi, value))
+#| 
+#| 
+#| def unique_preserve(items: Iterable[Any]) -> List[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         key = json_safe(item)
+#|         if isinstance(key, (dict, list)):
+#|             key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def safe_mean(xs: Iterable[float]) -> float:
+#|     vals = [float(x) for x in xs]
+#|     return sum(vals) / len(vals) if vals else 0.0
+#| 
+#| 
+#| def safe_stdev(xs: Iterable[float]) -> float:
+#|     vals = [float(x) for x in xs]
+#|     if len(vals) < 2:
+#|         return 0.0
+#|     m = safe_mean(vals)
+#|     return math.sqrt(sum((x - m) ** 2 for x in vals) / (len(vals) - 1))
+#| 
+#| 
+#| def safe_median(xs: Iterable[float]) -> float:
+#|     vals = sorted(float(x) for x in xs)
+#|     if not vals:
+#|         return 0.0
+#|     mid = len(vals) // 2
+#|     if len(vals) % 2:
+#|         return vals[mid]
+#|     return (vals[mid - 1] + vals[mid]) / 2.0
+#| 
+#| 
+#| def percentile(sorted_vals: List[float], p: float) -> Optional[float]:
+#|     if not sorted_vals:
+#|         return None
+#|     if len(sorted_vals) == 1:
+#|         return sorted_vals[0]
+#|     k = (len(sorted_vals) - 1) * (p / 100.0)
+#|     f = math.floor(k)
+#|     c = math.ceil(k)
+#|     if f == c:
+#|         return sorted_vals[int(k)]
+#|     return sorted_vals[f] * (c - k) + sorted_vals[c] * (k - f)
+#| 
+#| 
+#| def mad(values: Iterable[float]) -> float:
+#|     vals = [float(v) for v in values]
+#|     if not vals:
+#|         return 0.0
+#|     med = safe_median(vals)
+#|     return safe_median([abs(v - med) for v in vals])
+#| 
+#| 
+#| def robust_z(value: float, median: float, mad_value: float, std: float) -> float:
+#|     if mad_value > 1e-12:
+#|         return 0.6745 * (float(value) - median) / mad_value
+#|     if std > 1e-12:
+#|         return (float(value) - median) / std
+#|     return 0.0 if abs(float(value) - median) <= 1e-12 else 5.0
+#| 
+#| 
+#| def downgrade_confidence(conf: str, steps: int = 1) -> str:
+#|     order = ["VERY_LOW", "LOW", "MODERATE", "HIGH"]
+#|     if conf not in order:
+#|         conf = "LOW"
+#|     idx = max(0, order.index(conf) - steps)
+#|     return order[idx]
+#| 
+#| 
+#| def bump_confidence(conf: str, steps: int = 1) -> str:
+#|     order = ["VERY_LOW", "LOW", "MODERATE", "HIGH"]
+#|     if conf not in order:
+#|         conf = "LOW"
+#|     idx = min(len(order) - 1, order.index(conf) + steps)
+#|     return order[idx]
+#| 
+#| 
+#| def parse_time(value: Any) -> Optional[datetime]:
+#|     if not value:
+#|         return None
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     if s.endswith("Z"):
+#|         s = s[:-1] + "+00:00"
+#|     try:
+#|         dt = datetime.fromisoformat(s)
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt
+#|     except Exception:
+#|         pass
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d",
+#|         "%d/%m/%Y",
+#|         "%m/%d/%Y",
+#|         "%Y-%m",
+#|         "%Y",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(s, fmt)
+#|             if dt.tzinfo is None:
+#|                 dt = dt.replace(tzinfo=timezone.utc)
+#|             return dt
+#|         except Exception:
+#|             continue
+#|     return None
+#| 
+#| 
+#| def parse_numeric_value(raw: Any) -> Optional[float]:
+#|     if raw is None:
+#|         return None
+#|     if isinstance(raw, bool):
+#|         return float(raw)
+#|     if isinstance(raw, (int, float)):
+#|         return float(raw)
+#|     s = normalize_text(raw).replace(",", "")
+#|     m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", s)
+#|     if not m:
+#|         return None
+#|     try:
+#|         return float(m.group())
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def extract_unit(raw: Any) -> Optional[str]:
+#|     if raw is None:
+#|         return None
+#|     s = normalize_text(raw)
+#|     m = re.search(r"([A-Za-z%µ°/^-]+)$", s)
+#|     return m.group(1) if m else None
+#| 
+#| 
+#| def mask_value(value: Any, keep_prefix: int = 3, keep_suffix: int = 2) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     if len(s) <= keep_prefix + keep_suffix:
+#|         return "*" * len(s)
+#|     return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+#| 
+#| 
+#| def mask_entity(entity_id: Any, enabled: bool = True) -> str:
+#|     if not enabled:
+#|         return normalize_text(entity_id)
+#|     return mask_value(entity_id, keep_prefix=4, keep_suffix=2)
+#| 
+#| 
+#| def time_bucket(dt: Optional[datetime], minutes: int = 15) -> str:
+#|     if not dt:
+#|         return "UNKNOWN"
+#|     return str(int(dt.timestamp() // (minutes * 60)))
+#| 
+#| 
+#| def intervals_overlap(
+#|     a_start: Optional[datetime],
+#|     a_end: Optional[datetime],
+#|     b_start: Optional[datetime],
+#|     b_end: Optional[datetime],
+#| ) -> bool:
+#|     if a_start is None and a_end is None:
+#|         return True
+#|     if b_start is None and b_end is None:
+#|         return True
+#|     if a_end and b_start and a_end < b_start:
+#|         return False
+#|     if b_end and a_start and b_end < a_start:
+#|         return False
+#|     return True
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / authorization / privacy
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_manifest_text(manifest: Dict[str, Any]) -> str:
+#|     parts = [
+#|         normalize_text(manifest.get("objective", "")),
+#|         " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+#|     ]
+#|     for fact in manifest.get("known_facts", []) or []:
+#|         if isinstance(fact, dict):
+#|             parts.append(normalize_text(fact.get("text") or fact.get("statement")))
+#|         else:
+#|             parts.append(normalize_text(fact))
+#|     return " ".join(parts)
+#| 
+#| 
+#| def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+#|     blob = collect_manifest_text(manifest)
+#|     blocked = []
+#|     for pat, label in PROHIBITED_PATTERNS:
+#|         if pat.search(blob):
+#|             blocked.append(label)
+#|     return list(dict.fromkeys(blocked))
+#| 
+#| 
+#| def privacy_config(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     auth = manifest.get("authorization", {}) or {}
+#|     pc = dict(auth.get("privacy", {}) or manifest.get("privacy", {}) or {})
+#|     pc.setdefault("minimize_personal_data", True)
+#|     pc.setdefault("hash_entities", False)
+#|     pc.setdefault("mask_entity_display", True)
+#|     return pc
+#| 
+#| 
+#| def has_person_level_records(manifest: Dict[str, Any]) -> bool:
+#|     entity_types = {
+#|         normalize_text(e.get("entity_type", "")).upper()
+#|         for e in manifest.get("entities", []) or []
+#|     }
+#|     if entity_types & PERSON_ENTITY_TYPES:
+#|         return True
+#|     for obs in manifest.get("observations", []) or []:
+#|         et = normalize_text(obs.get("entity_type", "")).upper()
+#|         if et in PERSON_ENTITY_TYPES:
+#|             return True
+#|     return False
+#| 
+#| 
+#| def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+#|     auth = manifest.get("authorization") or {}
+#|     reasons: List[str] = []
+#| 
+#|     if not auth.get("approved"):
+#|         reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+#| 
+#|     scope = auth.get("scope", "provided_records_only")
+#|     if scope not in ALLOWED_SCOPES:
+#|         reasons.append("UNSUPPORTED_SCOPE")
+#| 
+#|     model_mode = auth.get("model_mode", "LOCAL_ONLY")
+#|     if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+#|         reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+#| 
+#|     if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+#|         reasons.append("UNKNOWN_MODEL_MODE")
+#| 
+#|     if has_person_level_records(manifest) and not auth.get("person_level_approved"):
+#|         reasons.append("PERSON_LEVEL_ANALYSIS_NOT_APPROVED")
+#| 
+#|     return (len(reasons) == 0), reasons
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Sources / pedigree / independence
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_referenced_source_ids(manifest: Dict[str, Any]) -> Set[str]:
+#|     ids = set()
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if sid:
+#|             ids.add(sid)
+#|     for obs in manifest.get("observations", []) or []:
+#|         sid = normalize_text(obs.get("source_id"))
+#|         if sid:
+#|             ids.add(sid)
+#|     return ids
+#| 
+#| 
+#| def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     sources: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if not sid:
+#|             continue
+#|         stype = normalize_text(s.get("source_type", "unknown")).lower()
+#|         reliability = s.get("reliability")
+#|         if reliability is None:
+#|             reliability = SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"])
+#|         sources[sid] = {
+#|             "source_id": sid,
+#|             "source_type": stype,
+#|             "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+#|             "reliability": clamp(float(reliability)),
+#|             "observed_at": normalize_text(s.get("observed_at")) or None,
+#|             "url": s.get("url"),
+#|             "limitations": list(s.get("limitations", []) or []),
+#|         }
+#| 
+#|     for sid in collect_referenced_source_ids(manifest):
+#|         if sid not in sources:
+#|             sources[sid] = {
+#|                 "source_id": sid,
+#|                 "source_type": "unknown",
+#|                 "upstream_source_id": None,
+#|                 "reliability": SOURCE_RELIABILITY["unknown"],
+#|                 "observed_at": None,
+#|                 "url": None,
+#|                 "limitations": ["Source referenced but not defined in manifest."],
+#|             }
+#| 
+#|     return sources
+#| 
+#| 
+#| def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+#|     if sid in memo:
+#|         return memo[sid]
+#|     if sid in visiting:
+#|         return sid
+#|     visiting.add(sid)
+#|     src = sources.get(sid)
+#|     if not src or not src.get("upstream_source_id"):
+#|         memo[sid] = sid
+#|         visiting.discard(sid)
+#|         return sid
+#|     root = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+#|     memo[sid] = root
+#|     visiting.discard(sid)
+#|     return root
+#| 
+#| 
+#| def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+#|     memo: Dict[str, str] = {}
+#|     for sid in sources:
+#|         resolve_source_root(sid, sources, memo, set())
+#|     return memo
+#| 
+#| 
+#| def source_family_ids(source_ids: List[str], source_roots: Dict[str, str]) -> List[str]:
+#|     roots = []
+#|     for sid in source_ids:
+#|         roots.append(source_roots.get(sid, sid))
+#|     return list(dict.fromkeys(roots))
+#| 
+#| 
+#| def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+#|     if not source_ids:
+#|         return "UNKNOWN"
+#|     if len(families) <= 1:
+#|         return "DEPENDENT"
+#|     types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+#|     rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+#|     if len(types) == 1 and max(rels) < 0.70:
+#|         return "PARTIALLY_DEPENDENT"
+#|     if max(rels) >= 0.70:
+#|         return "INDEPENDENT"
+#|     return "PARTIALLY_DEPENDENT"
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Features / entities / observations
+#| # --------------------------------------------------------------------
+#| 
+#| def ingest_features(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     features: Dict[str, Dict[str, Any]] = {}
+#|     for f in manifest.get("features", []) or []:
+#|         fid = normalize_text(f.get("feature_id"))
+#|         if not fid:
+#|             continue
+#|         features[fid] = {
+#|             "feature_id": fid,
+#|             "domain": normalize_text(f.get("domain", "unknown")).lower(),
+#|             "value_type": normalize_text(f.get("value_type", "auto")).lower(),
+#|             "unit": normalize_text(f.get("unit")) or None,
+#|             "direction": normalize_text(f.get("direction", "both")).lower(),
+#|             "policy_min": float(f["policy_min"]) if f.get("policy_min") is not None else None,
+#|             "policy_max": float(f["policy_max"]) if f.get("policy_max") is not None else None,
+#|             "criticality": normalize_text(f.get("criticality", "medium")).lower(),
+#|             "sensitivity": normalize_text(f.get("sensitivity", "normal")).lower(),
+#|             "description": normalize_text(f.get("description")),
+#|             "limitations": list(f.get("limitations", []) or []),
+#|         }
+#|     return features
+#| 
+#| 
+#| def ingest_entities(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     entities: Dict[str, Dict[str, Any]] = {}
+#|     for e in manifest.get("entities", []) or []:
+#|         eid = normalize_text(e.get("entity_id"))
+#|         if not eid:
+#|             continue
+#|         entities[eid] = {
+#|             "entity_id": eid,
+#|             "entity_type": normalize_text(e.get("entity_type", "ACCOUNT")).upper(),
+#|             "criticality": normalize_text(e.get("criticality", "medium")).lower(),
+#|             "description": normalize_text(e.get("description")),
+#|         }
+#|     return entities
+#| 
+#| 
+#| def filter_sensitive_feature(feature_id: str, feature: Dict[str, Any]) -> bool:
+#|     fid = normalize_text(feature_id).lower()
+#|     domain = normalize_text(feature.get("domain", "")).lower()
+#|     return fid in SENSITIVE_KEYS or domain in SENSITIVE_KEYS
+#| 
+#| 
+#| def ingest_observations(
+#|     manifest: Dict[str, Any],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     features: Dict[str, Dict[str, Any]],
+#|     entities: Dict[str, Dict[str, Any]],
+#|     privacy_cfg: Dict[str, Any],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     records: List[Dict[str, Any]] = []
+#|     privacy_flags: List[Dict[str, Any]] = []
+#| 
+#|     for idx, obs in enumerate(manifest.get("observations", []) or []):
+#|         obs_id = normalize_text(obs.get("observation_id")) or f"OBS-{idx}"
+#|         entity_raw = normalize_text(obs.get("entity_id") or "UNKNOWN_ENTITY")
+#|         entity_id = hashlib.sha256(entity_raw.encode("utf-8")).hexdigest()[:16] if privacy_cfg.get("hash_entities") else entity_raw
+#|         feature_id = normalize_text(obs.get("feature_id") or "UNKNOWN_FEATURE")
+#| 
+#|         feature = features.get(feature_id, {})
+#|         if filter_sensitive_feature(feature_id, feature):
+#|             privacy_flags.append({
+#|                 "observation_id": obs_id,
+#|                 "entity_id": entity_id,
+#|                 "type": "SENSITIVE_FEATURE_REMOVED",
+#|                 "feature_id": feature_id,
+#|             })
+#|             continue
+#| 
+#|         source_id = normalize_text(obs.get("source_id")) or None
+#|         src = sources.get(source_id, {}) if source_id else {}
+#|         ts = parse_time(obs.get("timestamp"))
+#|         raw_value = obs.get("raw_value", obs.get("value"))
+#|         value = parse_numeric_value(raw_value)
+#|         categorical = None if value is not None else normalize_text(raw_value)
+#|         unit = normalize_text(obs.get("unit")) or extract_unit(raw_value)
+#|         data_quality = normalize_text(obs.get("data_quality", "UNKNOWN")).upper()
+#| 
+#|         if ts is None:
+#|             data_quality = "MISSING_TIMESTAMP"
+#|         if feature.get("value_type") == "numeric" and value is None and categorical:
+#|             data_quality = "INVALID_NUMERIC"
+#| 
+#|         entity_meta = entities.get(entity_id, {})
+#|         entity_type = normalize_text(obs.get("entity_type") or entity_meta.get("entity_type") or "ACCOUNT").upper()
+#| 
+#|         record = {
+#|             "observation_id": obs_id,
+#|             "source_id": source_id,
+#|             "source_type": src.get("source_type", "unknown"),
+#|             "source_reliability": float(src.get("reliability", SOURCE_RELIABILITY["unknown"])),
+#|             "entity_id": entity_id,
+#|             "entity_type": entity_type,
+#|             "feature_id": feature_id,
+#|             "timestamp": ts,
+#|             "raw_value": normalize_text(raw_value),
+#|             "value": value,
+#|             "categorical": categorical,
+#|             "unit": unit,
+#|             "target_entity": normalize_text(obs.get("target_entity") or obs.get("counterparty")) or None,
+#|             "data_quality": data_quality if data_quality != "UNKNOWN" else "OK",
+#|             "evidence_ids": [normalize_text(x) for x in obs.get("evidence_ids", []) or [] if normalize_text(x)],
+#|             "collection_method": normalize_text(obs.get("collection_method")) or None,
+#|             "duplicate_count": 0,
+#|             "issues": [],
+#|             "limitations": list(obs.get("limitations", []) or []),

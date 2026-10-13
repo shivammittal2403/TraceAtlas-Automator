@@ -1,0 +1,1000 @@
+#|                 "Contradiction does not establish falsehood.",
+#|                 "Conflict does not establish deception.",
+#|                 "Both claims are preserved in history.",
+#|             ],
+#|             "created_at": NOW(),
+#|         }
+#|         contradictions.append(contra)
+#| 
+#|         if resolution == "PERSISTENT_CONTRADICTION" and materiality == "MATERIAL":
+#|             for cid in (a["claim_id"], b["claim_id"]):
+#|                 fact_state_changes.append({
+#|                     "claim_id": cid,
+#|                     "proposed_state": "DISPUTED",
+#|                     "reason": "Material unresolved contradiction.",
+#|                     "not_false": True,
+#|                 })
+#| 
+#|     for a, b in itertools.combinations(claims, 2):
+#|         rel = relation_between(a, b)
+#|         if rel:
+#|             rel_type, winner_id, loser_id = rel
+#|             winner = next(c for c in claims if c["claim_id"] == winner_id)
+#|             loser = next(c for c in claims if c["claim_id"] == loser_id)
+#| 
+#|             resolution = (
+#|                 "RESOLVED_BY_SOURCE_CORRECTION"
+#|                 if rel_type in ("CORRECTS", "RETRACTS")
+#|                 else "RESOLVED_BY_VERSION"
+#|             )
+#|             reason = (
+#|                 f"{winner_id} {rel_type.lower()} {loser_id}. "
+#|                 "Later/correcting claim is tracked, but newer is not automatically true."
+#|             )
+#| 
+#|             make_contra(
+#|                 winner, loser,
+#|                 ctype="VERSION_CONTRADICTION",
+#|                 subtype=rel_type,
+#|                 resolution=resolution,
+#|                 reason=reason,
+#|                 entity="SAME_VERIFIED",
+#|                 temporal="EXACT_OVERLAP",
+#|                 scope="SAME_SCOPE",
+#|                 unit="UNKNOWN",
+#|                 semantic="INCOMPATIBLE",
+#|                 independence=source_independence(winner.get("source_id"), loser.get("source_id"), sources),
+#|                 favored=f"{winner_id} may supersede {loser_id} pending authority verification.",
+#|             )
+#|             continue
+#| 
+#|         entity = align_entity(a, b)
+#|         if entity == "UNKNOWN":
+#|             add_gap(
+#|                 "ENTITY_ALIGNMENT_UNKNOWN",
+#|                 [a["claim_id"], b["claim_id"]],
+#|                 "Claims may not refer to the same subject/predicate. No contradiction asserted.",
+#|             )
+#|             continue
+#| 
+#|         temporal = align_temporal(a, b, case)
+#|         scope = align_scope(a, b, case)
+#|         semantic = compare_objects(a["object_parsed"], b["object_parsed"])
+#|         unit = align_unit(a["object_parsed"], b["object_parsed"])
+#|         independence = source_independence(a.get("source_id"), b.get("source_id"), sources)
+#| 
+#|         if temporal == "NON_OVERLAPPING":
+#|             make_contra(
+#|                 a, b,
+#|                 ctype="APPARENT_CONTRADICTION",
+#|                 subtype="TEMPORAL_CONTRADICTION",
+#|                 resolution="RESOLVED_BY_TIME",
+#|                 reason="Claims apply to non-overlapping time intervals.",
+#|                 entity=entity,
+#|                 temporal=temporal,
+#|                 scope=scope,
+#|                 unit=unit,
+#|                 semantic=semantic,
+#|                 independence=independence,
+#|             )
+#|             continue
+#| 
+#|         if scope == "DIFFERENT_SCOPE":
+#|             make_contra(
+#|                 a, b,
+#|                 ctype="APPARENT_CONTRADICTION",
+#|                 subtype="SCOPE_CONTRADICTION",
+#|                 resolution="RESOLVED_BY_SCOPE",
+#|                 reason="Claims use different scope qualifiers.",
+#|                 entity=entity,
+#|                 temporal=temporal,
+#|                 scope=scope,
+#|                 unit=unit,
+#|                 semantic=semantic,
+#|                 independence=independence,
+#|             )
+#|             continue
+#| 
+#|         if semantic in ("EQUIVALENT", "COMPATIBLE"):
+#|             make_contra(
+#|                 a, b,
+#|                 ctype="APPARENT_CONTRADICTION",
+#|                 subtype="UNIT_OR_SEMANTIC_CONTRADICTION",
+#|                 resolution="RESOLVED_BY_UNIT_NORMALIZATION" if unit == "SAME_UNIT" else "APPARENT_CONTRADICTION_RESOLVED",
+#|                 reason="After normalization, values are equivalent or compatible.",
+#|                 entity=entity,
+#|                 temporal=temporal,
+#|                 scope=scope,
+#|                 unit=unit,
+#|                 semantic=semantic,
+#|                 independence=independence,
+#|             )
+#|             continue
+#| 
+#|         if semantic == "UNKNOWN":
+#|             add_gap(
+#|                 "SEMANTIC_ALIGNMENT_UNKNOWN",
+#|                 [a["claim_id"], b["claim_id"]],
+#|                 "Objects differ, but ontology/semantics do not establish incompatibility.",
+#|             )
+#|             continue
+#| 
+#|         # semantic == INCOMPATIBLE
+#|         if temporal == "TIME_UNKNOWN":
+#|             add_gap(
+#|                 "TEMPORAL_ALIGNMENT_UNKNOWN",
+#|                 [a["claim_id"], b["claim_id"]],
+#|                 "Incompatible values observed, but time alignment is unknown.",
+#|             )
+#|             continue
+#| 
+#|         if scope == "UNKNOWN":
+#|             add_gap(
+#|                 "SCOPE_ALIGNMENT_UNKNOWN",
+#|                 [a["claim_id"], b["claim_id"]],
+#|                 "Incompatible values observed, but scope alignment is unknown.",
+#|             )
+#|             continue
+#| 
+#|         ctype = "SOURCE_SELF_CONTRADICTION" if a.get("source_id") and a.get("source_id") == b.get("source_id") else "CROSS_SOURCE_CONTRADICTION"
+#|         subtype = subtype_for(a["object_parsed"], b["object_parsed"], semantic)
+#| 
+#|         if independence == "DEPENDENT":
+#|             resolution = "PARTIALLY_RESOLVED"
+#|             reason = "Sources are dependent; conflict may reflect copying/shared upstream, but disagreement is preserved."
+#|         elif independence == "UNKNOWN":
+#|             resolution = "INSUFFICIENT_EVIDENCE"
+#|             reason = "Values are incompatible under current alignment, but source independence is unknown."
+#|         else:
+#|             resolution = "PERSISTENT_CONTRADICTION"
+#|             reason = "Independent evidence paths conflict after entity/time/scope/unit alignment."
+#| 
+#|         make_contra(
+#|             a, b,
+#|             ctype=ctype,
+#|             subtype=subtype,
+#|             resolution=resolution,
+#|             reason=reason,
+#|             entity=entity,
+#|             temporal=temporal,
+#|             scope=scope,
+#|             unit=unit,
+#|             semantic=semantic,
+#|             independence=independence,
+#|         )
+#| 
+#|     for g in knowledge_gaps:
+#|         g.pop("_key", None)
+#| 
+#|     persistent = any(c["resolution_state"] == "PERSISTENT_CONTRADICTION" for c in contradictions)
+#|     insufficient = any(c["resolution_state"] in ("INSUFFICIENT_EVIDENCE", "PARTIALLY_RESOLVED") for c in contradictions)
+#| 
+#|     if persistent:
+#|         status = "PERSISTENT_CONTRADICTION"
+#|     elif insufficient or knowledge_gaps:
+#|         status = "INCONCLUSIVE"
+#|     elif contradictions:
+#|         status = "APPARENT_CONTRADICTIONS_RESOLVED"
+#|     else:
+#|         status = "NO_MATERIAL_CONTRADICTION_DETECTED"
+#| 
+#|     human_review_required = any(
+#|         c["severity"] in ("HIGH", "CRITICAL") or
+#|         (c["resolution_state"] == "PERSISTENT_CONTRADICTION" and c["materiality"] == "MATERIAL")
+#|         for c in contradictions
+#|     )
+#| 
+#|     recommendations = [
+#|         "Do not infer deception, lying, or malice from contradiction alone.",
+#|         "Preserve both claims and their source lineage.",
+#|         "Resolve entity, time, scope, units, and ontology before treating conflict as material.",
+#|         "Prefer independent primary evidence over repeated downstream copies.",
+#|         "Do not average conflicting values without mathematical justification.",
+#|         "Use specialist handoffs for domain-specific verification.",
+#|     ]
+#| 
+#|     if human_review_required:
+#|         recommendations.append("HUMAN_REVIEW_REQUIRED for material unresolved contradictions.")
+#| 
+#|     limitations = [
+#|         "Offline skeleton; no live source retrieval is assumed.",
+#|         "Semantic alignment is conservative and ontology-dependent.",
+#|         "Unresolved conflict is a valid intelligence outcome.",
+#|     ]
+#| 
+#|     if case.get("demo_data_is_synthetic"):
+#|         limitations.append("Demo claims/sources are synthetic placeholders, not real evidence.")
+#| 
+#|     return {
+#|         "case_id": case_id,
+#|         "status": status,
+#|         "objective": objective,
+#|         "demo_data_is_synthetic": bool(case.get("demo_data_is_synthetic")),
+#|         "human_review_required": human_review_required,
+#|         "contradictions": contradictions,
+#|         "fact_state_changes": fact_state_changes,
+#|         "knowledge_gaps": knowledge_gaps,
+#|         "recommendations": recommendations,
+#|         "limitations": limitations,
+#|         "evidence": evidence,
+#|         "generated_at": NOW(),
+#|     }
+#| 
+#| 
+#| # -----------------------------
+#| # Synthetic demo
+#| # -----------------------------
+#| 
+#| if __name__ == "__main__":
+#|     demo_case = {
+#|         "case_id": "CONTRAINT-DEMO-001",
+#|         "objective": "Defensively compare synthetic claims and preserve unresolved conflicts.",
+#|         "demo_data_is_synthetic": True,
+#| 
+#|         # Allow pairwise comparison when qualifiers/time are omitted in some synthetic claims.
+#|         "assume_same_scope_when_unspecified": True,
+#|         "assume_same_time_when_unspecified": False,
+#| 
+#|         "sources": {
+#|             "S1": {"source_id": "S1", "family": "primary_registry"},
+#|             "S2": {"source_id": "S2", "family": "independent_observation"},
+#|             "S3": {"source_id": "S3", "family": "downstream_copy", "upstream_id": "S1", "cites": ["S1"]},
+#|         },
+#| 
+#|         "claims": [
+#|             {
+#|                 "claim_id": "C1",
+#|                 "subject": "Company C",
+#|                 "subject_entity_id": "ENT-COMPANY-C",
+#|                 "predicate": "director",
+#|                 "object": "Person A",
+#|                 "valid_from": "2024-01-01",
+#|                 "valid_to": "2025-12-31",
+#|                 "source_id": "S1",
+#|             },
+#|             {
+#|                 "claim_id": "C2",
+#|                 "subject": "Company C",
+#|                 "subject_entity_id": "ENT-COMPANY-C",
+#|                 "predicate": "director",
+#|                 "object": "Person B",
+#|                 "valid_from": "2026-01-01",
+#|                 "valid_to": "2026-12-31",
+#|                 "source_id": "S2",
+#|             },
+#|             {
+#|                 "claim_id": "C3",
+#|                 "subject": "Company C",
+#|                 "subject_entity_id": "ENT-COMPANY-C",
+#|                 "predicate": "revenue_2024",
+#|                 "object": "10M USD",
+#|                 "valid_from": "2024-01-01",
+#|                 "valid_to": "2024-12-31",
+#|                 "source_id": "S1",
+#|             },
+#|             {
+#|                 "claim_id": "C4",
+#|                 "subject": "Company C",
+#|                 "subject_entity_id": "ENT-COMPANY-C",
+#|                 "predicate": "revenue_2024",
+#|                 "object": "10,000,000 USD",
+#|                 "valid_from": "2024-01-01",
+#|                 "valid_to": "2024-12-31",
+#|                 "source_id": "S2",
+#|             },
+#|             {
+#|                 "claim_id": "C5",
+#|                 "subject": "Domain D",
+#|                 "subject_entity_id": "ENT-DOMAIN-D",
+#|                 "predicate": "active",
+#|                 "object": True,
+#|                 "valid_from": "2026-10-01",
+#|                 "valid_to": "2026-10-09",
+#|                 "qualifiers": {"environment": "production"},
+#|                 "source_id": "S1",
+#|             },
+#|             {
+#|                 "claim_id": "C6",
+#|                 "subject": "Domain D",
+#|                 "subject_entity_id": "ENT-DOMAIN-D",
+#|                 "predicate": "active",
+#|                 "object": False,
+#|                 "valid_from": "2026-10-01",
+#|                 "valid_to": "2026-10-09",
+#|                 "qualifiers": {"environment": "production"},
+#|                 "source_id": "S2",
+#|             },
+#|             {
+#|                 "claim_id": "C7",
+#|                 "subject": "Policy P",
+#|                 "subject_entity_id": "ENT-POLICY-P",
+#|                 "predicate": "permits_x",
+#|                 "object": True,
+#|                 "version": 1,
+#|                 "source_id": "S1",
+#|             },
+#|             {
+#|                 "claim_id": "C8",
+#|                 "subject": "Policy P",
+#|                 "subject_entity_id": "ENT-POLICY-P",
+#|                 "predicate": "permits_x",
+#|                 "object": False,
+#|                 "version": 2,
+#|                 "supersedes": ["C7"],
+#|                 "source_id": "S1",
+#|             },
+#|         ],
+#|     }
+#| 
+#|     result = analyze(demo_case)
+#|     print(json.dumps(result, indent=2, ensure_ascii=False))
+# TRACEATLAS EMBEDDED ORIGINAL MODULE contradictionint END
+
+
+# === TRACEATLAS ALL-IN-ONE STUDIO WRAPPER ===
+# Original 19-domain unified engine above, plus working GUI below.
+_TRACEATLAS_ALL_IN_ONE = True
+_CORE_SELF_TEST = self_test
+import zlib
+_EMBEDDED_AUDIT_B85 = 'c-rlKTaR4Fk><O9ML{pL=c37sTV}{l+8NEPu^!2g<i!k(1(8>|;bync-IOI5{_h)Eq{wRO)XBqfx0+S3Ac@VYQ`L2%;*0p=nt%DlZuikQ?W*0RyH=m4yN^EEeFP5VpS}BMk6(NE1mF_~A5$PD`bXzJaqgpk8n3#(x%lSdDqTLmN-x@Y*%x2^=JT(2zx(g6|MwT4fBfwa?_70xan)|^GV&Tc+<)%&j|o`DdvM~;UI2SY)nj&vT=q~)cI>^YX?!*)J~gcvLv9t+l}g0SsaAgVOK)4bySTo3UantWjXR33e&6j6S9j_A=huI-hcN6Ps_8}g#%}z_D~b0HUtQnrZ|T#^%iWKka+iO&Yqz^}({|t9wA*&`U8}o`D|?{)@#4GoFYny`ukBatUVo5RuiF25`+G^3mp|;jOP3dQcYSsF!$0jl|KjW2jeUTN7j5@lySeBWt$w`wYX5O}uRr43_j>!=?b@8|RpVpawr^gvtGnBO`G=41zQ6nUo*;(Y|6qUL?f$a=|J!HAP5vk?=luRvub#htc~jb(Zw&*uH_yHO-tN-P-ToT8#Q*g9c2$3T_TC%3{k}VD*P=-qQRYnOeT}_D^xbQ6qD=*wM(-psccE&UVJ}HO5mS(Z4}6#IUXG9Y(N|ym{>y*;?D@Za`k$Zv$7lcc_KJ3MbA4kM{3ru^=%%IHS3-F9hiAJ#r`z3CGokLv<@If=Z(eFwCcDq;@>-9_{YdclpT4K*udjH0!C&8ehP&%;pI_RqxP0DUUcLElu3lbVE?iPB)9r2h$pts9T-%5I;r^|>z5m~R`sLTZ`SiEX?a!}1`}BYP_Os`|`|`7Y|IL5hyB+)8-yM9t41DnH+b{UFYAmV2_^9dPHL#x>VxE7SZf;x3mwRo{!#8|;PgmD<|4!b8gXjCj{zV`4oAg?X50vt`DSW^9{zsGY`Xzr(H&+)|-|P*Kfyf{*z-512++7%0KmF?KU2P^oGi-a*yp~$4zqTJ=q>J(5x7faG-{0-}%K^-{@G^BsKf><g-IuQcYIph;q#ynG4gcccdtL__90!?roq)`~fOVV&L|woc5V8x3Bw$~4pyFGtSOj61P4CsW-kV*8+$p2hh7A)nk>VI6FXHUKKmYpE|9bw#|M@Azjwtk@&I_$-yxT5NJStESKeJi^$*l@hm6im`El@~cvPxW1Flj~bWN#)ZifgVa6l{iu<V%LsC<n^fe3(5S;}OI4Hwl!&LkX0Q3Y5Ubi9l6(U7(&khXsjhtHGg2DlC+pPdy6u$i@P^YBJ5tS#vNUc0~jrX+?8Op%6Qd^kA;w<yHIsTNB3Ky;rkFYkpwj1co$D#tDSD$q5`P!MYP5z=;#UjZT2h%n9(C6QCK>G6cnSjD_%)o*Y^&sb-d9F(TE8C8>|(0#jBOs5A8r5JhuxzId*X#a^jiN_1w}T>Bs~win0AfDD*6F|7kNSO*!3n}7^9f{f1$WU}JNRAwME2*E1I0Gup2vR+eAO4`BafTg+s(Z?j{dHfe^Op!!_Ay6SErvV|Ctg+dJ8sWnP*$~H*fb8FY|J&CHd;aBTzx(tzUmo25>rj1v-S4kn-K5>^i;LTDFH^Cf`pdhQ7J6U2`1bndZkO(URI**RfWM|23)A0d<{NeV^_yUPXrR6Q-8-@1eMk>wdVl2%$2|Z{J-|@Cbq`=PKQ4KI##y4Nn^X_#vZgv{RCClg_}&=NVgn`d&A#xg44t&KLe)`j#>pO@xB7M7O0-?3@pvQ<WhzsX*aYy=6EDcrVk+%PI;PlC!Q2D)+*<6pN5$gpe^s;ZwKuI|)YfruJ(&0HvD<$S2KbS-7{=Dzg8|`>?e^k!_w29FcJ;d5?sfS^x+{O&U4PrIesb9#o~>C2Ft)I6ARq(`r{aYH<0dbBs5TR-8)sfvHhSTBW?op2f--nF3(p7SWIeISun0;uP7Bd>7c;wFW26e`5Y-Ubt9T3Adk7^JXCbFh$RIJYX5+nusnmxzbaCC#!Df+qcihgY&I0ryu!%?`5H3Xzk-(c&$yaFHOKc_9YPQU4;5xGO8nxwI*d!i{vN0VY-@1hyV!`_Z5}Uhr^TIy%aQ3%%H$$~AFYGbX>|fS)_lonFw;wk&WJ14MHEwpnB$pcj^<<1&Ah*f59q7usaRZL4#!dY;+veSQ**1T?U}6ZG0?}Ybt3V`Ud5a_taK!1x;WFBv96QF)9g7CZkW$MQb9f8fG22tDMU2tmsIHXOn}bJ4KE_p*_wQlcR`TN%!bGM+V(TQ1?j=v&$~2m-;!rdP?_<o}MCFYq$JUc$Gnr=TsB4cd8M$-jD%vPfq9XOg5S}P%v(SUrO&6h%oQ&y;_fm_;vm*zZux`3Ubi&JYqwRt-vt7r_CLH}NJ2FtD>o`*lw16|JoQ?NoXAwoDk_(cNJcJgK#ZevDlcNYugZgTK6YMD`%+;e0X3QQT0QLT%h#9Q}^>G$}4vF!qOc`O(b`8M<iO%f241)!MIak7@y)|V{AvG@;TChum7<4dTZ5|z^aHP8TKe1gGSFhR{UUgcmrkm~oc)@P5^L#S(b1$&TY(d<b)b#+Xb_=#rt~0Bg_~Vt65ZtVMJ^-|Cw#4a?q%JaLP6<lxM9E`o;$5X0YS@QDq7agY(tFETqJ=^ZvYPE`3=JRNY=!j#I_Y+q%9_~{oCtM@Y&{vN7;&ll$LLf=<5eM=p{gd&;Q}mV4`!82#xWJ|Ayjn6##FmcIYJe?EGOtd?t{#f@5S*XhU@b$zJC7YXaD-e|NZQp9Qng!2!Hu(cYXCbq;_PU`2E3qJn7A0nz$HR<R`rv0!#j}XJns@-5cEq8G<CG*s||Ip%{a1_7_c%8GQ~TRO%`&rBJ*|HMM)H#07d@Ph8jqll}wo#3#f4fj1>C4s~VXMw#M-{%`f8;mrK#@mh&jf@zbFz`7qb!E$hmadymxw^-1E0EiH4uV5yfq6^Y<HqLKBHS|bQ%P66k570<l8FQ-q2>f5y*}vZ|)8nabj4~}a4~hASP}#!y#e@(=G}0exHtWTie92rpYon|+`K*y4Ati~UkDCJ&E<J@-va2<GC>5wT{ssL3Ct2#g^)M+%c}JorllMRu!=?b@K#kTdUkK}YkFc>E<@LPm9<0<(g2X9C4S->S(P->w0izk42aEAtHIpVS6d|OJJ&9yA@=Fa<*F<IqlFL0v$fFahq1nWi;v*z&-}ZbjDm`wud~iGwZgyR#QZ<pSXFj|~=W$W09eOdd*9F9}h6pCCRE^uQb4uE}kEqq>G<rpA@2*BJiawb9Lw$nO2MAACn>UH@>C~GJNcU>rXuOweU8^_w=+_HQyv=&SnGFxX@!|-%IJI5_L^Q!!IH1IbJuY38Q-<Qra3yoCn4*147K!(gJ+$KbXlsv+v#+5hXOFkwYYx?7s~DaDX9yH#I2%UeWJrSF*0ge{3F|mhN9)m%Y-9;=X2lUWUK|OmFvVFoXu4g-85liX@@LqaCoQc?CFejQQegA`k|PvV>RH)oZ4DZU^cK7JR=B$AOMS==?Pq^^zkxV$-c8U3M(a-|rOzOnk`agcF!5@L@IY|GGlSdlx|u%^+A+8dEKS^+eVMS-B?dW5r`CEvUxM^%$Wubcv1cG-Hi5(y2t82_Vqs^s@VY4_^gSnh1XAuNY5nbUT)-<*^<gSi6PZk;8t@=hbkHb<twM#;89h=)Fmg^Z=Hw`=A|pB|DH5t#u<o<T+5VxLy*;SVKWM2QFP50upG(z5h7+l(<E4?q9GW+Ic^4Xn)N-&;Cb!&0EJT!8LbDHtF|^XXH?e}o=ruOtkxjc7qJ2Pf1$%+~eXwA$s%-l7{<bu%BsgfUpXy{XziB+wEhQnlLY9i$d!^cVq<MQtP|>SXttG@3x>^|Ti{@Iey6!kRblt2-75e!T9NR|=Ag-Z)x*B1KY?3xYWWOX;*G9@VG|@;gOJga;i-}EgsRYWc@~BdA&PMz#0yFvdHYSa$A7e*9`@n|B?NU9SFbCjiI6Fi(lPZVBE+jC<3?0meOC}3rqj6|v`zDimsVPYDG4QDMo98d4zZT6}h?@mTP!OJ?V@7e(rEGUgr!#Ks@8`0Qw<*8VeY{fbQ+SXzWjM2(Hy+P<hr{g#$6#g{nq+4Q11v?e-k0oB%BhIMP^uU&%qev?e_)(XMa9T=)f8jl7;2H=5<%~wLc@wrRCs6mY^#O$alv#b8BeGFWTtOZ{pnC$X2EWlG_c*vJ*}V-&unM_kJm~}tENtGKy4E2k}5Bb4O9=En38jlJR8nZ)t(h%sh%=Z6UI#3LZkvN`+cU@f{Sd#G2=td@9fLKCgEqlS|2-fah6mfjt)-+XCdkqm>ufDI?R}Gz0SKerG#fzDZ#Zd5}AfU145GwE+hG+X0z-KFA~hvaYtvqPN<uAOToS~ibm(7&uBEWs0B$<qp5h4+ME;cW2o)}-LWwQax&Bs1h<Wm$i^`efJv!jYd-~^S)~MzS4vc-)N){G(nn?%E-p1>w<Ja<$=<?yDO4~hldGxPm+H0jP6LLqbc>6n)T$XR#LH~2QFDIj!-UyhAb-z>ErHt9>HW3ycwu3zV413?>E2|~l0f98$R}ZRwVNU8twXP+)E>!EPFy+XqJ+s|A&Yy0Z^~h0$v|@hs&<_|!o0v+CiS;=`yj83z0SK3hR7xiRt651nn#<#9x$iYqQ#cZCGnw#<Z?{W6Zl4bOum+gE@<@HyJL=QUqoPrN7%ZD>r#d7!(+HIh2fS0@OPxjNE5~)krq>o0Zls5$bR)XcChye*m@iK%Ef-HCTdN_V?t8XYA?oBd{zv>MFxJjDE-^(+lwI#vl8j%o0r3N?)vrR<@KL$cYkU>{Q3H(zIkHR$|B9e1`&y;Q;Xgfogb>ngwBwz_r>$Z1}l^^qcg{=Cqa0c=N|~0WTb;QS*)ITGy+4!y(dFp$-tVy!|1p24Z%Bg&b$R$#GqmiaRlrx6&Sma8-AF4W-pMx^O?n5fV|DsZ`aSbwxWBwIC3c8Og}Z~(%eR(6k;(-En<PIYU65mfPNJF#z@{6I*{O94?<deiAHwpY4*A28e;wVt9#oAAn|w|%KL*!+@oS0!|Ll|Ri}QbRl*2n)X+0E=l$5RmV5~<Mtj=aZ#Rb=U235^1|Pd*Wb?jk5lkq7v_1k)^s+t<&zr?c$LkJyFu8V2szYS!trFlIz*2AsV`*?n)nY^<Q`3a5^=eEIE2@;{G#75@a?RM)jbe0Cd!(n>U99v(bq9lwtkxaE{WW4s7S|Y>KbdW)th8z6u-+eZT&n?Mm@Hz`jXQ_w%<2xbvaCpGx`=H+ZL)IGL0q1lZvrV=M90ZIK@<+6?4b|{hNzyq17`?@ra+xuZ7&L4#bY%B@fa&Va6M|1?NU9SXJ$XGt?orOld1t)7F!s`z<dHXCWK-v#lm9hr3de`lNPh8WRoij_ykQ_>sl4XA@%Nqe~ONLr?V}R=Gz2MXKYV5?fp2^gh^oLIINp5zcDhSGfOlRt}LnGx%n~_tutRRrneZGrJk9MnXz$aGfPIpf>uD%QLl*sqf+Y@u=(6tWl1i?MoC;kUxXw+SxdgD=Ohhc_iT*fbhd+SV+(kHkHFg2RyRAPW-HpxtRtV+Hd#&UI(sP1&_;|)9r<3Iv2bZ&tPrJ)&Nr#qMF{8xnS*hJrVV0I)7=~?CyPcSiI*s~_a~z6rgQkK^=UN585oJZp3XEHZQOY!8-1ULb=P-qs%;I6XSVW+Rt^jC(~X#WpveS_AuJ{*ymQW+nr04-A@$Ts>{P_Cmul>uLn5O<AqIO6BLz%jhjOnNQ!=vu1Qb*5?LAmT8JkE>1!WSpfy{5+hiR^H-R0ezdRs%;nVl9wD|0;-`{ER4hM`HeYOKg#a(P)TNQ>2i;+_MIz1fvCQB6i85sQ?P_s6momzdD!(cw@U$L=I+cJZmQRT0<MQ;iEIU<6~<;X_@P_CFEF`|I7xPBfKiTr+fPV%<%-bV=<(Z-AP$XUOak5;GReC7Q-@Y@Uco1&FKUP?|UW8{ISG_{~7QJk?e-L|spkjteGghu-7q9L@>%mVF-2GN^0}dyGr3ca6r4lM-}hThS=49T_z}L1rLr2F9RqX}FWHqZxe;Al27ENqm+dNI{(M<Ag~}*<3`85*#;R4>fUdEh*=kA1>^9Q~XU=yEm25YykVyE_K7??peRSdA1wBrR^Iu-t6pxgP?JF9mmWYnE2>))^RwLZO0`lZ4H1pK2SR1%np&EmCbqwhe#g9Wl&uoY6bEKx!l7QwWBQCd(0tJ0@93OET)BVK(#$k{YX1-G2aPcoa$swGr4XoE(TDH`~jcy$}3}G5T?vyNNhrQDWbq4;ng0+_-&<LTl6h~M>qC%SttpktQ`V39sh>07r16LQcT7b5nXAIFw-jQ=U3?V=15*!g%)5cRTJ4ns*He3Gp(Idaw@FBmnzOQ7Lvu|_808gC|igYRE#Cr!ATM~jv92S2hWmYOHv*|s_UyYd3%QjuZ(l}IF;%U8Be4t%gvF@7L|#X$j~4KbMW2VRC6^`^H6ePXB3*o3B)j-qSnkaCk5X^?n!_4z8Bu!puxv$D#SQHFi&RPZXoXPIOw-h9cQUflwQd!r8W%~cxdr?91US+lw;j*3+YrHa~><kdTjP%_mPoPdAOR&FW<AKLerR*HJ;AN1$IB1f{R0an6Q}pr#df;%4{6`<TI<OFs(IUOwl%=<R@rD)+NtiK|PvCkSuTrX)HP5RtiY0hO4BmH8fXXpcBDfg-Ra_Cwyv{XzUDpga(Xt8wT5VNbvFOIJ@aNHhYmxJcAKDzqrYo3v=k5NvK9ob*$pCFF>mE4I4?!7=y>aS}mf>-X~uH$NWdiE%c{YJsR9(ZXHD6bmrC#H=9<E9%{mDZe8NT9H-4^mLTVq`4lrBQ=l1&Cgv-6T|6cvGxShG$eg+hH59XB1$`Qa92u>(K%y7Qnbo2M#@1^|S}jWB?p(?}|NL|7{(hI?BF^-L=GOiFwxi>9r~^fq4%DvKq2k6m6rb4y3LmcrcwXEhbsuK~L=&9Faa8jXDR&lngERK31*jK`M4O8Uwc-AB25|&VL26BLY=&^7i5iR$*KRBlA8rI?90l+`q}*&WO?D$e1RqYO?5n_=>c00hVsa27^E%)lY(?CeCH;A2riSCR*J+?>(!#4AVJWu|tEK_E9zn-h9VL3GWBzMwsCUi0Ue%H*8th6j8{8-r@|u%M3+mj@zT546c)6}cJANkBA+kws!QA~~ySYN80%opC9Lbsty+(*8)278}LpKrub^+qpo##UANYaVN=`v7V4o`L3llb)xvT?!0$c>|OPUqYJ)@|ohAE?V@8_xQv0dZ^M;mr2GiCZ~#ZCX4TFq_#oVp@!lOG(E2qhyPMHK{g8=CNG1pt+Xey9An%b?6isErK@M(VRvzdM;ppj3ZAbyDPWL)UOmz<`t<Sv2~V)&iKmWi6=FN(m*rku`7No<_hLRoMQ+kHZLiI*|H`KkwzC$s1kbdI@<Jn{V>-6zY@sl98?!Km3|L3VbX}Me!clsHcqX{neFkC<Aoo8c&O+y&h{Xp3C{4)2;M)5L6N+aGR{|sCCA)cl@gki(d0_5awy($+fQ6kQwk9!25gAE{Or3%{Pw9eSvmZh9Z#idBAZE7jae-Y)3`>$AxEEj3_X;Xna5E~qxVH4G>c$kVXRppi5m;|&E8co*AM_7BNYwnyWzJ}UOArNH^rC=)g-1fp+;F+i{rZa05NwV#;FKX_N{?$3O+Sfb*VWITD0?+q8QA&0+f+9^W$vrM-b||o84abm6cUPi}}QNWg2CDDGvIfS4%QQiq(QHLZ7nBHIxy86${3q6mRi4yRieo*OE<NOKgxM*Ptb$mjI7Y_w|!%`g<tqN-8%_M}hYu!--VKSs6<`3WC9>(S6V@Y}N{z>>IK;jAAFL!PjvPhlidbc1fe`J~|o3Cav5m#7F2+SVuo>@28QK&HI93DpeENOses4UGu>xaH@r>2{Z=-c??iBR8A(pSh1z5l-Z?VuF0ABMO<&xU57j}>GT*!3kLsCJbNWMBRn;#CNW;`{6ZK9oh<qPRHIkMkO7m5nn$VuxF$!wJI&Nh(!t=*khzyY&{`hBOc<+Ce0{3+Xu-)Knq9C?#&N7%Kbd8ph#PAY!nk#Z#Ci!(!$vNCW?h)FvL;94tbt(<w26TO;<&gRON=P?z&%1~Ewt#&R;Gs06-codB$GOVpn}@mI2^;1advJafeY~=heBV4y6+xnoUVS@UB4Xd(XXE0e{;LN+N@!5c0l2f8J*5Z=q4N<s>-C3=$&ozKdr@Y4T{e!p%>gr-=5bg5DjHv0z^INH9vHUTt_9XmhO`SBa)+CuNoD0Ad&!$3sWu0w=uHjqq8srRB{nc&3y3_ZQVr)eg?D%98Lyk!eLv}p5HioeGn!sr_MJvy@WGcniP(wc`eF|Q>5v^!meecp*zeC9PGDtv8uT?j}6r<VK#?Ws25GHs<$vyM)sT}jgl6iqa0i2Qq2Kk>G=^B!yO#N__qxngq3D))u~X2#3tD%q!5=9C2VXxq+A-ps5AK9LK=Ax^GTyg52%zZrM56Sh`PzYCu8y>49$vAA0tt+o+;UWLRnbZkF%Hrc}J)wu}P-H-e$2N0VN`Ka!6Rm;p!=sCLon5R}NXmu|7WTXAxR*Oo>U0u{SS;bIS4|pZgY8QhH9OG5rwPL{*8yV(rXg_*R3Xp23Bld92@5i%1<+rzm69eG@GrNWGz%38jubd(I|im)*k;1U~y@wdYMZPI_?cUI9+V$+F<4<F*g=V8UlfaB?Qn#<|;YW-Cs@TAFvdMQ@LxNi~%sF3#PWxf1Q>WCOd@KrF;mid@H;WeQ}>wT;ur%#8VQu0$)G>=W@A)@@MxV;HXo+tVM8r+FjbG<Rkqn@mk2%fUfthpPp~z8DJzkO09W>nK8S%Y~%x&jfAJ<Qjc(<`r1EG@?AJK;sC6DvvPWhvA`yrow8PckUC0%qD4&h|Vt#iO2ns%Edfv#*~sX*XpuDBj9n`Q1qC4Dcn;bfM&i2V!;+m8GW6No~}Vtcou;1*zk2S{m{Z2TbFRFa{vl7X#v<c{2k7$KQkOJ0Wium?Py?vi5ZLL9F~}^8%;LO098PBteGnqx|kcN&2bkCwA!F#7N&tFgJGi#7IRmr-gCf5XaVqkJqX)=+(<Z{%#Fx%shY?p%vNQ&&AgP*%h<e~T&kTl6oKN4T7)$YYT=6GSTu{rAS9!=sbzD&MN(Ie8J}cs%HQwDUb0_N1^Hz9%X!l|golc-ZoL93KgjaFaAv96=vIyv2-B4^dl0R6Uy>WWlS>h#Q>Ykfv+pLOj2-x93S$lhDn&D6F;XYvV@4S?Kq#&=1%@idD_o%uvQhArK>mKB$nunyDb)LGs9#AOg;|TuUi;P)N92JPE9|aflQ3pxQ_!A}Sw`1thtb*!!C53GWlvy};Fvz@3L%?M;2>kw{8J3ja-0;;$=g44Iz9N?4q-pkgh`SECxd-k$N%G*b+X3eS?_>;)^xQ85l(QX%WGUyB*erZ2|DIDwz#ITyTm~=_G&*G9Vnxapgwz-Fg6@bLS7=&djAZ?4+&?ak<Sfhhng_y7!O1bgR@gQD8T;z|Hfzh=*@34#dv<3F276P*v~b+*#CLkUft!8(_W80dUMIUJ`))Le(~4;57^6*rv'
+
+def original420k_bytes():
+    """Restore the complete original uploaded file, byte-for-byte, from comment archive."""
+    p = Path(__file__).resolve()
+    chunks = []
+    with p.open('r', encoding='utf-8') as stream:
+        for line in stream:
+            if line.startswith('# SOURCE420K|'):
+                chunks.append(line[len('# SOURCE420K|'):].strip())
+    if not chunks:
+        path = p.parent / 'archive' / 'OSINT PYTHON.py'
+        if path.exists(): return path.read_bytes()
+        raise FileNotFoundError('Embedded original source archive missing')
+    payload = zlib.decompress(base64.b85decode(''.join(chunks)))
+    expected = read_audit()['original_sha256']
+    if hashlib.sha256(payload).hexdigest() != expected:
+        raise ValueError('Embedded original archive failed SHA-256 integrity check')
+    return payload
+
+#!/usr/bin/env python3
+"""TraceAtlas Studio: safe local GUI for the 19-domain unified investigation engine.
+
+The supplied 419k-line source is preserved verbatim, and NEVER executed by
+this wrapper. Supported domain execution is delegated to the verified baseline.
+"""
+
+import argparse
+import base64
+import binascii
+import hashlib
+import http.server
+import importlib.util
+import json
+import logging
+import os
+from pathlib import Path
+import secrets
+import socket
+import sys
+import tempfile
+import threading
+import urllib.parse
+import webbrowser
+from typing import Any
+
+ROOT = Path(__file__).resolve().parent
+CORE_PATH = ROOT / 'TraceAtlas_Unified_19_Domains.py'
+AUDIT_PATH = ROOT / 'SOURCE_AUDIT.json'
+APP_VERSION = '2.0.0-studio'
+MAX_BODY = 1_000_000
+MAX_FILE_BYTES = 4_000_000
+log = logging.getLogger('traceatlas.studio')
+
+
+def read_audit() -> dict[str, Any]:
+    if AUDIT_PATH.exists():
+        with AUDIT_PATH.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    return json.loads(zlib.decompress(base64.b85decode(_EMBEDDED_AUDIT_B85)).decode('utf-8'))
+
+
+def import_core():
+    if globals().get('_TRACEATLAS_ALL_IN_ONE'):
+        return sys.modules[__name__]
+    if not CORE_PATH.exists():
+        raise FileNotFoundError('Missing 19-domain baseline: ' + str(CORE_PATH))
+    name = 'traceatlas_unified_core'
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, CORE_PATH)
+    if not spec or not spec.loader:
+        raise ImportError('Cannot import TraceAtlas unified baseline')
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
+    return module
+
+
+GUI = r'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TraceAtlas Studio · Intelligence Workbench</title>
+<style>
+:root{color-scheme:dark;--bg:#0a0f19;--p:#111c2a;--p2:#152438;--border:#263850;--muted:#97aac2;--txt:#eff6ff;--blue:#69b6fb;--aqua:#53d0ba;--error:#f4a4a8;--warn:#f3c76f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+.container{display:grid;grid-template-columns:246px minmax(0,1fr);min-height:100vh}
+aside{background:#0e1927;border-right:1px solid var(--border);padding:20px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{font-weight:800;font-size:19px;letter-spacing:.2px;color:var(--aqua);padding:7px 11px 23px}
+small,.muted{color:var(--muted)}.brand small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.nav{display:block;width:100%;padding:10px 15px;border:0;border-radius:9px;background:transparent;color:#b7c8dd;text-align:left;font:inherit;cursor:pointer;margin:3px 0}
+.nav:hover,.nav.active{background:#1c344c;color:#fff} .nav.active{border-left:3px solid var(--aqua)}
+main{padding:26px 32px;max-width:1500px;width:100%;margin:auto}h1{font-size:28px;letter-spacing:-1px;margin:0}h2{font-size:19px;margin:0 0 10px}h3{font-size:15px}p{color:var(--muted);line-height:1.6}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--border);margin-bottom:22px}
+.chip{border:1px solid var(--border);border-radius:12px;padding:5px 11px;font-size:12px;color:var(--aqua)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:14px 0 22px}
+.card{background:linear-gradient(155deg,var(--p),#0d1a28);border:1px solid var(--border);border-radius:13px;padding:17px;min-width:0}.card .n{font-size:28px;font-weight:750}.card label{font-size:12px;color:var(--muted);display:block;margin-bottom:7px}
+.row{display:flex;align-items:center;gap:11px;flex-wrap:wrap}.columns{display:grid;grid-template-columns:1fr 1fr;gap:15px}.columns3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px}
+input,select,textarea{background:#091624;color:var(--txt);border:1px solid #36516f;border-radius:8px;padding:11px 12px;font:inherit;width:100%;outline:none}input:focus,textarea:focus,select:focus{border-color:var(--aqua)}textarea{min-height:105px;resize:vertical;font-family:ui-monospace,monospace}
+button.action{padding:10px 15px;background:#184d64;border:1px solid #377c94;color:#f2ffff;border-radius:8px;cursor:pointer;font-weight:650}button.action:hover{background:#26748b}.secondary{background:#17283d!important;border-color:#344a64!important}.danger{border-color:#7d4e60!important;background:#3a2031!important}
+section{display:none}section.active{display:block}pre{background:#08121e;border:1px solid var(--border);border-radius:10px;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;color:#c7daef;font-size:12px}
+.table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid var(--border);padding:9px 8px;text-align:left;font-size:12px}th{color:var(--muted)}td{vertical-align:top}code{color:#8cdbf4} .status{color:var(--aqua)}.bad{color:var(--error)}.warn{color:var(--warn)}.pill{padding:3px 8px;border-radius:7px;background:#193549;font-size:11px;display:inline-block}a{color:var(--blue)}
+#toast{position:fixed;bottom:18px;right:20px;max-width:400px;padding:13px 17px;background:#18364a;border:1px solid #457692;border-radius:12px;display:none;z-index:10}
+svg{max-width:100%;height:auto;border-radius:9px;background:#091521} .scroll{overflow-x:auto} .note{padding:10px 14px;border-left:3px solid var(--warn);background:#242435;border-radius:4px;color:#eadcb7}
+@media(max-width:920px){.container{display:block}aside{position:static;height:auto}.nav{display:inline-block;width:auto;padding:7px 11px}main{padding:20px}.columns,.columns3{grid-template-columns:1fr}}
+</style></head><body><div class="container"><aside><div class="brand">◈ TRACEATLAS <small>Intelligence Studio · Local Mode</small></div>
+<button class="nav active" data-page="overview">◈ Overview</button><button class="nav" data-page="investigations">▤ Investigations</button><button class="nav" data-page="domains">▦ Intelligence Engines</button><button class="nav" data-page="evidence">◇ Evidence & Claims</button><button class="nav" data-page="graph">◎ Relationship Graph</button><button class="nav" data-page="router">⌁ AI Manager Routing</button><button class="nav" data-page="sources">↗ Source Recovery</button><button class="nav" data-page="api">⌘ API Console</button>
+<p style="font-size:12px;padding:12px">Only authorized/public evidence. External feeds disabled unless explicitly approved.</p></aside>
+<main><div class="top"><div><h1 id="pagetitle">Investigation Overview</h1><small>Source-grounded analysis · 19 native engines · 82 archived sections</small></div><span class="chip" id="connection">Authenticating…</span></div>
+<section class="active" id="overview"><div class="grid"><div class="card"><label>ACTIVE ENGINES</label><div class="n" id="overview-engines">19</div><small>19 smoke-tested in existing baseline</small></div><div class="card"><label>ORIGINAL SOURCE LINES</label><div class="n">419,712</div><small>Immutable original in archive</small></div><div class="card"><label>PARSE-VALID SECTIONS</label><div class="n" id="overview-valid">42</div><small>37 original + 5 boundary-repaired (syntax only)</small></div><div class="card"><label>SOURCE-DAMAGED SECTIONS</label><div class="n warn" id="overview-damaged">45</div><small>Retained for manual repair</small></div></div>
+<div class="columns"><div class="card"><h2>Quick Investigation</h2><label>Investigation objective</label><input id="quickobj" placeholder="Verify independent public claims about a company"/><div style="margin-top:12px" class="row"><button class="action" onclick="createCase('quickobj')">Create Investigation</button><button class="action secondary" onclick="route('quickobj')">Suggest Employees</button></div><pre id="quickout">Create a case to start your evidence ledger.</pre></div><div class="card"><h2>Validation context</h2><p>The 19-engine baseline has previous native smoke tests. The separate 419k-line uploaded source is not a valid single Python script. Its 82 sections are fully preserved; parsing alone is not runtime validation.</p><div class="note">No claim of zero bugs or enterprise certification is made without complete regression coverage.</div></div></div></section>
+<section id="investigations"><div class="columns"><div class="card"><h2>New case</h2><label>Objective</label><input id="caseobj" placeholder="Assess evidence concerning…"/><label>Scope (JSON)</label><textarea id="casescope">{"mode":"LOCAL_ONLY","authorization":"USER_SUPPLIED"}</textarea><button class="action" onclick="createCase('caseobj')">Create case</button></div><div class="card"><h2>Current case</h2><select id="caseselect" onchange="selectCase(this.value)"><option value="">Select case</option></select><div class="row" style="margin-top:12px"><button class="action secondary" onclick="loadCases()">Refresh cases</button><button class="action secondary" onclick="downloadCase()">Export case report</button></div><pre id="caseinfo">No case selected.</pre></div></div><div class="card"><h2>Recent cases</h2><div id="casetable" class="scroll"></div></div></section>
+<section id="domains"><div class="columns"><div class="card"><h2>Native intelligence modules</h2><input id="domainsearch" placeholder="Filter by domain name" oninput="renderDomains()"/><div id="domainlist" class="scroll" style="max-height:480px;overflow-y:auto"></div></div><div class="card"><h2>Domain execution</h2><label>Selected engine</label><select id="domainselect" onchange="pickDomain(this.value)"></select><p id="domainmeta">Select an engine.</p><label>Authorized input manifest (JSON)</label><textarea style="min-height:200px" id="domainmanifest">{"case_id":"STUDIO-DEMO","task_id":"STUDIO-TASK","objective":"Analyze supplied authorized evidence","scope":{"mode":"AUTHORIZED_STATIC"},"authorization":{"approved":true,"scope":"provided_records_only"}}</textarea><div class="row" style="margin-top:9px"><button class="action" onclick="runDomain()">Run engine</button><button class="action secondary" onclick="loadDomainInfo()">Inspect</button><label style="margin-top:10px">Local evidence file for AUDINT / AVIATIONINT / BREACHINT / COMINT</label><input id="domainfile" type="file"/><button class="action secondary" style="margin-top:9px" onclick="runFileDomain()">Analyze selected file</button></div><pre id="domainresult">Result appears here.</pre></div></div></section>
+<section id="evidence"><div class="columns"><div class="card"><h2>Add evidence</h2><label>Current case</label><span id="evidencecase">None</span><label>Domain</label><select id="evidencedomain"></select><label>Source URL/identifier</label><input id="evidenceuri" placeholder="https://example.org/source"/><label>Independent source group</label><input id="evidencegroup" placeholder="independent-source-A"/><label>Evidence payload (JSON)</label><textarea id="evidencejson">{"observation":"A recorded public statement"}</textarea><button class="action" onclick="addEvidence()">Record evidence</button></div><div class="card"><h2>Register claim</h2><label>Entity ID</label><input id="claimentity" placeholder="ENT-1"/><label>Predicate</label><input id="claimpredicate" placeholder="status"/><label>Value</label><input id="claimvalue" placeholder="active"/><label>Statement</label><input id="claimstatement" placeholder="Source indicates the entity was active"/><label>Evidence IDs (comma-separated)</label><input id="claimevidence"/><div class="row" style="margin-top:12px"><button class="action" onclick="addClaim()">Add claim</button><button class="action secondary" onclick="factGate()">Check fact gate</button></div></div></div><div class="columns"><div class="card"><h2>Evidence ledger</h2><pre id="evidencelist">Select a case.</pre></div><div class="card"><h2>Claims & verification</h2><pre id="claimlist">Select a case.</pre></div></div></section>
+<section id="graph"><div class="card"><h2>Evidence relationship graph</h2><button class="action secondary" onclick="drawGraph()">Update graph</button><p>Evidence-linked entities and claims. Graph is derived from case records, not invented links.</p><div id="graphview" class="scroll"></div></div></section>
+<section id="router"><div class="columns"><div class="card"><h2>Manager → Team lead → AI employee</h2><label>Objective</label><textarea id="routeobj">Analyze public academic research and software supply-chain security claims.</textarea><div class="row"><button class="action" onclick="route('routeobj')">Route objective</button><button class="action secondary" onclick="orchestrate()">Run selected domains on current case</button></div><label>Domains to run (comma-separated, optional)</label><input id="orchestratedomains" placeholder="academicint,codeint"/></div><div class="card"><h2>Routing results</h2><pre id="routeout">No objective routed.</pre></div></div></section>
+<section id="sources"><div class="grid"><div class="card"><label>RAW ARCHIVE</label><div class="n">419,712</div><small>All original lines preserved</small></div><div class="card"><label>SEGMENTS</label><div class="n">82</div><small>Delimited for syntax inspection</small></div><div class="card"><label>SYNTAX PASS</label><div class="n status">37</div></div><div class="card"><label>DAMAGED</label><div class="n warn">45</div></div></div><div class="card"><h2>Complete source-audit inventory</h2><p>Sections marked SYNTAX_OK have only passed static parsing. All code remains archived even when unrecoverable.</p><input id="sourcesearch" placeholder="Search section ID / error" oninput="renderAudit()"/><div id="sourcetable" class="scroll" style="max-height:520px;overflow:auto"></div></div></section>
+<section id="api"><div class="columns"><div class="card"><h2>Local API</h2><p>Browser API uses a bearer token set from the launch URL's fragment. Only the local server is used.</p><label>Endpoint (GET)</label><select id="apiendpoint"><option>/health</option><option>/api/v1/domains</option><option>/api/v1/providers</option><option>/api/v1/cases</option><option>/api/v1/docs</option><option>/studio/audit</option></select><button class="action" onclick="apiCall()">Send request</button><hr style="border:0;border-top:1px solid #263850;margin:16px 0"/><h2>Optional public API lookup</h2><p>External network requests are never automatic. You must explicitly approve each lookup.</p><label>Provider</label><select id="providerselect"></select><label>Public-data search query</label><input id="providerquery" placeholder="A public keyword, DOI, CVE, or repository"/><label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input type="checkbox" id="networkapprove" style="width:auto"/> I authorize this public API request</label><button class="action secondary" onclick="fetchSource()">Fetch authorized public source</button></div><div class="card"><h2>Response</h2><pre id="apiout">No request yet.</pre></div></div></section>
+</main></div><div id="toast"></div>
+<script>
+'use strict';let token='',currentCase='',domains=[],audit=null,cases=[];
+const $=id=>document.getElementById(id);const str=x=>JSON.stringify(x,null,2);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function notice(s,isError=false){let t=$('toast');t.textContent=s;t.style.display='block';t.style.borderColor=isError?'#c87077':'#457692';setTimeout(()=>{t.style.display='none'},4500)}
+async function api(path,method='GET',data=null){let head={'Authorization':'Bearer '+token};if(data!==null)head['Content-Type']='application/json';let r=await fetch(path,{method,headers:head,body:data===null?undefined:JSON.stringify(data),cache:'no-store'});let obj;try{obj=await r.json()}catch{throw Error('Server returned non-JSON response')};if(!r.ok)throw Error(obj.error||('HTTP '+r.status));return obj}
+function error(e){notice(String(e.message||e),true)}
+function parse(id){try{return JSON.parse($(id).value)}catch{throw Error('Invalid JSON: '+id)}}
+function requireCase(){if(!currentCase)throw Error('Create or select a case first');return currentCase}
+function show(id){for(let s of document.querySelectorAll('section'))s.classList.toggle('active',s.id===id);for(let n of document.querySelectorAll('.nav'))n.classList.toggle('active',n.dataset.page===id);$('pagetitle').textContent=({overview:'Investigation Overview',investigations:'Investigations',domains:'Intelligence Engines',evidence:'Evidence & Claims',graph:'Relationship Graph',router:'AI Manager Routing',sources:'Source Recovery Audit',api:'Local API Console'})[id];if(id==='graph')drawGraph();if(id==='evidence')refreshEvidence()}
+for(let n of document.querySelectorAll('.nav'))n.addEventListener('click',()=>show(n.dataset.page));
+async function init(){let hash=new URLSearchParams(location.hash.slice(1));token=hash.get('token')||sessionStorage.getItem('traceatlas_token')||'';if(token){sessionStorage.setItem('traceatlas_token',token);history.replaceState(null,'',location.pathname)}if(!token){let v=prompt('Paste the TraceAtlas local access token shown in the terminal');token=v||'';if(token)sessionStorage.setItem('traceatlas_token',token)}try{await api('/api/v1/cases');$('connection').textContent='● Local · Connected';domains=await api('/api/v1/domains');audit=await api('/studio/audit');$('overview-engines').textContent=domains.length;$('overview-valid').textContent=audit.syntax_ok+audit.sections.filter(x=>x.recovery?.status==='FULL_PARSE_REPAIRED').length;$('overview-damaged').textContent=audit.damaged_count;let opt=domains.map(d=>`<option value="${esc(d.domain)}">${esc(d.domain.toUpperCase())}</option>`).join('');$('domainselect').innerHTML=opt;let providers=await api('/api/v1/providers');$('providerselect').innerHTML=Object.keys(providers).map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');$('evidencedomain').innerHTML=opt+'<option value="external">External supplied evidence</option>';renderDomains();renderAudit();await loadCases()}catch(e){$('connection').textContent='● Authentication required';error(e)}}
+function renderDomains(){let q=$('domainsearch').value.toLowerCase();$('domainlist').innerHTML=domains.filter(x=>x.domain.includes(q)).map(d=>`<div style="padding:9px;border-bottom:1px solid #263850"><b>${esc(d.domain.toUpperCase())}</b><span class="pill" style="float:right">${esc(d.mode)}</span><div class="muted">${esc(d.original_lines)} preserved source lines</div><button class="action secondary" onclick="pickDomain('${esc(d.domain)}')">Select</button></div>`).join('')}
+function pickDomain(name){$('domainselect').value=name;let d=domains.find(x=>x.domain===name);$('domainmeta').textContent=d?`${d.original_file} · ${d.mode} · ${d.original_lines} original lines`:''}
+async function runFileDomain(){try{let domain=$('domainselect').value,case_id=requireCase();let file=$('domainfile').files[0];if(!file)throw Error('Select authorized evidence file');if(file.size>4000000)throw Error('File exceeds the 4MB limit');let content=await new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(Error('File reading failed'));r.readAsDataURL(file)});let result=await api('/studio/run-file','POST',{case_id,domain,filename:file.name,content_base64:content,manifest:parse('domainmanifest')});$('domainresult').textContent=str(result);notice(result.status==='SUCCEEDED'?'File analysis completed':'Analyzer returned '+result.status,result.status!=='SUCCEEDED')}catch(e){error(e)}}
+async function loadDomainInfo(){try{$('domainresult').textContent=str(await api('/api/v1/domains/'+encodeURIComponent($('domainselect').value)))}catch(e){error(e)}}
+async function runDomain(){try{let d=$('domainselect').value;let data=parse('domainmanifest');let caseid=requireCase();let result=await api('/api/v1/cases/'+encodeURIComponent(caseid)+'/run/'+encodeURIComponent(d),'POST',{manifest:data});$('domainresult').textContent=str(result);notice('Native '+d+' analysis completed');}catch(e){error(e)}}
+async function createCase(input){try{let objective=$(input).value.trim();if(!objective)throw Error('Enter investigation objective');let scope=input==='caseobj'?parse('casescope'):{mode:'LOCAL_ONLY'};let c=await api('/api/v1/cases','POST',{objective,scope});await loadCases();selectCase(c.case_id);$('quickout').textContent=str(c);notice('Investigation created')}catch(e){error(e)}}
+async function loadCases(){try{cases=await api('/api/v1/cases');$('caseselect').innerHTML='<option value="">Select case</option>'+cases.map(c=>`<option value="${esc(c.case_id)}">${esc(c.case_id)} — ${esc(c.objective||'Untitled').slice(0,45)}</option>`).join('');$('casetable').innerHTML='<table class="table"><thead><tr><th>Case ID</th><th>Objective</th><th></th></tr></thead><tbody>'+cases.map(c=>`<tr><td>${esc(c.case_id)}</td><td>${esc(c.objective)}</td><td><button class="action secondary" onclick="selectCase('${esc(c.case_id)}')">Open</button></td></tr>`).join('')+'</tbody></table>';if(currentCase)$('caseselect').value=currentCase}catch(e){error(e)}}
+async function selectCase(id){currentCase=id;$('caseselect').value=id;$('evidencecase').textContent=id||'None';if(!id){$('caseinfo').textContent='No case selected';return}try{$('caseinfo').textContent=str(await api('/api/v1/cases/'+encodeURIComponent(id)));await refreshEvidence()}catch(e){error(e)}}
+async function addEvidence(){try{let c=requireCase();let r=await api('/api/v1/cases/'+encodeURIComponent(c)+'/evidence','POST',{domain:$('evidencedomain').value,payload:parse('evidencejson'),source_uri:$('evidenceuri').value,independent_group:$('evidencegroup').value});notice('Evidence recorded: '+r.evidence_id);await refreshEvidence()}catch(e){error(e)}}
+async function addClaim(){try{let c=requireCase();let ids=$('claimevidence').value.split(',').map(s=>s.trim()).filter(Boolean);let r=await api('/api/v1/cases/'+encodeURIComponent(c)+'/claims','POST',{entity_id:$('claimentity').value,predicate:$('claimpredicate').value,object_value:$('claimvalue').value,statement:$('claimstatement').value,evidence_ids:ids});notice('Claim added: '+r.claim_id);await refreshEvidence()}catch(e){error(e)}}
+async function factGate(){try{let r=await api('/api/v1/cases/'+encodeURIComponent(requireCase())+'/fact-gate','POST',{});$('claimlist').textContent=str(r)}catch(e){error(e)}}
+async function refreshEvidence(){if(!currentCase)return;try{let base='/api/v1/cases/'+encodeURIComponent(currentCase);let [e,c]=await Promise.all([api(base+'/evidence'),api(base+'/claims')]);$('evidencelist').textContent=str(e);$('claimlist').textContent=str(c)}catch(e){error(e)}}
+async function route(input){try{let objective=$(input).value.trim();if(!objective)throw Error('Enter objective');let r=await api('/api/v1/route','POST',{objective});$('routeout').textContent=str(r);$('quickout').textContent=str(r);notice('Manager generated routing suggestions')}catch(e){error(e)}}
+async function orchestrate(){try{let caseId=requireCase();let names=$('orchestratedomains').value.split(',').map(s=>s.trim()).filter(Boolean);if(!names.length)names=null;let r=await api('/api/v1/cases/'+encodeURIComponent(caseId)+'/orchestrate','POST',{domains:names,manifest:{objective:$('routeobj').value,scope:{mode:'AUTHORIZED_STATIC'},authorization:{approved:true,scope:'provided_records_only'}}});$('routeout').textContent=str(r);notice('Orchestration completed. Inspect individual status.') }catch(e){error(e)}}
+async function drawGraph(){try{let g=await api('/api/v1/cases/'+encodeURIComponent(requireCase())+'/graph');let nodes=g.nodes||[];let edges=g.edges||[];let W=850,H=Math.max(310,Math.ceil(nodes.length/5)*135+70);if(!nodes.length){$('graphview').textContent='No graph nodes yet. Add evidence and claims.';return}let xy={};nodes.forEach((n,i)=>{let id=n.id||n.node_id||n.entity_id||n.evidence_id||('N'+i);xy[id]=[100+(i%5)*165,90+Math.floor(i/5)*130]});let svg=`<svg role="img" aria-label="Investigation relationship graph" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;for(let e of edges){let a=xy[e.source||e.from],b=xy[e.target||e.to];if(a&&b)svg+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#456781" stroke-width="2"/>`}nodes.forEach((n,i)=>{let id=n.id||n.node_id||n.entity_id||n.evidence_id||('N'+i),[x,y]=xy[id];svg+=`<circle cx="${x}" cy="${y}" r="26" fill="#1c6e89" stroke="#53d0ba"/><text x="${x}" y="${y+45}" fill="#eaf4ff" text-anchor="middle" font-size="11">${esc(String(n.label||id).slice(0,22))}</text>`});svg+='</svg>';$('graphview').innerHTML=svg+`<pre>${esc(str(g))}</pre>`}catch(e){error(e)}}
+function renderAudit(){if(!audit)return;let q=$('sourcesearch').value.toLowerCase();let data=audit.sections.filter(x=>str(x).toLowerCase().includes(q));$('sourcetable').innerHTML='<table class="table"><thead><tr><th>Segment</th><th>Original Lines</th><th>Status</th><th>Details</th></tr></thead><tbody>'+data.map(x=>`<tr><td>${esc(x.section)}</td><td>${x.original_start_line}–${x.original_end_line}</td><td class="${x.status==='SYNTAX_OK'?'status':'warn'}">${x.status}</td><td>${esc(x.recovery?.status||x.error?.reason||'Parsed; not runtime verified')}</td></tr>`).join('')+'</tbody></table>'}
+async function fetchSource(){try{if(!$('networkapprove').checked)throw Error('Approve public network access for this request');let p=$('providerselect').value,q=$('providerquery').value.trim();if(!q)throw Error('Enter query');let result=await api('/api/v1/providers/'+encodeURIComponent(p)+'/fetch','POST',{query:q,network_approved:true,limit:10});$('apiout').textContent=str(result);$('networkapprove').checked=false;notice('Public source request returned')}catch(e){error(e)}}
+async function apiCall(){try{$('apiout').textContent=str(await api($('apiendpoint').value))}catch(e){error(e)}}
+async function downloadCase(){try{let c=requireCase();let r=await api('/api/v1/cases/'+encodeURIComponent(c)+'/report');let blob=new Blob([str(r)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='traceatlas_'+c+'.json';a.click();URL.revokeObjectURL(url)}catch(e){error(e)}}
+init();
+</script></body></html>'''
+
+
+class StudioHandler(http.server.BaseHTTPRequestHandler):
+    server_version = 'TraceAtlasStudio/2.0'
+
+    def log_message(self, fmt, *args):
+        log.info('%s %s', self.address_string(), fmt % args)
+
+    def _reply(self, code: int, raw: bytes, kind: str = 'application/json; charset=utf-8'):
+        self.send_response(code)
+        self.send_header('Content-Type', kind)
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'")
+        self.send_header('Content-Length', str(len(raw)))
+        self.end_headers()
+        try:
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _json(self, code: int, data: Any):
+        self._reply(code, json.dumps(self.server.core.as_json(data), ensure_ascii=False, default=str).encode('utf-8'))
+
+    def _auth(self) -> bool:
+        header = self.headers.get('Authorization', '')
+        return secrets.compare_digest(header, 'Bearer ' + self.server.api_token)
+
+    def _payload(self):
+        n = int(self.headers.get('Content-Length', '0'))
+        limit=12_000_000 if urllib.parse.urlsplit(self.path).path=='/studio/run-file' else MAX_BODY
+        if n < 1 or n > limit:
+            raise ValueError('Payload exceeds limit')
+        result = json.loads(self.rfile.read(n))
+        if not isinstance(result, dict):
+            raise ValueError('JSON object required')
+        return result
+
+    def _act(self, callback):
+        try:
+            callback()
+        except KeyError as exc:
+            self._json(404, {'error': str(exc)})
+        except (ValueError, TypeError, PermissionError, json.JSONDecodeError) as exc:
+            self._json(400, {'error': str(exc)})
+        except Exception as exc:
+            log.exception('Request failed')
+            self._json(500, {'error': f'{type(exc).__name__}: {exc}'})
+
+    def do_GET(self):
+        def action():
+            path = urllib.parse.urlsplit(self.path).path.rstrip('/') or '/'
+            seg = path.strip('/').split('/')
+            if path in ('/', '/studio'):
+                return self._reply(200, GUI.encode('utf-8'), 'text/html; charset=utf-8')
+            if path in ('/health', '/api/v1/health'):
+                return self._json(200, {'status': 'OK', 'version': APP_VERSION, 'domains': len(self.server.core.KNOWN_DOMAINS)})
+            if not self._auth():
+                return self._json(401, {'error': 'Bearer authentication required'})
+            c, led = self.server.core, self.server.ledger
+            if path == '/studio/audit': return self._json(200, self.server.audit)
+            if path == '/api/v1/domains': return self._json(200, [c.domain_info(d) for d in c.KNOWN_DOMAINS])
+            if len(seg) == 4 and seg[:3] == ['api','v1','domains']:
+                return self._json(200, c.domain_info(seg[3], True))
+            if path == '/api/v1/providers': return self._json(200, {k:{'domain':v['domain'],'url':v['base'],'network_enabled':False} for k,v in c.PROVIDERS.items()})
+            if path == '/api/v1/cases': return self._json(200, led.cases())
+            if path == '/api/v1/docs': return self._json(200, {'GET':['/health','/studio/audit','/api/v1/domains','/api/v1/domains/{domain}','/api/v1/providers','/api/v1/cases','/api/v1/cases/{case_id}','/api/v1/cases/{case_id}/evidence','/api/v1/cases/{case_id}/claims','/api/v1/cases/{case_id}/graph','/api/v1/cases/{case_id}/report'], 'POST':['/api/v1/route','/api/v1/cases','/api/v1/cases/{case_id}/evidence','/api/v1/cases/{case_id}/claims','/api/v1/cases/{case_id}/fact-gate','/api/v1/cases/{case_id}/run/{domain}','/api/v1/cases/{case_id}/orchestrate','/studio/run-file','/api/v1/providers/{provider}/fetch']})
+            if len(seg)>=4 and seg[:3]==['api','v1','cases']:
+                case_id=seg[3]
+                if len(seg)==4:return self._json(200,led.get_case(case_id))
+                if len(seg)==5:
+                    methods={'evidence':led.evidence,'claims':led.claims,'graph':led.graph,'runs':led.runs,'report':led.report}
+                    if seg[4] in methods:return self._json(200,methods[seg[4]](case_id))
+            return self._json(404, {'error':'Unknown endpoint'})
+        self._act(action)
+
+    def do_POST(self):
+        def action():
+            if not self._auth(): return self._json(401,{'error':'Bearer authentication required'})
+            path=urllib.parse.urlsplit(self.path).path.strip('/').split('/')
+            data=self._payload();c=self.server.core;led=self.server.ledger
+            if len(path)==5 and path[:3]==['api','v1','providers'] and path[4]=='fetch':
+                provider=path[3]
+                if provider not in c.PROVIDERS:raise ValueError('Unknown public API provider')
+                if data.get('network_approved') is not True:
+                    raise PermissionError('Explicit network approval required')
+                return self._json(200,c.fetch_provider(provider,str(data.get('query','')),network_approved=True,max_items=min(int(data.get('limit',10)),20)))
+            if path==['studio','run-file']:
+                domain=data.get('domain')
+                if domain not in ('audint','aviationint','breachint','comint'):
+                    raise ValueError('Only four file-based engines accept browser uploads')
+                filename=data.get('filename','')
+                if not isinstance(filename,str) or len(filename)>255:
+                    raise ValueError('Invalid filename')
+                ext=Path(filename).suffix.lower()
+                if ext not in ('.txt','.csv','.json','.md','.log','.eml','.wav','.mp3','.flac','.ogg','.mp4'):
+                    raise ValueError('Unsupported file type')
+                base64_string=data.get('content_base64','')
+                if not isinstance(base64_string,str) or len(base64_string)>6_000_000:
+                    raise ValueError('Input too large')
+                try:content=base64.b64decode(base64_string,validate=True)
+                except (ValueError,binascii.Error):raise ValueError('Invalid base64 file')
+                if len(content)>MAX_FILE_BYTES:
+                    raise ValueError('Evidence exceeds 4MB limit')
+                case_id=data.get('case_id','')
+                if not isinstance(case_id,str):raise ValueError('Invalid case ID')
+                led.get_case(case_id)
+                manifest=data.get('manifest',{})
+                if not isinstance(manifest,dict):raise ValueError('Manifest must be a JSON object')
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    file_path=Path(temp_dir)/('evidence'+ext)
+                    file_path.write_bytes(content)
+                    result=led.run_case(case_id,domain,manifest,file_path=str(file_path))
+                return self._json(200,result)
+            if path==['api','v1','route']:
+                return self._json(200,c.route_domains(str(data.get('objective',''))))
+            if path==['api','v1','cases']:
+                objective=data.get('objective','')
+                if not isinstance(objective,str) or not objective.strip():
+                    raise ValueError('Non-empty objective required')
+                scope=data.get('scope')
+                if scope is not None and not isinstance(scope,dict):
+                    raise ValueError('Scope must be a JSON object')
+                return self._json(201,led.new_case(objective.strip(),scope))
+            if len(path)>=5 and path[:3]==['api','v1','cases']:
+                case_id=path[3];action=path[4]
+                if action=='evidence' and len(path)==5:
+                    return self._json(201,led.add_evidence(case_id,str(data.get('domain','external')),data.get('payload',{}),source_type=str(data.get('source_type','USER_SUPPLIED')),source_uri=str(data.get('source_uri','')),upstream_source=str(data.get('upstream_source','')),independent_group=str(data.get('independent_group','')),observed_at=data.get('observed_at')))
+                if action=='claims' and len(path)==5:
+                    return self._json(201,led.add_claim(case_id,entity_id=str(data.get('entity_id','')),predicate=str(data.get('predicate','')),object_value=data.get('object_value'),statement=str(data.get('statement','')),evidence_ids=data.get('evidence_ids',[])))
+                if action=='fact-gate' and len(path)==5:
+                    return self._json(200,led.fact_gate(case_id))
+                if action=='orchestrate' and len(path)==5:
+                    return self._json(200,led.orchestrate(case_id,data.get('domains'),data.get('manifest',{})))
+                if action=='run' and len(path)==6:
+                    domain=path[5]
+                    if domain not in c.KNOWN_DOMAINS:raise ValueError('Unknown domain')
+                    if c.DOMAIN_MODE.get(domain)=='file_or_gui':raise ValueError('File-based engine requires local CLI input')
+                    return self._json(200,led.run_case(case_id,domain,data.get('manifest',{})))
+            return self._json(404,{'error':'Unknown endpoint'})
+        self._act(action)
+
+
+class ThreadedHTTPServer(http.server.ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def make_server(host='127.0.0.1',port=8765,db=None,token=None):
+    ip=__import__('ipaddress').ip_address(host)
+    if not ip.is_loopback:
+        raise ValueError('GUI can bind only to loopback; remote exposure is unsupported')
+    core=import_core()
+    server=ThreadedHTTPServer((host,port),StudioHandler)
+    server.core=core
+    server.audit=read_audit()
+    server.api_token=token or secrets.token_urlsafe(32)
+    base=Path(db).resolve() if db else ROOT/'traceatlas_studio_data'/'cases.sqlite3'
+    base.parent.mkdir(parents=True,exist_ok=True)
+    server.ledger=core.CaseLedger(base)
+    return server
+
+
+def self_test():
+    audit=read_audit()
+    result={'studio':'PASS','syntax_valid_sections':audit['syntax_ok'],'damaged_sections':audit['damaged_count'],'original_sha256_match':hashlib.sha256(original420k_bytes()).hexdigest()==audit['original_sha256'],'domain_test':None,'errors':[]}
+    try:
+        rep=_CORE_SELF_TEST() if globals().get('_TRACEATLAS_ALL_IN_ONE') else import_core().self_test()
+        result['domain_test']=rep.get('status')
+        result['domain_smoke']=rep.get('smoke')
+        if rep.get('status')!='PASS':result['errors'].extend(rep.get('errors',[]))
+    except Exception as exc:
+        result['errors'].append(str(exc))
+    if not result['original_sha256_match']:result['errors'].append('Original archive SHA-256 mismatch')
+    result['status']='PASS' if not result['errors'] else 'FAIL'
+    return result
+
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description='TraceAtlas evidence-led local browser GUI')
+    parser.add_argument('--port',type=int,default=8765)
+    parser.add_argument('--host',default='127.0.0.1')
+    parser.add_argument('--db',default=None)
+    parser.add_argument('--token',default=None)
+    parser.add_argument('--open-browser',action='store_true')
+    parser.add_argument('--self-test',action='store_true')
+    parser.add_argument('--export-original',metavar='PATH',default=None,help='Restore exact 419k-line uploaded original source')
+    args=parser.parse_args(argv)
+    if args.export_original:
+        path=Path(args.export_original)
+        path.write_bytes(original420k_bytes())
+        print('Restored source to',path)
+        return 0
+    if args.self_test:
+        rep=self_test();print(json.dumps(rep,indent=2));return 0 if rep['status']=='PASS' else 1
+    server=make_server(args.host,args.port,args.db,args.token)
+    url=f'http://{args.host}:{server.server_port}/#'+urllib.parse.urlencode({'token':server.api_token})
+    print('TraceAtlas Studio GUI: '+url,flush=True)
+    print('Bind: loopback only. Do not share access token.',flush=True)
+    if args.open_browser:webbrowser.open_new_tab(url)
+    try:server.serve_forever(poll_interval=.3)
+    except KeyboardInterrupt:pass
+    finally:server.server_close()
+    return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())
+
+# SOURCE420K ARCHIVE BEGINS (compressed losslessly)
+# SOURCE420K|c-ri}X>%Ldktq7z5&jP~aQK?A!A0^iHhN?SL_!kWB*6i|?$)q*D~dpYED1otRe(gc$cXnN-Y<N=<YngBw?cuWdhEH^F{37`PMsxBo;<ndul{X+
+# SOURCE420K|T^9RS*<wFke2SKLtDAiB`(OT|(P;eg7o$Pvu-h3OcZN~tuyfQs=^ge?N74WH|NOtvFqx*&8MTgvtE5<^Mbw)wXX!j$tddohFMj!pU;g53T`co5
+# SOURCE420K|ZU6EYQPlmEP140U-JNDdxr&l;GD+vzINFbjv`mv?d=sVPyu2${={(97t8_NYuJMCtnJv><wn+D|%XdjJiLUbXVv-bDT1M$&niu1A0-r?Ve8R@s
+# SOURCE420K|jgE47ciJCC)8wki#>oo0NtS6*wxVPWv&KJ;`aSq}oU!@BpOa*jl<5loN^hZUhHEKX*kOc|T+i^;GKHlU>8C9H4DD7o*|?07<+8{>B{S@<NMV_)
+# SOURCE420K|jDF-rG){|EHl-Pqd)D02MRGNRiOrJh3|3Rlq4%UnmNx}VV|SJBrk?;vyOVU4j&X`DwuWe)&1Pa=)8u0st!@B>FrHlOL|Z{JgXxa*V!|dgPZsNG
+# SOURCE420K|GG47=qEU%!FITVzdv4GyTdrpWIDN&iC24_AX<+u0zzPe;#{!%jYT4o%-{mlTwxIWUT8y(#sv%8kl9hl-X}Ox+!A4GL*m=4tJQKURTP9@*khuGt
+# SOURCE420K|AQ+-`nZi2qS-ObU3+TBhv(?@HEW0X_;?CF)Hm7Aq^M?(^{t;FJGhiagc${MIMfM3B&62B#p`<g9Nt!J3#oavnDV5DNa7^-BiP-eu26h&D7I-ga
+# SOURCE420K|17pI10l;OtfQchya5DJ<wry1;*{a-!bCb{V>$~W42AI2E!K^+{*R$xuy5y(@V6>-)2nino9whS!rT~o=*MR(GnO!dsEuu1?tvTYuB(87ra`m~$
+# SOURCE420K|uo>@bggXkbSYOTfAb5JN0BnFh@F#3gf=31(E+*Py0iM?|iv$iQKl6O8i+qKrFP}qaV^|#=#63=Ge))@Ok<X(zo~{uy<2cIZ%e;X03;2o+j;+Mg
+# SOURCE420K|;u=m$naT$@NqGZXE`NV05e4~=LbZd<lz#)ZAjQBX@Zrb#Y{rgSDaJnpQUk;dHZ+|kKmjIzGQ2f>n6BW6iKgOrE5d&#=?p=GfBpoh&A(YDE1akJ
+# SOURCE420K|<P3iDH><lPfL^@lEbf3n!C0-R2g4(sXhp|xR9jJhi4#m_t!S9S&(RvFE`sK}?qJyKpGL2u#=+i;y@OqWYCuePOQ6@gB_q@T?l+x5{N{XgKIlSo
+# SOURCE420K|G4Gwf!2ep&i<hnF_b*`PKLKLqufziO)~j(7$N5#X`waiXe$H}0tUI^?7)j24qJ4&4Sinqy^giEMzx+k#__+Ul_b477_RqRQSoIf%lMRO6F`#fP
+# SOURCE420K|rjbr!PB9xCa~s;LF%aiiV79M8IljqfNin;N%X|%Ylj?;ZO4)s!FJ^c6_JMB8LH}Lvb#DZ-JnM``-NEUwO?!Spdwfx(dw?&nfr|?`gO{xc|Gk8z
+# SOURCE420K|T(ItU*nik<wKvY^%WRfv59vi?=Wki_$EzKARorKbPe2at=Sa`j%X>lK?-@aF{#gF5;q*Zi^IoG2_kx_?Px9=ZU!?cy61r#i=e>59+*_CDJ>Ftj
+# SOURCE420K|d9Nt;y>@xRoV95*Tk7w|@bF##xHC9@AHV6m9`p`7BRB@}p!=Wa-Qh^UUVO0?ki^aW)BQMK-bHY?T)`se_wttB`z>D4d%smz_<ae-c<*lv9qtKE
+# SOURCE420K|dw;_V`(9Gmilv+#ci#3ogWm8Y?hgP9&bov6q<4HAcTYR7kGm(`)2A&+-s&)AZ6}Po{GR<mclW(>UCWJT@5N<(vzsj@>Fxb>GWWHW<HC=s<#%Dd
+# SOURCE420K|gYI{|?)SL<!`_JP<w@tXcXobEKc2LH#ys3#0cwA|C+_MV=sMte2+fJfV2EDg)rR|u$jPyuvkO46Rz*I$7fc7-*4g4-aU&WR0uX~+d$ndXobwwM
+# SOURCE420K|An6<)c8A0Guzxxl^pE4$@6S5J;geth{L=j_{lpGA&6F66du?ecJ@LbYv0Bgr;LPN{1hxkLbCnlG{yClCCp+3=5!#=D(%rA}kN6RX4_mbkAO^8d
+# SOURCE420K|%PQ;`j{3*l)A(@EJ%V%4>m0}D!|v10H?e|1vOX_nc>*#7T>saw;dd}KMbINW{P*QJ+r3#|?as1~L=-s<gc~&*&(izlWO^@HAe}H)VLKl0_wiW|
+# SOURCE420K|#H{zvLa!uGdQtv#36!0-VT!AnC*{X`;IhX#K-|Bv?9+S=#{;CT$vtOkfdnk38Q)O0a78&JwZKk;3uPx7j`mTvbJ{<Bf71J}rypftu<sd94HpMp
+# SOURCE420K|Rg3$Z9H>t+nG}d!f+<huNd}lGnCc}88bI-YCX=j@7jv;ud%ty{0s|?=_MTI9!C1+)-<PX3LZ}i3!)|AA_zt1a|KW$;>06|5?>YlG&QB)mBthI?
+# SOURCE420K|ui3KmDKx!Dsj--Y*zDi!0z~R-Bw=t110M`$@V-oM*8m_udLhH#FM&ftiZF|=pnW>M7qZAbFu3#_uw#-v6@C?PJ3syV`Eb;G(?i~^dphimdf#>9
+# SOURCE420K|(V){C#l6!v-9h*C@M%PVgrj?slafV=yXg^<?uo>M+#_Wvb)TpA^lvo3ix>-2v7GJ?9lF|K*L!bIapPma2{;X>Z=bXXPEk{oRR9}PpuOoW;K8a0
+# SOURCE420K|^KeSW1p*<iI3>v4qY|dTBcr5Xz%CFY)>rckK*a9#bvZ7w<*ITEJLjW!{Xy@)U=PJPh}p%aFZvRh;9>uKaM*=r$Gy($-f?gAzD;rvvb?Qm3S@e9
+# SOURCE420K|sd4Xgf8>iepK_kM(T)!G{_;|A+`x^(i)&z_i#zt}K)lMQz*z!Ki{<T34gUOR(ZIN=p_gS2S5?mY`STw{vuh-&ge|cEU5pIy6|lfo(=iZMJT>vE
+# SOURCE420K|$f!$gVt;<Aq=Xdq2D&TL;uD|Mzsp%&WiZ?P8W~U!TZrpoE!3J}aC^GyEsDI(+XGXKi8&FWmw)=Bc&YB|7)5;cR!$7CM0+g9gPFoo41lP`6e%4l
+# SOURCE420K|+(8p$@^hp!NnEby^Mp_K4{|<biqr?5$BdBB>p#lZ@<NMYu`7D{LR-tn1zh{|^!Eos1bf$e3z*5Ub@V>w$T)g$ii|GOdC{!`(Ke!3E#%sSR)H<3
+# SOURCE420K|0=|?*&tD%4Ny=XS-vKJ8z<qTFqu$}MB)$#cQ8_(kl8bzCHt3!Wdg_jAeBU2@i#MRzY}7q`cM5|Z!|6Zk4^;EfyY8?jNk!wRHym~cBZGx#yzckE
+# SOURCE420K|HGTkH?VOFY?im*%e-7UdN8J<X<S@40oODN>xC1MEuaA1z8FuZ79d)3kxd{09UH@q4K%hVBANG&sgYHpp1US}FPma4IeYR))q5iWEFi^kFPrp6w
+# SOURCE420K|e}5`>i>rR(ApphLs^R(Tlimn53LrwA4-W^uvr%|kkR+c48nZ(Y%O-qCeTDru@|T!U{|$ibus=95c46rG9vVSQU(et7M(>UWo$pVzKF~4&ZG!;O
+# SOURCE420K|1xW`e+Dp2Sa7(qm<klR&m#xAuJ3l>=y*Ypk&rdsEI6n|%^clk9fXi`VQvm@NO5Gn|vO}>Aa5xXU1NC-z4)_ThQ8CHG<4*6yIsHdnh8g+<ft%?c
+# SOURCE420K|_Gmd8M$@#9ou{4iq4x6x4n0Wsz~UY1KtAf(AUHV#UfFnd+I>q8kf%659$81Qf82kI#6+heeSn+sY<Si^B)x*xtqq3Z==|tCh%U&m>3|p<j<o5$
+# SOURCE420K|)9C`y3NEs%hl4%{@<Z526ClU^)3-esqh~@1dH^cd>khRo8+_M&ukSCs*JX#suy<l<NgA(#9=|*33>0zfzlMIlv$y3x&pXGYZqXod()$640i$S-
+# SOURCE420K|CY;rzOX_&e&IdsAEb4V;klWXt!*AaX`f%i|z1FWFI2c21C*U6M9rlJN8rViCM)Y-ZawZO=N!i);ADp`OU3}CVu#NT1UxDHbuS~e#oEL1~i1g~&
+# SOURCE420K|>G`qRp57@Q;N$aQ6{bQH6p_w{o{Iob5iVTWLIJQ3^a~n$UUg5pgSS2ZSA-d``$xL?#pxEDmDkXtB2C@Sw{F`Wbok~C><!95&RctF&u4Uai~8+s
+# SOURCE420K|9NnZd)CoMNjbV~bqxEVW17o?<jCTKu3i`G%AFtNMLYi9ku!&(=*~`kD=^}Q>%EEdpS7`Z(vk6FR=`_1-M<fRQc9|5bvW-?Edz|Dm8i4K_dmr*_
+# SOURCE420K|u>&u5&=eM<{by&{Y(_9fv_xY$b<t#BO|t8>T)~IjjJ8+aBrkTLuf24E^1@DIy_)X+xzTLy-K4jy^-lAm{o+rT#`30(FKnI<yI)wVhlW~=nn-^2
+# SOURCE420K|K}{b1%O{^rqpZxx_%o(Ptq9F+&9*KH(?DNvVIP}qt<O(vZ690FCtMzUy_ccgcBlCe?0siO7PS?cS6We-u9}{)F4P#eY>Znzz-4&ae4jnt(Zuw<
+# SOURCE420K|4s;=Hh=D#<`3iV_CIXce{aoFx(lXEoY-YumJA`W>h;q3b`pWZJ3oVuD&M6>nv+3{GzzN(bc%~us0+&9^eoEt2db`^Bl+4zt50_y|^bRH#;c)I)
+# SOURCE420K|4X$!10d+NN?w%ZBr*Zn`TVO0`7Svg@sXi&vy>flEQ#3AqT)#XxxT1f@^zQ`!{nNpZ>uEZjUP1>A?4)U~Y!5vMmil=`19Gw~)A(~K)&*_+v_OuI
+# SOURCE420K|+8G!if`8Z)-F^XKb|$N~wEbQP1iPfZ<zuu6S`=rcW1F?jla+?5Q93JA0<^ZCSu$UWm2f1O<@`^8;KANOE4s<lgBN=TG$Z<L&Sak4?#%L5GzYqL
+# SOURCE420K|lZmxzi-aBg$2yIdDCicS(j7X!ZE63$01RQvC7USz;scavx`46a{0eMFFNs&t1wWv8W;5ni6tPYfCVforprtzE_`a!LoA83ha4aTdmPgWI;J?}1
+# SOURCE420K|-ef&rmh6i%FIF-9RlXV(Yale~qC_8uq#S42t2YUN-5e2nL0<`&E-uX)10U@rlL_|SG+)88_mbr@T}<?Kh=aLaDOkhzF@yKctX#DfNLvIUbsV*W
+# SOURCE420K|hp-?h296{9T>;Q7fcZo~;*O`c=-GrW6^jVhs5(z?V|$jOad7L|H`Tju^vmZhzS|ZDL|?BE6xKL8xM5}1mWwSW2bq{0J1i3GQW3Soh<B{HLv0yp
+# SOURCE420K|5X93*#hXSqWmOl@rUdR{Qlh1Cr}1A69hlgEdC}f|aT)zCYW(itpnY(_N&TwOp)px${wsUvN27>cX#x}oA@gYQ;IHaxwO6FeSppmGcYm?gGg+}m
+# SOURCE420K|>FqdOuA(me2Vkr9jV4fql+!sKYfX*c`1SkUU(a`cJsJJ_UHjK3?OzXn{Zpe=_1^n7s(focob3O4zW?j@=0kWgaUSC5))T3**Vbrmin}pzEiDNV
+# SOURCE420K|(MNH<vZz*#&Dnl~Je#y(qws%d<;fQ7)F7PZl?bfy%Rl}pM%HQ54X<(2@Cj>P$x*9O&|VwU2ioCn0WC<Eu@D7-GXseHo<A+uQ|;+XYetVgv4X{d
+# SOURCE420K|7PAxtie~g5uk>la0o8|hzyEC``Yr#|<eo0tS~qmisp$?MX4e>HS0AMbjmwK&ecVfJgUIPBMhd<2Th2oW%176n#w7Xp1Rs|`S6=`(O`LIWj!aw^
+# SOURCE420K|ZTGT<eL%`>?TjvF;IIzMeB0D89oaUUMR0dJ^PIZUbILRp!rCwbDBgZVXYnfAfyRP?dp-fZBRs?93Z7p|SHPL%S@3$)5ak(eJVW9@v+e)BS*@1k
+# SOURCE420K|-`e~8JCoZV_nLo$x%{}77uWliyy1QcE!#hqzxA|}Ldo7N|C|<@cn3X9*RvU1jpG~W=f%N~dp}OT{Gs)ihy9EH{bPCgJL<_@L0Lfz8IO?{<7{F>
+# SOURCE420K|k@+kduw(+{vw*Y}5zn*{vNW~LK)v|i2fKgy;no)P6w&)P5N-bCPGzUuTf<=~m}FHd5vplUa7{bIn{q}5<#!aJ6zv(`5X-+N&c~!a2#WCyh;ndM
+# SOURCE420K|WN=e>IYRi<7*-!<hyC$8ydQSPH_axH+LvNy=g@$?|8?}@g<xrxDS5}kw=Z4-0fuHx&--|MlN6|P`k}%2R`D4??0^9Tg>UiPx&&atuwG>JpuN$h
+# SOURCE420K|PhXIg<>E=FRcwJ|B1r0PG=c}MHyoZ`z)`#Wt&1Agfx^S|u=_Xo&+i{Dew_SpX`d%{Jmtu{`pBjd4erK2Tt4i=fB(?Fd}vg0BY4>3NtTS!b$?u;
+# SOURCE420K|by!S4PAb(TM^gV_jMw0*L_ki3qtqEkOTEW&KEKKqAV(33`L>YxVa1EY6-%CxTOm-}peZeyXi<P<_a`6%KbE_fLL1{H6`HoD)HF3F!StxQveoRL
+# SOURCE420K|b;Vz0!Q)wy%{OTH`1f8Y>DU9v5|amMY4<fuS01GoYJw_I4py<8Ar;j%Y>SM7gu;_0g}Jd!;f}p0XnApPY3biD+P}ZV&0Xp`fA|I$JWdvq3`MA~
+# SOURCE420K|FeNrPlHF{|dm&2Q(A4z=@c2VA9w)_QCuvJq!!@pcINCmrstE-J;a^uS(!SU`uo?qY0&NdOTfv6Hg`7nHE4pe%`)uGH_UIlSX<)odlOje=HBJ_H
+# SOURCE420K|h7g4?-K<K5ds1N4-NwUtr*39iH_iw)3+}W(xGTaN_)dLG({VKm@N^H?z~0RHi6jpoyqsSA<^JVC6E2&V4{$KOvr|LN{gasQT^IR!xzlV0ZkVqf
+# SOURCE420K|>hs)eJ&)gt(Q|RJVz9u_gK3I7PUS`@HOcN#x=@g^fGRrLy9Vmg$ge(Nq}ZpF-QtGBW5f@<)xkfQSoaS+{bpzXSi_$fbq1YXz|5c({HI2jx}<1!
+# SOURCE420K|S)|k{FjLIM%iFbSy_16o)1c(?Y4hT8T%>^4l>oH`?5kOR1yHTpn5Jww{z&YmE{-qB;*eaWGhCuCLdsy1p}9CCII_(q^D%^gOZ{#Xa`{I(Z84A-
+# SOURCE420K|xYcz0u^KE)7-Hr#2_gX_><yM}?w>J4gZAyqgP3XpG`?)Bo;c7<nu^httSbtzN+%6dxT8)4C>p{=mj~Pc-^*RpPy3^|a|V$Au6xvIib2Y8zD!|Q
+# SOURCE420K|H3~h!!{85cQ^bgU%IzCwSYE~a&QH11glMehG6(K+7URFhgw$i4)o~vk3;U<X@3pDuUxEa4c-%ifYRHRAbv2&lYdA=C;7EPM050@yMiBbpXAaJR
+# SOURCE420K|@kO5{%=z8>*MlCi<$PujmGB{li5UGkj_F@>Fax=`>vxPUyCTxD=~=gECtXi#f#7V=`wl%yq^mb`0UQQEAw+4sGkI5Za~^;U&3`}lZ8T(YnQ$E~
+# SOURCE420K|Q@FN)tihk?N{tJ^u+Fb_F%{`FEpUJdj}48pNm)%gEDjgio2JgIHBcwIx^$z06?v*fx+eTK&|dJ22*xwbGueFcAxHjnW<JCiA+|8jkm&JjHAmUN
+# SOURCE420K|dL+^?7*9n;2IHZ0lg_Ns$j{k)G+o1n+N0-1k&fNLls~ljJiSGeG<tlO=<*F~9jC>@o{}H5c;Q_a=rNBWB^uZ?LnYfmBmjIbwX>z0u8lLynre5t
+# SOURCE420K|b=BdAWi}DYY)+#k&Naec5_!)iF3$@On{HF2=-I^62gg=2RlA>hNAS$F(e&u8z2muK308Mf>T({MT0~@a_0dz0%$HKl#5!q*8=?o^gWBoR<<sOr
+# SOURCE420K|_3np%AF4nkGzAWbTr)+9jy#*X$2NEaiFk>orBYyUo@L2ZHp4(pRB>?zR6cB&^V6IAO)6%GZb%S~K+|t|-d@PbUTOn#Kwki4v;ZQDU?Mcz2)vg6
+# SOURCE420K|H9@1zAZIsOFJa%)WFG5X`C;p6+N8}V)wb2I4#+n5$YFA?_QnuESk%cCdC>sdvI@>aZxf!tx|rdb`PAWuGuAAdOY+@jJTz~vzX`}T4}uZUNLIc3
+# SOURCE420K|vS~8^_^oi8;V09gIh80-0}VW=AaTvt)Qb`x5PSBy60LoooBJIagzaVMt+|gE4aO%$Y8T*!S`mzalx7Q-bxG1QXI>AcQjS4ikz%-1^Vz3V0H?@v
+# SOURCE420K|x?{MH>t^DL8EEFY-hgSRK4m4Pv9Xj?hGQYeGwQ(6jo?#461%zV*)@`76ZT9rv96-B7$a$9YhvU}z7r%Hns7B3{23+`+Te1c*teL0F$)a&M)jR}
+# SOURCE420K|0o#*C(3676vmwR!!Z(dexkGFl6xjJV`rNQ53q0<`gj*!F6*zLW&Sn#RLgmh8#IP=JjeGVXjD1J5t#&C$09_q85N~d-312u43M>Sj2%4g8nout~
+# SOURCE420K|X3Mr`?bWtWOG|@dtcQlsmW1u4xnCPiU}y_JZ*EkP&^Nk*g!lE2b%NxqdVL#rk||HP_bH12=4-%|Yq(r?9a^WW1>4$md67*VL(>nnOWQ-vV~eS#
+# SOURCE420K|+10NdS6LjQiPq6M`x7Kol#uCfot;%eYmC|4(jCI9EZr8=t;oAeF6kr!<;5nhMij9dh7DcJiu{LOc)mL7o^?+#v4?Q<gZmXX_e*$NLoBL)2jy+V
+# SOURCE420K|aHcM{9PIsmBTC=`X}+YmctM&J+(R4-7EBS=o+a~epks_KGZ#-98}a>LUxhm8o!TE(cm2Ftlr9Jqz@Rfv)~^*$!~JA6bp%&)=n9G|v=(rgGV6~n
+# SOURCE420K|xiM6i79XXU1^m!hB&LKSwgmkgkkbo#9*}r54M!{(4zQY&7<}XgyJSA;4_Y!b)c`<z0WuHjr70DnJ+PuHd~J82dS`DkgM%1jTD;<}qEFsJlPk1^
+# SOURCE420K|`6W;JtvJzwk~Ev9?+iECq~z)t>V!3jorPEpyc2}}l9I@e?oBAa<gb}T(=^2O;5WAJr4_la8cm%F^Nub5zS6s7j|RZ+B4llZSHB>G&M-)CWSAFq
+# SOURCE420K|`!d}4E{c^t9P#hIbx|0b8rlxQ*#w|%0MEFwGD9I^SvtjeR05<yU9_odk1sO6Cc!$FZS2+-nCZZ^8O+$(vRiQRlEI4HPw5Xd5}cp*C`NunMuNls
+# SOURCE420K|@p1QU7yrcF>W$7v^h0Xj4}tb$0B+Pc?!4{~I-~x8Sr_`lv)%|pfO&ZJ>3gNJho<=aZ68KrX=?bB(YxO1xACZR`Yrx?gTc5wa#lq8K5$n8Eriop
+# SOURCE420K|nIH^pfgpAR&%teT%&?n^gV+`*(h8|{N+!^kHB=Wn7t_WW`e@zcvq@U;%(fu=rsHG{XEFN1ZiEMrcp1URUu@M#52D}cR%AI+PpyYGem|K`fyrPA
+# SOURCE420K|^5FjxJ<}@QAV#`W%t{uG*9D!AbiSPBcbFAq&#QMhPOkhNBp{t&@<L4egPG2vl<sh+mrGMW;~_)1JAnMofiUS1;<qp>VN?COvFH=NzF@ELRN)_{
+# SOURCE420K|8eH&SCeumeK?O6hUbJ1mWFm~&6(I|D#<6Boe*(>*Gy2ogFQXW3@hjX)!g&>8GufI?QTCI~pVsDSejeuKLnZUVA+nKiA&0OkP66LrT_|qmgR%4I
+# SOURCE420K|J!*7C?xbpD_+^YOfsblPQjZA6LFVz%@BTG;gv1GwgCG;2H*)xZX_n3=E?2>l8<C}WRsjmV*(T<x$jXmQT&(I)HrmwPzZ~DgkW*uHcuphJm5Q7Z
+# SOURCE420K|OCLIx4py1{+o)r{wNXW9YOKxn@JPnqdEVD!i_{DW6r60yr#p)Bw9M5IJuS)K-CU&+KFl}dgW{+p4b*mlKf3tf=cF_u(Z;SE9*GWro9_xc?{*tH
+# SOURCE420K|)ot1(htJSJfE<SQ(_tfwbK5p|&^6d-2eEDLD3MtGH!^faLLxkCT6QSlsz83%58x*LN;|e~9a(T_?H3N*9gaG$k9)&+Y}n)83Hes_PT%wgCz7pW
+# SOURCE420K|sbSuW6hcESWfH!GPB4|s>*H>GhDnKfhuvX(*f~Aw9d#HhO1+^jV%RyQBq=aPAG3kN(7c<vi`$Z)^YLMSXIK@noTkhMi8#t?D{z&ipRel8mzV+)
+# SOURCE420K|%O@b$UIIVGada0m>dtu0f)>a5N%kq5U`kEa^(W|g670LbOc$d3fR}fh<)6juz7gdQ{4H;?>zm+0HnVmgFoIb>nvdYaK2$Sd#6JMt6ujXF{R*~v
+# SOURCE420K|g|6s1QV9IRbokTBnAMwczCFDf@3D9Nfx+Q@@Njs_<%KhOnh(tXNqpY8lFw5>`3gEJjrkiJ=vAgv8z$TtYv5J=pwG3=?BQ>n&zt33LJRjUnt1!q
+# SOURCE420K|i|b^8L5&q1$Tr>{w&P3rb%X97Fve#7kvIGw$MTJBmJicaZsPY`rIti3FV>h3HB<@Xz&4DdvzPzm?B7_ie>!#4RfO{C#n{gTniQmseQwaEd0O!E
+# SOURCE420K|-san9zos+ZrcHGC32~O&ayuPQ8+lsWYG<FoY+47gZEw5cA?1_JTqLGk9lq<I{mjhPq1-*ekkElEff*|9qN}@zWL`f<G=$z~aI6#t&=!}`Jb_Qs
+# SOURCE420K|XgtG`QQru|yn_8c+vWXbk&n}Kf;Fh>utA(`j6IjVIvCsE*N-(l{XEzAvhw;iS*T~Zy_e=q{jYY7EbVKAQn?N(#pTv_$p%s_cw9wAHN5lO8Rf;&
+# SOURCE420K|PeX0uvyp@@gC3Bzi9zE`7ER$o3YRIqQ4`)IgM|<2(sM|;vp7GZ!gc&{yf~xuF?ypJN6@qk|C62NN#$AQ0QtIn_{2EfJW+Z@Z@h(<&z<C%@g=6}
+# SOURCE420K|P^-zahN&bKxzpoHC>ZUmb!hq5ee(gV08C5cD$buZ@!OO?C2*ZdujWt}db9s=O!&m6o|tEM*d1+8I~8jAkj7@4P231>YvqPLn%Bk{Uq!+tUDD>v
+# SOURCE420K|A6-oR<XbzrZR~0T@%FS3$E+>jW;ej&)JEXB%&2}|+9oXBD}bSYTLRTF*y`BbHbD$<GJhjiE3}`3?r=2d9SU{fnO@;7YEWd^cb(obsv);waZO@R
+# SOURCE420K|7uV%iV1tj?4qEHucV3a_(`a>*tl%GbmfoU{QQ-IIq{IrR0Tx;G%Wuqmiq2c$4H01ga0aY##E%$O?oHtKxhu0;+^`Vv)J>?J45jEZaQDK2=Vi<4
+# SOURCE420K|#WbBxJlD9wupQA>#e4l9bek8CzQ?Q!eO*+U4Jn`_a1F-v(sP&9<`Hmg?Au@qo_diM<D2Xgg^FWDwRUy#7Y&{TNe9CJy?q5nX}2#LayDJP40}qJ
+# SOURCE420K|u#+mt@|2yJW2<3g4G!Pd;X79CrIonq8E@Z0-M$7b@o)(6_@eON!p=>&@gnxLVDUHb?<1~Gf!%Ehwf}p&awXFw^<J&2*ff^Z$|vh_#v1r<(}CRK
+# SOURCE420K|Xr5$?75u-FUQH7l6I5B?^fTV34jyiOqZXbUl?6fb+muH{|Eue*rj@rNTjcYJy3=QLe*TxcHm3Hq@rH^XZ7;Kh9D-}=!KR9g3nbPi$(~$H{lr@#
+# SOURCE420K|L>v3rK)5|EHhQgYtsi>>Q^NG*B`_9P^4+0XY|f&%FvDY(hXX*MoC(58vZ;p_P>uvn3Ru2`&6MD=B;#L~_r9*AF07v3CgLJdPTAKuA?EPZJ^$#5
+# SOURCE420K|_hhprjI(8CIYn>MbNN513iI#~E7c9J3|Vtf+1eV9J@=cn3#@86ud+t47Ji{%j>l5BhO;NSDV(`ak1Gi`Z{nX}T4Z^pxr7@0&!GC(Hr0PS=$vj;
+# SOURCE420K|)aghc!XyWW>!4f+R{~gI+5XkW2X=J33rW(EYjq`YVyXd<9$Z}eFC<Ar+So~}>beqtyQ;as5pM^99qvLM*tTy69L}B}#kSZAM-*YFug$l_xlYA7
+# SOURCE420K|Ys<}XhG2)O%{S@4Nw#>4`xH&`)F%a`x62s_2~qkf1-3>H-^kai<vI|ZAuj%8jPa_obaG9lrs3vd^W8-$pumWe^<swZfa4-B%Uwz{=TQVcUfR$w
+# SOURCE420K|bZa@|TJRRnnE0KL4U=-|aWIsx=PTrjL^yEtPLZG6QOWr7I=qe+y(8kK{SCJZRHeC8F;V!1`vzTC+Gg_7dYlz+1rSNrGlN{vB<e9<dYv5NjU9%{
+# SOURCE420K|FKJO@Th`JZj<JL@RW|m%mdu3iSvAfkF{^^7wWP;7D*(HPUQ4CfOy5&IU5%bGVdjK|Y8}vPCx9a_Cgkd6OlV@d>7}T`7aC2iAw4HYpCY?re40nQ
+# SOURCE420K|Nh!_BWzGnT+l%qu*MaB8(>`|@6yM7r`-;c`kK&um7qF{!WwWXlA7!yS6*v{Z2#Z-zIN;l2{h8Q7vjeebmgdsl4C{3rY1aca%e4+KBLqNoP%G7E
+# SOURCE420K|n6Ls3Ee;Bj9MRiZtKA@h#K%XN2J=eeKROen4?;fJ+Bo{fL!(X`{lQ`HsQpF%N~E|?XI6L4=NdnX8A~}k+A==!Gso568^A^zs!I>?al=TenJDg0
+# SOURCE420K|TpQYW?8!yq=l^tmEAglsOv=Yp6OPtGY|lit!o_%W8?YHgM#&L@%fSbit`p;!`3C72<7>nA6<QLF(H=Qj!5A_0@nyydiR*B3E*Y%#nMTlqZR+$R
+# SOURCE420K|6QJ@CJ^!NQp86Y1vjUKe`<mL9x5Jqx_1kV_bJ2q`<2hmg_J}D5dw)9Eo*U*Y8jI^i_e<nj;f!DrrZGwkEMcYa>LSlf+O0s$3z7otVqK=w^^CHM
+# SOURCE420K|mFaA{E7k84o=b%sKC{I*pD$<WD%}VE8Z)E^%;JanE<b)Z*^(IR@l8HU3Jjsf3Y}MZ!901H0iI|ZQ1T+3vDL#@o7im51oDi-;-K@Vip5SYtn&wK
+# SOURCE420K|HK(5;>PcdT!M5mB<$^!F6cn6)>NepA^-{0{`cXAAMQelckD66<-0dGr8mf#_c<#y8hUecec|aeGIsiEE4`EzY6EjFeu#;*+5)xssObybLV7E1>
+# SOURCE420K|O{j0Pqq<*(<EqU5d@)sCk&om7L-7M&YXs<0C`!rO)A}&_54*J;=w<cw%IU%$T9LErk^gEnb_dpb@{KE{Gh(fv32|70*RwERv_fq6UHM!mZ)udZ
+# SOURCE420K|&M!P)UFr!fp)K(T{1Yd;k0-y8E-<$6OBQp{5=?_GdRnPfGbin<i9hyzh~-|L)V#VBB$C7Va%GyGQCd{RT)n~A8f0uJxrvSSKB8UC5!Fqt;<?hT
+# SOURCE420K|8`S@az8D^MVF?z{!VpzWxtF$yq+Vtdhu@)us>~w~iD#Uwbi%Uvs;_n3*SpKveO{G<gd3(x9U-Em$k%XK$X)GoUVLO%XwAeVPJ&RKd@&izf8yK%
+# SOURCE420K|qk<C9S25N^W&xs$)eb#s)~@-<3bY!^twcAR@r==W_H?c*3MG$j{d1_2>SrC<Ds*+5*q3LwFmB`3U)O7}R<3V-`!^^2*6N8)Zd<J2Q@U8sQ%t>M
+# SOURCE420K|Rgy8&@@qMg+tse{OTQz0AY;nXaMd@noM7ZcDm4OBsCVhijT-R~9y2(IrH|HLu$H<GW-$X^K0J)}-uRA3Rhp%omU>)nOU_@C5_R-QvCE=0m%7HV
+# SOURCE420K|Y&d#7i<ldqQ^Hj{e%u-1!hE6!%@eD{Uo%BiqhT^g#;0~BfBam^8KTj}!KJ5}If{h>)S}`FqxZ%oMo$dDdc(y$$l}jRzjW9W^o`FmPd5K0*A^Z1
+# SOURCE420K|d+jgK<e_2JT6e47hQhNvHcR@q8A@ztgAy7NCIZeJ_|S|g^mKI6xk80~PAbBsqjqjsnW{*esT52B6k)opfJMW_S|7up-$9<&22bj~PCXtmd^<c(
+# SOURCE420K|1B{KX5nYB9&r7%Xfu}1ESN=+WW_{w8m`J=OCe(flzBtiDFzwDYygo!OFmWHtMeqlliphBE$HJlMi>o$fqUEg6u6)^<diE8jv{l5plh5EuQ*a_}
+# SOURCE420K|JSP?p8_C~GBU-MiP|8GKhzLFu-vJ$M5&Ay|>{Jwy2Pw5R39Ou0SZTN}`&M3PD>uvQh}BCJp>kRwkQ6#dv_KBM&sJ1CJ7fwkWXxp?;1m{cgeQg%
+# SOURCE420K|F4r1dM0FtxBGa`ns)c}ZtpkPm-?6@0k@N(+es+*tdqE->E1+?0L1XDp&Fi`1>m=#@6v#2RG@?K2C7D|m)txO<%0xkl5wPXD+&H_us5ifS%FCqH
+# SOURCE420K|?3lF*cB?wUbXnhZjXo@j$pwST$ZkW^;hJrNv3*YdG+*@>&B!F$2e_$<sqt*KOOefXDYDs8^!y<!IyicN)*Wt$C@?XmEf5U4{3P?5QF2`9Z#e3V
+# SOURCE420K|Hg@R2nzlqWoM|EZ)e>yf>pO@(ZH0O`^Ssb<vWeOE-|)J5A_BwvqIN0|F)&9>jOO8gnVWzMJ0ETan=Kf&r6A^54K?Aet&4(NWMN6JN~+D~YUKnA
+# SOURCE420K|EgFQ&7=29dK2xQ`wvWonx6FCNwcT;MpXXCOZD&i}qNc^r->sS9Q2uCb%7LT*enO@h!(gd?gpJV~ES#p0qWTnqbTF<N+iJfmgOE!*3fXBcFFACs
+# SOURCE420K|6n}ed(BlnOUr`V+Y?qd`0kzVAHT@BvN8D+opSWo^*samRkBA-%v0iCR6A)M{Dva^(2hC=kT42lST3~^E*=L$6I=zK{aNPZQx=IjJ+;9ofsB=~J
+# SOURCE420K|G-4$t15wlc9)6A@KXtp}7Hc@F1=DAXTt%3}5vJgY@nTcNu(E8i^2dl>B@-F3@lAvm4bR);&V5y2&DB~aXORF!V-D<cNjh<!<@v|;a;K*HGF&-{
+# SOURCE420K|^|PUN60xvLnW%=3w})jN%N<>V#(EP>%~CgC<DIK%HZ2}je0V``FP*QoHdBgFE!+G1&~z^^uJ^wzFMb1m|K{?cQ86r6k@^R=Ss$1PYk%1^x)imN
+# SOURCE420K|=qtD6naQ^8$hesRm|M{{`}g%@?_jIpzQlcYw0^*oc(QF)<YI)5d?h|@B=U-PtcuwqGsZC0BQyQNe>1UL{@@6{|IqTXQrAvcVQ0oMM`d5(xa_Zb
+# SOURCE420K|BU9VUN^if)_zzF)hi~tz0B-`^2W-v0z6rJ=xY{nFJjO&VVpXHN#mX$GC7|@2?&^nh!$kX$EM1I$tJ=cwORFeMzm^)weqL{OZlq+lUa+cdZ8{Pn
+# SOURCE420K|M5^kX-%7^Dw<^$)32a<t0u%M1{l+g8EJ%eCpq^vD`GHbFI<Ji9L=v>${J4tMo8Z!IY~D<&q7(EU(0irT8Ba8sn!nWJX5~v`2x`a%!hf2&0xMrH
+# SOURCE420K|gVSN(Q5)q`t*1df?(|OH4*KV3x}C%bclN7<jQ;B=gC;4~zz%j)uGW*gm^Iqe73c2!&MACKzWTeyoP*G4v;@wf%dZrH86s;SYI(<%pl-9BX>C;5
+# SOURCE420K|&{+P?xZ-3i6enY$IH8HwQkigX7Q)%hIv$3PZ5;~(A1(9cdM5l<{BYKqgynK9kzRa4{u_m;g1Jgw*@`Bu*Wd^G5mOI?1Ly12IG=~d5%0r2fG~2C
+# SOURCE420K|htZ6`4u5Z;d|Mn4ygd0|i)c7HKf)q@!`|D|O*>sC=p7rEFb~8Teyp^IuIxCSVi^PT3;m(<#Tq4Cbj@YesCf<{?O`2(aQrBNu*0)%u<$sHt@t5I
+# SOURCE420K|>FlC@qZBE$QlnWJ{lG*zdiw)88!s}{%#n-+f>#>yAufbJu#nfV{1ZL+hLmTp5|s2J+$xYA$CP$UCiTL5AKzwkoCdzDl<%tb1LKf>VEiQgz_^Zn
+# SOURCE420K|;K2<1W29G!H1NADv*}$d*dVx`i)CJti4ji&g{)a+L_M4;Z*7&A4|A<<nb9KMW5V`M(Ga}Wy-56WPr8d@zVo+sI=L^KfBW%j@3(L^(tA}x6_5n*
+# SOURCE420K|2_R55J>w0!XF^Nr9}{K|-Q1H59_5RB*m+FH7Oj`?<8zAk`B2~8A4c8NVX)_MkpVJg<vqD1C&k_UG|6VPl;+=}RemqyQ@PLH{Uj@w>s5L`z5z5(
+# SOURCE420K|fjJC~d^qThdWXH?iGO59!tP-qt9+c#?kT16WL>29(|iUyg{KgY9Nff3o{Vqq*QI#Gsb65+lkVtU|HwZm*95|9i{-k!Cv^|H|J+{zmfp;h;v*>w
+# SOURCE420K|LtSISyO<T*_4hA;1ke-;AWUg>pIjGdDiGx!aPu1Yc6<{WX?T8yl~DYnTqWa=*W@h;P|JX_p}XWg(*WJivK2DI2uPK1-#f<Z&f&Mno}C7O#ZaPL
+# SOURCE420K|-LDt3>|=WW`6k7pH1{`fjDXAmCQM0Jydn?=(V%}i8gzzs8CiA4Y(Ya1?*B$vLyBEniyPis$EazsVxfE05(jG*R|p=gh4F}XVY7$<U#62fGe{>J
+# SOURCE420K|CXkv>R(XxlIoaiK;8p3VFH1*(*q1HVM)c#NQalpqZq1U-UcNLON9Z~UcF5oRJ2YQzx~jaQhCr5}v>`gH5;(LruFTQHv>FW7Ee2(hHC*|^i*If5
+# SOURCE420K|soUDcjW+M!RsVA_L2O@$>1P0of!Ud4((uPNh(b{KpCF+0M$Dpkc0M@kZ?-6MQxS%L$^C)ODR?$$1+LSW!9jdNb;x-JKi>j5)QSwQnL8JHUM~J?
+# SOURCE420K|aBVfR-tqUYH36_RFUmArA5?xyxvWG7vbfYDy@uDoxhN6~`;Fmuc(bJJs|`tHEv8X)<Xj{(pv&XC@hs&g@|wQ&b?=rc<Arej9<4z@y70Q)NA;h|
+# SOURCE420K|Ye~}ps*6e21gfWLJ{CW>y1&#AL7mw%D$MHM7Or=%=XUV<50C9-`N?E|fH~*L#)Q<-3b-Fv6KSJwZxxw3t~6X76Hxqd9T-luOLguv-Id4oor-X4
+# SOURCE420K|<_ka8o#*YnkZ$&Flr>c!4o-@{4(lKilJ*0nOT6?Ojeicp$K>#_B6PS&EuNPmg;~n$Z=!j&K)9(dq+G-k=AoAjX$P#ddCdy1s|(vz;8Gyj*sf`3
+# SOURCE420K|`=;1k8SY=OB|Le+7mzJSSUQoVU;Vx}dUrJFpjVF_s^rd%cZSACfq31chC@$^Dte+3r$^C~B1}(;uS`$;NwV!_dFjc3$_{wQi3W}kIWfET<^rze
+# SOURCE420K|ndcCJ!X^UdTDBzuMNJ}5j&mPj<Dav)6<>$wKoQJu_Z$q+KyHHH|6*Ds>q#inul)3LntV**RxZ+6CejCE9)dv1uQ{}4I<RPp+$Pz}H4T!`r7@S4
+# SOURCE420K|dQ4K_Xj|?_m!<=AO`4!6OXVk~U#0V<MNQHwYNA}CO3f$gQG_K86PENV6PDCRSoom8ws|Q^w}0rTD9Go9ND1$(jUzq}4M~kCyt<?!txGCGhdmAE
+# SOURCE420K|irW6t?@AmZUoM71c*-ZJbYF~_GE1Y>Tixejr#*Sb(ton6z5B!2pgR=)zq}H2!}1B!_~4d)i?s*=9nnkoNBCK#E@i<DMmyJXG>ETwL7y+<3uV*2
+# SOURCE420K|1n!<l70FO+9PXo*uU9^0;RfbtxiLI9FEUcgY-EwJVTL}w6}*zKO%2+H^Q<)oZ9!Gj2sEpsy5u_%WX$9Wl^tFi*fP$WDc7>8>K?s|<PTA1RN;k9
+# SOURCE420K|;?=C|np8qs2s4r;1`f)Go4gYM&BBc1(xm925tn8tt;4&bw}wPJ%1qW$D8PTqCG+1toni<h+p_mo#S)y4#1w+VXucWZPfxNf6WncWk0=aI{#Zns
+# SOURCE420K|RW3g2ak+bwu92Ch;*u2@WyLc58{xJL-;B!Jp-#{K))n_Irjg>7F_C?(kS2chN+x&ob}&n>d>`ZE>JNFYP0zRdP4IKY9go8zhSA7-ylS`=6pwN%
+# SOURCE420K|c#~wabfSCb`Nau=!c}s`5EG;Eo!B4eH$1OD)!kz502A^(fURa;3DY%pZ3qzaWmZsAZAMRU9eAV+W+`xiq&fTpDqgM;Yh(0)fX)BcWFlDPr^!NW
+# SOURCE420K|$3K)+{DT9fM@d3uSQ089BMEu+uw~5)Slqq#wQFWBQ^Q!r&%?JPgOK-P<a1LkoIA01I_kb<@|U~-tM9%#;+1}1)zt@=raqV^Ht3Ds$LPe>Ij$gT
+# SOURCE420K|C7SHLw}x21XaM~l_rI@FFsCaZY{8EB>qp3WWr(1Z&!N=miQ^KntroO+o|Pb|P1Y#-WfXB82+5fx*BRWU<$OPzC)eq|?x~e5as)+Mit32M+=+R7
+# SOURCE420K|Z`N>dd4$e3wk=5-pFI=0N}u`c$<Mj5RWcqs$qUzkBY9~*BZ^8PVZxCMgT>&8AME|%k1B=$&>(r?<TlaV%cB3q8ojJ)q*u0}VSb0>yzr0XkGHhO
+# SOURCE420K|@iz*LbKo7v&gkeJ$KS|5&H-P~ucAYqKsL(ZjL(u~^f{Z&Fz;!)0EXZOcog6l)8ZTEY;_Chy-K4`nVGarWT7p!f^V~Qk6(B%FgcF48Y5?|p0<4a
+# SOURCE420K|QnY-zp(S1jFJS%Sm;Uv=<Z!&hvE{&8`beN0;;G8*D0;tpNngG6e)Tf+6)t@?+qu=V$<cLvi<cG5<af|<v+XDbckW(Xyts`11KwU7Tq0$JKiGp8
+# SOURCE420K|@W6>`a<N4@NzRu$^uFmvfAJmKw&Fm2#%ZHj+vKJMKlH2UHTf=zy+#BmSrVwdM+EsLjI%OQZz=RK!^slLapW=(xRd_;+WOa5fv>e*uA+Z?6(xc9
+# SOURCE420K|cA`v?(U)w0+Qb2JSI;`}sg_?vr%8c%2Igp!HJIkK=^yZ;HlP{u{^TJ)%H$O)UVNT}LPiC~u@unA)Id)YkvbZ#XpV6#)i4E87)Wo_2IHxnFivp?
+# SOURCE420K|c@!<HE~OyVcfy0HxK~EPWnyoAX^|};>65!qshKa$>`(?ntb<16hL<_<lZ)R_7Z{<cKm^olmw}1$ZnNPycqqB_*M|;EO>FM#CJPEih`tg~v{ThL
+# SOURCE420K|nNy)J`&#0!{b8!(p>t~j8YC{@?WHe6m%=W;%;@;y@WKg1$+Cs9-yTS@Kps1f5T^chpNfRwcG4j_PR>Jd?YYJ4lh7N*pL_Be@eTFREq_LHYlVBv
+# SOURCE420K|)m?0rpWShi3VXivGk)fm0#eqeW?FUMhYXh1XMPsYy4NM>tdDJ($CEeCWmEzwZM~c8B<Y^&??vKlQf|((#g2N{vOf(@P2-j}%uL5EJB9aDduvWB
+# SOURCE420K|x!sYkTGn^^8CHZopbQXI1b7uRK_hv=kc|a1G$h7knU{X5vZ+`GNxVoo_t4-7bfw%8Z=20f4UHPbGcaSmNAJzWJ(=DJvjO$q^twm!NoREU&ZEel
+# SOURCE420K|U!{eamL>5dJ8^4VcoxPFx4SO4iiYQFe!zVOXS;TW=WF)Pmv=|2nW3S3MYRlteN`F_&m6QWJk44aH2(643L3KH1>8FM;@Vg8;v2k7%M@5Hz<<<$
+# SOURCE420K|h;kY{x_XhO6SDQ@qK?Hzb%naoV5RCl)9y^)b(T=r2=Hr|4U_H+>+X0kax11&QqAn#`Xau>|32Sjvy^vzaeIke`K>RHt8DN}{4F0{y3KD@v)fB=
+# SOURCE420K|7KK}Ts=(Cd3qIFYbf@O*p@sz-iIJOO>jT-7{<!lbBD}>FIoZm!B^7tLroxyHX_BdAMzXk0cV_7V*_N_t^PAZ2gKC$79Q&db1)H1Mg>_|*P8%~6
+# SOURCE420K|2#qHnFp<b#QLO#<KL*4C20i{gLn!#nNMARet;>~_)VmH}x|v52Jzvl+AcJ=q%E!v;k>smZ#7JeywAJi;56+uBI@8GKsN<dzn0Y77=+&#}1-tO9
+# SOURCE420K|ic-C!E>%gTbB3Qb-7TEsBzRXI_?j}p96_Z|Nnc)=>kM<A72Ic#1Kq%dR&%12+^7<xxQnh^FwH`UFyN|r*QfEXPvc>q#K%5~mwgI98<vejWrG6L
+# SOURCE420K|!row2FX+ka^UudZKbDRDYOJ(%!gwar#@V3%y7T(D%UMQ;bp2IOuEzQ4pgZgze`h#{%4!_imU&hshYNSIiNp7B`8u8RS$Be5K3`pJM*qpozQOQ^
+# SOURCE420K|ioBRSzb`s1#Q4*HeQkXlKVSUjN;q3G{!eHApDX}uAq3PG1fD7kgav|sKM;vkQ{)hwqe#aNO=XX-*mDXvyL*+CSQ*c@5>iq_kP66+9ZjBI6RC1k
+# SOURCE420K|NwjKyUY8g2@8RX~!d+Q4g!0+MEZ|%|PlX_16=f0mBA|!sk5P(R<V-dCx2Q8K(qwXHNjS{N6KS9AJxUQOTpp^Fp*}5dV&^G*41rAQ(#6M9!7yJ^
+# SOURCE420K|MFLGGVKXuGa1X+RtR{)nZ=Sl8lJ=q=ovh*w>(R+7{;(dMtm5-F5=sv*wTWW7yv;_^8Q>&qlg!`Op@pLEsMLh47u=RQF&+P1eMfC;B^?zMPK?7#
+# SOURCE420K|t4p{Ips9-?0kftibSy9YnUgO?Q9|>^p|+}A1=m|BBGEF*%5(di=;?NOG>{OKv&HpuJD~8MeO1-AG;>$@_ff3>CSwl?b|pF+rIU6vOqqUydp~Hm
+# SOURCE420K|4<-#xZ<Dbwg<sua#>>YT-D;y`bt+so0hJ0@Tp~+N1wvI#@{F9~NcF)!@{fg50=6UF&kI}ilyK*HP2cf-fAB3jqT%>09H;4gL+}?f!`L}15yKAa
+# SOURCE420K|mrc;}R<tche3SOpOAKvdQ&syj!rYDf?3nG7Fr^e;d*Vo;l9gq4!5AB{8}?QZ;I-P`d|=(}(^S^Uj+>T4XPl5rCx3g9nH9%a18szjHq|9{XvYf0
+# SOURCE420K|$)%eO(s>b99{Q&*mT+Y(;lrgPDzZl5W%!rEmUHD>&XqL=rR7BZB{W{;AJawrAsLU8VzPs0)Je%4Cq_0;UblU(T+T8$(dek?{pzantERX7oAA`)
+# SOURCE420K|C6=*cIlPzl8}4Fq%!;PgxKs*{a6k;h?rBde0<9P!*lIjuxpj7U&suR_-i!7mxhi+C!X|4A<TsMPu3%OF@hW=hs>IdqkxKc`e<Tgkjs-!UW2hQ>
+# SOURCE420K|P1URla!sbBQtR^;!hvI=k<9q2=@3I|!xSbkE-J0+6UCZX*@|{*Ecv3*xNKe=U`{P_+eJyb$5LIEpmZy;%YdRuWea4-WGmyEtH>qoC$Tp9@lc1$
+# SOURCE420K|+FP)6yl=Jv4UOf3My(GT;?yORVNzPYdU)%p0=_x+(@j@IjzZX*_Gn`_fjmaCuh4so2^DKpu8aZ5v59e;8eY(C#T9Lr#NK?Sim;OXz^#m=BOI|h
+# SOURCE420K|Qy>0ufPI3qB@<XthuRIxy5e7!K4#2}l_y(}r)rNL9U5(_CsnJHib7ZHd#ylG_Xz&L+=L(;6EO@G@M^Ls<-hmO2dACmxHA~_4v)Jmjm_zs?x1^m
+# SOURCE420K|*p1IRXWc<V_`Q3fxL4){CG&qZOXgRTBwDtk>MF8tI)nJl`RIJmm1RzhI<RIN3|PY0hcbPIgt)2ZK&RiF43J9u)G<xFwezHpQ^qQB8f1?wd<0jP
+# SOURCE420K|PEbo)l3ni+E3{`HoFHL1O^f(j^g?E+tWCBlX3L6?2&3B4)1!gQ8VY;Rfaxo{XM^79sNum`9ouC)jtY}Ci&V1>e5OzV*C=8l1FT-$*#6pP&9wvl
+# SOURCE420K|Z*pS@sr^y-EUo*-2CuBkg>|eqk#ta6JH!!v(>duKzi)V!`O1`?<d?(V>D%M3sN%)HOlREl+yRO+q9h8jVR13&w5C67=!x#+-<qn#qw-pso<ogb
+# SOURCE420K|7Cd!O^yV&gqsDA$X1@w^sW<ggZ)V^H1_A58^@bs%NwrG7@tvdPKwkGIT^FQ02d-w8mL&@Q`}uU5jnNlJmLK9dWC1Z<MRwyTXF6}nt|yka&+B^$
+# SOURCE420K|?Mew;4~PNFq+qq*R0ych_hD$!a&0A%5$djoXRl`=k^=5Wi*$v_YT+*#y=d02U=gil_Uv^mSg4DZUe?O>8jSUPgyu-I*HXA=#`OAfC{I3ELt%q-
+# SOURCE420K|0^VE%@^S*h^X0*l(KXnIo2}FCA`$UBY{ZSiqxR)X^(AoW^*^M^d2@4K3aK~2@So&m(+Uz*Gjy5RCJ!L3ZUdxLo35vY6K%S>2;>I6bi58UsQa1i
+# SOURCE420K|>Y=?IRj}JyZ-G`#yNs7i8q1I4&W2ME=9{y{IG-~NK17<N(p3P3xz4?BuI^%$dDnVpz!tA;9{uEnz4l&3ReKJZnB>JcbQ&%(*6M{3NlcUHU--_T
+# SOURCE420K|{fSx?e&lAebv{5;HZ=VvUO6FQ=E_5T`H|G_EC5c`spr}kP>flUR?3|*UhRm-x?!dv;AgcJkDDg9z(Hj+Rp2xl8xv-q;Pq@Q!^b)Jzw?8k{ylGI
+# SOURCE420K|yM=3);(npm<T~9YLPU18U3me!7rN|1COGym3L<qfyi0HKs<c=G>*m%Dx`^4l$(Hi4ZzC*M*g(?Bbt=AR5rJA&IoBfcsA_&@pkMe}`B@xZlU9V9
+# SOURCE420K|PcF2%E~*}{E*7b@lbF$cX0(yeR55t^T_NZl1s}PUn$4VV(2z05Mt)oL9|cI!JX#f>bGRmGey!1tGQL!`b0vX`%c}Mta^%+auf$P32z>V7K32f;
+# SOURCE420K|D9B7(R@JAWx#)D9rR`uz>hROOPswbZ0uF0NIZ9~=4YjRJJrnbrZhbAA6$w<>v0vrOY#gr&SZKNPWZf8#<|Mnl-T}Y5ZJQ*2EFgdc@Nu7taaZ{Y
+# SOURCE420K|WE+Q7U_A$3G7UYW%En8L2s!jeY@W7LcZ&Mhh7LHrwllsq>IK;^n)ao?Riy04k8UQFk5(BQjnXJ!U3~m#4;+}Wy}$Tn#nfv?6;G$`#HWFYYuk7+
+# SOURCE420K|oo+F0g<1HWHR&K114kp)>UA4n+neWDfFz&K^To~|4-CcwzmwiG+MKJt(UA)?$8ld6LUn$NXc!}|Kf^1qp>Iw+PgX^C3tfEq$h-N(JV!pZqEA%3
+# SOURCE420K|5-EuOiR|>E{o>%@@<H!f0kCGr>Vv9ot68QI5+&ifS5d*Lag@LX#%cmEhDz~MlF1jvu+lPO`NShe^ENR@sI!bEQzpDavdIf(Uy#3F8o#&7F2&uJ
+# SOURCE420K|FixWkl?Ol>S5?u)@kw)t<2rS8l!&=};S=@oYfYwKz6>;asWrkuUsMayRqt`GFY8Fq&JuX$6VZ7Md-ltXEw>m?uMY1W#%)m5J1m;CCv3+h2ueAg
+# SOURCE420K|C!vvs9ZlKGOMfpfx9A095^y?nR<K9>1DA$R#WL|l<%;+N9xWqI%_Lo6^}bMYw(ZVGJ-wTOS3!TPdO6!_oJ!)&ZYdG)^`mpYai~bXkoV`a@H)#g
+# SOURCE420K|xC?lya{mU+fx6P3b{l0F`Dq}j&|e)dEI#Whe_=g`ni-qc7a7tdAy96V@YFUgH#hsqGSfn}R?F)Ns*<XOLMM1;wQ5Luy;D^RHOi3YYa?@`HBNx3
+# SOURCE420K|&6XIE>bgIc49m#5TzEw0n8gQe8?2C|@<QF{DC-re97or8QmMd4+|}Is+19qKd}w|TSgAwGIp=~@Ydzn2VR<K1ARxC#I+qjOP1~5lO?F((=&RxP
+# SOURCE420K|obPJ<i4v3kb7J<%`SGZCrc8nwiXV1Pk9tR)QFkMTpLCCU=O-JGTo}3-2uM$rWPsiROdO@*K~j87CldAY=`MToZ0LQG++jj9X+=YqaDeHG;j}dH
+# SOURCE420K|>1g+C4&KW8Z8%M+{On%`7iHxR?vYdr_m+V$kNVifmqi8GfL>Bi@&;Ub*L(YJ116oBfjt~w<PvEYiX2N|OaxNZz@26N7y=uiv_c-NaskZg4nu9R
+# SOURCE420K|j9I86NEN*dV2MBf{@1~nG#~%GxZ+)0ZM3OHf^@{WNk~EN7I^r&s1mFxfp`+CBw^AURfUHq4c0tWDu~c#((_Qu49(1{A?p~a$&Cqe8>>+!Q?qrk
+# SOURCE420K|Nr)P@UzPe%uJ|HfCf5m1pf47p=3funD-G_?NHY6powqEjJWtyDEXSZDTnSi-as+Ntl+h{|{v=Vtiwm(j%85o>ng4)sGj2RCa`zu|U@DDX-$axA
+# SOURCE420K|^8&=G6oe!;<vF|DHBS}{A!X~T4%GTp^e(%;VR>+*)`(Kuh%CSeEvZ)E-uHWY{>(UR<JJtf9{u!2&yS}%ZD=uLwVW^7-be#!9j9nguliMPb}dV_
+# SOURCE420K|1sS_v85GM@_cAb6PQ=e)vDO$rbik4*+9T|<^uasSkY}0s<H6S<KBhUD@TtK9`D&4x5WU!fq##Qb54*>3tBP{C1N={2qOwtdor=&%%+d5fSF7(7
+# SOURCE420K|eX;jpU*CoH-plC&WgU*b(31z{F`~*JKbH(JH0CF3I)1~an#?fRL}dL=7MUoMvEgDyRTxWD8sj~m7N61`jz^kj4f(D8l=^BP>5rbt&8)79xk69n
+# SOURCE420K|mK-S9MZfe#RbY(@4A<IFZOE(|q&}!B4dl9}KDLsFK`>ZnvRYQ}^r(B*J>^N18fWN_-Z?&g9~+O2A7TKzqL!ASL=~|&GMoUckVfIE-R!--+A4aP
+# SOURCE420K|BE9yB^Bn7`G^?_vs1<BK7E9jZ1C2Q#ITu?-6kIeb6l8{DSZeC3sn;3U8*+t_HMw7TZr`qKno`YFOQ~)TRn!}b!Q$~lF%>W@j4ShDT#+GZhpX}9
+# SOURCE420K|T+`{tMKhEpNrG5E1s?YYKX^Cde1Q-lvtglAfC7_T&zEbG8uY_^$)c)Oso7Yk=h7dd2-V*4RNVogT`RStjYy?($`XV$;JK*4pHwCYjnOyJO*VnX
+# SOURCE420K|QF)UTlm-!N?3DZb)Re@8vS?Mf4L&Y_M>Wli-Z~^jQQ@q?X2c6uQD(+Pxt5N}o2?o3Y$#v#_Idg>#T+y(lhUJ&FM)*Bc188-FnX;#PumKAE-z#?
+# SOURCE420K|ANm~|S-HoOZD3oA$!JRJlD$UOcRZt*`EY_vr5F|^guD?re5R%50BYZ^nu8RVn3yO-_D*dWqw4trL_>s(YO1|nq-%IRvlAKA;Udf%&{wSw@9JQ|
+# SOURCE420K|r1D`yHAC5lzA_I*dkk};&7bLYoV&d`B%K11w2FYC5`g|8jnZ^qgl=W1u`;oI_7I}sa{u>|$%O7FpAX#3815C7|2`cJI!C=j=)7Xh5@)vT{`CC#
+# SOURCE420K|IMgpkHoZp^-6}+ETYB{h)pgKCMrr6>dGthKY+>!U#uw!$U!`sHjw(M5YvKZU!R8v;I;pZjG&~&iM!mz{@PvnT0+tL%LHu)Zq~1_WqbaK~Zo3RG
+# SOURCE420K|0o;9MY<h_JInDH_0?GWwLdWLN${I~HtErlwr{>4vZpUJ|NjJ<G+6s=Fmm2_)#6ol*v*^s1K<PTm1~^3zOtcRCuu}l9gpIK;E_lc!^Rs}+KX>mk
+# SOURCE420K|D=Q_47*zeLzt>UpzH-fO>eUSv^@^0N`W3rznDNH$jAd`gfT&G^JHdE`EA>fGY@&UEk9EGExex4!uEn>i6Ft+9X@^ng^@|lXY;2LSeVg4Hs;xA1
+# SOURCE420K|vhwlIF}C0As56U94XScLe+gBJ#OV<`>#*^phS|uL-elJ|vGSU_C?D4&w%-Y!Cg#p)*E-}m3YdL5;@4T{xbbjlsdOkcOqfZ~<m=)2n>TPJf`A=&
+# SOURCE420K|zr&o}huwyqH=fMN$oS-<Q^QMWmMzfuy~?@ygJqP_dZF9VMOCF8(C#_6T{ATK@4KCEH&1$~IyX{VVepf(DPb~ltSOg~c^uUMaQd?ntu@v<eD^4>
+# SOURCE420K|#7}2Kb3f_*&^=O<7m@Rx&dD@jzf%JUEg0JCzU#(E-Ph<X69Pt03$E6nPWDlQkw`zW1cl7=%K<{wTz@Y&HgIi<*ZM&U!D%=e^iSX7fgg4OSBJrs
+# SOURCE420K|N&mIXzr=F2o&ZVR*CjocKy{JJt=ECTL>H-d5dhf=6fZY`B8VORqwWCqvBtVPE0{r2uA<fFJh*mtix_L)Y8@{^6YZXK2XA||HfWg7y_>@@46Zoz
+# SOURCE420K|E|h3TuJma8NQxr=>`c~w1h)tDRwM-HGfRr=6exsR2D&4v9KuQgw=bM0_c{2TMO3m&0YVX);$g+<Ex$39iwLH2O^F;R##5h`!zMrest6#XoEuB%
+# SOURCE420K|$%@_iyrrxwO=mRdZd|c!5vX0TiA2kLgdUy(<KIEMNO{hnOQ7(aDbmRrV>(n?S99{3axGNi$x_j^N$nOWz)Z%&u+GUTi0=2=WW|hGJ|A6zaB2m~
+# SOURCE420K|oeOuMu`Ql*K?*O!Js8d0T2xG_68@Ywa6a_Vvv4Oq;^)?quHD_{&itgR5>5dgAXMPV5iOu6dgzv>vY4*$6kPty?o7F~VFnz2O2Qp#2iu1}%*s$%
+# SOURCE420K|51_%$D7<BVY+sD(P>cgTOlRqMRk}AnqdEjxgPt;%-6HwSeVNFmJ5ZBb<C?Fs1TMXa9X8gYVYqFF-z8+@LE5>&rlT^^_oC#wNK>Ra!h@h3-{f$6
+# SOURCE420K|&F*w%cg=cP+!~}2GAGQ&;GDi@j7@F(ki?zm3)y)-!w-SWsj@ldnj=1MU&4$!B#kGPaX+Z0GEGm`-J;6%$k=l?jDIx1i<qt{^mB9#QOzokp~K@&
+# SOURCE420K|?<79%e%C#Yl|mo&sT&;-;o2Yc0!~HFP3xIgwd>*|WhmO<)lJH{MMF~dI$`BNK@pVWWDTdTq7cS17mh*EB%4mt0>><aRVwBw@TrqpO$GU>(-!G6
+# SOURCE420K|`9q?QA_h(eTWV;xFY~MO@Q2_>A`{rI%EOhF<vQK2bVj{cwtuZiq31cJd{%X1gf@rnJnfXa0lIBxVq1m!pg-UfqkKFkvf;$<P!@O@y>ry>;RC{m
+# SOURCE420K|@`iYWLfB1PD*c~Kh&Rv5d9oVc)bYIk@AA6eWSdkIe2Ulo^I)~+bT8e1YkS;V-tZtH4*TbW!)|;&gugpOVZeUkeWcB!?U~vpH+t;`QfUS-6%0Ak
+# SOURCE420K|>u&QK9p-%qF8f3lk|n-|jh(L2LW>kZQ2R7HIk4R<-b)>nS#n*0-T&mZB(|$0K?%;u6yfAR_h(}@Goss>Umu*b>}-JMSGyEoS!}|*s72K&0a6!_
+# SOURCE420K|dZS}fxV$+AR_$r$0>R%VKv#QxQ~fS1Nit8Cgz}QgGw8IVFI>*#(0Ztk{OJ2l^qLL8QP?E$?8eZpP}VjB{yp8^Pn)*I$$xlrx6FZaglX+;BifiE
+# SOURCE420K|*)s_?wMDQ^5)drPkblU-aDvLDs}CqpB4Y9U>Ee-0sE&}o&Wk(o9$6_AOJ#eaKSs*+93GV!PT6?O#b`4<`xF3>P5BD7H@>RKu#AvWPi$LOItT3C
+# SOURCE420K|`?H2x7cNy_rCOl2HjidbeT}{Aodue*X{d3W((!Cmsz1pmVD}`ZBUCZ?cR*)IW6@tu33#~~SR`Klu$zg^fkxs_r!2a@RVd$1GNI=&UisFsE=kVx
+# SOURCE420K|g_xTnLr^TgrUdC82~t!3PLQ6GEc<rQKgVq+m&(SV|N4A5auY0)V3?IrkzcJrYD~rjP$pBE&P`cL@GJM3ROiN~Tui+h0}>`)eZfnFsR@2lL$B}~
+# SOURCE420K|<~Z@-khP0OSBSbi^o^8$NPT!LG<Q;#wh`v7ygy5>$~{ka@4V_S$x3S)G<>#RFxij~fa<i;(`nBIArCGT^6g4ZP=hTXQZ~bzMUcI8&nSr-+~KqS
+# SOURCE420K|+4(UKojmIv_TKako$c<jJWvQWrX|Q1Gpg5EF4Hk$Z=`0j&+}^fHrb=(FOB^TSOF^bREL+kN`NLv=*e08_E1wx%=1YKsE`*WV+E6PT`=9Gu32!q
+# SOURCE420K|pu0U~5E2oh{5(uDDk2c+`$X1UJf<)s>|CCSTDx`99lh%x>EShwvp#yh(xMq)(DcW~*vA#l_OD<eHz-tMrmz{U(9dpPa4n257Lp4E<_zP<hgm&6
+# SOURCE420K|5b;{M`8p-rO~lBzC1pNceMY|rVVa~MdrTuJ(v#(@e4NklF<f40fhpOccWCYD?MR*)F#!~3bF_u=O{)p{;k(WNBr2f6onhC7duIvL(8UV20|j6J
+# SOURCE420K|i;W<K8iypOEWRUBhYCK02KIusZQow3p<yw*Bl3fC5t<v)MZ#mnsMr=7_7N*QUw0_$JRCtIa759s$8N>h`D@{}8o%y!hR$XjgO~$H8O|?l0~#%G
+# SOURCE420K|DBw*o!9U&OpVEC~BI)X7Is5@>JvUPWh(FyK`7~OrXEV`~sGlI{+;;8(!KwZUKR4@zP_>Xp&w4>t6<^5pMZ>YYAl$Eu^bQWASfl5&L3)kkr65Z+
+# SOURCE420K|6+YM(YMgT4SjJT{OGx`GJx6M7fsBvULhl1y0$()@pVCFUx&a2{`bH^lh$Ld*q>dvffK5Y+0A1qewGVI<k+L9-L>L33G9CbFNv2sA=<+82Tv}xv
+# SOURCE420K|mf@r}+6;t4buu2Wi)4JKOIedt$Y7M!-kk<PXqiqjG=x#n8T7}S`v|CTYMZ3<93%OKhs<TuXMx#lD|I5*LwijD+JoNcecU@a>jXsRff#R}OQY&o
+# SOURCE420K|=ss(ofmo!{<I*eS0ugj3|LO}TeH)kc8xPfUDc^!JbqSr*COXKzFYMek(r&angMFLfbqeomj4n+svMLEPw1{(1q>SX|x}K5&lWljs=;DI-{^G(2
+# SOURCE420K|#WDGQ6*lCLDP-DD#clXdMh_xr;h=iNZ*08v;*AO}#50T<JTogrG+C#Va>L-xMd?sr&O=zF$LGHK!q)j4{UPEC$kBSduGx+~Gn&D8W*c}A#<>%r
+# SOURCE420K|P?X6w5YDrdxO49p+@{VL1YM@E@88X6#tPpsR{)jVfma+QH=tr}QMslMHQZpTP4P=Xym-^;9kW_z@&Z5YkK#9j&bi+fV|t7g7P4?R2wnQ%EGrrJ
+# SOURCE420K|bjICH!xthw=3?b$+b_bKK3o;KZdlEy>OP`9nI>07@Mhthw;_yp%$8BZ<lZZV6xL^7OoBTB!Zyu;e*@l#0yQF4HAzA#n!-UOE3qJr2KDi~lj~)%
+# SOURCE420K|SgpqkE&qo}eQNuT`!GyhOd>xA4v11xZwT0VbbdJ6kehGF($yd?fyhxLS~VxlhRcfg`7wqsfYe(pREYaw|2kd3P*i9lS#Y)o5i-5KNwA#NB!mcZ
+# SOURCE420K|Q?kXU6i`5BWNM%<kI?i2X8>~9M(S|Ln4NVp<7;9Q!sLQHaZe)hduX0GA|LcVVTws5Ht)sj?kPNoyFZ*AcTU6ifVLB;nL+jTB)YnjQX7EndQF~3
+# SOURCE420K||5)b?<y$OwN|8caG;}OeEJqk!t*<dUNpN;-vCzc7e~pu5ai`VI5+M;c2?%ai?yl_xL7NwFQkdmwkpl$tbr~&_6|g=CUd*9=y}AL?uAMHWdkuBV
+# SOURCE420K|{FcZeU`C1rCc9wr6()i)@{W5}*0>Vj(58zr8;kA7<BdDcr+jB0@UaynW@lRxibdN_<ER!**BJZ~m5Z1d_S`Qz7%uKogkb4g5ib}GBOd&dR28%&
+# SOURCE420K|lg!{kc(6(_Av$-P_bR5wo6ay|$p;+m4!GOp9j_F}UDj3wOvS5P;&UlT7%T2fBfD#oxq()w*Y*g~#$u(FlEb5vc71*Oxa|f|?4teh;Nal$xeL&}
+# SOURCE420K|MN`&(#8_hd>jsz%AXm>`WR97au3@-GIqb=VUFgWYdWL-0&+Gvxv>}^Uf}%W}f53z~DI%WT{8rluabrFS#2nkJkoHGUT&DKR;27w+WK4OkW$C9x
+# SOURCE420K|+=HHS8Wr5bVej>EH$Lf%4&OPP1Wu;P1`Y2W!`RynO2<5L8~jCcx@hnz*YHTf(n0+}jIR76yfZf>$yOyDHl!}pXVCUe%l8$MqWK)J2oS4@aN;oi
+# SOURCE420K|!C~(R*0unyV?|I#?z70J*(@~ze+A(Jvd$}G?NhBB@*~Qx@}esJAsP@8^pYU39CnVnC%wa7Ade|r#3@UcxtJoCLR(J-W+-VXs!#BeqpOljJM*--
+# SOURCE420K|PWMSu>CE8qnTaWKG3=l51f0U|!r5eXKL%iOu}EzVgbAgktDBqFk00nkAg(r!58B1{^|yPdSgIvbCT32N@j6AM$b)z1U00i6rEZa)>G`%<8>+^3
+# SOURCE420K|Yn8&|;ixk@9|FZVJnnV|Pa_vkLx8_Ce?T<&amf?-Q|QmY2EnYLZv*XATI_P>Q#d$&hIT11_@Afi+1E##&Zivx5g9wJ&4yk4H8EvFWq5%vdMWqK
+# SOURCE420K|^-!OHPAqZ$CN$c*IK$6`NM{mTELOM`X+(z0e3A*eleo1d(g3S^)PLd~BNhBP%st&DfdF%)G`7!Gt{hxtc<9p5;fECVPrw(gXQ|8Hggsim<w3VI
+# SOURCE420K|g#Xm1LBU-0&xJUeavlJfq3EaOn*Sc%m3L>^M^UQ4qCH%g{3)Gmk4o>(PdcZZI6nfRj#wd^H7tW^;`Wt(U|%}$?We07(*996LAimG`AUUwo)7&v
+# SOURCE420K|4cwyKhr9_j)32E9o6bq^`1yF~$9nZ|#U-_5o%x7-Djm}I^)JE!(;hel@Adn<NV(g}O}5;Gb^Zi@B2||^y~y*S6!UF^{`DZPn&DeIQXThBzugX%
+# SOURCE420K|g0xLbJZ;QqOZq149g>j(lxjs}w4UW-v=RJ__uuOb!zIXCi6%L2ldQh<L~f(idU6*}Qq-`1HNKj6zYPuyN9RYF92fQ0&%;(fedAArvlO#6wWQNi
+# SOURCE420K|%ixB7E^Zms@o@Q|3krAJs-^_>qH{vQHqVb0T8(m20dF5(BmG@alimGc6pKkd4N)EuR^vyQL%mJ~UnSZ{;18GvcTkWnE7SF2{0RJc3gOWC9Pak8
+# SOURCE420K|KQ3U_<E)$utL;@X{)p!3#bg79Rk=OX^J#c~B!lV1RyK8y@5KfdTiL}`QfUn4s*P>I+sK+o+c&u_*c$E<s!Wb8kl?SlR|ZjvS+Z<dehm0~l9E4Z
+# SOURCE420K|lzd7u_yRc7)!ifTkhx(#iKuazP0Ny#2#3X_!WFC%F(;@*BxiD=*7qwAd07!12ts>}4iTO2I=$o0>*H>NnaM_j9!ZFpKmUvbu>U;o4lDENKjjkT
+# SOURCE420K|Iqh4xoN7HJ+Xlc-IpesGswy?(r_e`LGL|YlZy_0Wq(sMDE|T#$Eh$|F{@1HTXlY1Q2O(8!z{e-vvXrs{h0zrXv*|6!tun5FEa7lRq6L(BMW!3c
+# SOURCE420K|BVwVTk<w)3$Hd~F8542(%z3E#cJ3c_zZMQEOyOj68#EmF&<w9X=DE|-G!H}?IiA)*Ke#LU&xm`%6+2@nAbk<9?v_c(id(TGL<YlrR!<tNOcG+J
+# SOURCE420K|&1s67BEA$}Ejta`Gh&&X$RiSfVAZ|O;P9Qw;1%l&c)I+!eG(8qD)#*M89K&k{@_Bs&|Sv?WAESz)n(*9??0E|fqVoxzhQnr>5wF|2GzttzxPT7
+# SOURCE420K|!fZem)gMO~$Nj|#gOr9}4iqz4OohV1hb+2KtsLi&tChjZJm03DuKD7sy~}VjSXJD$+&e|8xb{uem!sO3{_H*t{-af{HI-h%W5z@*L8JFQ#vmsu
+# SOURCE420K|8u90%{X)6cC|{KYNMA8`jM>3<epiW2eiFj9My0t1n2{S&JWnt#nLA3hql1>*>vr^_#Z12K=%to2gVJ!*T(sDK=;K;*elqnoD?+IXR|VTAQxsv4
+# SOURCE420K|Q0CGAi(e#vf_=@MVBc~V5Dv3gtB`r?qU|1?y%v<Z5-W{4=_%PHb$fWltX9AVeWF18eZR?=Rk4v)1(>^z#DT#pth2$ne20wO9UO|qIu*`%%y=qS
+# SOURCE420K|pP?3(Oq9}F4`+9F^oEBSCcZ?kyf9a_sjsdc{bAz{OXV?g2TKh9aPricN@U<-(FsvWU%+I5kX}YiZxl%Ty3#FW9t+gwJ(qs8j-`nC#xpL+4d;;C
+# SOURCE420K|0n9Nxq>{vvISQuRW%J#vT@KFM)U)c&HaJ^d`70+VyvkDv$H26_3eVt7y0-)`3a7>3Bh;^QeGNlMjfI^eCqa`#e;Tf`lsnFpi0Eot0NPYeF{o|}
+# SOURCE420K|PP4bb8)Kz(Tq3Xwz&F`e_Y}as4a%9|+zxNj@kcB6bKljL2tZ+xRwvxS)JTNL;6`ygILGr+H-pk-cTJ&LA{rA3kYj|i#jdEm=pEvv5Ly4RPDqFV
+# SOURCE420K|*y}R2f2*ryx4IKnV%olvuk0yv>55I3<SnJY!pU-(Du@8ptbTB+L*kj4mt%knH-a+vT^{_KC~+8KDYgXWyP4PANZxr_<1m9KbK|MYTcn9Gcr3wC
+# SOURCE420K|Rc3Kk<G)Qv5t2+;q6`_cLR+o)HJ$!y9_Jh<1H3)Y2G!>6S|Qe-Ge-P()040`=Q)CSON~=k>{xRv{*?Dr(Z(~6{04+}Y@N(7*noB^ltT8%zAMOL
+# SOURCE420K|P?AxxY^fW#CH0prB^u@iJK~oCkBkGiOzu7>vl-p)YdEmL`p;6V#c)*s>%YHVP=W*`6=OhlWW$nKS=sR<#Y)U~bHD^X59lDGY*)83b_X6+b|UN4
+# SOURCE420K|rdky87OP{dnHmjQ$b6Px1MR`^3OXimYi7XK&=o0KM#SiDOlPYjF{Xvu`Iz3lnkDnANfO<*4IzN=<(Avi1V(cHzuAiZ(lje2@?J06zxPNj!hio!
+# SOURCE420K|UiM$hi(Qi!YP7z_5UyIiZj(u>rjPu_TvExxs998|>B6q}C-X}I0pNL}n1dGo0S9W9CzH0dE?>?kKpN<sdTK=<N_3J>rs)pvp=ru`*qAaJq>Hwl
+# SOURCE420K|SspP*3+aO<RF?@p(fXjpNs?=d?`#TA{%fFJY%b{b#r{%4Hrhx8N?E}~y6wkjiQ4Dv$3CDh9!KJ&{;|&B6slxBa(-|cBm0U_b_b-Rtk{w;=TNbw
+# SOURCE420K|W|Jg;-@&CKG8%?kljkf31verCq8TEDpZ-2qk*HZ~jjAVZD68e%4I@B}`5R}>ntvZFY0&h0nj{ZQO;W6o<wCv|QFT3*={NW?fWTe@-Tf)yH#(ld
+# SOURCE420K|*(|$e7r46?Z5H}s^vTs(3?~WJGT!t~nJx)r<1@aXH*1P@-KQ@wG!Br7NsPMus;`K(NipRChM2*1QoTLYv%VNMxjM_hGHiORsZf@mbl!GjPw-{q
+# SOURCE420K|=$wfw-S|!K?fIaqMZ!K*1n)L&NcB!k%Rg*92Al3rvuoU7H*!({XOfTCgb^$_RY6AGunvG^m@x4#X54VS0#;84&gCPv0o6XeA%!Z(ozwnF=lDGh
+# SOURCE420K|1C$EJM|lC>g0T30JJ{=rPS^q|fT$()QTib3$WX<Ia|1htbY`jAk!zG57QjK@tbqfHJOR#Mc|*1UQ{^rMb@~p}h!Yoelag^VN#_)pq<=5r!@$Co
+# SOURCE420K|ZBkDKLe@Xlj5Sq30uG>T<+-eX;waTariqPsx50UwVwjxpC6XGDxY$sV(xE~o1+sxJAFl$Gt0t>JA-AN)#dBqZ4uecYzam%i?18UEvb>4r=^U=v
+# SOURCE420K|=Ztj)sDj8uy`NC$ZN(GDAPQ!yINrgKcOSQh&-WI<Q3Uu?t5zm8Pbb&gG>@@++`@J=Oj)kc0Q*WUX{wlZ13uEyr1DM#KU?G=f3m3D{*rM9p1I&+
+# SOURCE420K|eXHi)#k@}x;l!WB%o>y4#MbJKiNWPRnm!;aPM2Hu<T5cE!$drwFn6^^WOU^Zob8u~2M2bzD;#zxJSteNa`iVh(xLi1aOC4LIIj4BHQ+{w6w<d~
+# SOURCE420K|r|3e@`gRPXIlQBR0wz<rQjg*z3|6n<4j~LfQDSa+j!Yo6jjE+cLhR+x_M=cEae<`i1IJiOKoJe;$3^>3zJ>s5W=9p*(=`zop+_qX^}k4pC|pOh
+# SOURCE420K|C`ZgB2QWzBHoj{)itv`9PBu#evC5DZBexgzR=~uiC9l(&lTrf)ZD}biSf-72L8%Xu=`@>VuAAJ0t!bbI#*Bjg3^D!N=@57rM7;=mk#c8qW2rW+
+# SOURCE420K|)A4g9A^2KanYwzGDJ77s1xitJVpCQHVZEzvm*(SVO3$#hs_1!>E`+@Y9#a}hSlm&Rt=40?Y{)g-AKKHM=GNI8sDwP@4bZ~Cm8XIH2_6<3HNPm|
+# SOURCE420K|#OMzo@*8kpGV`6ICC`hoN{PTeVUL=wkBgO5qFtSGqE*4}l93x_eXLrlI`J0eX$BK}XUIh$4P&B~rv7jpI&~0h3L1nl)%UTl9u7!o$)@Iq9>0oJ
+# SOURCE420K|GbYrzZbh(MO3bcWif7^F)y})1uT6`LVxg<<+E`79wh$qB*$SstB2{qEb2$VSzjXJ`4+XPyQrnLI4xx>kd!SvFmmrub-jbN?c6V^<R4e)wT!9_|
+# SOURCE420K|8IEH2NMD;PnCN@S>JN!xCa{s-sNjdDuLok583xJk8}B;9n05L^{|b>U;gw2ksv*f1KaK6+U<nOIj6HLWB8QqU4Uytc?@EHr?%oe5&UttvBi+?%
+# SOURCE420K|tuKW~&+uLM2n720@BQ-uQ+0ju52aX_nxmN?I0IrimF|Fh>ITM?98k?6jrQh<uiyJNcVcX=uEgK4r!*pkZZyt^-JwYGttSt3M=OlcEX{kJ0Sh%C
+# SOURCE420K|S_Ou^QGf8hddzEMOr=h)GaOH2&dNa%4CA+h&Z%dWiZ*}1Z$99Vf-BxYmw8SQ=!ri4BB}5PlL~{7T$T&<oPOcsA}c>i(#c<H&*aHrafVogglp0S
+# SOURCE420K|C%$2Vhq9$eL-$48f@9+fl%#U3lgbCDnA7@7UR}i9*SWY##`Y|Y;h_tC0{Td`qKXWXsz>l>V@#|iih_Fbjd*}BjgXMGKV(UtW$maFlMfW<MkI-q
+# SOURCE420K|lP#>tu8Wy^ia$J)EH+J&PQf+Jk{e&D=l2#HiB#BM8cd+!4kCOo^{mOXJ<#!7doP~YRNwP`_z3fPUudn7B)&O6J#y$F<$%EUQ>q2YWUvkEd_%1;
+# SOURCE420K|9fPq4Q)>?ti#N6SyKPfY=!1Ws7a!jcN8!l_;n662tAwyL4bm0D*CNR2s60MqKi>CV-YeBVb9p?Qkk_iyxq+a&fYRK4U0UwX&tT9-y9jPT4s+sC
+# SOURCE420K|I4YRWoBq=9oSinl@iWp!!hp6vjX<l?*r2|uKm>obf=!t!)Lx7)?8cW42pcDzZ{eCJhhWdngyZG)ad>#RTNIfF<Zs=2mzS(uLwD%2T5T7AE<*NM
+# SOURCE420K|+h7#Gvytg+s!CgG-*UFtd>@t+QAxyZd!;N2-SS!mQ*4e5tav2QT1a;I#t>`C0fYqJGT%{e+2U*}uHJ8fGX5E{$G+|B4+dS#vu+XjB3)_4Oe^3q
+# SOURCE420K|(5qlV^9wV#6a$C0Xn1R^+4SC#x)6F|14O>B4-fy0=&1)9-2Uf4Bh87#k?PM6hVCsY)sdq2r-xYlt3Y_b2Nw<a#|H>_T($Y~b^WzkqtQ>#BHtW$
+# SOURCE420K|-VRZ$I_wTkU6KJDRz(T~i^0+~CGdeK?BC-@WTpJaZC{4U0XQLRdKLuj%RoMcFfG=`R5NzU`J(kgwv=M{HrQvu#N7^R66%`aBzGton&MQgL=4_N
+# SOURCE420K|sS0d_yKhtGeNz$0+p#3;l$!n8aOLo5&v?DY?7B+hrxi+-EmcV3#>-iLQ~!DneiGhacd_)uvy03@DDHa>94hvM1r|;DlD%hf)l`JCMPGS>cU^ZI
+# SOURCE420K|&Pk3%RdzQ>I(*oyl3`r$th%aEJkhU;)*06^V_dZfayEy5%RDkFu0E341K?<MhQsb~$dnT@$|A(d1_OJ|?bsZx8^r!`P23+>V7@u?>tre7FnR1~
+# SOURCE420K|NbXFQD0L=48h8Xkc$(MAvTCA61hH(ZJq=G6w~WDBvm1H2Q~c*bFmwssZ2FTc&c_IqY5aX}^v=VOe!!yOvCoEr-3c|RzfH3;T36YiCu`KwW=f;J

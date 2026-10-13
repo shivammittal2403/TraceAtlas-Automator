@@ -1,0 +1,1000 @@
+#|                 )
+#|                 knowledge_gaps.append(
+#|                     KnowledgeGap(
+#|                         gap_id=new_id("KG"),
+#|                         description=f"Vessel identity unresolved for {v.vessel_id}.",
+#|                         importance="HIGH",
+#|                         recommended_source="official registry / IMO record / historical MMSI usage",
+#|                         specialist="CORPINT / registry verification",
+#|                         expected_information_value="Prevents historical identity contamination.",
+#|                     )
+#|                 )
+#| 
+#|         # Track segment facts.
+#|         for seg in segments:
+#|             if seg.distance_nm is not None:
+#|                 status = FactStatus.SUPPORTED if seg.confidence != Confidence.LOW else FactStatus.CANDIDATE
+#|                 facts.append(
+#|                     Fact(
+#|                         fact_id=new_id("FACT"),
+#|                         statement=(
+#|                             f"AIS track segment for {seg.vessel_id} from {seg.start_time.isoformat()} "
+#|                             f"to {seg.end_time.isoformat()} includes {seg.observation_count} observations "
+#|                             f"and covers approximately {seg.distance_nm:.1f} nm."
+#|                         ),
+#|                         status=status,
+#|                         evidence_ids=[],
+#|                         limitations=[
+#|                             "Only observed points are included.",
+#|                             "No interpolated position is asserted as observed evidence.",
+#|                         ],
+#|                     )
+#|                 )
+#| 
+#|         # Gap facts and hypotheses.
+#|         for g in gaps:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"No ingested AIS observations are available for {g.vessel_id} between "
+#|                         f"{g.gap_start.isoformat()} and {g.gap_end.isoformat()} "
+#|                         f"(duration {g.duration_minutes:.0f} minutes)."
+#|                     ),
+#|                     status=FactStatus.FACT,
+#|                     evidence_ids=[],
+#|                     limitations=[
+#|                         "Absence of observations is not evidence of intentional shutdown.",
+#|                         "Coverage during the interval is not established from supplied data alone.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|             hypotheses.extend(
+#|                 [
+#|                     Hypothesis(
+#|                         hypothesis_id=new_id("HYP"),
+#|                         statement="AIS gap is ordinary terrestrial/satellite coverage loss.",
+#|                         supports=["Coverage state unknown", "No independent sensor corroboration supplied"],
+#|                         oppositions=[],
+#|                         unknowns=["Receiver coverage map", "Satellite revisit windows"],
+#|                         falsification_tests=["Independent provider shows observations during gap"],
+#|                     ),
+#|                     Hypothesis(
+#|                         hypothesis_id=new_id("HYP"),
+#|                         statement="Provider outage, filtering, or latency explains the gap.",
+#|                         supports=["Single-source dependency possible"],
+#|                         oppositions=[],
+#|                         unknowns=["Provider health logs"],
+#|                         falsification_tests=["Other independent providers also lack data"],
+#|                     ),
+#|                     Hypothesis(
+#|                         hypothesis_id=new_id("HYP"),
+#|                         statement="Equipment malfunction or power/GNSS issue explains the gap.",
+#|                         supports=[],
+#|                         oppositions=["No maintenance/incident record supplied"],
+#|                         unknowns=["Vessel technical status"],
+#|                         falsification_tests=["Normal transmissions resume without positional conflict"],
+#|                     ),
+#|                     Hypothesis(
+#|                         hypothesis_id=new_id("HYP"),
+#|                         statement="Transponder was deliberately disabled.",
+#|                         supports=[],
+#|                         oppositions=["AIS silence alone is not maliciousness", "Coverage unknown"],
+#|                         unknowns=["Authorized onboard/terminal evidence"],
+#|                         falsification_tests=["Independent sensor shows vessel transmitting or present"],
+#|                     ),
+#|                 ]
+#|             )
+#| 
+#|             knowledge_gaps.append(
+#|                 KnowledgeGap(
+#|                     gap_id=new_id("KG"),
+#|                     description=f"AIS coverage during gap for {g.vessel_id} is unknown.",
+#|                     importance="HIGH",
+#|                     recommended_source="independent AIS provider / coverage model / satellite pass data",
+#|                     specialist="AISINT coverage assessment",
+#|                     expected_information_value="Prevents false deliberate-AIS-off claims.",
+#|                 )
+#|             )
+#|             next_actions.append(
+#|                 NextAction(
+#|                     action_id=new_id("ACT"),
+#|                     description="Retrieve independent AIS provider coverage for the gap interval.",
+#|                     rationale="Distinguish coverage loss from transmission absence.",
+#|                     priority="HIGH",
+#|                 )
+#|             )
+#| 
+#|         # Port call facts.
+#|         for pc in port_calls:
+#|             if pc.state == PortCallState.PORT_CALL_VERIFIED:
+#|                 status = FactStatus.SUPPORTED
+#|             elif pc.state == PortCallState.PORT_CALL_SUPPORTED:
+#|                 status = FactStatus.SUPPORTED
+#|             elif pc.state == PortCallState.PORT_CALL_CANDIDATE:
+#|                 status = FactStatus.CANDIDATE
+#|             else:
+#|                 status = FactStatus.UNKNOWN
+#| 
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"Port call {pc.state.value} for vessel {pc.vessel_id} at port {pc.port_id} "
+#|                         f"around {pc.arrival_time.isoformat() if pc.arrival_time else 'unknown'}."
+#|                     ),
+#|                     status=status,
+#|                     evidence_ids=pc.evidence_ids,
+#|                     limitations=[
+#|                         "Geofence entry alone does not prove berthing.",
+#|                         "Berthing does not prove cargo loading/unloading.",
+#|                     ],
+#|                 )
+#|             )
+#|             if pc.state == PortCallState.PORT_CALL_CANDIDATE:
+#|                 next_actions.append(
+#|                     NextAction(
+#|                         action_id=new_id("ACT"),
+#|                         description=f"Verify port record for {pc.port_id} and vessel {pc.vessel_id}.",
+#|                         rationale="Upgrade candidate port call to supported/verified.",
+#|                         priority="MEDIUM",
+#|                     )
+#|                 )
+#| 
+#|         # Stationary pattern facts.
+#|         for sp in stationary_patterns:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"Stationary pattern {', '.join(sp['labels'])} detected for {sp['vessel_id']} "
+#|                         f"from {sp['start_time']} to {sp['end_time']}."
+#|                     ),
+#|                     status=FactStatus.CANDIDATE,
+#|                     evidence_ids=sp.get("evidence_ids", []),
+#|                     limitations=[
+#|                         "Anchorage/loitering labels are behavioral descriptions, not intent.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|         # Rendezvous / STS facts.
+#|         for rd in rendezvous_candidates:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"Rendezvous candidate between {rd.vessel_a} and {rd.vessel_b} "
+#|                         f"with status {rd.status}."
+#|                     ),
+#|                     status=FactStatus.CANDIDATE,
+#|                     evidence_ids=rd.evidence_ids,
+#|                     limitations=[
+#|                         "Proximity does not prove rendezvous coordination.",
+#|                         "Rendezvous does not prove transfer.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|         for st in sts_candidates:
+#|             status = FactStatus.SUPPORTED if st.status == STSStatus.STS_SUPPORTED else FactStatus.CANDIDATE
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"STS assessment between {st.vessel_a} and {st.vessel_b}: {st.status.value}."
+#|                     ),
+#|                     status=status,
+#|                     evidence_ids=st.evidence_ids,
+#|                     limitations=[
+#|                         "STS is a normal maritime operation in many contexts.",
+#|                         "STS candidate is not evidence of illegality.",
+#|                     ],
+#|                 )
+#|             )
+#|             handoffs.append(
+#|                 SpecialistHandoff(
+#|                     handoff_id=new_id("HAND"),
+#|                     specialist="SATINT / IMINT",
+#|                     reason="Correlate independent satellite imagery for proximity/STS context.",
+#|                     payload={
+#|                         "vessels": [st.vessel_a, st.vessel_b],
+#|                         "proximity_event_id": st.proximity_event_id,
+#|                         "status": st.status.value,
+#|                     },
+#|                 )
+#|             )
+#|             handoffs.append(
+#|                 SpecialistHandoff(
+#|                     handoff_id=new_id("HAND"),
+#|                     specialist="TRADEINT",
+#|                     reason="Cargo/shipment context cannot be inferred from AIS alone.",
+#|                     payload={
+#|                         "vessels": [st.vessel_a, st.vessel_b],
+#|                         "question": "Were goods transferred, and under what commercial arrangement?",
+#|                     },
+#|                 )
+#|             )
+#| 
+#|         # Contradictions.
+#|         for c in contradictions:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=f"Open contradiction: {c.contradiction_type} — {c.description}",
+#|                     status=FactStatus.DISPUTED,
+#|                     evidence_ids=c.evidence_ids,
+#|                     limitations=c.candidate_resolutions,
+#|                 )
+#|             )
+#|             unknowns.append(f"Unresolved contradiction: {c.contradiction_type}")
+#| 
+#|         # Spoofing indicators.
+#|         if spoofing_confidence != SpoofingConfidence.NO_SPOOFING_EVIDENCE:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"AIS spoofing indicator assessment: {spoofing_confidence.value}. "
+#|                         f"Indicators: {', '.join(spoofing_indicators) or 'none'}."
+#|                     ),
+#|                     status=FactStatus.CANDIDATE,
+#|                     evidence_ids=[],
+#|                     limitations=[
+#|                         "One anomaly is not confirmed spoofing.",
+#|                         "No spoofing methodology is provided.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|         # Source independence.
+#|         if source_independence.get("status") in ("DEPENDENT", "PARTIALLY_DEPENDENT", "UNKNOWN"):
+#|             limitations.append(
+#|                 "Source independence is not fully established; multiple views may share upstream AIS provider."
+#|             )
+#|             knowledge_gaps.append(
+#|                 KnowledgeGap(
+#|                     gap_id=new_id("KG"),
+#|                     description="Independent source pedigree not established.",
+#|                     importance="HIGH",
+#|                     recommended_source="direct receiver feeds / independent satellite AIS provider",
+#|                     specialist="AISINT source evaluation",
+#|                     expected_information_value="Prevents confidence inflation from duplicated feeds.",
+#|                 )
+#|             )
+#| 
+#|         # Universal limitations / unknowns.
+#|         limitations.extend(
+#|             [
+#|                 "AIS is not ground truth.",
+#|                 "Destination, ETA, draught, and some navigation status fields may be manually configured.",
+#|                 "Vessel movement does not prove cargo, payment, ownership, or legal violation.",
+#|                 "No legal conclusion is made.",
+#|             ]
+#|         )
+#|         unknowns.extend(
+#|             [
+#|                 "Exact cargo identity",
+#|                 "Ultimate beneficial owner",
+#|                 "Actual destination versus reported destination",
+#|                 "Reason for AIS gap",
+#|                 "Whether any physical transfer occurred",
+#|             ]
+#|         )
+#| 
+#|         # Generic next actions.
+#|         next_actions.extend(
+#|             [
+#|                 NextAction(
+#|                     action_id=new_id("ACT"),
+#|                     description="Verify IMO in official registry where authorized.",
+#|                     rationale="Strengthens vessel identity resolution.",
+#|                     priority="HIGH",
+#|                 ),
+#|                 NextAction(
+#|                     action_id=new_id("ACT"),
+#|                     description="Check historical MMSI usage to prevent identity contamination.",
+#|                     rationale="MMSI is not permanent vessel identity.",
+#|                     priority="HIGH",
+#|                 ),
+#|                 NextAction(
+#|                     action_id=new_id("ACT"),
+#|                     description="Resolve registered owner / operator / manager via CORPINT.",
+#|                     rationale="AIS does not prove corporate control.",
+#|                     priority="MEDIUM",
+#|                 ),
+#|                 NextAction(
+#|                     action_id=new_id("ACT"),
+#|                     description="Evaluate coverage before making any AIS-gap behavior conclusion.",
+#|                     rationale="Avoid false deliberate-AIS-off claims.",
+#|                     priority="HIGH",
+#|                 ),
+#|             ]
+#|         )
+#| 
+#|         # Safety filter for next actions.
+#|         guard = PolicyGuard()
+#|         next_actions = [a for a in next_actions if guard.is_safe_action(a.description)]
+#| 
+#|         return {
+#|             "facts": facts,
+#|             "hypotheses": hypotheses,
+#|             "unknowns": unique_list(unknowns),
+#|             "limitations": unique_list(limitations),
+#|             "knowledge_gaps": knowledge_gaps,
+#|             "next_actions": next_actions,
+#|             "specialist_handoffs": handoffs,
+#|         }
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 14 — DUAL-AI / SKEPTIC REVIEW
+#| # ======================================================================
+#| 
+#| class DualAIReviewer:
+#|     """
+#|     Lightweight deterministic skeptic checks.
+#|     In production, Pass 1 / Pass 2 can be separate model calls with restricted context.
+#|     AI agreement is not sensor corroboration.
+#|     """
+#| 
+#|     def review(
+#|         self,
+#|         *,
+#|         facts: list[Fact],
+#|         gaps: list[AISGap],
+#|         sts_candidates: list[STSCandidate],
+#|         source_independence: dict[str, Any],
+#|         vessels: list[Vessel],
+#|         contradictions: list[Contradiction],
+#|     ) -> dict[str, Any]:
+#|         notes: list[str] = []
+#|         status = ReviewStatus.AGREE
+#| 
+#|         if any(g.coverage_state == CoverageState.COVERAGE_UNKNOWN for g in gaps):
+#|             notes.append("Coverage unknown during AIS gap; do not infer deliberate AIS disablement.")
+#| 
+#|         for st in sts_candidates:
+#|             if st.status == STSStatus.STS_SUPPORTED:
+#|                 if not any("corroboration" in f or "draught" in f for f in st.supporting_factors):
+#|                     notes.append("STS marked supported without draught/external corroboration; downgrade recommended.")
+#|                     status = ReviewStatus.DISAGREE
+#| 
+#|         if source_independence.get("status") in ("DEPENDENT", "UNKNOWN"):
+#|             notes.append("Source dependence/unknown independence; confidence should not be inflated.")
+#|             if status == ReviewStatus.AGREE:
+#|                 status = ReviewStatus.PARTIAL_AGREEMENT
+#| 
+#|         if any(v.confidence == Confidence.LOW for v in vessels):
+#|             notes.append("At least one vessel identity is low confidence.")
+#|             if status == ReviewStatus.AGREE:
+#|                 status = ReviewStatus.PARTIAL_AGREEMENT
+#| 
+#|         if contradictions:
+#|             notes.append("Open contradictions remain; final attribution should be deferred.")
+#|             if status == ReviewStatus.AGREE:
+#|                 status = ReviewStatus.PARTIAL_AGREEMENT
+#| 
+#|         if not facts:
+#|             status = ReviewStatus.INSUFFICIENT_EVIDENCE
+#|             notes.append("No facts generated.")
+#| 
+#|         return {
+#|             "status": status.value,
+#|             "skeptic_notes": notes,
+#|             "rule": "AI agreement is not independent sensor corroboration.",
+#|             "human_review_required": bool(
+#|                 contradictions
+#|                 or any(st.status == STSStatus.STS_SUPPORTED for st in sts_candidates)
+#|                 or any(v.confidence == Confidence.LOW for v in vessels)
+#|             ),
+#|         }
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 15 — GRAPHICAL MEMORY
+#| # ======================================================================
+#| 
+#| class GraphicalMemory:
+#|     """
+#|     Minimal in-memory temporal maritime graph.
+#|     Production version can persist to Neo4j / Neptune / TigerGraph / SQL graph store.
+#|     """
+#| 
+#|     def __init__(self) -> None:
+#|         self.nodes: dict[str, dict[str, Any]] = {}
+#|         self.edges: list[dict[str, Any]] = []
+#| 
+#|     def add_node(self, node_id: str, node_type: str, properties: dict[str, Any]) -> None:
+#|         self.nodes[node_id] = {"type": node_type, "properties": properties}
+#| 
+#|     def add_edge(
+#|         self,
+#|         source_id: str,
+#|         relation: str,
+#|         target_id: str,
+#|         properties: Optional[dict[str, Any]] = None,
+#|     ) -> None:
+#|         self.edges.append(
+#|             {
+#|                 "source_id": source_id,
+#|                 "relation": relation,
+#|                 "target_id": target_id,
+#|                 "properties": properties or {},
+#|             }
+#|         )
+#| 
+#|     def write_result(self, result: AISINTResult) -> dict[str, Any]:
+#|         for v in result.vessels:
+#|             self.add_node(
+#|                 v.vessel_id,
+#|                 "Vessel",
+#|                 {
+#|                     "current_name": v.current_name,
+#|                     "imo": v.imo,
+#|                     "call_sign": v.call_sign,
+#|                     "confidence": v.confidence.value,
+#|                 },
+#|             )
+#| 
+#|         for era in result.vessel_identity_eras:
+#|             node_id = f"ERA_{era.vessel_id}_{era.valid_from.isoformat()}_{era.valid_to.isoformat()}"
+#|             self.add_node(
+#|                 node_id,
+#|                 "VesselIdentityEra",
+#|                 {
+#|                     "vessel_id": era.vessel_id,
+#|                     "name": era.name,
+#|                     "mmsi": era.mmsi,
+#|                     "imo": era.imo,
+#|                     "valid_from": era.valid_from.isoformat(),
+#|                     "valid_to": era.valid_to.isoformat(),
+#|                 },
+#|             )
+#|             self.add_edge(era.vessel_id, "HAS_IDENTITY_ERA", node_id)
+#| 
+#|         for m in result.mmsi_usage_eras:
+#|             node_id = f"MMSI_{m.mmsi}_{m.valid_from.isoformat()}_{m.valid_to.isoformat()}"
+#|             self.add_node(
+#|                 node_id,
+#|                 "MMSIUsageEra",
+#|                 {
+#|                     "mmsi": m.mmsi,
+#|                     "vessel_id": m.vessel_id,
+#|                     "valid_from": m.valid_from.isoformat(),
+#|                     "valid_to": m.valid_to.isoformat(),
+#|                 },
+#|             )
+#|             self.add_edge(m.vessel_id, "USED_MMSI_DURING", node_id)
+#| 
+#|         for o in result.observations[:500]:
+#|             node_id = o.observation_id
+#|             self.add_node(
+#|                 node_id,
+#|                 "AISObservation",
+#|                 {
+#|                     "vessel_candidate_id": o.vessel_candidate_id,
+#|                     "timestamp": o.timestamp.isoformat(),
+#|                     "latitude": o.latitude,
+#|                     "longitude": o.longitude,
+#|                     "source_id": o.source_id,
+#|                     "receiver_type": o.receiver_type.value,
+#|                 },
+#|             )
+#|             self.add_edge(o.vessel_candidate_id, "OBSERVED_AT", node_id, {"evidence_id": o.evidence_id})
+#| 
+#|         for g in result.ais_gaps:
+#|             node_id = g.gap_id
+#|             self.add_node(
+#|                 node_id,
+#|                 "AISGap",
+#|                 {
+#|                     "vessel_id": g.vessel_id,
+#|                     "gap_start": g.gap_start.isoformat(),
+#|                     "gap_end": g.gap_end.isoformat(),
+#|                     "coverage_state": g.coverage_state.value,
+#|                 },
+#|             )
+#|             self.add_edge(g.vessel_id, "HAS_GAP", node_id)
+#| 
+#|         for st in result.sts_candidates:
+#|             node_id = st.sts_id
+#|             self.add_node(
+#|                 node_id,
+#|                 "STSCandidate",
+#|                 {
+#|                     "vessel_a": st.vessel_a,
+#|                     "vessel_b": st.vessel_b,
+#|                     "status": st.status.value,
+#|                     "supporting_factors": st.supporting_factors,
+#|                 },
+#|             )
+#|             self.add_edge(st.vessel_a, "STS_WITH_CANDIDATE", st.vessel_b, {"sts_id": node_id})
+#| 
+#|         for f in result.facts[:500]:
+#|             node_id = f.fact_id
+#|             self.add_node(
+#|                 node_id,
+#|                 "Fact",
+#|                 {
+#|                     "statement": f.statement,
+#|                     "status": f.status.value,
+#|                     "limitations": f.limitations,
+#|                 },
+#|             )
+#|             for ev in f.evidence_ids[:20]:
+#|                 self.add_edge(node_id, "SUPPORTED_BY", ev)
+#| 
+#|         return {
+#|             "node_count": len(self.nodes),
+#|             "edge_count": len(self.edges),
+#|             "sample_nodes": list(self.nodes.keys())[:20],
+#|         }
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 16 — REPORT GENERATOR
+#| # ======================================================================
+#| 
+#| class ReportGenerator:
+#|     def generate(self, result: AISINTResult) -> str:
+#|         latest_obs: Optional[Observation] = None
+#|         if result.observations:
+#|             latest_obs = max(result.observations, key=lambda o: o.timestamp)
+#| 
+#|         lines: list[str] = []
+#|         lines.append("=" * 72)
+#|         lines.append("TRACEATLAS — AISINT REPORT")
+#|         lines.append("=" * 72)
+#|         lines.append(f"Case ID: {result.case_id}")
+#|         lines.append(f"Task ID: {result.task_id}")
+#|         lines.append(f"Objective: {result.objective}")
+#|         lines.append(f"Status: {result.status}")
+#|         lines.append(f"Policy Decision: {result.policy_decision.value}")
+#|         lines.append("")
+#|         lines.append("SAFETY / PRIVACY BOUNDARY")
+#|         lines.append("- Lawful maritime safety / compliance / investigative analysis only.")
+#|         lines.append("- No targeting, interception, AIS manipulation, spoofing, jamming, or evasion planning.")
+#|         if result.privacy_flags:
+#|             for p in result.privacy_flags:
+#|                 lines.append(f"- Privacy: {p}")
+#|         lines.append("")
+#| 
+#|         lines.append("VESSEL IDENTITY")
+#|         if not result.vessels:
+#|             lines.append("- No vessel identity resolved from supplied observations.")
+#|         for v in result.vessels:
+#|             lines.append(f"- Vessel: {v.vessel_id}")
+#|             lines.append(f"  IMO: {v.imo or 'UNKNOWN'}")
+#|             lines.append(f"  Current Name: {v.current_name or 'UNKNOWN'}")
+#|             lines.append(f"  Historical Names: {', '.join(v.historical_names) or 'NONE'}")
+#|             lines.append(f"  Call Sign: {v.call_sign or 'UNKNOWN'}")
+#|             lines.append(f"  MMSI Usage Eras: {len(v.mmsi_usage_eras)}")
+#|             lines.append(f"  Ship Type: {v.ship_type if v.ship_type is not None else 'UNKNOWN'}")
+#|             lines.append(f"  Length / Beam: {v.length} / {v.beam}")
+#|             lines.append(f"  Registered Owner: {v.registered_owner or 'UNKNOWN — handoff CORPINT'}")
+#|             lines.append(f"  Operator / Manager: {v.operator or 'UNKNOWN'} / {v.manager or 'UNKNOWN'}")
+#|             lines.append(f"  Identity Confidence: {v.confidence.value}")
+#|         lines.append("")
+#| 
+#|         lines.append("LATEST VERIFIED OBSERVATION")
+#|         if latest_obs:
+#|             lines.append(f"- Timestamp: {latest_obs.timestamp.isoformat()}")
+#|             lines.append(f"- Source: {latest_obs.source_id} ({latest_obs.receiver_type.value})")
+#|             lines.append(f"- Position: {latest_obs.latitude}, {latest_obs.longitude}")
+#|             lines.append(f"- MMSI: {latest_obs.mmsi or 'UNKNOWN'}")
+#|             lines.append(f"- IMO: {latest_obs.imo_candidate or 'UNKNOWN'}")
+#|             lines.append("- Caution: latest observed by provider, not necessarily exact present position.")
+#|         else:
+#|             lines.append("- None.")
+#|         lines.append("")
+#| 
+#|         lines.append("TRACK / VOYAGE")
+#|         if result.track_segments:
+#|             for seg in result.track_segments[:20]:
+#|                 lines.append(
+#|                     f"- Segment {seg.segment_id}: {seg.start_time.isoformat()} -> {seg.end_time.isoformat()}, "
+#|                     f"{seg.observation_count} obs, distance {seg.distance_nm if seg.distance_nm is not None else 'NA'} nm, "
+#|                     f"avg speed {seg.average_speed_kn if seg.average_speed_kn is not None else 'NA'} kn, "
+#|                     f"confidence {seg.confidence.value}."
+#|                 )
+#|         else:
+#|             lines.append("- No validated track segments.")
+#|         lines.append("")
+#| 
+#|         lines.append("REPORTED DESTINATION / ETA")
+#|         dest_obs = [o for o in result.observations if o.destination or o.eta]
+#|         if dest_obs:
+#|             for o in dest_obs[-10:]:
+#|                 lines.append(
+#|                     f"- {o.timestamp.isoformat()}: destination={o.destination or 'NONE'}, "
+#|                     f"eta={o.eta.isoformat() if o.eta else 'NONE'} "
+#|                     "(vessel-reported/manual field, not independent confirmation)."
+#|                 )
+#|         else:
+#|             lines.append("- None supplied.")
+#|         lines.append("")
+#| 
+#|         lines.append("PORT CALLS")
+#|         if result.port_calls:
+#|             for pc in result.port_calls:
+#|                 lines.append(
+#|                     f"- {pc.port_id}: state={pc.state.value}, arrival={pc.arrival_time}, "
+#|                     f"departure={pc.departure_time}, dwell_min={pc.dwell_minutes}, "
+#|                     f"confidence={pc.confidence.value}."
+#|                 )
+#|         else:
+#|             lines.append("- None.")
+#|         lines.append("")
+#| 
+#|         lines.append("AIS GAPS / COVERAGE")
+#|         if result.ais_gaps:
+#|             for g in result.ais_gaps:
+#|                 lines.append(
+#|                     f"- Gap {g.gap_id}: {g.gap_start.isoformat()} -> {g.gap_end.isoformat()}, "
+#|                     f"duration={g.duration_minutes:.0f} min, coverage={g.coverage_state.value}."
+#|                 )
+#|                 lines.append("  Assessment: DELIBERATE_AIS_DISABLEMENT is NOT established.")
+#|         else:
+#|             lines.append("- No AIS gaps detected in supplied observations.")
+#|         lines.append("")
+#| 
+#|         lines.append("IDENTITY / POSITION ANOMALIES")
+#|         if result.contradictions:
+#|             for c in result.contradictions[:20]:
+#|                 lines.append(f"- {c.contradiction_type}: {c.description}")
+#|         else:
+#|             lines.append("- None detected.")
+#|         lines.append("")
+#| 
+#|         lines.append("SPOOFING INDICATORS")
+#|         lines.append(f"- Confidence: {result.spoofing_confidence.value}")
+#|         if result.spoofing_indicators:
+#|             lines.append(f"- Indicators: {', '.join(result.spoofing_indicators)}")
+#|         lines.append("- Defensive analysis only. No spoofing methodology is provided.")
+#|         lines.append("")
+#| 
+#|         lines.append("RENDEZVOUS / STS STATUS")
+#|         if result.rendezvous_candidates:
+#|             for rd in result.rendezvous_candidates:
+#|                 lines.append(f"- Rendezvous: {rd.vessel_a} <-> {rd.vessel_b}, status={rd.status}.")
+#|         else:
+#|             lines.append("- No rendezvous candidates.")
+#|         if result.sts_candidates:
+#|             for st in result.sts_candidates:
+#|                 lines.append(
+#|                     f"- STS: {st.vessel_a} <-> {st.vessel_b}, status={st.status.value}, "
+#|                     f"factors={st.supporting_factors}, missing={st.missing_corroboration}."
+#|                 )
+#|                 lines.append("  Caution: proximity alone does not establish cargo transfer.")
+#|         else:
+#|             lines.append("- No STS candidates.")
+#|         lines.append("")
+#| 
+#|         lines.append("SOURCE RELIABILITY / INDEPENDENCE")
+#|         lines.append(f"- Source independence: {result.source_independence.get('status', 'UNKNOWN')}")
+#|         for note in result.source_independence.get("notes", []):
+#|             lines.append(f"  - {note}")
+#|         lines.append("")
+#| 
+#|         lines.append("CONTRADICTIONS / HYPOTHESES")
+#|         if result.hypotheses:
+#|             for h in result.hypotheses[:20]:
+#|                 lines.append(f"- {h.hypothesis_id}: {h.statement} [{h.status}]")
+#|         else:
+#|             lines.append("- None.")
+#|         lines.append("")
+#| 
+#|         lines.append("UNKNOWN / KNOWLEDGE GAPS")
+#|         for u in result.unknowns[:30]:
+#|             lines.append(f"- Unknown: {u}")
+#|         for kg in result.knowledge_gaps[:30]:
+#|             lines.append(f"- Gap: {kg.description} | importance={kg.importance} | specialist={kg.specialist}")
+#|         lines.append("")
+#| 
+#|         lines.append("NEXT ACTIONS")
+#|         if result.next_actions:
+#|             for a in result.next_actions:
+#|                 lines.append(f"- {a.description} ({a.priority}) — {a.rationale}")
+#|         else:
+#|             lines.append("- None.")
+#|         lines.append("")
+#| 
+#|         lines.append("SPECIALIST HANDOFFS")
+#|         if result.specialist_handoffs:
+#|             for h in result.specialist_handoffs:
+#|                 lines.append(f"- {h.specialist}: {h.reason}")
+#|         else:
+#|             lines.append("- None.")
+#|         lines.append("")
+#| 
+#|         lines.append("LIMITATIONS")
+#|         for lim in result.limitations:
+#|             lines.append(f"- {lim}")
+#|         lines.append("")
+#| 
+#|         lines.append("REVIEW")
+#|         lines.append(f"- Dual-AI status: {result.review.get('status', 'N/A')}")
+#|         for note in result.review.get("skeptic_notes", []):
+#|             lines.append(f"  - {note}")
+#|         if result.review.get("human_review_required"):
+#|             lines.append("  - Human review required before consequential compliance/enforcement action.")
+#|         lines.append("")
+#| 
+#|         lines.append("=" * 72)
+#|         lines.append("END REPORT")
+#|         lines.append("=" * 72)
+#|         return "\n".join(lines)
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 17 — AISINT EMPLOYEE / ORCHESTRATOR
+#| # ======================================================================
+#| 
+#| class AISIntelligenceEmployee:
+#|     """
+#|     Main AISINT AI Employee orchestrator.
+#|     """
+#| 
+#|     def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+#|         self.mode = mode
+#|         self.policy = PolicyGuard()
+#|         self.injection_defense = PromptInjectionDefense()
+#|         self.decoder = AISDecoder(injection_defense=self.injection_defense)
+#|         self.resolver = VesselResolver()
+#|         self.track_builder = TrackBuilder()
+#|         self.port_analyzer = PortAnalyzer()
+#|         self.behavior_analyzer = BehaviorAnalyzer()
+#|         self.spoofing_analyzer = SpoofingIndicatorAnalyzer()
+#|         self.fact_gate = FactGate()
+#|         self.reviewer = DualAIReviewer()
+#|         self.memory = GraphicalMemory()
+#|         self.reporter = ReportGenerator()
+#| 
+#|     def run_case(self, case: dict[str, Any]) -> AISINTResult:
+#|         case_id = str(case.get("case_id", new_id("CASE")))
+#|         task_id = str(case.get("task_id", new_id("TASK")))
+#|         objective = str(case.get("objective", ""))
+#|         questions = case.get("questions", [])
+#|         authorization = str(case.get("authorization", ""))
+#| 
+#|         request_text = objective + "\n" + "\n".join(str(q) for q in questions)
+#|         policy = self.policy.check_request(request_text)
+#| 
+#|         if policy.decision == PolicyDecision.POLICY_BLOCKED:
+#|             return AISINTResult(
+#|                 case_id=case_id,
+#|                 task_id=task_id,
+#|                 objective=objective,
+#|                 status="POLICY_BLOCKED",
+#|                 policy_decision=PolicyDecision.POLICY_BLOCKED,
+#|                 report=(
+#|                     "POLICY_BLOCKED\n\n"
+#|                     "This request seeks prohibited maritime operational guidance. "
+#|                     "Lawful alternative: public/authorized vessel identity, AIS track, "
+#|                     "coverage-aware gap analysis, port-call verification, and compliance "
+#|                     "context without targeting, interception, spoofing, jamming, evasion, "
+#|                     "or smuggling-route planning."
+#|                 ),
+#|                 safety_flags=[
+#|                     "No interception/targeting/evasion guidance provided.",
+#|                     "Human lawful compliance analysis only.",
+#|                 ],
+#|                 limitations=[policy.reason],
+#|             )
+#| 
+#|         evidence: list[Evidence] = []
+#|         observations: list[Observation] = []
+#| 
+#|         for msg in case.get("ais_messages", []):
+#|             if not isinstance(msg, dict):
+#|                 continue
+#|             source_id = str(msg.get("source_id", "unknown_source"))
+#|             source_type = msg.get("source_type", SourceType.UNKNOWN)
+#|             receiver_type = msg.get("receiver_type", source_type)
+#| 
+#|             if "raw_nmea" in msg:
+#|                 raw = msg["raw_nmea"]
+#|             else:
+#|                 raw = {
+#|                     k: v
+#|                     for k, v in msg.items()
+#|                     if k not in ("source_id", "source_type", "receiver_type", "received_at")
+#|                 }
+#| 
+#|             ev, obs = self.decoder.ingest(
+#|                 case_id=case_id,
+#|                 source_id=source_id,
+#|                 source_type=source_type,
+#|                 receiver_type=receiver_type,
+#|                 raw=raw,
+#|                 received_at=msg.get("received_at"),
+#|                 transmitted_at=msg.get("timestamp"),
+#|                 authorization_context=authorization,
+#|             )
+#|             evidence.append(ev)
+#|             if obs is not None:
+#|                 observations.append(obs)
+#| 
+#|         vessels, identity_eras, mmsi_eras, identity_contradictions = self.resolver.resolve(observations)
+#|         vessels_by_id = {v.vessel_id: v for v in vessels}
+#| 
+#|         obs_by_vessel: dict[str, list[Observation]] = {}
+#|         for o in observations:
+#|             obs_by_vessel.setdefault(o.vessel_candidate_id, []).append(o)
+#| 
+#|         all_segments: list[TrackSegment] = []
+#|         all_gaps: list[AISGap] = []
+#|         all_track_contradictions: list[Contradiction] = []
+#|         valid_tracks: dict[str, list[Observation]] = {}
+#| 
+#|         for vid, olist in obs_by_vessel.items():
+#|             valid, segs, gaps, contras = self.track_builder.build(vid, olist)
+#|             valid_tracks[vid] = valid
+#|             all_segments.extend(segs)
+#|             all_gaps.extend(gaps)
+#|             all_track_contradictions.extend(contras)
+#| 
+#|         ports = [self._make_port(p) for p in case.get("ports", [])]
+#|         port_records = case.get("port_records", [])
+#| 
+#|         all_port_calls: list[PortCall] = []
+#|         stationary_patterns: list[dict[str, Any]] = []
+#| 
+#|         for vid, valid in valid_tracks.items():
+#|             all_port_calls.extend(self.port_analyzer.analyze(vid, valid, ports, port_records))
+#|             stationary_patterns.extend(self.behavior_analyzer.detect_stationary_patterns(vid, valid, ports))
+#| 
+#|         corroborations = list(case.get("corroborations", [])) + list(case.get("satellite_context", []))
+#|         proximity_events, rendezvous_candidates, sts_candidates = self.behavior_analyzer.analyze_pairs(
+#|             valid_tracks,
+#|             vessels_by_id,
+#|             ports,
+#|             corroborations,
+#|         )
+#| 
+#|         source_independence = self._assess_source_independence(evidence)
+#|         contradictions = identity_contradictions + all_track_contradictions
+#|         spoofing_confidence, spoofing_indicators = self.spoofing_analyzer.analyze(
+#|             contradictions,
+#|             source_independence,
+#|         )
+#| 
+#|         fact_out = self.fact_gate.generate(
+#|             case=case,
+#|             observations=observations,
+#|             vessels=vessels,
+#|             segments=all_segments,
+#|             gaps=all_gaps,
+#|             port_calls=all_port_calls,
+#|             proximity_events=proximity_events,
+#|             rendezvous_candidates=rendezvous_candidates,
+#|             sts_candidates=sts_candidates,
+#|             stationary_patterns=stationary_patterns,
+#|             contradictions=contradictions,
+#|             spoofing_confidence=spoofing_confidence,
+#|             spoofing_indicators=spoofing_indicators,
+#|             source_independence=source_independence,
+#|         )
+#| 
+#|         review = self.reviewer.review(
+#|             facts=fact_out["facts"],
+#|             gaps=all_gaps,
+#|             sts_candidates=sts_candidates,
+#|             source_independence=source_independence,
+#|             vessels=vessels,
+#|             contradictions=contradictions,
+#|         )
+#| 
+#|         status = "PARTIAL"
+#|         if not observations:
+#|             status = "INSUFFICIENT_DATA"
+#|         elif not vessels:
+#|             status = "VESSEL_UNRESOLVED"
+#|         elif review.get("human_review_required"):
+#|             status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+#| 
+#|         privacy_flags = []
+#|         if self.mode == ModelMode.LOCAL_ONLY:
+#|             privacy_flags.append("LOCAL_ONLY mode selected; no external cloud transmission assumed.")
+#|         elif self.mode == ModelMode.CLOUD:
+#|             privacy_flags.append("CLOUD mode requires sanitized/public/policy-approved data only.")
+#|         else:
+#|             privacy_flags.append("HYBRID mode requires routing controls and tenant isolation.")
+#| 
+#|         result = AISINTResult(
+#|             case_id=case_id,
+#|             task_id=task_id,
+#|             objective=objective,
+#|             status=status,
+#|             policy_decision=PolicyDecision.ALLOW,
+#|             evidence=evidence,
+#|             observations=observations,
+#|             vessels=vessels,
+#|             vessel_identity_eras=identity_eras,
+#|             mmsi_usage_eras=mmsi_eras,
+#|             track_segments=all_segments,
+#|             ais_gaps=all_gaps,
+#|             port_calls=all_port_calls,
+#|             stationary_patterns=stationary_patterns,
+#|             proximity_events=proximity_events,
+#|             rendezvous_candidates=rendezvous_candidates,
+#|             sts_candidates=sts_candidates,
+#|             contradictions=contradictions,
+#|             facts=fact_out["facts"],
+#|             hypotheses=fact_out["hypotheses"],
+#|             knowledge_gaps=fact_out["knowledge_gaps"],
+#|             next_actions=fact_out["next_actions"],
+#|             specialist_handoffs=fact_out["specialist_handoffs"],
+#|             source_independence=source_independence,
+#|             spoofing_confidence=spoofing_confidence,
+#|             spoofing_indicators=spoofing_indicators,
+#|             review=review,
+#|             unknowns=fact_out["unknowns"],
+#|             limitations=fact_out["limitations"],
+#|             safety_flags=[
+#|                 "No targeting/interception/evasion guidance.",
+#|                 "AIS silence is not treated as maliciousness.",
+#|                 "STS/proximity is not treated as illegal activity.",
+#|                 "Human review required for consequential enforcement/compliance action.",
+#|             ],
+#|             privacy_flags=privacy_flags,
+#|         )
+#| 
+#|         result.graph = self.memory.write_result(result)
+#|         result.report = self.reporter.generate(result)
+#|         return result
+#| 
+#|     @staticmethod
+#|     def _make_port(p: dict[str, Any]) -> Port:
+#|         lat = safe_float(p.get("latitude", p.get("lat")))
+#|         lon = safe_float(p.get("longitude", p.get("lon")))
+#|         if lat is None or lon is None:
+#|             raise ValueError(f"Port {p.get('port_id')} missing latitude/longitude")
+#|         return Port(
+#|             port_id=str(p.get("port_id", new_id("PORT"))),
+#|             name=str(p.get("name", "")),
+#|             latitude=float(lat),
+#|             longitude=float(lon),
+#|             radius_nm=safe_float(p.get("radius_nm")) or 5.0,
+#|             unlocode=p.get("unlocode"),
+#|             source_id=str(p.get("source_id", "")),
+#|         )
+#| 
+#|     @staticmethod
+#|     def _assess_source_independence(evidence: list[Evidence]) -> dict[str, Any]:
+#|         if not evidence:
+#|             return {"status": "UNKNOWN", "notes": ["No evidence supplied."], "groups": {}}
+#| 
+#|         groups: dict[str, list[str]] = {}
+#|         for e in evidence:
+#|             upstream = e.decoded_payload.get("upstream_provider") or e.source_id
+#|             groups.setdefault(str(upstream), []).append(e.evidence_id)
+#| 
+#|         if len(groups) == 1:
+#|             status = "DEPENDENT"
+#|             notes = [
+#|                 "All observations appear to originate from one upstream source/provider.",
+#|                 "Do not inflate confidence from duplicated feed data.",
+#|             ]
+#|         else:
+#|             status = "PARTIALLY_DEPENDENT"
+#|             notes = [
+#|                 "Multiple source identifiers exist, but full pedigree/independence is not proven.",
+#|                 "Verify upstream receiver/network/provider separation.",
+#|             ]
+#| 
+#|         return {
+#|             "status": status,
+#|             "notes": notes,
+#|             "groups": groups,
+#|         }
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 18 — DEMO / SYNTHETIC EXAMPLE
+#| # ======================================================================
+#| 
+#| def demo() -> None:
+#|     """

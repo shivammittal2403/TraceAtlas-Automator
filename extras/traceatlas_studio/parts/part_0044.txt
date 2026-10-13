@@ -1,0 +1,1000 @@
+#|     contexts: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     baselines: List[Dict[str, Any]] = []
+#|     by_entity: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]].append(e)
+#| 
+#|     explicit_baselines = manifest.get("baselines", []) or []
+#| 
+#|     if explicit_baselines:
+#|         for cfg in explicit_baselines:
+#|             entity_id = normalize_text(cfg.get("entity_id"))
+#|             if not entity_id:
+#|                 continue
+#|             btype = normalize_text(cfg.get("baseline_type", "SELF")).upper()
+#|             tstart = parse_time(cfg.get("training_start"))
+#|             tend = parse_time(cfg.get("training_end"))
+#|             exclude_ids = {normalize_text(x) for x in cfg.get("exclude_event_ids", []) or []}
+#| 
+#|             train = [
+#|                 e for e in by_entity.get(entity_id, [])
+#|                 if e["event_id"] not in exclude_ids
+#|                 and (not tstart or e["start_utc"] >= tstart)
+#|                 and (not tend or e["start_utc"] <= tend)
+#|             ]
+#|             stats = compute_activity_stats(train)
+#|             quality = assess_baseline_quality(stats, train, contexts, entity_id, tstart, tend)
+#|             baselines.append({
+#|                 "baseline_id": normalize_text(cfg.get("baseline_id")) or stable_id("BASE", entity_id, btype, iso(tstart), iso(tend)),
+#|                 "baseline_type": btype,
+#|                 "entity_id": entity_id,
+#|                 "peer_group_id": normalize_text(cfg.get("peer_group_id")) or None,
+#|                 "training_start": tstart,
+#|                 "training_end": tend,
+#|                 "evaluation_start": parse_time(cfg.get("evaluation_start")),
+#|                 "evaluation_end": parse_time(cfg.get("evaluation_end")),
+#|                 "training_event_ids": [e["event_id"] for e in train],
+#|                 "stats": stats,
+#|                 "quality": quality,
+#|                 "limitations": list(cfg.get("limitations", []) or []) + [
+#|                     "Baseline is a statistical reference, not truth.",
+#|                 ],
+#|             })
+#|     else:
+#|         for entity_id, evs in by_entity.items():
+#|             evs = sorted(evs, key=lambda e: e["start_utc"])
+#|             if len(evs) >= 10:
+#|                 split = max(1, int(len(evs) * 0.7))
+#|                 train = evs[:split]
+#|                 eval_ids = [e["event_id"] for e in evs[split:]]
+#|             else:
+#|                 train = evs
+#|                 eval_ids = []
+#| 
+#|             tstart = train[0]["start_utc"] if train else None
+#|             tend = train[-1]["start_utc"] if train else None
+#|             stats = compute_activity_stats(train)
+#|             quality = assess_baseline_quality(stats, train, contexts, entity_id, tstart, tend)
+#|             baselines.append({
+#|                 "baseline_id": stable_id("BASE", entity_id, "SELF_AUTO"),
+#|                 "baseline_type": "SELF",
+#|                 "entity_id": entity_id,
+#|                 "peer_group_id": None,
+#|                 "training_start": tstart,
+#|                 "training_end": tend,
+#|                 "evaluation_start": tend,
+#|                 "evaluation_end": None,
+#|                 "training_event_ids": [e["event_id"] for e in train],
+#|                 "evaluation_event_ids": eval_ids,
+#|                 "stats": stats,
+#|                 "quality": quality,
+#|                 "limitations": [
+#|                     "Auto baseline splits available chronology into training/evaluation; weak if sample is small.",
+#|                 ],
+#|             })
+#| 
+#|     for group in manifest.get("peer_groups", []) or []:
+#|         group_id = normalize_text(group.get("peer_group_id") or stable_id("PEER", *(group.get("entities", []) or [])))
+#|         entities = [normalize_text(x) for x in group.get("entities", []) or [] if normalize_text(x)]
+#|         tstart = parse_time(group.get("training_start"))
+#|         tend = parse_time(group.get("training_end"))
+#| 
+#|         for target in entities:
+#|             peer_events = [
+#|                 e for e in events
+#|                 if e.get("start_utc")
+#|                 and e["entity_id"] in entities
+#|                 and e["entity_id"] != target
+#|                 and (not tstart or e["start_utc"] >= tstart)
+#|                 and (not tend or e["start_utc"] <= tend)
+#|             ]
+#|             stats = compute_activity_stats(peer_events)
+#|             quality = assess_baseline_quality(stats, peer_events, contexts, target, tstart, tend)
+#|             baselines.append({
+#|                 "baseline_id": stable_id("BASE", target, "PEER", group_id),
+#|                 "baseline_type": "PEER",
+#|                 "entity_id": target,
+#|                 "peer_group_id": group_id,
+#|                 "training_start": tstart,
+#|                 "training_end": tend,
+#|                 "evaluation_start": tstart,
+#|                 "evaluation_end": tend,
+#|                 "training_event_ids": [],
+#|                 "stats": stats,
+#|                 "quality": quality,
+#|                 "limitations": [
+#|                     "Peer baseline is only meaningful if cohort is genuinely comparable.",
+#|                 ],
+#|             })
+#| 
+#|     return baselines
+#| 
+#| 
+#| def get_evaluation_events(baseline: Dict[str, Any], events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     entity_id = baseline["entity_id"]
+#|     train_ids = set(baseline.get("training_event_ids", []) or [])
+#|     eval_ids = baseline.get("evaluation_event_ids")
+#|     estart = baseline.get("evaluation_start")
+#|     eend = baseline.get("evaluation_end")
+#| 
+#|     out = []
+#|     for e in events:
+#|         if e["entity_id"] != entity_id or not e.get("start_utc"):
+#|             continue
+#|         if e["event_id"] in train_ids:
+#|             continue
+#|         if eval_ids is not None and e["event_id"] not in eval_ids:
+#|             continue
+#|         if estart and e["start_utc"] < estart:
+#|             continue
+#|         if eend and e["start_utc"] > eend:
+#|             continue
+#|         out.append(e)
+#|     return sorted(out, key=lambda x: x["start_utc"])
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Anomaly detection
+#| # --------------------------------------------------------------------
+#| 
+#| def make_anomaly(
+#|     entity_id: str,
+#|     baseline_id: str,
+#|     anomaly_type: str,
+#|     severity: str,
+#|     score: float,
+#|     method: str,
+#|     event_ids: List[str],
+#|     details: Dict[str, Any],
+#|     baseline_quality: Dict[str, Any],
+#| ) -> Dict[str, Any]:
+#|     conf_map = {
+#|         "HIGH": "MODERATE",
+#|         "MODERATE": "LOW",
+#|         "LOW": "LOW",
+#|         "INSUFFICIENT": "VERY_LOW",
+#|     }
+#|     confidence = conf_map.get(baseline_quality.get("confidence", "LOW"), "LOW")
+#| 
+#|     return {
+#|         "anomaly_id": stable_id("ANOM", entity_id, baseline_id, anomaly_type, *event_ids),
+#|         "entity_id": entity_id,
+#|         "baseline_id": baseline_id,
+#|         "anomaly_type": anomaly_type,
+#|         "severity": severity,
+#|         "statistical_score": round(float(score), 4),
+#|         "method": method,
+#|         "event_ids": event_ids,
+#|         "details": details,
+#|         "confidence": confidence,
+#|         "status": "CANDIDATE",
+#|         "benign_explanations": [],
+#|         "source_independence_state": "UNKNOWN",
+#|         "raw_source_count": 0,
+#|         "independent_source_family_count": 0,
+#|         "limitations": [
+#|             "Anomaly means deviation from a baseline, not malice, intent, or guilt.",
+#|             "Statistical rarity is not evidence of criminality or policy violation.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def detect_anomalies(events: List[Dict[str, Any]], baselines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     anomalies: List[Dict[str, Any]] = []
+#| 
+#|     for b in baselines:
+#|         stats = b.get("stats", {})
+#|         quality = b.get("quality", {})
+#|         evals = get_evaluation_events(b, events)
+#|         if not evals:
+#|             continue
+#| 
+#|         min_sample = 30 if b.get("baseline_type") == "SELF" else 20
+#| 
+#|         # Temporal anomaly: rare hour-of-day
+#|         if int(stats.get("event_count", 0)) >= min_sample:
+#|             hour_probs = {int(k): v for k, v in stats.get("hour_probs", {}).items()}
+#|             seen_hours: Set[Tuple[str, int]] = set()
+#|             for e in evals:
+#|                 h = e["start_utc"].hour
+#|                 p = hour_probs.get(h, 0.0)
+#|                 if p < 0.02 and (e["entity_id"], h) not in seen_hours:
+#|                     seen_hours.add((e["entity_id"], h))
+#|                     severity = "MODERATE" if p == 0 else "LOW"
+#|                     anomalies.append(make_anomaly(
+#|                         e["entity_id"],
+#|                         b["baseline_id"],
+#|                         "TEMPORAL_ANOMALY",
+#|                         severity,
+#|                         1.0 - p,
+#|                         "baseline_hour_probability",
+#|                         [e["event_id"]],
+#|                         {"hour_utc": h, "baseline_hour_probability": round(p, 6)},
+#|                         quality,
+#|                     ))
+#| 
+#|         # Frequency anomaly: daily count z-score
+#|         if int(stats.get("day_count", 0)) >= 7:
+#|             eval_daily: Dict[str, List[str]] = defaultdict(list)
+#|             for e in evals:
+#|                 eval_daily[e["start_utc"].date().isoformat()].append(e["event_id"])
+#|             for day, eids in eval_daily.items():
+#|                 count = len(eids)
+#|                 z = safe_z(count, float(stats.get("daily_mean", 0.0)), float(stats.get("daily_std", 0.0)))
+#|                 if z >= 3:
+#|                     severity = "HIGH" if z >= 5 else "MODERATE"
+#|                     anomalies.append(make_anomaly(
+#|                         evals[0]["entity_id"],
+#|                         b["baseline_id"],
+#|                         "FREQUENCY_ANOMALY",
+#|                         severity,
+#|                         z,
+#|                         "daily_count_z_score",
+#|                         eids,
+#|                         {"date": day, "count": count, "baseline_mean": stats.get("daily_mean"), "baseline_std": stats.get("daily_std")},
+#|                         quality,
+#|                     ))
+#| 
+#|         # Volume anomaly
+#|         for e in evals:
+#|             vol = get_volume(e.get("attributes", {}) or {})
+#|             vb = stats.get("volume_by_type", {}).get(e["event_type"])
+#|             if vol is not None and vb and int(vb.get("count", 0)) >= 10:
+#|                 z = safe_z(vol, float(vb.get("mean", 0.0)), float(vb.get("std", 0.0)))
+#|                 if z >= 3:
+#|                     severity = "HIGH" if z >= 5 else "MODERATE"
+#|                     anomalies.append(make_anomaly(
+#|                         e["entity_id"],
+#|                         b["baseline_id"],
+#|                         "VOLUME_ANOMALY",
+#|                         severity,
+#|                         z,
+#|                         "volume_z_score_by_event_type",
+#|                         [e["event_id"]],
+#|                         {"event_type": e["event_type"], "volume": vol, "baseline_mean": vb.get("mean"), "baseline_std": vb.get("std")},
+#|                         quality,
+#|                     ))
+#| 
+#|         # Sequence anomaly: novel bigram
+#|         if int(stats.get("bigram_sample", 0)) >= 50:
+#|             sorted_evals = sorted(evals, key=lambda x: x["start_utc"])
+#|             seen_bigrams: Set[str] = set()
+#|             for a, b2 in zip(sorted_evals, sorted_evals[1:]):
+#|                 key = f"{a['event_type']}|{b2['event_type']}"
+#|                 p = float(stats.get("bigram_probs", {}).get(key, 0.0))
+#|                 if p == 0.0 and key not in seen_bigrams:
+#|                     seen_bigrams.add(key)
+#|                     anomalies.append(make_anomaly(
+#|                         a["entity_id"],
+#|                         b["baseline_id"],
+#|                         "SEQUENCE_ANOMALY",
+#|                         "MODERATE",
+#|                         1.0,
+#|                         "baseline_novel_bigram",
+#|                         [a["event_id"], b2["event_id"]],
+#|                         {"bigram": key, "baseline_bigram_probability": 0.0},
+#|                         quality,
+#|                     ))
+#| 
+#|         # Counterparty anomaly
+#|         if int(stats.get("target_sample", 0)) >= 10:
+#|             seen_targets: Set[Tuple[str, str]] = set()
+#|             for e in evals:
+#|                 t = e.get("target_entity")
+#|                 if t and t not in stats.get("target_counts", {}) and (e["entity_id"], t) not in seen_targets:
+#|                     seen_targets.add((e["entity_id"], t))
+#|                     anomalies.append(make_anomaly(
+#|                         e["entity_id"],
+#|                         b["baseline_id"],
+#|                         "COUNTERPARTY_ANOMALY",
+#|                         "LOW",
+#|                         1.0,
+#|                         "baseline_new_target_entity",
+#|                         [e["event_id"]],
+#|                         {"target_entity": t},
+#|                         quality,
+#|                     ))
+#| 
+#|     return unique_preserve(anomalies)[:500]
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Patterns: periodicity, routine, burst, change point, drift
+#| # --------------------------------------------------------------------
+#| 
+#| def detect_periodicity(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by: Dict[Tuple[str, str], List[datetime]] = defaultdict(list)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by[(e["entity_id"], e["event_type"])].append(e["start_utc"])
+#| 
+#|     out = []
+#|     for (entity_id, event_type), times in by.items():
+#|         times = sorted(times)
+#|         if len(times) < 5:
+#|             continue
+#|         intervals = [(b - a).total_seconds() for a, b in zip(times, times[1:]) if (b - a).total_seconds() > 0]
+#|         if len(intervals) < 4:
+#|             continue
+#|         mean = safe_mean(intervals)
+#|         std = safe_stdev(intervals)
+#|         if mean <= 0:
+#|             continue
+#|         cv = std / mean
+#|         if cv < 0.25:
+#|             out.append({
+#|                 "periodicity_id": stable_id("PER", entity_id, event_type),
+#|                 "entity_id": entity_id,
+#|                 "event_type": event_type,
+#|                 "interval_count": len(intervals),
+#|                 "median_interval_seconds": safe_median(intervals),
+#|                 "coefficient_of_variation": round(cv, 4),
+#|                 "confidence": "HIGH" if len(intervals) >= 20 else "MODERATE",
+#|                 "interpretation": "Regular interval may indicate scheduled or automated process.",
+#|                 "limitations": [
+#|                     "Periodicity does not prove automation, benign intent, or malicious intent.",
+#|                 ],
+#|             })
+#|     return out
+#| 
+#| 
+#| def detect_routines(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by_entity: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]].append(e)
+#| 
+#|     out = []
+#|     for entity_id, evs in by_entity.items():
+#|         stats = compute_activity_stats(evs)
+#|         n = int(stats.get("event_count", 0))
+#|         if n < 10:
+#|             continue
+#|         hour_counts = {int(k): v for k, v in stats.get("hour_counts", {}).items()}
+#|         dow_counts = {int(k): v for k, v in stats.get("dow_counts", {}).items()}
+#|         if not hour_counts or not dow_counts:
+#|             continue
+#|         hour_top_share = max(hour_counts.values()) / n
+#|         dow_top_share = max(dow_counts.values()) / n
+#|         if hour_top_share >= 0.35 and dow_top_share >= 0.35:
+#|             out.append({
+#|                 "routine_id": stable_id("ROUT", entity_id),
+#|                 "entity_id": entity_id,
+#|                 "dominant_hour_utc": max(hour_counts, key=hour_counts.get),
+#|                 "dominant_weekday": max(dow_counts, key=dow_counts.get),
+#|                 "hour_concentration": round(hour_top_share, 4),
+#|                 "weekday_concentration": round(dow_top_share, 4),
+#|                 "sample_size": n,
+#|                 "confidence": "MODERATE" if n >= 30 else "LOW",
+#|                 "limitations": [
+#|                     "Routine candidate only. Do not expose or use private-person schedules for targeting.",
+#|                 ],
+#|             })
+#|     return out
+#| 
+#| 
+#| def detect_bursts(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by_entity: Dict[str, Counter] = defaultdict(Counter)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]][e["start_utc"].date().isoformat()] += 1
+#| 
+#|     out = []
+#|     for entity_id, counts in by_entity.items():
+#|         vals = list(counts.values())
+#|         if len(vals) < 7:
+#|             continue
+#|         mean = safe_mean(vals)
+#|         std = safe_stdev(vals)
+#|         for day, count in counts.items():
+#|             z = safe_z(count, mean, std)
+#|             if z >= 3:
+#|                 out.append({
+#|                     "burst_id": stable_id("BURST", entity_id, day),
+#|                     "entity_id": entity_id,
+#|                     "date": day,
+#|                     "count": count,
+#|                     "baseline_mean": round(mean, 4),
+#|                     "baseline_std": round(std, 4),
+#|                     "z_score": round(z, 4),
+#|                     "severity": "HIGH" if z >= 5 else "MODERATE",
+#|                     "limitations": [
+#|                         "Burst may be campaign, incident, batch job, data ingestion, product event, or measurement artifact.",
+#|                     ],
+#|                 })
+#|     return out
+#| 
+#| 
+#| def detect_change_points(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by_entity: Dict[str, Counter] = defaultdict(Counter)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]][e["start_utc"].date().isoformat()] += 1
+#| 
+#|     out = []
+#|     for entity_id, counts in by_entity.items():
+#|         series = sorted(counts.items())
+#|         if len(series) < 10:
+#|             continue
+#|         mid = len(series) // 2
+#|         first = [v for _, v in series[:mid]]
+#|         second = [v for _, v in series[mid:]]
+#|         if len(first) < 3 or len(second) < 3:
+#|             continue
+#|         m1, m2 = safe_mean(first), safe_mean(second)
+#|         s1, s2 = safe_stdev(first), safe_stdev(second)
+#|         pooled = math.sqrt((s1 * s1 + s2 * s2) / 2.0) if (s1 or s2) else 0.0
+#|         diff = abs(m2 - m1)
+#|         if pooled <= 1e-9:
+#|             if diff > 0:
+#|                 ratio = 10.0
+#|             else:
+#|                 continue
+#|         else:
+#|             ratio = diff / pooled
+#|         if ratio >= 2.0:
+#|             change_date = series[mid][0]
+#|             direction = "INCREASE" if m2 > m1 else "DECREASE"
+#|             label = "SUDDEN_SHIFT" if ratio >= 4.0 else "GRADUAL_DRIFT"
+#|             out.append({
+#|                 "change_point_id": stable_id("CP", entity_id, change_date),
+#|                 "entity_id": entity_id,
+#|                 "date": change_date,
+#|                 "direction": direction,
+#|                 "mean_before": round(m1, 4),
+#|                 "mean_after": round(m2, 4),
+#|                 "effect_size": round(ratio, 4),
+#|                 "label": label,
+#|                 "limitations": [
+#|                     "Change point may reflect role change, project, automation, policy change, outage, or data coverage shift.",
+#|                 ],
+#|             })
+#|     return out
+#| 
+#| 
+#| def detect_behavioral_drift(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     by_entity: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]].append(e)
+#| 
+#|     out = []
+#|     for entity_id, evs in by_entity.items():
+#|         evs = sorted(evs, key=lambda x: x["start_utc"])
+#|         if len(evs) < 40:
+#|             continue
+#|         mid = len(evs) // 2
+#|         early = compute_activity_stats(evs[:mid])
+#|         late = compute_activity_stats(evs[mid:])
+#|         tv = tv_distance(early.get("type_probs", {}), late.get("type_probs", {}))
+#|         interval_shift = 0.0
+#|         e_med = float(early.get("interval_median", 0.0) or 0.0)
+#|         l_med = float(late.get("interval_median", 0.0) or 0.0)
+#|         if e_med > 0:
+#|             interval_shift = abs(l_med - e_med) / e_med
+#| 
+#|         if tv >= 0.25 or interval_shift >= 0.50:
+#|             out.append({
+#|                 "drift_id": stable_id("DRIFT", entity_id),
+#|                 "entity_id": entity_id,
+#|                 "type_distribution_tv_distance": round(tv, 4),
+#|                 "interval_median_shift_ratio": round(interval_shift, 4),
+#|                 "early_sample": early.get("event_count"),
+#|                 "late_sample": late.get("event_count"),
+#|                 "confidence": "MODERATE" if min(early.get("event_count", 0), late.get("event_count", 0)) >= 30 else "LOW",
+#|                 "limitations": [
+#|                     "Drift is not maliciousness. Role, system, project, or policy changes often create legitimate drift.",
+#|                 ],
+#|             })
+#|     return out
+#| 
+#| 
+#| def detect_coordination(
+#|     events: List[Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#|     sync_window_seconds: float = 60.0,
+#| ) -> List[Dict[str, Any]]:
+#|     by_entity: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for e in events:
+#|         if e.get("start_utc"):
+#|             by_entity[e["entity_id"]].append(e)
+#| 
+#|     entities = sorted(by_entity)
+#|     out = []
+#| 
+#|     for i in range(len(entities)):
+#|         for j in range(i + 1, len(entities)):
+#|             a_id, b_id = entities[i], entities[j]
+#|             a_events = sorted(by_entity[a_id], key=lambda x: x["start_utc"])[:300]
+#|             b_events = sorted(by_entity[b_id], key=lambda x: x["start_utc"])[:300]
+#|             pairs = []
+#|             event_types = set()
+#| 
+#|             for a in a_events:
+#|                 for b in b_events:
+#|                     delta = abs((a["start_utc"] - b["start_utc"]).total_seconds())
+#|                     if delta <= sync_window_seconds and a["event_type"] == b["event_type"]:
+#|                         pairs.append((a["event_id"], b["event_id"]))
+#|                         event_types.add(a["event_type"])
+#| 
+#|             if len(pairs) >= 3:
+#|                 source_ids = sorted({
+#|                     sid
+#|                     for eid1, eid2 in pairs
+#|                     for ev in (by_entity[a_id], by_entity[b_id])
+#|                     for e2 in ev
+#|                     if e2["event_id"] in (eid1, eid2)
+#|                     for sid in e2.get("source_ids", [])
+#|                 })
+#|                 families = source_family_ids(source_ids, source_roots)
+#|                 out.append({
+#|                     "coordination_id": stable_id("COORD", a_id, b_id),
+#|                     "entities": [a_id, b_id],
+#|                     "synchronized_event_count": len(pairs),
+#|                     "sync_window_seconds": sync_window_seconds,
+#|                     "event_types": sorted(event_types),
+#|                     "source_independence_state": independence_state(families, sources, source_ids),
+#|                     "confidence": "CANDIDATE",
+#|                     "limitations": [
+#|                         "Synchronized activity may result from same schedule, news event, automation, shared service, or coincidence.",
+#|                         "This does not prove coordination, collusion, common controller, or malicious intent.",
+#|                     ],
+#|                 })
+#|     return out
+#| 
+#| 
+#| def detect_interactions(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     pairs = Counter()
+#|     for e in events:
+#|         if e.get("target_entity"):
+#|             pairs[(e["entity_id"], e["target_entity"])] += 1
+#| 
+#|     out = []
+#|     for (src, tgt), count in pairs.most_common(200):
+#|         out.append({
+#|             "interaction_id": stable_id("INTER", src, tgt),
+#|             "source_entity": src,
+#|             "target_entity": tgt,
+#|             "count": count,
+#|             "direction": "SOURCE_TO_TARGET",
+#|             "limitations": [
+#|                 "Interaction count does not prove relationship, trust, control, collaboration, or intent.",
+#|             ],
+#|         })
+#|     return out
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Benign explanations / enrichment
+#| # --------------------------------------------------------------------
+#| 
+#| def enrich_anomalies(
+#|     anomalies: List[Dict[str, Any]],
+#|     events_by_id: Dict[str, Dict[str, Any]],
+#|     contexts: List[Dict[str, Any]],
+#|     periodicity: List[Dict[str, Any]],
+#|     peer_baselines_by_entity: Dict[str, Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#| ) -> None:
+#|     for a in anomalies:
+#|         evs = [events_by_id[eid] for eid in a.get("event_ids", []) if eid in events_by_id]
+#|         if not evs:
+#|             continue
+#| 
+#|         times = [e["start_utc"] for e in evs if e.get("start_utc")]
+#|         min_t = min(times) if times else None
+#|         max_t = max(times) if times else None
+#| 
+#|         explanations: List[str] = []
+#| 
+#|         for ctx in contexts:
+#|             if ctx.get("entity_ids") and not any(e["entity_id"] in ctx["entity_ids"] for e in evs):
+#|                 continue
+#|             if time_overlap(ctx.get("valid_from"), ctx.get("valid_to"), min_t, max_t):
+#|                 if ctx.get("context_type") in BENIGN_CONTEXT_TYPES:
+#|                     explanations.append(f"Authorized context overlap: {ctx['context_type']} ({ctx.get('description') or ctx['context_id']})")
+#| 
+#|         coverage_states = {e.get("source_coverage_state", "UNKNOWN") for e in evs}
+#|         if coverage_states - {"OK", "UNKNOWN"}:
+#|             explanations.append("Source coverage gap/outage may affect observed frequency or timing.")
+#| 
+#|         event_types = {e["event_type"] for e in evs}
+#|         for p in periodicity:
+#|             if p.get("entity_id") == a.get("entity_id") and p.get("event_type") in event_types:
+#|                 explanations.append("Recurring periodic pattern may indicate automation or scheduled process.")
+#| 
+#|         if any(e.get("attributes", {}).get("service_account") or e.get("event_type") in AUTOMATION_EVENT_HINTS for e in evs):
+#|             explanations.append("Service/automation account context possible.")
+#| 
+#|         if any(e.get("timezone_state") == "UNKNOWN" or e.get("time_precision") in {"DAY", "MONTH", "YEAR", "UNKNOWN"} for e in evs):
+#|             explanations.append("Timezone/timestamp precision uncertainty may affect temporal anomaly.")
+#| 
+#|         if peer_baselines_by_entity.get(a.get("entity_id")):
+#|             explanations.append("Peer cohort baseline available; compare before escalation.")
+#| 
+#|         a["benign_explanations"] = list(dict.fromkeys(explanations))
+#| 
+#|         source_ids = sorted({sid for e in evs for sid in e.get("source_ids", [])})
+#|         families = source_family_ids(source_ids, source_roots)
+#|         a["raw_source_count"] = len(source_ids)
+#|         a["independent_source_family_count"] = len(families)
+#|         a["source_independence_state"] = independence_state(families, sources, source_ids)
+#| 
+#|         if a["source_independence_state"] == "DEPENDENT":
+#|             a["confidence"] = "LOW"
+#|         if a["benign_explanations"]:
+#|             a["status"] = "BENIGN_EXPLANATION_CANDIDATE"
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Fact gate / hypotheses / ACH
+#| # --------------------------------------------------------------------
+#| 
+#| def apply_known_facts(
+#|     anomalies: List[Dict[str, Any]],
+#|     patterns: List[Dict[str, Any]],
+#|     known_facts: List[Any],
+#| ) -> None:
+#|     for fact in known_facts or []:
+#|         if not isinstance(fact, dict):
+#|             continue
+#|         state = normalize_text(fact.get("state", "SUPPORTED")).upper()
+#|         entity_id = normalize_text(fact.get("entity_id"))
+#|         text = normalize_text(fact.get("text") or fact.get("statement"))
+#| 
+#|         for a in anomalies:
+#|             if entity_id and a.get("entity_id") != entity_id:
+#|                 continue
+#|             a.setdefault("fact_gate_notes", []).append({
+#|                 "fact_id": fact.get("fact_id"),
+#|                 "state": state,
+#|                 "text": text,
+#|             })
+#|             if state == "REFUTED":
+#|                 a["status"] = "REFUTED_BY_KNOWN_FACT"
+#|             elif state in {"SUPPORTED", "VERIFIED"} and fact.get("benign"):
+#|                 a["status"] = "BENIGN_EXPLANATION_SUPPORTED"
+#| 
+#| 
+#| def classify_ach(evidence_type: str, hypothesis_category: str) -> str:
+#|     if evidence_type == "rarity":
+#|         if hypothesis_category == "SERIOUS_CANDIDATE":
+#|             return "CONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type in {"benign_context", "periodicity", "peer_similarity", "service_account"}:
+#|         if hypothesis_category == "BENIGN":
+#|             return "CONSISTENT"
+#|         if hypothesis_category == "SERIOUS_CANDIDATE":
+#|             return "INCONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type in {"coverage_gap", "source_dependence", "timezone_uncertainty"}:
+#|         if hypothesis_category == "ARTIFACT":
+#|             return "CONSISTENT"
+#|         if hypothesis_category == "SERIOUS_CANDIDATE":
+#|             return "INCONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     return "NEUTRAL"
+#| 
+#| 
+#| def generate_hypotheses_and_ach(
+#|     anomalies: List[Dict[str, Any]],
+#|     events_by_id: Dict[str, Dict[str, Any]],
+#|     periodicity: List[Dict[str, Any]],
+#|     peer_baselines_by_entity: Dict[str, Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     hypotheses: List[Dict[str, Any]] = []
+#|     ach_results: List[Dict[str, Any]] = []
+#| 
+#|     for a in anomalies[:200]:
+#|         h_defs = [
+#|             {
+#|                 "hypothesis_id": stable_id("HYP", a["anomaly_id"], "automation"),
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "category": "BENIGN",
+#|                 "statement": "Observable pattern may be automation, scheduled process, or service-account behaviour.",
+#|             },
+#|             {
+#|                 "hypothesis_id": stable_id("HYP", a["anomaly_id"], "legitimate_context"),
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "category": "BENIGN",
+#|                 "statement": "Authorized role, project, migration, maintenance, policy, or business context may explain the change.",
+#|             },
+#|             {
+#|                 "hypothesis_id": stable_id("HYP", a["anomaly_id"], "shared_operator"),
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "category": "BENIGN",
+#|                 "statement": "Account/session may be shared or operated by another authorized person/system.",
+#|             },
+#|             {
+#|                 "hypothesis_id": stable_id("HYP", a["anomaly_id"], "data_artifact"),
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "category": "ARTIFACT",
+#|                 "statement": "Telemetry gap, duplication, clock/timezone issue, or baseline weakness may create apparent anomaly.",
+#|             },
+#|             {
+#|                 "hypothesis_id": stable_id("HYP", a["anomaly_id"], "misuse_candidate"),
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "category": "SERIOUS_CANDIDATE",
+#|                 "statement": "Unauthorized misuse or compromise remains a candidate requiring independent evidence.",
+#|             },
+#|         ]
+#| 
+#|         evidence: List[Dict[str, Any]] = []
+#|         evidence.append({
+#|             "evidence_id": stable_id("ACHEV", a["anomaly_id"], "rarity"),
+#|             "type": "rarity",
+#|             "description": f"Statistical signal: {a.get('statistical_score')} via {a.get('method')}",
+#|         })
+#| 
+#|         for exp in a.get("benign_explanations", []):
+#|             etype = "benign_context"
+#|             if "periodic" in exp.lower():
+#|                 etype = "periodicity"
+#|             elif "peer" in exp.lower():
+#|                 etype = "peer_similarity"
+#|             elif "service" in exp.lower() or "automation" in exp.lower():
+#|                 etype = "service_account"
+#|             evidence.append({
+#|                 "evidence_id": stable_id("ACHEV", a["anomaly_id"], etype, exp),
+#|                 "type": etype,
+#|                 "description": exp,
+#|             })
+#| 
+#|         evs = [events_by_id[eid] for eid in a.get("event_ids", []) if eid in events_by_id]
+#|         if any(e.get("source_coverage_state") not in {"OK", "UNKNOWN"} for e in evs):
+#|             evidence.append({
+#|                 "evidence_id": stable_id("ACHEV", a["anomaly_id"], "coverage_gap"),
+#|                 "type": "coverage_gap",
+#|                 "description": "One or more supporting events fall outside known source coverage or during outage/gap.",
+#|             })
+#| 
+#|         if a.get("source_independence_state") == "DEPENDENT":
+#|             evidence.append({
+#|                 "evidence_id": stable_id("ACHEV", a["anomaly_id"], "source_dependence"),
+#|                 "type": "source_dependence",
+#|                 "description": "Supporting sources are not independent.",
+#|             })
+#| 
+#|         if any(e.get("timezone_state") == "UNKNOWN" for e in evs):
+#|             evidence.append({
+#|                 "evidence_id": stable_id("ACHEV", a["anomaly_id"], "timezone_uncertainty"),
+#|                 "type": "timezone_uncertainty",
+#|                 "description": "Timezone assumption may affect temporal interpretation.",
+#|             })
+#| 
+#|         matrix = []
+#|         consistent_counts: Counter = Counter()
+#|         for ev in evidence:
+#|             row = {"evidence_id": ev["evidence_id"], "assessments": {}}
+#|             for h in h_defs:
+#|                 val = classify_ach(ev["type"], h["category"])
+#|                 row["assessments"][h["hypothesis_id"]] = val
+#|                 if val == "CONSISTENT":
+#|                     consistent_counts[h["hypothesis_id"]] += 1
+#|             matrix.append(row)
+#| 
+#|         serious_id = h_defs[-1]["hypothesis_id"]
+#|         benign_ids = {h["hypothesis_id"] for h in h_defs if h["category"] == "BENIGN"}
+#|         artifact_id = h_defs[-2]["hypothesis_id"]
+#| 
+#|         benign_score = sum(consistent_counts[hid] for hid in benign_ids)
+#|         artifact_score = consistent_counts[artifact_id]
+#|         serious_score = consistent_counts[serious_id]
+#| 
+#|         if benign_score >= max(2, serious_score):
+#|             status = "BENIGN_EXPLANATION_SUPPORTED"
+#|         elif artifact_score >= max(2, serious_score):
+#|             status = "DATA_ARTIFACT_CANDIDATE"
+#|         elif serious_score > 0 and benign_score == 0 and artifact_score == 0:
+#|             status = "MISUSE_CANDIDATE_UNRESOLVED"
+#|         else:
+#|             status = "UNRESOLVED"
+#| 
+#|         a["status"] = status
+#|         a["hypothesis_ids"] = [h["hypothesis_id"] for h in h_defs]
+#| 
+#|         hypotheses.extend(h_defs)
+#|         ach_results.append({
+#|             "anomaly_id": a["anomaly_id"],
+#|             "evidence": evidence,
+#|             "matrix": matrix,
+#|             "status": status,
+#|             "limitations": [
+#|                 "ACH output is analytical support, not proof.",
+#|                 "Serious hypotheses remain candidates unless independently verified by authorized evidence.",
+#|             ],
+#|         })
+#| 
+#|     return hypotheses, ach_results
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Graph memory
+#| # --------------------------------------------------------------------
+#| 
+#| class GraphMemory:
+#|     def __init__(self) -> None:
+#|         self.nodes: List[Dict[str, Any]] = []
+#|         self.edges: List[Dict[str, Any]] = []
+#|         self._node_ids: Set[str] = set()
+#| 
+#|     def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+#|         if node_id in self._node_ids:
+#|             return
+#|         self._node_ids.add(node_id)
+#|         self.nodes.append({"type": node_type, "id": node_id, "properties": properties or {}})
+#| 
+#|     def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+#|         self.edges.append({
+#|             "from": from_id,
+#|             "to": to_id,
+#|             "type": edge_type,
+#|             "properties": properties or {},
+#|         })
+#| 
+#|     def to_dict(self) -> Dict[str, Any]:
+#|         return {
+#|             "nodes": self.nodes[:2000],
+#|             "edges": self.edges[:4000],
+#|             "note": "Behavioural graph preserves observable events, baselines, anomalies, and hypotheses. It does not prove intent, identity, or guilt.",
+#|         }
+#| 
+#| 
+#| def build_graph_memory(
+#|     events: List[Dict[str, Any]],
+#|     sessions: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     patterns: List[Dict[str, Any]],
+#|     hypotheses: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#| ) -> GraphMemory:
+#|     g = GraphMemory()
+#| 
+#|     entity_ids = {e["entity_id"] for e in events}
+#|     for eid in entity_ids:
+#|         g.add_node("Entity", eid, {"display": mask_entity(eid)})
+#| 
+#|     for e in events:
+#|         g.add_node("Event", e["event_id"], {
+#|             "entity_id": e["entity_id"],
+#|             "event_type": e["event_type"],
+#|             "start_utc": iso(e.get("start_utc")),
+#|             "source_coverage_state": e.get("source_coverage_state"),
+#|         })
+#|         g.add_edge(e["entity_id"], e["event_id"], "PERFORMED", {"method": "event_ingestion"})
+#| 
+#|     for s in sessions:
+#|         g.add_node("Session", s["session_id"], {
+#|             "entity_id": s["entity_id"],
+#|             "start_utc": iso(s.get("start_utc")),
+#|             "event_count": s.get("event_count"),
+#|         })
+#|         for eid in s.get("event_ids", [])[:100]:
+#|             g.add_edge(eid, s["session_id"], "PART_OF_SESSION", {"method": s.get("method")})
+#| 
+#|     for b in baselines:
+#|         g.add_node("Baseline", b["baseline_id"], {
+#|             "entity_id": b["entity_id"],
+#|             "baseline_type": b["baseline_type"],
+#|             "confidence": b.get("quality", {}).get("confidence"),
+#|         })
+#| 
+#|     for a in anomalies:
+#|         g.add_node("Anomaly", a["anomaly_id"], {
+#|             "entity_id": a["entity_id"],
+#|             "type": a["anomaly_type"],
+#|             "status": a["status"],
+#|             "severity": a["severity"],
+#|         })
+#|         g.add_edge(a["anomaly_id"], a["baseline_id"], "DEVIATES_FROM", {"method": a.get("method")})
+#|         for eid in a.get("event_ids", [])[:50]:
+#|             g.add_edge(a["anomaly_id"], eid, "SUPPORTED_BY_EVENT", {"confidence": a.get("confidence")})
+#| 
+#|     for p in patterns:
+#|         pid = p.get("periodicity_id") or p.get("routine_id") or p.get("burst_id") or p.get("change_point_id") or p.get("drift_id") or p.get("coordination_id") or p.get("interaction_id")
+#|         if pid:
+#|             g.add_node("Pattern", pid, {k: v for k, v in p.items() if k != "limitations"})
+#| 
+#|     for h in hypotheses[:500]:
+#|         g.add_node("Hypothesis", h["hypothesis_id"], {
+#|             "statement": h["statement"],
+#|             "category": h["category"],
+#|             "anomaly_id": h.get("anomaly_id"),
+#|         })
+#| 
+#|     for gap in gaps[:500]:
+#|         g.add_node("Gap", gap["gap_id"], {
+#|             "type": gap["type"],
+#|             "importance": gap["importance"],
+#|         })
+#| 
+#|     return g
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Gaps / actions / handoffs / observations
+#| # --------------------------------------------------------------------
+#| 
+#| def build_observations(
+#|     events: List[Dict[str, Any]],
+#|     sessions: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     patterns: List[Dict[str, Any]],
+#|     privacy_flags: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     obs = []
+#|     obs.append(f"Observable events ingested: {len(events)}.")
+#|     obs.append(f"Sessions constructed: {len(sessions)}.")
+#|     obs.append(f"Baselines built: {len(baselines)}.")
+#|     obs.append(f"Anomaly candidates detected: {len(anomalies)}.")
+#|     obs.append(f"Behavioural patterns detected: {len(patterns)}.")
+#|     if any(b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"} for b in baselines):
+#|         obs.append("Some baselines are weak; anomaly conclusions are correspondingly weak.")
+#|     if any(a.get("source_independence_state") == "DEPENDENT" for a in anomalies):
+#|         obs.append("Some anomalies rely on dependent sources; do not treat copied telemetry as independent corroboration.")
+#|     if any(a.get("benign_explanations") for a in anomalies):
+#|         obs.append("Benign explanations were tested for material anomalies.")
+#|     if privacy_flags:
+#|         obs.append("Sensitive attributes/content/exact location were removed and not used as behavioural features.")
+#|     obs.append("No intent, motive, personality, mental health, lie detection, dangerousness, criminality, or real-person attribution was inferred.")
+#|     return obs
+#| 
+#| 
+#| def build_unknowns(
+#|     events: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     coordination: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     unknowns = []
+#|     for e in events:
+#|         if e.get("source_coverage_state") not in {"OK", "UNKNOWN"}:
+#|             unknowns.append(f"Event {e['event_id']} source coverage state unresolved: {e.get('source_coverage_state')}.")
+#|     for b in baselines:
+#|         if b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"}:
+#|             unknowns.append(f"Baseline {b['baseline_id']} quality insufficient for strong anomaly inference.")
+#|     for a in anomalies:
+#|         if a.get("status") in {"CANDIDATE", "UNRESOLVED", "MISUSE_CANDIDATE_UNRESOLVED"}:
+#|             unknowns.append(f"Anomaly {a['anomaly_id']} remains unresolved: {a.get('status')}.")
+#|     for c in coordination:
+#|         unknowns.append(f"Coordination signal {c['coordination_id']} is candidate only; common controller unresolved.")
+#|     unknowns.append("Account operator identity remains unresolved unless separate authorized identity evidence exists.")
+#|     return list(dict.fromkeys(unknowns))[:500]
+#| 
+#| 
+#| def build_gaps(
+#|     events: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     coordination: List[Dict[str, Any]],
+#|     privacy_flags: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     gaps = []
+#| 
+#|     for b in baselines:
+#|         if b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "baseline", b["baseline_id"]),
+#|                 "type": "BASELINE_INSUFFICIENT",
+#|                 "importance": "HIGH",
+#|                 "baseline_id": b["baseline_id"],
+#|                 "recommended_source": "Longer clean historical window, peer cohort, role context, or system baseline.",
+#|                 "specialist": "BEHAVINT / LOGINT / ORGINT",
+#|                 "expected_information_value": "Reduce false anomalies and improve calibration.",
+#|             })
+#| 
+#|     for e in events:
+#|         if e.get("source_coverage_state") not in {"OK", "UNKNOWN"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "coverage", e["event_id"]),
+#|                 "type": "SOURCE_COVERAGE_INCOMPLETE",
+#|                 "importance": "HIGH",

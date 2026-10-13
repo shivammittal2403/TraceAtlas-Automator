@@ -1,0 +1,1000 @@
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Package/component present in image: {p.name} {p.version or ''} ({p.ecosystem or 'unknown'}).",
+#|                 claim_type="DIRECT_ARTIFACT_FACT",
+#|                 verification_state=VerificationState.SUPPORTED,
+#|                 evidence_ids=p.evidence_ids,
+#|                 object_ids=[p.package_id],
+#|                 confidence=p.confidence,
+#|                 limitations=["Package presence does not prove execution, reachability, or vulnerability applicability."],
+#|             )
+#|         )
+#| 
+#|     if sbom_validation:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"SBOM validation state: {sbom_validation.state.name}. {sbom_validation.explanation}",
+#|                 claim_type="CORRELATED_FACT",
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED
+#|                 if sbom_validation.state != SbomValidationState.MATCHES_IMAGE_STRONGLY
+#|                 else VerificationState.SUPPORTED,
+#|                 evidence_ids=sbom_validation.evidence_ids,
+#|                 object_ids=[sbom_validation.sbom_id],
+#|                 confidence=sbom_validation.confidence,
+#|                 limitations=sbom_validation.limitations,
+#|             )
+#|         )
+#| 
+#|     for sig in signatures:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Signature state for digest {sig.digest_covered}: {sig.state.name}.",
+#|                 claim_type="DIRECT_ARTIFACT_FACT",
+#|                 verification_state=VerificationState.SUPPORTED if sig.state == SignatureState.VERIFIED else VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=sig.evidence_ids,
+#|                 object_ids=[sig.signature_id],
+#|                 confidence=sig.confidence,
+#|                 limitations=sig.limitations,
+#|             )
+#|         )
+#| 
+#|     for prov in provenance:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Provenance state for digest {prov.artifact_digest}: {prov.state.name}.",
+#|                 claim_type="CORRELATED_FACT",
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=prov.evidence_ids,
+#|                 object_ids=[prov.provenance_id],
+#|                 confidence=prov.confidence,
+#|                 limitations=prov.limitations,
+#|             )
+#|         )
+#| 
+#|     for sec in secrets:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Secret exposure detected and redacted: type={sec.secret_type}, state={sec.state.name}.",
+#|                 claim_type="DIRECT_ARTIFACT_FACT",
+#|                 verification_state=VerificationState.SUPPORTED,
+#|                 evidence_ids=sec.evidence_ids,
+#|                 object_ids=[sec.secret_id],
+#|                 confidence=sec.confidence,
+#|                 limitations=sec.limitations,
+#|             )
+#|         )
+#| 
+#|     for mal in malware:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Malware indicator context: {mal.indicator_type} state={mal.state.name}.",
+#|                 claim_type="CORRELATED_FACT" if mal.state == MalwareState.MALICIOUS_ARTIFACT_CANDIDATE else "ANALYTICAL_INFERENCE",
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=mal.evidence_ids,
+#|                 object_ids=[mal.indicator_id],
+#|                 confidence=mal.confidence,
+#|                 limitations=mal.limitations,
+#|             )
+#|         )
+#| 
+#|     for v in vulnerabilities:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Vulnerability candidate: {v.cve or v.vulnerability_id} affects candidate {v.package_name} {v.package_version}; state={v.state.name}.",
+#|                 claim_type="CORRELATED_FACT",
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=v.evidence_ids,
+#|                 object_ids=[v.vulnerability_id],
+#|                 confidence=v.confidence,
+#|                 limitations=v.limitations,
+#|             )
+#|         )
+#| 
+#|     for d in drift_findings:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Drift finding: {d.drift_type.name} object={d.object_id} expected={d.expected} observed={d.observed}.",
+#|                 claim_type="CORRELATED_FACT",
+#|                 verification_state=d.state,
+#|                 evidence_ids=d.evidence_ids,
+#|                 object_ids=[d.drift_id],
+#|                 confidence=d.confidence,
+#|                 limitations=d.limitations,
+#|             )
+#|         )
+#| 
+#|     facts.append(
+#|         FactRecord(
+#|             fact_id=new_id("FACT"),
+#|             statement=f"Hardening context: {hardening.get('state')}.",
+#|             claim_type="ANALYTICAL_INFERENCE",
+#|             verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|             evidence_ids=[],
+#|             object_ids=[],
+#|             confidence=0.7,
+#|             limitations=hardening.get("limitations", []),
+#|         )
+#|     )
+#| 
+#|     facts.append(
+#|         FactRecord(
+#|             fact_id=new_id("FACT"),
+#|             statement=f"Policy compliance state: {policy_compliance.get('state')}.",
+#|             claim_type="ANALYTICAL_INFERENCE",
+#|             verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|             evidence_ids=[],
+#|             object_ids=[],
+#|             confidence=0.7,
+#|             limitations=policy_compliance.get("limitations", []),
+#|         )
+#|     )
+#| 
+#|     for c in contradictions:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Contradiction: {c.contradiction_type} — {c.description}",
+#|                 claim_type="DIRECT_ARTIFACT_FACT" if c.severity == "HIGH" else "CORRELATED_FACT",
+#|                 verification_state=VerificationState.DISPUTED,
+#|                 evidence_ids=c.evidence_ids,
+#|                 object_ids=c.object_ids,
+#|                 confidence=0.75,
+#|                 limitations=["Contradictions must be preserved, not silently resolved."],
+#|             )
+#|         )
+#| 
+#|     facts.append(
+#|         FactRecord(
+#|             fact_id=new_id("FACT"),
+#|             statement="No real-world threat actor, campaign, or malicious intent is established by container artifact intelligence alone.",
+#|             claim_type="UNKNOWN",
+#|             verification_state=VerificationState.INCONCLUSIVE,
+#|             evidence_ids=[],
+#|             object_ids=[],
+#|             confidence=0.99,
+#|             limitations=["Attribution requires CTI/INCIDENTINT/MALINT and human review."],
+#|         )
+#|     )
+#| 
+#|     return facts
+#| 
+#| 
+#| def build_knowledge_gaps(
+#|     image_references: List[ImageReferenceObject],
+#|     manifests: List[ManifestObject],
+#|     packages: List[PackageObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     deployment_digests: List[DeploymentDigest],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     contradictions: List[Contradiction],
+#| ) -> List[Gap]:
+#|     gaps: List[Gap] = []
+#| 
+#|     def add_gap(description: str, importance: str, recommended_source: str, specialist: str, expected_information_value: str) -> None:
+#|         gaps.append(
+#|             Gap(
+#|                 gap_id=new_id("GAP"),
+#|                 description=description,
+#|                 importance=importance,
+#|                 recommended_source=recommended_source,
+#|                 specialist=specialist,
+#|                 expected_information_value=expected_information_value,
+#|             )
+#|         )
+#| 
+#|     if not any(ref.digest for ref in image_references):
+#|         add_gap(
+#|             "Immutable image digest unresolved.",
+#|             "HIGH",
+#|             "OCI registry API / manifest pull by digest",
+#|             "CONTAINERINT",
+#|             "Establishes exact image identity and avoids tag mutability ambiguity.",
+#|         )
+#| 
+#|     if not manifests:
+#|         add_gap(
+#|             "OCI manifest unavailable.",
+#|             "HIGH",
+#|             "registry manifest API / authorized image tarball",
+#|             "CONTAINERINT",
+#|             "Enables layer, config, platform, and digest validation.",
+#|         )
+#| 
+#|     if not packages:
+#|         add_gap(
+#|             "Package inventory unavailable.",
+#|             "HIGH",
+#|             "filesystem reconstruction / SBOM / package DB parsing",
+#|             "CONTAINERINT / PACKAGEINT",
+#|             "Enables component, vulnerability, and SBOM validation context.",
+#|         )
+#| 
+#|     if sbom_validation is None:
+#|         add_gap(
+#|             "SBOM unavailable or not validated.",
+#|             "MEDIUM",
+#|             "build pipeline SBOM / scanner SBOM / Syft-like authorized output",
+#|             "CONTAINERINT / PACKAGEINT",
+#|             "Improves component inventory and supply-chain traceability.",
+#|         )
+#|     elif sbom_validation.state in (
+#|         SbomValidationState.STALE_CANDIDATE,
+#|         SbomValidationState.DIFFERENT_BUILD_CANDIDATE,
+#|         SbomValidationState.INCONCLUSIVE,
+#|     ):
+#|         add_gap(
+#|             f"SBOM validation uncertain: {sbom_validation.state.name}.",
+#|             "HIGH",
+#|             "regenerate SBOM from exact image digest/platform",
+#|             "CONTAINERINT",
+#|             "Resolves whether SBOM corresponds to observed image.",
+#|         )
+#| 
+#|     if not any(s.state == SignatureState.VERIFIED for s in signatures):
+#|         add_gap(
+#|             "Image signature not verified for deployed digest.",
+#|             "HIGH",
+#|             "Cosign/Sigstore verification against deployed digest",
+#|             "CONTAINERINT / CERTINT",
+#|             "Confirms artifact integrity/signer relationship.",
+#|         )
+#| 
+#|     if not any(p.state in (ProvenanceState.VERIFIED_BUILD_SOURCE, ProvenanceState.SUPPORTED_BUILD_SOURCE) for p in provenance):
+#|         add_gap(
+#|             "Build provenance unresolved for deployed digest.",
+#|             "HIGH",
+#|             "SLSA/in-toto attestation / CI build record",
+#|             "CONTAINERINT / SUPPLYCHAININT",
+#|             "Connects image digest to build source/pipeline where authorized.",
+#|         )
+#| 
+#|     if not deployment_digests:
+#|         add_gap(
+#|             "Deployed digest unknown.",
+#|             "HIGH",
+#|             "authorized Kubernetes/runtime inventory",
+#|             "CONTAINERINT / CLOUDINT / KUBERNETES",
+#|             "Determines whether observed image is actually running and where.",
+#|         )
+#| 
+#|     if vulnerabilities:
+#|         add_gap(
+#|             "Vulnerability applicability unresolved.",
+#|             "HIGH",
+#|             "VULNINT reachability/backport/configuration analysis",
+#|             "VULNINT",
+#|             "Converts package/CVE candidate into prioritized applicability assessment.",
+#|         )
+#| 
+#|     if secrets:
+#|         add_gap(
+#|             "Secret validity and blast radius unresolved.",
+#|             "HIGH",
+#|             "CREDINT authorized credential exposure workflow",
+#|             "CREDINT",
+#|             "Handles exposure without using/testing secrets.",
+#|         )
+#| 
+#|     if malware:
+#|         add_gap(
+#|             "Malware artifact confirmation unresolved.",
+#|             "HIGH",
+#|             "MALINT safe static/dynamic sandbox",
+#|             "MALINT",
+#|             "Determines maliciousness/family/behavior without executing on analyst host.",
+#|         )
+#| 
+#|     if contradictions:
+#|         add_gap(
+#|             "Evidence contradictions require source/time/platform reconciliation.",
+#|             "HIGH",
+#|             "registry history / manifest inspection / deployment timeline",
+#|             "CONTAINERINT",
+#|             "Prevents false supply-chain conclusions from tag/mirror/SBOM/platform artifacts.",
+#|         )
+#| 
+#|     return gaps
+#| 
+#| 
+#| def build_graphical_memory(
+#|     registries: List[RegistryObject],
+#|     repositories: List[RepositoryObject],
+#|     image_references: List[ImageReferenceObject],
+#|     tag_history: List[TagHistoryEntry],
+#|     manifests: List[ManifestObject],
+#|     platforms: List[PlatformVariant],
+#|     configs: List[ImageConfigObject],
+#|     layers: List[LayerObject],
+#|     packages: List[PackageObject],
+#|     binaries: List[BinaryObject],
+#|     sboms: List[SbomObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     workloads: List[KubernetesWorkload],
+#|     deployments: List[DeploymentDigest],
+#|     drift_findings: List[DriftFinding],
+#|     facts: List[FactRecord],
+#|     hypotheses: List[Hypothesis],
+#|     contradictions: List[Contradiction],
+#|     gaps: List[Gap],
+#| ) -> Dict[str, Any]:
+#|     nodes: Dict[str, GraphNode] = {}
+#|     edges: List[GraphEdge] = []
+#| 
+#|     def add_node(node_id: str, node_type: str, attributes: Dict[str, Any]) -> None:
+#|         nodes[node_id] = GraphNode(node_id=node_id, type=node_type, attributes=attributes)
+#| 
+#|     def add_edge(source: str, target: str, relation: str, confidence: float, evidence_ids: List[str]) -> None:
+#|         edges.append(
+#|             GraphEdge(
+#|                 edge_id=new_id("EDGE"),
+#|                 source_node_id=source,
+#|                 target_node_id=target,
+#|                 relation=relation,
+#|                 confidence=confidence,
+#|                 evidence_ids=sorted(set(evidence_ids)),
+#|             )
+#|         )
+#| 
+#|     for reg in registries:
+#|         add_node(f"N_REGISTRY_{reg.registry_id}", "Registry", {"hostname": reg.hostname, "type": reg.registry_type.name})
+#| 
+#|     for repo in repositories:
+#|         repo_node = f"N_REPO_{repo.registry_id}_{repo.repository_name}"
+#|         add_node(repo_node, "ContainerRepository", {"namespace": repo.namespace, "visibility": repo.visibility})
+#|         add_edge(repo_node, f"N_REGISTRY_{repo.registry_id}", "HOSTED_IN", repo.confidence, repo.evidence_ids)
+#| 
+#|     for ref in image_references:
+#|         ref_node = f"N_IMGREF_{ref.image_reference_id}"
+#|         add_node(
+#|             ref_node,
+#|             "ImageReference",
+#|             {"original": ref.original_reference, "tag": ref.tag, "digest": ref.digest},
+#|         )
+#|         if ref.repository:
+#|             # Approximate repo node by registry/repository if available.
+#|             repo_node = f"N_REPO_{ref.registry_id}_{ref.repository}" if ref.registry_id else None
+#|             if repo_node and repo_node in nodes:
+#|                 add_edge(ref_node, repo_node, "RESOLVES_TO_DIGEST", ref.confidence, ref.evidence_ids)
+#|         if ref.digest:
+#|             add_node(f"N_IMAGE_{ref.digest}", "Image", {"digest": ref.digest})
+#|             add_edge(ref_node, f"N_IMAGE_{ref.digest}", "RESOLVES_TO_DIGEST", ref.confidence, ref.evidence_ids)
+#| 
+#|     for th in tag_history:
+#|         th_node = f"N_TAGHIST_{th.entry_id}"
+#|         add_node(th_node, "TagHistory", {"tag": th.tag, "digest": th.digest, "valid_from": th.valid_from, "valid_to": th.valid_to})
+#|         add_node(f"N_IMAGE_{th.digest}", "Image", {"digest": th.digest})
+#|         add_edge(th_node, f"N_IMAGE_{th.digest}", "TAG_POINTS_TO", 0.9, th.evidence_ids)
+#| 
+#|     for m in manifests:
+#|         m_node = f"N_MANIFEST_{m.manifest_digest or new_id('MAN')}"
+#|         add_node(m_node, "Manifest", {"media_type": m.media_type, "config_digest": m.config_digest, "layers": len(m.layer_digests)})
+#|         if m.manifest_digest:
+#|             add_node(f"N_IMAGE_{m.manifest_digest}", "Image", {"digest": m.manifest_digest})
+#|             add_edge(m_node, f"N_IMAGE_{m.manifest_digest}", "HAS_MANIFEST", m.confidence, m.evidence_ids)
+#| 
+#|     for p in platforms:
+#|         if p.manifest_digest:
+#|             p_node = f"N_PLATFORM_{p.manifest_digest}"
+#|             add_node(p_node, "PlatformVariant", {"os": p.os, "architecture": p.architecture, "variant": p.variant})
+#|             add_edge(p_node, f"N_MANIFEST_{p.manifest_digest}", "HAS_VARIANT", 0.9, p.evidence_ids)
+#| 
+#|     for cfg in configs:
+#|         cfg_node = f"N_CONFIG_{cfg.evidence_ids[0] if cfg.evidence_ids else new_id('CFG')}"
+#|         add_node(
+#|             cfg_node,
+#|             "ImageConfig",
+#|             {"user": cfg.user, "entrypoint": cfg.entrypoint, "cmd": cfg.cmd, "environment_keys": list(cfg.environment.keys())},
+#|         )
+#| 
+#|     for layer in layers:
+#|         l_node = f"N_LAYER_{layer.layer_index}_{layer.digest or new_id('L')}"
+#|         add_node(l_node, "Layer", {"index": layer.layer_index, "digest": layer.digest, "whiteouts": layer.whiteouts})
+#| 
+#|     for pkg in packages:
+#|         pkg_node = f"N_PACKAGE_{pkg.package_id}"
+#|         add_node(pkg_node, "Package", {"name": pkg.name, "version": pkg.version, "ecosystem": pkg.ecosystem, "purl": pkg.purl})
+#| 
+#|     for b in binaries:
+#|         bin_node = f"N_BINARY_{b.binary_id}"
+#|         add_node(bin_node, "Binary", {"path": b.path, "sha256": b.sha256, "layer_index": b.layer_index})
+#| 
+#|     for sbom in sboms:
+#|         sbom_node = f"N_SBOM_{sbom.sbom_id}"
+#|         add_node(sbom_node, "SBOM", {"format": sbom.format, "components": len(sbom.components), "generated_at": sbom.generated_at})
+#| 
+#|     if sbom_validation:
+#|         val_node = f"N_SBOMVAL_{sbom_validation.validation_id}"
+#|         add_node(val_node, "SBOMValidation", {"state": sbom_validation.state.name, "explanation": sbom_validation.explanation})
+#|         add_edge(val_node, f"N_SBOM_{sbom_validation.sbom_id}", "SUPPORTED_BY", sbom_validation.confidence, sbom_validation.evidence_ids)
+#| 
+#|     for sig in signatures:
+#|         sig_node = f"N_SIG_{sig.signature_id}"
+#|         add_node(sig_node, "Signature", {"digest": sig.digest_covered, "state": sig.state.name, "signer": sig.signer_identity_claim})
+#|         if sig.digest_covered:
+#|             add_node(f"N_IMAGE_{sig.digest_covered}", "Image", {"digest": sig.digest_covered})
+#|             add_edge(sig_node, f"N_IMAGE_{sig.digest_covered}", "SIGNED_BY", sig.confidence, sig.evidence_ids)
+#| 
+#|     for prov in provenance:
+#|         prov_node = f"N_PROV_{prov.provenance_id}"
+#|         add_node(prov_node, "Provenance", {"builder": prov.builder, "repo": prov.source_repository, "commit": prov.commit, "state": prov.state.name})
+#|         if prov.artifact_digest:
+#|             add_node(f"N_IMAGE_{prov.artifact_digest}", "Image", {"digest": prov.artifact_digest})
+#|             add_edge(prov_node, f"N_IMAGE_{prov.artifact_digest}", "ATTESTED_BY", prov.confidence, prov.evidence_ids)
+#| 
+#|     for sec in secrets:
+#|         sec_node = f"N_SECRET_{sec.secret_id}"
+#|         add_node(sec_node, "SecretExposure", {"type": sec.secret_type, "state": sec.state.name, "path": sec.path, "env": sec.environment_variable})
+#| 
+#|     for mal in malware:
+#|         mal_node = f"N_MAL_{mal.indicator_id}"
+#|         add_node(mal_node, "MalwareIndicator", {"type": mal.indicator_type, "state": mal.state.name, "family": mal.family})
+#| 
+#|     for v in vulnerabilities:
+#|         vuln_node = f"N_VULN_{v.vulnerability_id}"
+#|         add_node(vuln_node, "Vulnerability", {"cve": v.cve, "package": v.package_name, "version": v.package_version, "state": v.state.name})
+#| 
+#|     for wl in workloads:
+#|         wl_node = f"N_WORKLOAD_{wl.workload_id}"
+#|         add_node(wl_node, "KubernetesWorkload", {"kind": wl.kind, "namespace": wl.namespace, "image_digest": wl.image_digest})
+#|         if wl.image_digest:
+#|             add_node(f"N_IMAGE_{wl.image_digest}", "Image", {"digest": wl.image_digest})
+#|             add_edge(wl_node, f"N_IMAGE_{wl.image_digest}", "DEPLOYED_AS", wl.confidence, wl.evidence_ids)
+#| 
+#|     for dep in deployments:
+#|         dep_node = f"N_DEP_{dep.deployment_id}"
+#|         add_node(dep_node, "DeploymentDigest", {"approved": dep.approved_digest, "observed": dep.observed_digest, "tag": dep.tag})
+#|         if dep.observed_digest:
+#|             add_node(f"N_IMAGE_{dep.observed_digest}", "Image", {"digest": dep.observed_digest})
+#|             add_edge(dep_node, f"N_IMAGE_{dep.observed_digest}", "RUNS_IN", dep.confidence, dep.evidence_ids)
+#| 
+#|     for d in drift_findings:
+#|         drift_node = f"N_DRIFT_{d.drift_id}"
+#|         add_node(drift_node, "DriftFinding", {"type": d.drift_type.name, "expected": d.expected, "observed": d.observed})
+#| 
+#|     for f in facts:
+#|         fact_node = f"N_FACT_{f.fact_id}"
+#|         add_node(fact_node, "Fact", {"statement": f.statement, "state": f.verification_state.name, "claim_type": f.claim_type})
+#| 
+#|     for h in hypotheses:
+#|         hyp_node = f"N_HYP_{h.id}"
+#|         add_node(hyp_node, "Hypothesis", {"description": h.description, "status": h.status.name})
+#| 
+#|     for c in contradictions:
+#|         contra_node = f"N_CONTRA_{c.contradiction_id}"
+#|         add_node(contra_node, "Contradiction", {"type": c.contradiction_type, "description": c.description, "severity": c.severity})
+#| 
+#|     for g in gaps:
+#|         gap_node = f"N_GAP_{g.gap_id}"
+#|         add_node(gap_node, "Gap", {"description": g.description, "importance": g.importance, "specialist": g.specialist})
+#| 
+#|     return {
+#|         "nodes": [asdict(n) for n in nodes.values()],
+#|         "edges": [asdict(e) for e in edges],
+#|     }
+#| 
+#| 
+#| def generate_analyst_summary(
+#|     registries: List[RegistryObject],
+#|     repositories: List[RepositoryObject],
+#|     image_references: List[ImageReferenceObject],
+#|     tag_history: List[TagHistoryEntry],
+#|     manifests: List[ManifestObject],
+#|     platforms: List[PlatformVariant],
+#|     configs: List[ImageConfigObject],
+#|     layers: List[LayerObject],
+#|     packages: List[PackageObject],
+#|     sbom_validation: Optional[SbomValidation],
+#|     signatures: List[SignatureObject],
+#|     provenance: List[ProvenanceObject],
+#|     secrets: List[SecretExposure],
+#|     malware: List[MalwareIndicator],
+#|     vulnerabilities: List[VulnerabilityCandidate],
+#|     drift_findings: List[DriftFinding],
+#|     hardening: Dict[str, Any],
+#|     policy_compliance: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     gaps: List[Gap],
+#| ) -> str:
+#|     lines: List[str] = []
+#| 
+#|     lines.append("=== CONTAINERINT REQUIRED ANALYST SUMMARY ===")
+#| 
+#|     lines.append("IMAGE:")
+#|     for ref in image_references:
+#|         lines.append(f"- {ref.original_reference} -> digest={ref.digest}, tag={ref.tag}")
+#| 
+#|     lines.append("")
+#|     lines.append("REGISTRY:")
+#|     for reg in registries:
+#|         lines.append(f"- {reg.registry_id}: hostname={reg.hostname}, type={reg.registry_type.name}")
+#| 
+#|     lines.append("")
+#|     lines.append("REPOSITORY:")
+#|     for repo in repositories:
+#|         lines.append(f"- {repo.registry_id}/{repo.repository_name}: namespace={repo.namespace}, visibility={repo.visibility}")
+#| 
+#|     lines.append("")
+#|     lines.append("TAG / DIGEST RESOLUTION:")
+#|     for ref in image_references:
+#|         if ref.digest:
+#|             lines.append(f"- Immutable digest resolved: {ref.digest}")
+#|         else:
+#|             lines.append(f"- Mutable tag reference: {ref.tag or ref.original_reference}")
+#| 
+#|     lines.append("")
+#|     lines.append("TAG HISTORY:")
+#|     by_tag: Dict[str, Set[str]] = defaultdict(set)
+#|     for th in tag_history:
+#|         by_tag[th.tag].add(th.digest)
+#|     for tag, digests in by_tag.items():
+#|         lines.append(f"- {tag}: {', '.join(sorted(digests))}")
+#| 
+#|     lines.append("")
+#|     lines.append("PLATFORM:")
+#|     for p in platforms:
+#|         lines.append(f"- {p.os}/{p.architecture}{('/' + p.variant) if p.variant else ''}: manifest={p.manifest_digest}")
+#| 
+#|     lines.append("")
+#|     lines.append("MANIFEST:")
+#|     for m in manifests:
+#|         lines.append(f"- digest={m.manifest_digest}, media_type={m.media_type}, layers={len(m.layer_digests)}")
+#| 
+#|     lines.append("")
+#|     lines.append("BASE IMAGE / LINEAGE:")
+#|     base, base_state, _ = resolve_base_image(provenance, configs, layers, image_references[0].digest if image_references else None)
+#|     lines.append(f"- Base image candidate: {base or 'unknown'} ({base_state.name})")
+#| 
+#|     lines.append("")
+#|     lines.append("LAYERS:")
+#|     for layer in layers:
+#|         lines.append(f"- layer {layer.layer_index}: digest={layer.digest}, whiteouts={len(layer.whiteouts)}")
+#| 
+#|     lines.append("")
+#|     lines.append("PACKAGE / COMPONENT INVENTORY:")
+#|     for p in packages[:20]:
+#|         lines.append(f"- {p.name} {p.version or ''} ({p.ecosystem or 'unknown'}) purl={p.purl or 'n/a'}")
+#| 
+#|     lines.append("")
+#|     lines.append("SBOM STATUS:")
+#|     if sbom_validation:
+#|         lines.append(f"- State: {sbom_validation.state.name}")
+#|         lines.append(f"- Explanation: {sbom_validation.explanation}")
+#|         if sbom_validation.missing_in_sbom:
+#|             lines.append(f"- Missing in SBOM: {', '.join(sbom_validation.missing_in_sbom[:10])}")
+#|         if sbom_validation.extra_in_sbom:
+#|             lines.append(f"- Extra in SBOM: {', '.join(sbom_validation.extra_in_sbom[:10])}")
+#|         if sbom_validation.version_conflicts:
+#|             lines.append(f"- Version conflicts: {len(sbom_validation.version_conflicts)}")
+#|     else:
+#|         lines.append("- No SBOM supplied.")
+#| 
+#|     lines.append("")
+#|     lines.append("VEX STATUS:")
+#|     lines.append(f"- VEX-adjusted vulnerability candidates: {sum(1 for v in vulnerabilities if v.state in (VulnerabilityState.NOT_AFFECTED_PER_VEX, VulnerabilityState.FIXED_PER_VEX, VulnerabilityState.UNDER_INVESTIGATION))}")
+#| 
+#|     lines.append("")
+#|     lines.append("SIGNATURE STATUS:")
+#|     for sig in signatures:
+#|         lines.append(f"- digest={sig.digest_covered}: {sig.state.name}, signer={sig.signer_identity_claim}")
+#| 
+#|     lines.append("")
+#|     lines.append("PROVENANCE STATUS:")
+#|     for prov in provenance:
+#|         lines.append(f"- digest={prov.artifact_digest}: {prov.state.name}, repo={prov.source_repository}, commit={prov.commit}")
+#| 
+#|     lines.append("")
+#|     lines.append("BUILD SOURCE:")
+#|     supported = [p for p in provenance if p.state in (ProvenanceState.VERIFIED_BUILD_SOURCE, ProvenanceState.SUPPORTED_BUILD_SOURCE)]
+#|     lines.append(f"- Supported build-source digests: {', '.join(p.artifact_digest or 'unknown' for p in supported) if supported else 'none'}")
+#| 
+#|     lines.append("")
+#|     lines.append("ENTRYPOINT / CMD / USER:")
+#|     for cfg in configs:
+#|         lines.append(f"- entrypoint={cfg.entrypoint}, cmd={cfg.cmd}, user={cfg.user}")
+#| 
+#|     lines.append("")
+#|     lines.append("SECRET EXPOSURE:")
+#|     if secrets:
+#|         for sec in secrets:
+#|             lines.append(f"- {sec.secret_type}: state={sec.state.name}, path={sec.path}, env={sec.environment_variable}, fingerprint={sec.fingerprint}")
+#|     else:
+#|         lines.append("- None detected from supplied authorized static evidence.")
+#|     lines.append("- Raw secrets redacted. Validity not tested. Hand off to CREDINT.")
+#| 
+#|     lines.append("")
+#|     lines.append("MALWARE INDICATORS:")
+#|     if malware:
+#|         for mal in malware:
+#|             lines.append(f"- {mal.indicator_type}: state={mal.state.name}, value={mal.value}, family={mal.family}")
+#|     else:
+#|         lines.append("- No malware indicator match from supplied authorized static evidence.")
+#|     lines.append("- Do not execute image/binary. Hand off to MALINT if consequential.")
+#| 
+#|     lines.append("")
+#|     lines.append("VULNERABILITY CONTEXT:")
+#|     for v in vulnerabilities[:20]:
+#|         lines.append(f"- {v.cve or v.vulnerability_id}: {v.package_name} {v.package_version}, state={v.state.name}, severity={v.severity}, KEV={v.kev}")
+#|     lines.append("- Package presence is not vulnerability applicability. Hand off to VULNINT.")
+#| 
+#|     lines.append("")
+#|     lines.append("RUNTIME / DEPLOYMENT CONTEXT:")
+#|     for d in drift_findings:
+#|         lines.append(f"- {d.drift_type.name}: object={d.object_id}, expected={d.expected}, observed={d.observed}")
+#| 
+#|     lines.append("")
+#|     lines.append("HARDENING CONTEXT:")
+#|     lines.append(f"- State: {hardening.get('state')}")
+#|     for obs in hardening.get("observations", []):
+#|         lines.append(f"- {obs}")
+#| 
+#|     lines.append("")
+#|     lines.append("POLICY COMPLIANCE:")
+#|     lines.append(f"- State: {policy_compliance.get('state')}")
+#|     for check in policy_compliance.get("checks", [])[:20]:
+#|         lines.append(f"- {check.get('check')}: passed={check.get('passed')}")
+#| 
+#|     lines.append("")
+#|     lines.append("CONTRADICTIONS:")
+#|     if contradictions:
+#|         for c in contradictions:
+#|             lines.append(f"- {c.contradiction_type}: {c.description} [{c.severity}]")
+#|     else:
+#|         lines.append("- None detected.")
+#| 
+#|     lines.append("")
+#|     lines.append("UNKNOWN:")
+#|     lines.append("- Vulnerability applicability/reachability.")
+#|     lines.append("- Secret validity.")
+#|     lines.append("- Malware family/behavior.")
+#|     lines.append("- Threat actor/campaign attribution.")
+#|     lines.append("- Whether deployment drift was authorized.")
+#| 
+#|     lines.append("")
+#|     lines.append("NEXT ACTION:")
+#|     lines.append("- Resolve immutable digest and platform-specific manifest.")
+#|     lines.append("- Validate layer digests and reconstruct filesystem safely.")
+#|     lines.append("- Regenerate/compare SBOM for exact digest/platform.")
+#|     lines.append("- Verify signature and provenance for deployed digest.")
+#|     lines.append("- Hand vulnerability candidates to VULNINT.")
+#|     lines.append("- Hand secret exposures to CREDINT without using secrets.")
+#|     lines.append("- Hand suspicious binaries to MALINT without execution.")
+#|     lines.append("- Review deployment drift against change/release authorization.")
+#|     lines.append("- Require human review before blocking/removing production images or attributing supply-chain compromise.")
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # ==============================================================================
+#| # MAIN ENGINE: CONTAINERINT AI EMPLOYEE
+#| # ==============================================================================
+#| 
+#| class ContainerIntEmployee:
+#|     """
+#|     Defensive CONTAINERINT employee.
+#| 
+#|     Consumes authorized container/image/registry/SBOM/provenance/runtime evidence representations.
+#|     Does not access unauthorized registries, push/delete/tamper images, exploit containers,
+#|     escape containers, execute unknown images/binaries, or use discovered secrets.
+#|     """
+#| 
+#|     def __init__(self, model_mode: str = "LOCAL_ONLY"):
+#|         self.model_mode = model_mode.upper()
+#|         logger.info("CONTAINERINT employee initialized in mode=%s", self.model_mode)
+#| 
+#|     def process_case(
+#|         self,
+#|         case_id: str,
+#|         task_id: str,
+#|         objective: str,
+#|         scope: Dict[str, Any],
+#|         evidence_input: Dict[str, Any],
+#|         known_facts: Optional[Dict[str, Any]] = None,
+#|     ) -> Dict[str, Any]:
+#|         known_facts = known_facts or {}
+#|         now = datetime.now(timezone.utc)
+#| 
+#|         try:
+#|             enforce_policy(objective, scope)
+#|         except PolicyViolation as exc:
+#|             return {
+#|                 "case_id": case_id,
+#|                 "task_id": task_id,
+#|                 "objective": objective,
+#|                 "status": "POLICY_BLOCKED",
+#|                 "error": str(exc),
+#|                 "privacy_flags": [
+#|                     "AUTHORIZED_REGISTRY_ONLY",
+#|                     "STATIC_FIRST_DEFAULT",
+#|                     "NO_IMAGE_EXECUTION",
+#|                     "NO_SECRET_USE",
+#|                     "NO_REGISTRY_TAMPERING",
+#|                     "NO_CONTAINER_EXPLOITATION",
+#|                 ],
+#|             }
+#| 
+#|         logger.info("Starting CONTAINERINT case=%s task=%s", case_id, task_id)
+#| 
+#|         evidences: List[EvidenceRef] = []
+#| 
+#|         registries = parse_registries(evidence_input.get("registries", []) or [], case_id, now, evidences)
+#|         repositories = parse_repositories(evidence_input.get("repositories", []) or [], case_id, now, evidences)
+#|         image_references = parse_image_references(evidence_input.get("image_references", []) or [], case_id, now, evidences)
+#|         tag_history = parse_tag_history(evidence_input.get("tag_history", []) or [], case_id, now, evidences)
+#|         platforms = parse_platform_variants(evidence_input.get("platform_variants", []) or [], case_id, now, evidences)
+#|         manifests = parse_manifests(evidence_input.get("manifests", []) or [], case_id, now, evidences, platforms)
+#|         configs = parse_image_configs(evidence_input.get("image_configs", []) or [], case_id, now, evidences)
+#|         layers = parse_layers(evidence_input.get("layers", []) or [], case_id, now, evidences)
+#|         filesystem_artifacts = parse_filesystem_artifacts(evidence_input.get("filesystem_artifacts", []) or [], case_id, now, evidences)
+#|         packages = parse_packages(evidence_input.get("packages", []) or [], case_id, now, evidences)
+#|         binaries = parse_binaries(evidence_input.get("binaries", []) or [], case_id, now, evidences)
+#|         sboms = parse_sboms(evidence_input.get("sboms", []) or [], case_id, now, evidences)
+#|         vex_records = parse_vex_records(evidence_input.get("vex_records", []) or [], case_id, now, evidences)
+#|         signatures = parse_signatures(evidence_input.get("signatures", []) or [], case_id, now, evidences)
+#|         attestations = parse_attestations(evidence_input.get("attestations", []) or [], case_id, now, evidences)
+#|         provenance = parse_provenance(evidence_input.get("provenance", []) or [], case_id, now, evidences)
+#|         build_sources = resolve_build_sources(provenance, evidence_input.get("build_metadata", []) or [], case_id, now, evidences)
+#|         runtime_instances = parse_runtime_instances(evidence_input.get("runtime_instances", []) or [], case_id, now, evidences)
+#|         workloads = parse_kubernetes_workloads(evidence_input.get("kubernetes_workloads", []) or [], case_id, now, evidences)
+#|         cloud_context = parse_cloud_context(evidence_input.get("cloud_context", []) or [], case_id, now, evidences)
+#|         deployment_digests = parse_deployment_digests(evidence_input.get("deployment_digests", []) or [], case_id, now, evidences)
+#| 
+#|         primary_image_reference = image_references[0] if image_references else None
+#|         primary_digest = primary_image_reference.digest if primary_image_reference else None
+#| 
+#|         # If digest missing, try latest tag history.
+#|         if not primary_digest and tag_history:
+#|             latest = max(tag_history, key=lambda x: x.observed_at or datetime.min.replace(tzinfo=timezone.utc))
+#|             primary_digest = latest.digest
+#| 
+#|         base_image, base_state, base_evidence_ids = resolve_base_image(provenance, configs, layers, primary_digest)
+#| 
+#|         sbom_validation = validate_sbom_against_image(
+#|             sboms[0] if sboms else None,
+#|             packages,
+#|             binaries,
+#|             primary_image_reference,
+#|             now,
+#|         )
+#| 
+#|         secrets = scan_secret_exposures(configs, filesystem_artifacts, layers, case_id, now, evidences)
+#|         malware = scan_malware_indicators(
+#|             evidence_input.get("malware_intel", []) or [],
+#|             packages,
+#|             binaries,
+#|             filesystem_artifacts,
+#|             case_id,
+#|             now,
+#|             evidences,
+#|         )
+#|         vulnerabilities = map_vulnerability_candidates(
+#|             packages,
+#|             evidence_input.get("vulnerability_data", []) or [],
+#|             vex_records,
+#|             case_id,
+#|             now,
+#|             evidences,
+#|         )
+#| 
+#|         drift_findings = compute_drift_findings(
+#|             image_references=image_references,
+#|             tag_history=tag_history,
+#|             deployment_digests=deployment_digests,
+#|             runtime_instances=runtime_instances,
+#|             workloads=workloads,
+#|             policy=evidence_input.get("policy", {}) or {},
+#|         )
+#| 
+#|         hardening = assess_hardening(configs, workloads, runtime_instances)
+#|         policy_compliance = evaluate_policy_compliance(
+#|             policy=evidence_input.get("policy", {}) or {},
+#|             registries=registries,
+#|             image_references=image_references,
+#|             signatures=signatures,
+#|             sbom_validation=sbom_validation,
+#|             configs=configs,
+#|             vulnerabilities=vulnerabilities,
+#|             drift_findings=drift_findings,
+#|         )
+#| 
+#|         contradictions = detect_contradictions(
+#|             image_references=image_references,
+#|             tag_history=tag_history,
+#|             deployment_digests=deployment_digests,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             sbom_validation=sbom_validation,
+#|             packages=packages,
+#|             vulnerabilities=vulnerabilities,
+#|             drift_findings=drift_findings,
+#|             secrets=secrets,
+#|         )
+#| 
+#|         hypotheses = build_hypotheses(
+#|             image_references=image_references,
+#|             deployment_digests=deployment_digests,
+#|             drift_findings=drift_findings,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             sbom_validation=sbom_validation,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             vulnerabilities=vulnerabilities,
+#|             hardening=hardening,
+#|             contradictions=contradictions,
+#|             known_facts=known_facts,
+#|         )
+#| 
+#|         skeptic = independent_skeptic_review(
+#|             drift_findings=drift_findings,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             sbom_validation=sbom_validation,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             vulnerabilities=vulnerabilities,
+#|             contradictions=contradictions,
+#|             hardening=hardening,
+#|             known_facts=known_facts,
+#|         )
+#| 
+#|         facts = build_facts(
+#|             image_references=image_references,
+#|             manifests=manifests,
+#|             layers=layers,
+#|             packages=packages,
+#|             sbom_validation=sbom_validation,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             vulnerabilities=vulnerabilities,
+#|             drift_findings=drift_findings,
+#|             hardening=hardening,
+#|             policy_compliance=policy_compliance,
+#|             contradictions=contradictions,
+#|         )
+#| 
+#|         gaps = build_knowledge_gaps(
+#|             image_references=image_references,
+#|             manifests=manifests,
+#|             packages=packages,
+#|             sbom_validation=sbom_validation,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             deployment_digests=deployment_digests,
+#|             vulnerabilities=vulnerabilities,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             contradictions=contradictions,
+#|         )
+#| 
+#|         graph = build_graphical_memory(
+#|             registries=registries,
+#|             repositories=repositories,
+#|             image_references=image_references,
+#|             tag_history=tag_history,
+#|             manifests=manifests,
+#|             platforms=platforms,
+#|             configs=configs,
+#|             layers=layers,
+#|             packages=packages,
+#|             binaries=binaries,
+#|             sboms=sboms,
+#|             sbom_validation=sbom_validation,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             vulnerabilities=vulnerabilities,
+#|             workloads=workloads,
+#|             deployments=deployment_digests,
+#|             drift_findings=drift_findings,
+#|             facts=facts,
+#|             hypotheses=hypotheses,
+#|             contradictions=contradictions,
+#|             gaps=gaps,
+#|         )
+#| 
+#|         analyst_summary = generate_analyst_summary(
+#|             registries=registries,
+#|             repositories=repositories,
+#|             image_references=image_references,
+#|             tag_history=tag_history,
+#|             manifests=manifests,
+#|             platforms=platforms,
+#|             configs=configs,
+#|             layers=layers,
+#|             packages=packages,
+#|             sbom_validation=sbom_validation,
+#|             signatures=signatures,
+#|             provenance=provenance,
+#|             secrets=secrets,
+#|             malware=malware,
+#|             vulnerabilities=vulnerabilities,
+#|             drift_findings=drift_findings,
+#|             hardening=hardening,
+#|             policy_compliance=policy_compliance,
+#|             contradictions=contradictions,
+#|             gaps=gaps,
+#|         )
+#| 
+#|         recommended_next_actions = [
+#|             {
+#|                 "action": "Resolve immutable digest and platform-specific manifest before making image identity claims.",
+#|                 "reason": "Tags are mutable; digest identifies artifact content.",
+#|                 "specialist": "CONTAINERINT",
+#|                 "privacy": "AUTHORIZED_REGISTRY_ONLY",
+#|             },
+#|             {
+#|                 "action": "Validate layer digests and reconstruct filesystem safely with whiteout processing.",
+#|                 "reason": "Final filesystem state is not a simple union of layer file lists.",
+#|                 "specialist": "CONTAINERINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Regenerate or obtain SBOM for exact image digest/platform and compare against filesystem inventory.",
+#|                 "reason": "SBOM may be stale, source-based, architecture-specific, or incomplete.",
+#|                 "specialist": "CONTAINERINT / PACKAGEINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Verify signature and provenance specifically for the deployed digest.",
+#|                 "reason": "Signature/provenance for an approved digest does not prove an observed different digest.",
+#|                 "specialist": "CONTAINERINT / CERTINT / SUPPLYCHAININT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand vulnerability candidates to VULNINT for applicability, reachability, backport, and exploitation context.",
+#|                 "reason": "Package presence and CVE match do not establish exploitable container.",
+#|                 "specialist": "VULNINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand secret exposures to CREDINT without using, testing, or exposing raw secrets.",
+#|                 "reason": "CONTAINERINT detects and redacts; credential handling requires authorized workflow.",
+#|                 "specialist": "CREDINT",
+#|                 "privacy": "RESTRICTED",
+#|             },
+#|             {
+#|                 "action": "Hand suspicious binaries/artifacts to MALINT without executing unknown content.",
+#|                 "reason": "Malware confirmation requires safe static/dynamic analysis.",
+#|                 "specialist": "MALINT",
+#|                 "privacy": "AUTHORIZED_SANDBOX_ONLY",
+#|             },
+#|             {
+#|                 "action": "Review deployment drift against release/change authorization and registry audit records.",
+#|                 "reason": "Tag/digest drift may be normal CI/CD, mirror behavior, stale inventory, or unauthorized change.",
+#|                 "specialist": "CONTAINERINT / CLOUDINT / INCIDENTINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Do not push, delete, retag, tamper with manifests, exploit containers, escape containers, or use discovered secrets.",
+#|                 "reason": "CONTAINERINT boundary is defensive intelligence.",
+#|                 "specialist": "GOVERNANCE / HUMAN_REVIEW",
+#|                 "privacy": "POLICY_BOUNDARY",
+#|             },
+#|         ]
+#| 
+#|         specialist_handoffs = [
+#|             {"specialist": "VULNINT", "reason": "Vulnerability applicability, reachability, backports, exploitation context."},
+#|             {"specialist": "PACKAGEINT", "reason": "Package ecosystem identity, version history, dependency relationships."},
+#|             {"specialist": "REPOINT", "reason": "Source repository/commit/release correlation where build provenance supports it."},
+#|             {"specialist": "SUPPLYCHAININT", "reason": "Broader organizational/software supply-chain dependency analysis."},
+#|             {"specialist": "MALINT", "reason": "Malware family, capabilities, behavior, safe sandbox analysis."},
+#|             {"specialist": "CREDINT", "reason": "Secret/credential exposure handling without credential use."},
+#|             {"specialist": "CLOUDINT", "reason": "Cloud registry, managed container service, IAM, and workload context."},

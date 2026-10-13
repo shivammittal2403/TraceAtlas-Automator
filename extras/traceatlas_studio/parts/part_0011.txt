@@ -1,0 +1,1000 @@
+#|         actions.append("Resolve registration era valid_from/valid_to before attributing historical flights")
+#| 
+#|     if any(g["gap_id"] == "GAP-OPERATOR-HISTORY" for g in gaps):
+#|         actions.append("Resolve operator era using fleet records or authorized corporate records")
+#| 
+#|     if contradictions:
+#|         actions.append("Preserve contradictions and compare raw independent sources before resolving identity/track conflicts")
+#| 
+#|     if flights:
+#|         actions.append("Compare observed track with an independent historical aviation source")
+#|         actions.append("Retrieve airport movement records where available to confirm departure/arrival")
+#|         actions.append("Compare scheduled vs observed flight only as context, not proof")
+#| 
+#|     if any(f.get("track_gaps") for f in flights):
+#|         actions.append("Check feed/receiver coverage metadata before interpreting track gaps")
+#| 
+#|     actions.append("Maintain historical-first posture; no live tactical tracking, interception, targeting, stalking, jamming, spoofing, or transponder manipulation")
+#| 
+#|     return actions
+#| 
+#| 
+#| def build_specialist_handoffs(
+#|     flights: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     aircraft: Dict[str, Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     handoffs: List[Dict[str, Any]] = []
+#| 
+#|     if flights:
+#|         handoffs.append(
+#|             {
+#|                 "to": "TRANSPORTINT",
+#|                 "reason": "Broader multi-modal transport context may be required",
+#|                 "restrictions": ["No live targeting", "No occupant inference"],
+#|             }
+#|         )
+#|         handoffs.append(
+#|             {
+#|                 "to": "GEOINT",
+#|                 "reason": "Airport geography, terrain, airspace, and spatial corroboration may be required",
+#|                 "restrictions": ["No precise private-person location", "No actionable live tracking"],
+#|             }
+#|         )
+#| 
+#|     if any(not a.get("operator") or not a.get("owner_candidate") for a in aircraft.values()) or contradictions:
+#|         handoffs.append(
+#|             {
+#|                 "to": "CORPINT / OWNERSHIPINT",
+#|                 "reason": "Owner/operator/lessor resolution exceeds ADS-B movement evidence",
+#|                 "restrictions": ["No private-person profiling", "Use lawful/public corporate records only"],
+#|             }
+#|         )
+#| 
+#|     if any(c.get("type") in {"identifier_conflict", "feed_position_conflict"} for c in contradictions):
+#|         handoffs.append(
+#|             {
+#|                 "to": "SIGINT",
+#|                 "reason": "Raw RF/Mode S/ADS-B signal-level questions may require authorized signal analysis",
+#|                 "restrictions": ["No jamming", "No spoofing", "No transponder manipulation"],
+#|             }
+#|         )
+#| 
+#|     return handoffs
+#| 
+#| 
+#| def analyst_summary(r: Dict[str, Any]) -> str:
+#|     def fmt_list(lst: Any) -> str:
+#|         if not lst:
+#|             return "NONE"
+#|         if isinstance(lst, list):
+#|             return ", ".join(str(x) for x in lst)
+#|         return str(lst)
+#| 
+#|     flights = r.get("flights") or []
+#|     first_flight = flights[0] if flights else {}
+#| 
+#|     lines = [
+#|         "AIRCRAFT: " + fmt_list([a.get("aircraft_id") for a in (r.get("aircraft") or [])]),
+#|         "ICAO24: " + fmt_list(r.get("icao24_identifiers")),
+#|         "REGISTRATION: " + fmt_list(r.get("registrations")),
+#|         "REGISTRATION ERA: " + fmt_list([f"{h.get('value')}:{h.get('valid_from')}->{h.get('valid_to')}" for h in (r.get("registration_history") or [])]),
+#|         "AIRCRAFT TYPE: " + fmt_list(r.get("aircraft_types")),
+#|         "OPERATOR: " + fmt_list(r.get("operators")),
+#|         "OWNER / LESSOR CONTEXT: " + fmt_list([f"owner={x}" for x in r.get("owner_candidates") or []] + [f"lessor={x}" for x in r.get("lessors") or []]),
+#|         "CALLSIGN: " + fmt_list(r.get("callsigns")),
+#|         "FLIGHT NUMBER: " + fmt_list(r.get("flight_numbers")),
+#|         "FLIGHT DATE: " + fmt_list([f.get("start_time") for f in flights]),
+#|         "DEPARTURE: " + fmt_list([f"{(f.get('departure') or {}).get('state')} {(f.get('departure') or {}).get('airport', {}).get('icao_code')}" for f in flights]),
+#|         "ARRIVAL: " + fmt_list([f"{(f.get('arrival') or {}).get('state')} {(f.get('arrival') or {}).get('airport', {}).get('icao_code')}" for f in flights]),
+#|         "OBSERVED ROUTE: " + fmt_list([f.get("observed_route", {}).get("great_circle_distance_km") for f in flights if f.get("observed_route")]),
+#|         "SCHEDULED ROUTE: " + fmt_list(r.get("scheduled_routes")),
+#|         "POSITION SOURCE: " + fmt_list([f"{k}={v}" for k, v in (r.get("position_sources") or {}).items()]),
+#|         "TRACK COMPLETENESS: " + fmt_list([f"{f.get('flight_id')} points={len(f.get('trackpoint_ids') or [])} gaps={len(f.get('track_gaps') or [])}" for f in flights]),
+#|         "ALTITUDE / SPEED CONTEXT: " + json.dumps(r.get("altitudes") or {}, default=str) + " | " + json.dumps(r.get("ground_speeds") or {}, default=str),
+#|         "SQUAWK CONTEXT: " + fmt_list([sq.get("squawk") for f in flights for sq in (f.get("squawk_flags") or [])]),
+#|         "TRACK GAPS: " + str(sum(len(f.get("track_gaps") or []) for f in flights)),
+#|         "AIRPORT FREQUENCY: " + fmt_list([f"{k}={v}" for k, v in (r.get("airport_frequency") or {}).items()]),
+#|         "ROUTE FREQUENCY: " + fmt_list([f"{k}={v}" for k, v in (r.get("route_frequency") or {}).items()]),
+#|         "MOVEMENT PATTERN: " + fmt_list(r.get("movement_patterns")),
+#|         "SOURCE RELIABILITY: " + fmt_list([f"{s.get('source_id')}={s.get('reliability')}" for s in (r.get("source_reliability") or [])]),
+#|         "SOURCE INDEPENDENCE: " + str(r.get("source_independence")),
+#|         "CONTRADICTIONS: " + str(len(r.get("contradictions") or [])),
+#|         "PRIVACY / SAFETY LIMITATIONS: " + fmt_list((r.get("privacy_flags") or []) + (r.get("safety_flags") or [])),
+#|         "UNKNOWN: " + fmt_list(r.get("unknowns")),
+#|         "NEXT ACTION: " + ((r.get("recommended_next_actions") or ["NONE"])[0]),
+#|     ]
+#| 
+#|     if first_flight:
+#|         lines.insert(0, f"PRIMARY FLIGHT ASSESSMENT: {first_flight.get('flight_id')} confidence={first_flight.get('segmentation_confidence')}")
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Main analysis
+#| # -----------------------------------------------------------------------------
+#| 
+#| def analyze(case: Dict[str, Any], input_path: Optional[str] = None, input_hash: Optional[str] = None) -> Dict[str, Any]:
+#|     started = utcnow_iso()
+#| 
+#|     block_reasons = policy_block_reasons(case)
+#|     if block_reasons:
+#|         return blocked_result(case, block_reasons, started, input_path, input_hash)
+#| 
+#|     aircraft, observations, airports, sources, history, issues, warnings, initial_contradictions = validate_case(case)
+#| 
+#|     settings_raw = case.get("analysis_settings") or {}
+#| 
+#|     def setting_float(name: str, default: float) -> float:
+#|         try:
+#|             return float(settings_raw.get(name, default))
+#|         except Exception:
+#|             return default
+#| 
+#|     settings = {
+#|         "max_gap_minutes": setting_float("max_gap_minutes", 30.0),
+#|         "min_ground_minutes": setting_float("min_ground_minutes", 10.0),
+#|         "report_gap_minutes": setting_float("report_gap_minutes", 10.0),
+#|         "airport_radius_km": setting_float("airport_radius_km", 15.0),
+#|         "max_speed_kt": setting_float("max_speed_kt", 1000.0),
+#|         "position_conflict_km": setting_float("position_conflict_km", 5.0),
+#|     }
+#| 
+#|     deduped = deduplicate_observations(observations)
+#|     deduped.sort(key=lambda x: (x.get("_group_key") or "", x.get("_timestamp") or datetime.min.replace(tzinfo=timezone.utc)))
+#| 
+#|     grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for o in deduped:
+#|         grouped[o.get("_group_key") or "UNKNOWN"].append(o)
+#| 
+#|     flights: List[Dict[str, Any]] = []
+#|     flight_index = 1
+#|     provider_flights = case.get("flights") or []
+#| 
+#|     for group_key, points in grouped.items():
+#|         segments = segment_flights(points, settings["max_gap_minutes"], settings["min_ground_minutes"])
+#|         for seg in segments:
+#|             if not seg:
+#|                 continue
+#|             flights.append(build_flight(flight_index, group_key, seg, airports, sources, provider_flights, settings))
+#|             flight_index += 1
+#| 
+#|     contradictions = detect_contradictions(deduped, flights, initial_contradictions, settings)
+#|     supported_facts, candidate_facts, partial_facts, disputed_facts, not_facts = build_facts(deduped, flights, contradictions)
+#|     hypotheses = build_hypotheses(flights, contradictions, issues)
+#|     dual = dual_ai_review(deduped, flights, contradictions, issues)
+#|     gaps = build_knowledge_gaps(deduped, flights, contradictions, issues, history)
+#|     next_actions = build_next_actions(deduped, flights, gaps, contradictions)
+#|     handoffs = build_specialist_handoffs(flights, contradictions, aircraft)
+#|     graph = build_graph(aircraft, deduped, flights, airports, sources, supported_facts + candidate_facts + partial_facts, hypotheses, contradictions, gaps)
+#| 
+#|     # Collect summaries
+#|     icao24_identifiers = sorted({o.get("_icao24") for o in deduped if o.get("_icao24")})
+#|     registrations = sorted({o.get("_registration") for o in deduped if o.get("_registration")})
+#|     callsigns = sorted({o.get("_callsign") for o in deduped if o.get("_callsign")})
+#|     flight_numbers = sorted({o.get("_flight_number") for o in deduped if o.get("_flight_number")})
+#| 
+#|     operators = sorted({a.get("operator") for a in aircraft.values() if a.get("operator")})
+#|     owner_candidates = sorted({a.get("owner_candidate") for a in aircraft.values() if a.get("owner_candidate")})
+#|     lessors = sorted({a.get("lessor") for a in aircraft.values() if a.get("lessor")})
+#|     aircraft_types = sorted({a.get("aircraft_type") for a in aircraft.values() if a.get("aircraft_type")})
+#| 
+#|     registration_history = [
+#|         {
+#|             "field": h.get("_field"),
+#|             "value": h.get("_value"),
+#|             "aircraft_id": h.get("aircraft_id"),
+#|             "valid_from": iso_or_none(h.get("_valid_from")),
+#|             "valid_to": iso_or_none(h.get("_valid_to")),
+#|             "source_id": h.get("source_id"),
+#|         }
+#|         for h in history
+#|         if h.get("_field") == "registration"
+#|     ]
+#|     operator_history = [
+#|         {
+#|             "field": h.get("_field"),
+#|             "value": h.get("_value"),
+#|             "aircraft_id": h.get("aircraft_id"),
+#|             "valid_from": iso_or_none(h.get("_valid_from")),
+#|             "valid_to": iso_or_none(h.get("_valid_to")),
+#|             "source_id": h.get("source_id"),
+#|         }
+#|         for h in history
+#|         if h.get("_field") == "operator"
+#|     ]
+#|     callsign_history = [
+#|         {
+#|             "field": h.get("_field"),
+#|             "value": h.get("_value"),
+#|             "aircraft_id": h.get("aircraft_id"),
+#|             "valid_from": iso_or_none(h.get("_valid_from")),
+#|             "valid_to": iso_or_none(h.get("_valid_to")),
+#|             "source_id": h.get("source_id"),
+#|         }
+#|         for h in history
+#|         if h.get("_field") == "callsign"
+#|     ]
+#| 
+#|     position_sources = dict(Counter(o.get("_position_source") for o in deduped))
+#|     mlat_count = position_sources.get("MLAT", 0)
+#|     adsb_count = position_sources.get("ADS_B", 0)
+#| 
+#|     airports_used = {}
+#|     for f in flights:
+#|         for role in ("departure", "arrival"):
+#|             ap = (f.get(role) or {}).get("airport") or {}
+#|             code = ap.get("icao_code") or ap.get("iata_code")
+#|             if code:
+#|                 airports_used[code] = ap
+#| 
+#|     route_counter: Counter = Counter()
+#|     airport_counter: Counter = Counter()
+#|     for f in flights:
+#|         dep_code = ((f.get("departure") or {}).get("airport") or {}).get("icao_code") or ((f.get("departure") or {}).get("airport") or {}).get("iata_code")
+#|         arr_code = ((f.get("arrival") or {}).get("airport") or {}).get("icao_code") or ((f.get("arrival") or {}).get("airport") or {}).get("iata_code")
+#|         if dep_code:
+#|             airport_counter[dep_code] += 1
+#|         if arr_code:
+#|             airport_counter[arr_code] += 1
+#|         if dep_code and arr_code:
+#|             route_counter[f"{dep_code}->{arr_code}"] += 1
+#| 
+#|     movement_patterns = []
+#|     if route_counter:
+#|         movement_patterns.append("top_routes=" + ", ".join(f"{k}:{v}" for k, v in route_counter.most_common(5)))
+#|     if airport_counter:
+#|         movement_patterns.append("top_airports=" + ", ".join(f"{k}:{v}" for k, v in airport_counter.most_common(5)))
+#| 
+#|     aviation_events: List[Dict[str, Any]] = []
+#|     for f in flights:
+#|         for sq in f.get("squawk_flags") or []:
+#|             aviation_events.append(
+#|                 {
+#|                     "event_type": "SQUAWK_EMERGENCY_CODE_OBSERVED",
+#|                     "flight_id": f.get("flight_id"),
+#|                     "details": sq,
+#|                     "caution": "Do not sensationalize. Requires official/public corroboration.",
+#|                 }
+#|             )
+#|         if f.get("diversion_candidate"):
+#|             aviation_events.append(
+#|                 {
+#|                     "event_type": "DIVERSION_CANDIDATE",
+#|                     "flight_id": f.get("flight_id"),
+#|                     "details": {
+#|                         "provider_arrival": (f.get("provider_flight") or {}).get("arrival_airport"),
+#|                         "observed_arrival": ((f.get("arrival") or {}).get("airport") or {}).get("icao_code"),
+#|                     },
+#|                     "caution": "Cause unresolved. Could be ATC, weather, technical, operational, or data error.",
+#|                 }
+#|             )
+#| 
+#|     timeline_updates = sorted(
+#|         [
+#|             {
+#|                 "flight_id": f.get("flight_id"),
+#|                 "group_key": f.get("group_key"),
+#|                 "start_time": f.get("start_time"),
+#|                 "end_time": f.get("end_time"),
+#|                 "departure": f.get("departure"),
+#|                 "arrival": f.get("arrival"),
+#|             }
+#|             for f in flights
+#|         ],
+#|         key=lambda x: x.get("start_time") or "",
+#|     )
+#| 
+#|     def source_reliability_label(s: Dict[str, Any]) -> str:
+#|         stype = str(s.get("source_type", "")).upper()
+#|         if stype in {"OFFICIAL_REGISTRY", "AUTHORIZED_RECEIVER", "AIRPORT_RECORD", "AUTHORIZED_AVIATION_TELEMETRY"}:
+#|             return "HIGH"
+#|         if stype in {"ADS_B", "MLAT", "MODE_S", "PUBLIC_ADSB_FEED"}:
+#|             return "MODERATE"
+#|         if stype in {"AGGREGATOR", "PROVIDER_DERIVED", "COMMERCIAL_DATABASE", "MEDIA_REPORT"}:
+#|             return "LOW"
+#|         return "UNKNOWN"
+#| 
+#|     source_reliability = [
+#|         {
+#|             "source_id": s.get("source_id"),
+#|             "provider": s.get("provider"),
+#|             "source_type": s.get("source_type"),
+#|             "reliability": source_reliability_label(s),
+#|             "independence_group": s.get("_independence_group"),
+#|             "upstream_feed": s.get("upstream_feed"),
+#|             "limitations": s.get("limitations"),
+#|         }
+#|         for s in sources.values()
+#|     ]
+#| 
+#|     source_pedigree = [
+#|         {
+#|             "source_id": s.get("source_id"),
+#|             "provider": s.get("provider"),
+#|             "source_type": s.get("source_type"),
+#|             "upstream_feed": s.get("upstream_feed"),
+#|             "independence_group": s.get("_independence_group"),
+#|         }
+#|         for s in sources.values()
+#|     ]
+#| 
+#|     if any(f.get("source_independence") == "INDEPENDENT" for f in flights):
+#|         source_independence = "INDEPENDENT_OBSERVATION_AVAILABLE"
+#|     elif deduped:
+#|         source_independence = "SINGLE_SOURCE_OR_UNKNOWN"
+#|     else:
+#|         source_independence = "NO_OBSERVATION"
+#| 
+#|     unknowns: List[str] = []
+#|     if not deduped:
+#|         unknowns.append("No measurable aviation activity supplied")
+#|     if not flights:
+#|         unknowns.append("Flight segmentation unresolved")
+#|     if any(o.get("_resolution_basis") == "UNRESOLVED" for o in deduped):
+#|         unknowns.append("Aircraft identity unresolved for some observations")
+#|     if not registration_history:
+#|         unknowns.append("Registration era uncertain")
+#|     if not operator_history:
+#|         unknowns.append("Operator era uncertain")
+#|     unknowns.append("Passengers/occupants unknown by design")
+#|     unknowns.append("Flight purpose unknown by design")
+#| 
+#|     if contradictions:
+#|         status = "SOURCE_CONFLICT"
+#|     elif issues:
+#|         status = "PARTIAL"
+#|     elif not deduped:
+#|         status = "INCONCLUSIVE"
+#|     elif flights and all(f.get("segmentation_confidence") in ("SUPPORTED", "PROBABLE") for f in flights):
+#|         status = "SUCCEEDED"
+#|     else:
+#|         status = "PARTIAL"
+#| 
+#|     movement_anomaly = "NORMAL_OBSERVED_PATTERN"
+#|     if any(f.get("data_quality_flags") for f in flights):
+#|         movement_anomaly = "DATA_QUALITY_CANDIDATE"
+#|     elif contradictions:
+#|         movement_anomaly = "INCONCLUSIVE"
+#|     elif aviation_events:
+#|         movement_anomaly = "UNUSUAL"
+#| 
+#|     result: Dict[str, Any] = {
+#|         "case_id": case.get("case_id"),
+#|         "task_id": case.get("task_id"),
+#|         "objective": case.get("objective"),
+#|         "questions": case.get("questions") or [],
+#|         "mode": case.get("model_mode", "LOCAL_ONLY"),
+#|         "status": status,
+#|         "movement_anomaly": movement_anomaly,
+#|         "source_ids": list(sources.keys()),
+#|         "evidence_ids": [o.get("observation_id") for o in deduped],
+#|         "aircraft": [public_dict(a) for a in aircraft.values()],
+#|         "airframes": [public_dict(a) for a in aircraft.values()],
+#|         "icao24_identifiers": icao24_identifiers,
+#|         "registrations": registrations,
+#|         "registration_history": registration_history,
+#|         "callsigns": callsigns,
+#|         "callsign_history": callsign_history,
+#|         "flight_numbers": flight_numbers,
+#|         "operators": operators,
+#|         "operator_history": operator_history,
+#|         "owner_candidates": owner_candidates,
+#|         "ownership_history": case.get("ownership_history") or [],
+#|         "lessors": lessors,
+#|         "aircraft_types": aircraft_types,
+#|         "fleets": {
+#|             op: sorted({aid for aid, a in aircraft.items() if a.get("operator") == op})
+#|             for op in operators
+#|         },
+#|         "flights": flights,
+#|         "trackpoints": [
+#|             {
+#|                 "observation_id": o.get("observation_id"),
+#|                 "flight_id": o.get("_flight_id"),
+#|                 "group_key": o.get("_group_key"),
+#|                 "aircraft_id": o.get("_aircraft_id"),
+#|                 "icao24": o.get("_icao24"),
+#|                 "registration": o.get("_registration"),
+#|                 "callsign": o.get("_callsign"),
+#|                 "flight_number": o.get("_flight_number"),
+#|                 "timestamp": iso_or_none(o.get("_timestamp")),
+#|                 "latitude": o.get("_lat"),
+#|                 "longitude": o.get("_lon"),
+#|                 "altitude_ft": o.get("_altitude_ft"),
+#|                 "ground_speed_kt": o.get("_ground_speed_kt"),
+#|                 "vertical_rate_fpm": o.get("_vertical_rate_fpm"),
+#|                 "heading_deg": o.get("_heading_deg"),
+#|                 "track_deg": o.get("_track_deg"),
+#|                 "squawk": o.get("_squawk"),
+#|                 "on_ground": o.get("_on_ground"),
+#|                 "position_source": o.get("_position_source"),
+#|                 "source_ids": o.get("_source_ids"),
+#|                 "duplicate_count": o.get("_duplicate_count"),
+#|                 "resolution_basis": o.get("_resolution_basis"),
+#|                 "resolution_confidence": o.get("_resolution_confidence"),
+#|                 "flight_phase": o.get("_flight_phase"),
+#|                 "precision_m": o.get("precision_m"),
+#|                 "quality": o.get("quality"),
+#|             }
+#|             for o in deduped
+#|         ],
+#|         "track_segments": flights,
+#|         "position_sources": position_sources,
+#|         "mlat_context": {
+#|             "mlat_observation_count": mlat_count,
+#|             "adsb_observation_count": adsb_count,
+#|             "note": "ADS-B and MLAT positions are kept separate. MLAT is not aircraft-reported ADS-B position.",
+#|         },
+#|         "airports": list(airports_used.values()),
+#|         "runways": [
+#|             {
+#|                 "airport_id": ap.get("airport_id"),
+#|                 "icao_code": ap.get("icao_code"),
+#|                 "runways": ap.get("runways") or [],
+#|             }
+#|             for ap in airports_used.values()
+#|         ],
+#|         "departure_assessments": [f.get("departure") for f in flights],
+#|         "arrival_assessments": [f.get("arrival") for f in flights],
+#|         "routes": [f.get("observed_route") for f in flights if f.get("observed_route")],
+#|         "scheduled_routes": case.get("scheduled_routes") or [],
+#|         "altitudes": numeric_summary([o.get("_altitude_ft") for o in deduped]),
+#|         "ground_speeds": numeric_summary([o.get("_ground_speed_kt") for o in deduped]),
+#|         "vertical_rates": numeric_summary([o.get("_vertical_rate_fpm") for o in deduped]),
+#|         "tracks_headings": {
+#|             "heading_summary": numeric_summary([o.get("_heading_deg") for o in deduped]),
+#|             "track_summary": numeric_summary([o.get("_track_deg") for o in deduped]),
+#|             "note": "Heading and track are kept separate unless source semantics support equivalence.",
+#|         },
+#|         "flight_phases": [
+#|             {
+#|                 "flight_id": f.get("flight_id"),
+#|                 "phase_counts": f.get("flight_phase_counts"),
+#|                 "dominant_phase": f.get("dominant_flight_phase"),
+#|                 "note": "Flight phase is derived from movement and does not reveal mission purpose.",
+#|             }
+#|             for f in flights
+#|         ],
+#|         "squawk_context": [sq for f in flights for sq in (f.get("squawk_flags") or [])],
+#|         "track_gaps": [gap for f in flights for gap in (f.get("track_gaps") or [])],
+#|         "feed_coverage": [f.get("feed_coverage") for f in flights],
+#|         "position_quality": {
+#|             "precision_m_summary": numeric_summary([o.get("precision_m") for o in deduped]),
+#|             "quality_counts": dict(Counter(o.get("quality") for o in deduped if o.get("quality"))),
+#|             "note": "Do not claim meter-level accuracy unless source metadata supports it.",
+#|         },
+#|         "route_frequency": dict(route_counter),
+#|         "airport_frequency": dict(airport_counter),
+#|         "movement_patterns": movement_patterns,
+#|         "fleet_context": {
+#|             op: sorted({aid for aid, a in aircraft.items() if a.get("operator") == op})
+#|             for op in operators
+#|         },
+#|         "aviation_events": aviation_events,
+#|         "timeline_updates": timeline_updates,
+#|         "observations": [
+#|             {
+#|                 "observation_id": o.get("observation_id"),
+#|                 "group_key": o.get("_group_key"),
+#|                 "aircraft_id": o.get("_aircraft_id"),
+#|                 "icao24": o.get("_icao24"),
+#|                 "registration": o.get("_registration"),
+#|                 "callsign": o.get("_callsign"),
+#|                 "timestamp": iso_or_none(o.get("_timestamp")),
+#|                 "position_source": o.get("_position_source"),
+#|                 "source_ids": o.get("_source_ids"),
+#|             }
+#|             for o in deduped
+#|         ],
+#|         "candidate_facts": candidate_facts,
+#|         "supported_facts": supported_facts,
+#|         "partial_facts": partial_facts,
+#|         "disputed_facts": disputed_facts,
+#|         "source_reliability": source_reliability,
+#|         "source_bias": case.get("source_bias") or [
+#|             "Crowdsourced/public feeds may have uneven receiver density.",
+#|             "Provider filtering or blocked-aircraft policies may create absence bias.",
+#|             "Schedule enrichment may confuse scheduled and observed data.",
+#|         ],
+#|         "source_limitations": case.get("source_limitations") or [
+#|             "Non-detection is not absence.",
+#|             "Track gap is not transponder shutdown.",
+#|             "Aggregated feeds may share upstream pedigree and are not independent.",
+#|         ],
+#|         "source_pedigree": source_pedigree,
+#|         "source_independence": source_independence,
+#|         "contradictions": contradictions,
+#|         "hypotheses": hypotheses,
+#|         "falsification_results": [
+#|             {
+#|                 "hypothesis_id": h.get("hypothesis_id"),
+#|                 "status": "WEAKENED_BY_CONTRADICTIONS" if contradictions else "NOT_FALSIFIED_WITH_CURRENT_EVIDENCE",
+#|                 "required_additional_evidence": [
+#|                     "Independent historical feed",
+#|                     "Official registry / identifier era record",
+#|                     "Airport movement record",
+#|                     "Receiver coverage metadata",
+#|                 ],
+#|             }
+#|             for h in hypotheses
+#|         ],
+#|         "privacy_flags": [
+#|             "NO_PASSENGER_INFERENCE",
+#|             "NO_PRIVATE_PERSON_DOSSIER",
+#|             "PROTECTED_PERSON_RESTRAINT",
+#|             "HISTORICAL_FIRST",
+#|             "METADATA_MINIMIZATION",
+#|         ],
+#|         "safety_flags": [
+#|             "NO_REALTIME_TARGETING",
+#|             "NO_INTERCEPTION",
+#|             "NO_JAMMING",
+#|             "NO_SPOOFING",
+#|             "NO_TRANSPONDER_MANIPULATION",
+#|             "NO_ATC_INTERFERENCE",
+#|             "NO_TCAS_INTERFERENCE",
+#|             "NO_GNSS_JAMMING_OR_SPOOFING",
+#|             "NO_WEAPONS_TARGETING",
+#|             "NO_STALKING",
+#|         ],
+#|         "unknowns": unknowns,
+#|         "knowledge_gaps": gaps,
+#|         "recommended_next_actions": next_actions,
+#|         "specialist_handoffs": handoffs,
+#|         "limitations": [
+#|             "This scaffold does not fetch live ADS-B data.",
+#|             "It consumes deterministic feature-level aviation records only.",
+#|             "It does not invent trackpoints, landings, passengers, pilots, routes, operators, or purposes.",
+#|             "It separates ADS-B, MLAT, provider-derived, estimated, and interpolated positions.",
+#|             "It preserves registration/operator eras and does not apply current identity backward automatically.",
+#|             "It treats track gaps as coverage/data limitations, not intentional evasion.",
+#|             "It blocks real-time targeting, interception, stalking, jamming, spoofing, and transponder manipulation.",
+#|         ],
+#|         "dual_ai_review": dual,
+#|         "not_facts": not_facts,
+#|         "graphical_memory": graph,
+#|         "validation_issues": issues,
+#|         "validation_warnings": warnings,
+#|         "analysis_settings": settings,
+#|         "replay_manifest": {
+#|             "generated_at": started,
+#|             "finished_at": utcnow_iso(),
+#|             "code_version": VERSION,
+#|             "input_path": input_path,
+#|             "input_sha256": input_hash,
+#|             "deterministic_operations": [
+#|                 "identifier normalization",
+#|                 "time normalization",
+#|                 "track deduplication",
+#|                 "flight segmentation",
+#|                 "haversine distance",
+#|                 "ground speed derivation",
+#|                 "track gap detection",
+#|                 "position source classification",
+#|                 "source independence grouping",
+#|                 "contradiction detection",
+#|                 "fact gate",
+#|             ],
+#|             "note": "Replay requires raw source records, provider metadata, retrieval time, position source type, registry era evidence, and source pedigree.",
+#|         },
+#|     }
+#| 
+#|     result["required_analyst_summary"] = analyst_summary(result)
+#|     return result
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Template
+#| # -----------------------------------------------------------------------------
+#| 
+#| def template_case() -> Dict[str, Any]:
+#|     return {
+#|         "_template_note": "Placeholders only. Replace with deterministic public/authorized historical aviation records. Do not treat this template as real measurement.",
+#|         "case_id": "CASE-ADSB-EXAMPLE",
+#|         "task_id": "TASK-ADSB-EXAMPLE",
+#|         "objective": "Historical/public analysis of one aircraft movement episode for safety and route research.",
+#|         "questions": [
+#|             "Which aircraft identity is supported for the observation period?",
+#|             "What route segment is observed?",
+#|             "Which positions are ADS-B vs MLAT vs provider-derived?",
+#|             "What track gaps or contradictions exist?",
+#|             "What remains uncertain?",
+#|         ],
+#|         "scope": {
+#|             "authorized_only": True,
+#|             "passive_only": True,
+#|             "historical_first": True,
+#|             "no_realtime_targeting": True,
+#|             "privacy_minimization": True,
+#|             "no_passenger_inference": True,
+#|         },
+#|         "authorization": {
+#|             "lawful_basis": "PUBLIC_HISTORICAL_AVIATION_RESEARCH",
+#|             "purpose": "SAFETY_AND_MOVEMENT_ANALYSIS",
+#|             "approval_reference": "AUTH-ADSB-001",
+#|             "data_retention": "MINIMUM_NECESSARY",
+#|         },
+#|         "model_mode": "LOCAL_ONLY",
+#|         "time_range": {
+#|             "start_time": "2025-01-01T10:00:00Z",
+#|             "end_time": "2025-01-01T12:00:00Z",
+#|         },
+#|         "analysis_settings": {
+#|             "max_gap_minutes": 30,
+#|             "min_ground_minutes": 10,
+#|             "report_gap_minutes": 10,
+#|             "airport_radius_km": 15,
+#|             "max_speed_kt": 1000,
+#|             "position_conflict_km": 5,
+#|         },
+#|         "aircraft": [
+#|             {
+#|                 "aircraft_id": "AIR-1",
+#|                 "icao24": "abc123",
+#|                 "registration": "N-EXAMPLE",
+#|                 "serial_number_if_available": "MSN-EXAMPLE",
+#|                 "aircraft_type": "EXAMPLE_TYPE",
+#|                 "manufacturer": "EXAMPLE_MANUFACTURER",
+#|                 "model": "EXAMPLE_MODEL",
+#|                 "variant": "EXAMPLE_VARIANT",
+#|                 "operator": "EXAMPLE_OPERATOR",
+#|                 "owner_candidate": "EXAMPLE_OWNER",
+#|                 "lessor": "EXAMPLE_LESSOR",
+#|                 "registration_country": "XX",
+#|                 "valid_from": "2024-01-01T00:00:00Z",
+#|                 "valid_to": "2026-12-31T23:59:59Z",
+#|                 "source_ids": ["SRC-REG"],
+#|                 "confidence": "MODERATE",
+#|             }
+#|         ],
+#|         "identifier_history": [
+#|             {
+#|                 "aircraft_id": "AIR-1",
+#|                 "field": "registration",
+#|                 "value": "N-EXAMPLE",
+#|                 "valid_from": "2024-01-01T00:00:00Z",
+#|                 "valid_to": "2026-12-31T23:59:59Z",
+#|                 "source_id": "SRC-REG",
+#|             },
+#|             {
+#|                 "aircraft_id": "AIR-1",
+#|                 "field": "icao24",
+#|                 "value": "abc123",
+#|                 "valid_from": "2024-01-01T00:00:00Z",
+#|                 "valid_to": "2026-12-31T23:59:59Z",
+#|                 "source_id": "SRC-REG",
+#|             },
+#|         ],
+#|         "sources": [
+#|             {
+#|                 "source_id": "SRC-REG",
+#|                 "provider": "EXAMPLE_OFFICIAL_REGISTRY",
+#|                 "source_type": "OFFICIAL_REGISTRY",
+#|                 "upstream_feed": None,
+#|                 "independence_group": "REGISTRY",
+#|                 "limitations": ["Registry may lag operational changes."],
+#|             },
+#|             {
+#|                 "source_id": "SRC-ADS-1",
+#|                 "provider": "EXAMPLE_PUBLIC_ADSB_FEED",
+#|                 "source_type": "PUBLIC_ADSB_FEED",
+#|                 "upstream_feed": "FEED-A",
+#|                 "independence_group": "FEED-A",
+#|                 "limitations": ["Receiver coverage uneven."],
+#|             },
+#|             {
+#|                 "source_id": "SRC-MLAT-1",
+#|                 "provider": "EXAMPLE_MLAT_PROVIDER",
+#|                 "source_type": "MLAT",
+#|                 "upstream_feed": "FEED-B",
+#|                 "independence_group": "FEED-B",
+#|                 "limitations": ["MLAT position is derived from receiver timing, not aircraft-reported position."],
+#|             },
+#|         ],
+#|         "airports": [
+#|             {
+#|                 "airport_id": "AP-A",
+#|                 "icao_code": "KAAA",
+#|                 "iata_code": "AAA",
+#|                 "name": "Example Airport A",
+#|                 "country": "XX",
+#|                 "latitude": 0.0,
+#|                 "longitude": 0.0,
+#|                 "elevation_ft": 100,
+#|                 "runways": ["09/27"],
+#|                 "source": "EXAMPLE_AIRPORT_METADATA",
+#|                 "validity": "2025",
+#|             },
+#|             {
+#|                 "airport_id": "AP-B",
+#|                 "icao_code": "KBBB",
+#|                 "iata_code": "BBB",
+#|                 "name": "Example Airport B",
+#|                 "country": "YY",
+#|                 "latitude": 1.0,
+#|                 "longitude": 1.0,
+#|                 "elevation_ft": 200,
+#|                 "runways": ["18/36"],
+#|                 "source": "EXAMPLE_AIRPORT_METADATA",
+#|                 "validity": "2025",
+#|             },
+#|         ],
+#|         "observations": [
+#|             {
+#|                 "observation_id": "OBS-1",
+#|                 "source_id": "SRC-ADS-1",
+#|                 "timestamp": "2025-01-01T10:00:00Z",
+#|                 "icao24": "abc123",
+#|                 "registration": "N-EXAMPLE",
+#|                 "callsign": "EX123",
+#|                 "flight_number": "EX123",
+#|                 "latitude": 0.001,
+#|                 "longitude": 0.001,
+#|                 "altitude_ft": 0,
+#|                 "ground_speed_kt": 0,
+#|                 "vertical_rate_fpm": 0,
+#|                 "heading_deg": 90,
+#|                 "track_deg": 90,
+#|                 "squawk": "1200",
+#|                 "on_ground": True,
+#|                 "position_source": "ADS_B",
+#|                 "precision_m": 10,
+#|                 "quality": "GOOD",
+#|             },
+#|             {
+#|                 "observation_id": "OBS-2",
+#|                 "source_id": "SRC-ADS-1",
+#|                 "timestamp": "2025-01-01T10:05:00Z",
+#|                 "icao24": "abc123",
+#|                 "registration": "N-EXAMPLE",
+#|                 "callsign": "EX123",
+#|                 "flight_number": "EX123",
+#|                 "latitude": 0.05,
+#|                 "longitude": 0.05,
+#|                 "altitude_ft": 5000,
+#|                 "ground_speed_kt": 250,
+#|                 "vertical_rate_fpm": 1800,
+#|                 "heading_deg": 45,
+#|                 "track_deg": 45,
+#|                 "squawk": "1200",
+#|                 "on_ground": False,
+#|                 "position_source": "ADS_B",
+#|                 "precision_m": 10,
+#|                 "quality": "GOOD",
+#|             },
+#|             {
+#|                 "observation_id": "OBS-3",
+#|                 "source_id": "SRC-MLAT-1",
+#|                 "timestamp": "2025-01-01T11:00:00Z",
+#|                 "icao24": "abc123",
+#|                 "registration": "N-EXAMPLE",
+#|                 "callsign": "EX123",
+#|                 "flight_number": "EX123",
+#|                 "latitude": 0.5,
+#|                 "longitude": 0.5,
+#|                 "altitude_ft": 35000,
+#|                 "ground_speed_kt": 480,
+#|                 "vertical_rate_fpm": 0,
+#|                 "heading_deg": 45,
+#|                 "track_deg": 45,
+#|                 "squawk": "1200",
+#|                 "on_ground": False,
+#|                 "position_source": "MLAT",
+#|                 "precision_m": 100,
+#|                 "quality": "FAIR",
+#|             },
+#|             {
+#|                 "observation_id": "OBS-4",
+#|                 "source_id": "SRC-ADS-1",
+#|                 "timestamp": "2025-01-01T12:00:00Z",
+#|                 "icao24": "abc123",
+#|                 "registration": "N-EXAMPLE",
+#|                 "callsign": "EX123",
+#|                 "flight_number": "EX123",
+#|                 "latitude": 1.001,
+#|                 "longitude": 1.001,
+#|                 "altitude_ft": 0,
+#|                 "ground_speed_kt": 15,
+#|                 "vertical_rate_fpm": 0,
+#|                 "heading_deg": 180,
+#|                 "track_deg": 180,
+#|                 "squawk": "1200",
+#|                 "on_ground": True,
+#|                 "position_source": "ADS_B",
+#|                 "precision_m": 10,
+#|                 "quality": "GOOD",
+#|             },
+#|         ],
+#|         "flights": [
+#|             {
+#|                 "flight_id": "PF-EX123",
+#|                 "aircraft_id": "AIR-1",
+#|                 "callsign": "EX123",
+#|                 "flight_number": "EX123",
+#|                 "operator": "EXAMPLE_OPERATOR",
+#|                 "departure_airport": "KAAA",
+#|                 "arrival_airport": "KBBB",
+#|                 "scheduled_departure_time": "2025-01-01T10:00:00Z",
+#|                 "scheduled_arrival_time": "2025-01-01T12:00:00Z",
+#|                 "source_id": "SRC-SCHEDULE",
+#|             }
+#|         ],
+#|         "scheduled_routes": [
+#|             {
+#|                 "flight_number": "EX123",
+#|                 "departure": "KAAA",
+#|                 "arrival": "KBBB",
+#|                 "source": "EXAMPLE_SCHEDULE",
+#|                 "note": "Scheduled route is not observed route.",
+#|             }
+#|         ],
+#|         "existing_facts": [],
+#|         "existing_hypotheses": [],
+#|         "existing_contradictions": [],
+#|         "budget": "EXAMPLE",
+#|         "deadline": "EXAMPLE",
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # CLI
+#| # -----------------------------------------------------------------------------
+#| 
+#| def sha256_bytes(data: bytes) -> str:
+#|     return hashlib.sha256(data).hexdigest()
+#| 
+#| 
+#| def main() -> None:
+#|     parser = argparse.ArgumentParser(
+#|         description="TRACEATLAS ADSBINT passive-first, historical-first analysis scaffold. Consumes deterministic aviation records; does not fetch live feeds, jam, spoof, target, stalk, or infer passengers."
+#|     )
+#|     parser.add_argument("--input", "-i", help="Path to ADS-B input JSON")
+#|     parser.add_argument("--output", "-o", default="adsbint_result.json", help="Output ADSBINTResult JSON path")
+#|     parser.add_argument("--write-template", action="store_true", help="Print a safe input template and exit")
+#|     args = parser.parse_args()
+#| 
+#|     if args.write_template:
+#|         print(json.dumps(template_case(), indent=2, default=str))
+#|         return
+#| 
+#|     if not args.input:
+#|         parser.error("--input is required unless --write-template is used")
+#| 
+#|     path = Path(args.input)
+#|     if not path.exists():
+#|         raise SystemExit(f"Input file not found: {path}")
+#| 
+#|     raw = path.read_bytes()
+#|     input_hash = sha256_bytes(raw)
+#| 
+#|     try:
+#|         case = json.loads(raw.decode("utf-8"))
+#|     except Exception as exc:
+#|         raise SystemExit(f"Failed to parse input JSON: {exc}")
+#| 
+#|     if not isinstance(case, dict):
+#|         raise SystemExit("Input JSON must be an object")
+#| 
+#|     result = analyze(case, str(path), input_hash)
+#| 
+#|     out = Path(args.output)
+#|     out.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+#| 
+#|     print(
+#|         json.dumps(
+#|             {
+#|                 "status": result.get("status"),
+#|                 "movement_anomaly": result.get("movement_anomaly"),
+#|                 "output": str(out),
+#|                 "summary": result.get("required_analyst_summary"),
+#|             },
+#|             indent=2,
+#|             default=str,
+#|         )
+#|     )
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     main()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE adsbint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aiint BEGIN
+#| from __future__ import annotations
+#| 
+#| import hashlib
+#| import json
+#| import logging
+#| import re
+#| import statistics
+#| import uuid
+#| from collections import defaultdict
+#| from dataclasses import asdict, dataclass, field
+#| from datetime import datetime, timedelta, timezone
+#| from enum import Enum, auto
+#| from typing import Any, Dict, List, Optional, Set, Tuple
+#| 
+#| # ==============================================================================
+#| # TRACEATLAS — AIINT
+#| # AI ECOSYSTEM / MODEL / DEPLOYMENT / SUPPLY-CHAIN INTELLIGENCE AI EMPLOYEE
+#| # MODE: LAWFUL / DEFENSIVE / EVIDENCE-FIRST / PROVENANCE-FIRST
+#| # ==============================================================================
+#| 
+#| logging.basicConfig(
+#|     level=logging.INFO,
+#|     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+#| )
+#| logger = logging.getLogger("TRACEATLAS.AIINT")
+#| 
+#| 
+#| # ==============================================================================
+#| # POLICY ENGINE
+#| # ==============================================================================
+#| 
+#| class PolicyViolation(Exception):
+#|     pass
+#| 
+#| 
+#| PROHIBITED_SCOPE_FLAGS = (
+#|     "allow_model_theft",
+#|     "allow_weight_extraction",
+#|     "allow_api_key_harvesting",
+#|     "allow_stolen_api_key_use",
+#|     "allow_system_prompt_extraction",
+#|     "allow_safeguard_bypass",
+#|     "allow_jailbreak_automation",
+#|     "allow_training_data_theft",
+#|     "allow_private_dataset_reconstruction",
+#|     "allow_memorized_personal_data_extraction",
+#|     "allow_model_poisoning",
+#|     "allow_dataset_poisoning",
+#|     "allow_rag_poisoning",
+#|     "allow_agent_memory_poisoning",
+#|     "allow_malicious_model_artifact",
+#|     "allow_model_repository_compromise",
+#|     "allow_ml_pipeline_compromise",
+#|     "allow_inference_server_compromise",
+#|     "allow_gpu_cloud_attack",
+#|     "allow_harmful_agent_deployment",
+#|     "allow_deepfake_abuse_pipeline",
+#|     "allow_unauthorized_biometric_surveillance",
+#|     "allow_billing_circumvention",
+#|     "allow_rate_limit_circumvention",
+#|     "allow_unauthorized_model_access",
+#| )
+#| 
+#| PROHIBITED_OBJECTIVE_KEYWORDS = (
+#|     "steal model",
+#|     "extract weights",
+#|     "bypass model access",
+#|     "stolen api key",
+#|     "harvest api key",
+#|     "extract system prompt",
+#|     "jailbreak automation",
+#|     "remove safety controls",
+#|     "harmful deployment",
+#|     "exfiltrate training data",
+#|     "reconstruct private dataset",
+#|     "memorized personal information",
+#|     "poison model",
+#|     "poison dataset",
+#|     "poison rag",
+#|     "poison memory",
+#|     "malicious model",
+#|     "compromise model repository",
+#|     "compromise ml pipeline",
+#|     "compromise inference server",
+#|     "attack gpu",
+#|     "attack cloud",
+#|     "harmful autonomous agent",
+#|     "deepfake abuse",
+#|     "biometric surveillance",
+#| )
+#| 
+#| 
+#| def enforce_policy(objective: str, scope: Dict[str, Any]) -> None:
+#|     if not isinstance(scope, dict):
+#|         raise PolicyViolation("POLICY_BLOCKED: scope must be a dictionary.")
+#| 
+#|     mode = str(scope.get("mode", "AUTHORIZED_STATIC")).upper()
+#|     allowed_modes = {

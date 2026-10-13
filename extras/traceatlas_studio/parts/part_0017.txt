@@ -1,0 +1,1000 @@
+#| 
+#|     if t == "API":
+#|         base.append("API alias may be mutable and may route to different snapshots or regional variants.")
+#|     elif t == "PRODUCT":
+#|         base.append("Product capability may include retrieval, tools, guardrails, UI, and workflow logic beyond the model.")
+#|     elif t == "APPLICATION":
+#|         base.append("Application behavior depends on prompts, tools, data access, and orchestration.")
+#|     elif t == "DEPLOYMENT":
+#|         base.append("Deployment behavior may differ from base model due quantization, system prompt, RAG, tools, and policy.")
+#|     elif t == "AGENT":
+#|         base.append("Agent capability derives from model, tools, permissions, memory, orchestrator, and environment.")
+#|     elif t == "DATASET":
+#|         base.append("Dataset provenance, filtering, deduplication, and training use may be partially disclosed.")
+#|     elif t == "BENCHMARK":
+#|         base.append("Benchmark scores are protocol, version, prompting, tool, sampling, and date specific.")
+#|     elif t == "LICENSE":
+#|         base.append("License text requires legal interpretation for consequential deployment or redistribution.")
+#|     elif t == "GUARDRAIL":
+#|         base.append("Guardrail presence does not prove effectiveness without evaluation evidence.")
+#|     elif t == "MONITORING":
+#|         base.append("Observability coverage may be partial and version-specific.")
+#| 
+#|     return base
+#| 
+#| 
+#| # ==============================================================================
+#| # PARSERS
+#| # ==============================================================================
+#| 
+#| def parse_entities(
+#|     items: List[Dict[str, Any]],
+#|     entity_type: str,
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#|     default_source_type: str = "provider_docs",
+#| ) -> List[Entity]:
+#|     out: List[Entity] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, entity_type.lower(), now, default_source_type)
+#|         evidences.append(ev)
+#| 
+#|         entity_id = str(
+#|             item.get("entity_id")
+#|             or item.get("id")
+#|             or stable_id(entity_type, item.get("name") or new_id("ENT"))
+#|         )
+#| 
+#|         attributes, flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in META_KEYS},
+#|             f"{entity_type.lower()}.attributes",
+#|         )
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + default_entity_limitations(entity_type)
+#|                 + flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             Entity(
+#|                 entity_id=entity_id,
+#|                 entity_type=entity_type.upper(),
+#|                 name=item.get("name"),
+#|                 aliases=[str(x) for x in item.get("aliases", []) or []],
+#|                 attributes=attributes,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 privacy_flags=flags,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_relationships(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[Relationship]:
+#|     out: List[Relationship] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "relationship", now, "provider_docs")
+#|         evidences.append(ev)
+#| 
+#|         attributes, flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in META_KEYS},
+#|             "relationship.attributes",
+#|         )
+#| 
+#|         out.append(
+#|             Relationship(
+#|                 relationship_id=str(item.get("relationship_id") or stable_id("REL", item.get("source_id"), item.get("target_id"), item.get("relation"))),
+#|                 source_id=str(item.get("source_id") or ""),
+#|                 target_id=str(item.get("target_id") or ""),
+#|                 relation=str(item.get("relation") or "RELATED_TO").upper(),
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 valid_from=parse_dt(item.get("valid_from")),
+#|                 valid_to=parse_dt(item.get("valid_to")),
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_models(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ModelObject]:
+#|     out: List[ModelObject] = []
+#| 
+#|     model_meta_keys = META_KEYS | {
+#|         "model_id",
+#|         "canonical_name",
+#|         "family_id",
+#|         "developer_id",
+#|         "provider_ids",
+#|         "model_type",
+#|         "access_type",
+#|         "architecture_claim",
+#|         "parameter_count",
+#|         "active_parameter_count",
+#|         "modality",
+#|         "context_window",
+#|         "max_output_tokens",
+#|         "tokenizer",
+#|         "release_date",
+#|         "knowledge_cutoff_claim",
+#|         "license_id",
+#|         "policy_ids",
+#|         "repository",
+#|         "model_card",
+#|         "system_card",
+#|         "base_model_id",
+#|         "fine_tuned_from",
+#|         "distilled_from",
+#|         "quantized_from",
+#|         "adapter_ids",
+#|         "capability_claims",
+#|         "evaluation_result_ids",
+#|         "safety_context",
+#|         "availability",
+#|     }
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "model", now, "official_model_card")
+#|         evidences.append(ev)
+#| 
+#|         capability_claims: List[Dict[str, Any]] = []
+#|         claim_flags: List[str] = []
+#| 
+#|         for claim in item.get("capability_claims", []) or []:
+#|             if isinstance(claim, str):
+#|                 red, f = process_text(claim)
+#|                 claim_flags.extend(f)
+#|                 capability_claims.append(
+#|                     {
+#|                         "claim": red,
+#|                         "claim_type": CapabilityClaimType.PROVIDER_CLAIMED.name,
+#|                         "evidence_ids": [ev.evidence_id],
+#|                     }
+#|                 )
+#|             elif isinstance(claim, dict):
+#|                 sanitized, f = sanitize_mapping(claim, "model.capability_claim")
+#|                 claim_flags.extend(f)
+#|                 sanitized.setdefault("claim_type", CapabilityClaimType.PROVIDER_CLAIMED.name)
+#|                 sanitized.setdefault("evidence_ids", [ev.evidence_id])
+#|                 capability_claims.append(sanitized)
+#| 
+#|         safety_context, safety_flags = sanitize_mapping(item.get("safety_context", {}) or {}, "model.safety_context")
+#|         attributes, attr_flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in model_meta_keys},
+#|             "model.attributes",
+#|         )
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Model metadata may be provider-claimed and not independently verified.",
+#|                     "Open weights does not automatically mean open source.",
+#|                     "Parameter count is not a capability score.",
+#|                     "Maximum context window is not equivalent to effective reasoning quality across full context.",
+#|                     "Model card is not independent verification.",
+#|                 ]
+#|                 + claim_flags
+#|                 + safety_flags
+#|                 + attr_flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             ModelObject(
+#|                 model_id=str(item.get("model_id") or stable_id("MODEL", item.get("canonical_name") or item.get("name"))),
+#|                 canonical_name=item.get("canonical_name") or item.get("name"),
+#|                 family_id=item.get("family_id"),
+#|                 developer_id=item.get("developer_id"),
+#|                 provider_ids=[str(x) for x in item.get("provider_ids", []) or []],
+#|                 model_type=enum_from_name(ModelType, item.get("model_type"), ModelType.UNKNOWN),
+#|                 access_type=enum_from_name(AccessType, item.get("access_type"), AccessType.UNKNOWN),
+#|                 architecture_claim=item.get("architecture_claim"),
+#|                 parameter_count=to_int(item.get("parameter_count")),
+#|                 active_parameter_count=to_int(item.get("active_parameter_count")),
+#|                 modality=[str(x) for x in item.get("modality", []) or []],
+#|                 context_window=to_int(item.get("context_window")),
+#|                 max_output_tokens=to_int(item.get("max_output_tokens")),
+#|                 tokenizer=item.get("tokenizer"),
+#|                 release_date=parse_dt(item.get("release_date")),
+#|                 knowledge_cutoff_claim=item.get("knowledge_cutoff_claim"),
+#|                 license_id=item.get("license_id"),
+#|                 policy_ids=[str(x) for x in item.get("policy_ids", []) or []],
+#|                 repository=item.get("repository"),
+#|                 model_card=item.get("model_card"),
+#|                 system_card=item.get("system_card"),
+#|                 base_model_id=item.get("base_model_id"),
+#|                 fine_tuned_from=item.get("fine_tuned_from"),
+#|                 distilled_from=item.get("distilled_from"),
+#|                 quantized_from=item.get("quantized_from"),
+#|                 adapter_ids=[str(x) for x in item.get("adapter_ids", []) or []],
+#|                 aliases=[str(x) for x in item.get("aliases", []) or []],
+#|                 capability_claims=capability_claims,
+#|                 evaluation_result_ids=[str(x) for x in item.get("evaluation_result_ids", []) or []],
+#|                 safety_context=safety_context,
+#|                 availability=enum_from_name(ModelAvailability, item.get("availability"), ModelAvailability.UNKNOWN),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_benchmark_results(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[BenchmarkResult]:
+#|     out: List[BenchmarkResult] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "benchmark_result", now, "provider_benchmark")
+#|         evidences.append(ev)
+#| 
+#|         tools = item.get("tools")
+#|         tools_list: Optional[List[str]] = None
+#|         if tools is not None:
+#|             tools_list = [str(x) for x in tools or []]
+#| 
+#|         protocol_fields = [
+#|             item.get("benchmark_id"),
+#|             item.get("benchmark_version"),
+#|             item.get("metric"),
+#|             item.get("prompting"),
+#|             item.get("shots"),
+#|             tools,
+#|             item.get("sampling"),
+#|             item.get("evaluator"),
+#|             item.get("date") or item.get("published_at"),
+#|         ]
+#| 
+#|         protocol_complete = all(x is not None for x in protocol_fields)
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Benchmark score is not real-world performance proof.",
+#|                     "Scores are comparable only under normalized protocol, version, prompting, tools, sampling, evaluator, and date context.",
+#|                     "Provider-reported benchmark is not independent evaluation.",
+#|                 ]
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             BenchmarkResult(
+#|                 result_id=str(item.get("result_id") or stable_id("BMRES", item.get("model_id"), item.get("benchmark_id"), item.get("score"), ev.source_id)),
+#|                 model_id=item.get("model_id"),
+#|                 model_version=item.get("model_version"),
+#|                 benchmark_id=item.get("benchmark_id"),
+#|                 benchmark_version=item.get("benchmark_version"),
+#|                 score=to_float(item.get("score")),
+#|                 metric=item.get("metric"),
+#|                 prompting=item.get("prompting"),
+#|                 shots=to_int(item.get("shots")),
+#|                 tools=tools_list,
+#|                 sampling=item.get("sampling"),
+#|                 evaluator=item.get("evaluator"),
+#|                 source_type=str(item.get("source_type") or ev.source_type),
+#|                 independence_group=str(item.get("independence_group") or ev.upstream_source_id),
+#|                 date=parse_dt(item.get("date") or item.get("published_at")),
+#|                 protocol_complete=protocol_complete,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_security_findings(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[SecurityFinding]:
+#|     out: List[SecurityFinding] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "security_finding", now, "security_advisory")
+#|         evidences.append(ev)
+#| 
+#|         attributes, flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in META_KEYS},
+#|             "security_finding.attributes",
+#|         )
+#| 
+#|         affected_type = str(item.get("affected_entity_type") or "unknown").lower()
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Security issue class is not verified exploitation.",
+#|                     "Product/API/deployment finding does not automatically establish base model vulnerability.",
+#|                     "Mitigation guidance is defensive and does not provide exploit procedures.",
+#|                 ]
+#|                 + flags
+#|             )
+#|         )
+#| 
+#|         if affected_type in {"product", "application", "api", "deployment", "agent"}:
+#|             limitations.append("Affected layer is not base model; base-model impact remains unresolved.")
+#| 
+#|         out.append(
+#|             SecurityFinding(
+#|                 finding_id=str(item.get("finding_id") or stable_id("SEC", item.get("title"), item.get("affected_entity_id"), item.get("affected_version"))),
+#|                 title=item.get("title"),
+#|                 issue_type=enum_from_name(SecurityIssueType, item.get("issue_type"), SecurityIssueType.UNKNOWN),
+#|                 affected_entity_type=affected_type,
+#|                 affected_entity_id=item.get("affected_entity_id"),
+#|                 affected_version=item.get("affected_version"),
+#|                 deployment_context=item.get("deployment_context"),
+#|                 disclosure_date=parse_dt(item.get("disclosure_date")),
+#|                 severity_context=item.get("severity_context"),
+#|                 exploitability_context=item.get("exploitability_context"),
+#|                 mitigation=item.get("mitigation"),
+#|                 fixed_version=item.get("fixed_version"),
+#|                 verification_state=enum_from_name(VerificationState, item.get("verification_state"), VerificationState.INCONCLUSIVE),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_incidents(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[Incident]:
+#|     out: List[Incident] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "incident", now, "ai_incident_database")
+#|         evidences.append(ev)
+#| 
+#|         attributes, flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in META_KEYS},
+#|             "incident.attributes",
+#|         )
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Incident claim is not verified root cause.",
+#|                     "Provider outage does not prove every customer was impacted.",
+#|                     "Model incident does not prove every deployment used the affected version.",
+#|                 ]
+#|                 + flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             Incident(
+#|                 incident_id=str(item.get("incident_id") or stable_id("INC", item.get("system_id"), item.get("date"), item.get("incident_type"))),
+#|                 system_id=item.get("system_id"),
+#|                 model_id=item.get("model_id"),
+#|                 provider_id=item.get("provider_id"),
+#|                 date=parse_dt(item.get("date")),
+#|                 incident_type=enum_from_name(IncidentType, item.get("incident_type"), IncidentType.UNKNOWN),
+#|                 impact=item.get("impact"),
+#|                 affected_versions=[str(x) for x in item.get("affected_versions", []) or []],
+#|                 cause_claim=item.get("cause_claim"),
+#|                 official_status=item.get("official_status"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_pricing(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[Pricing]:
+#|     out: List[Pricing] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "pricing", now, "pricing_page")
+#|         evidences.append(ev)
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Pricing is time-specific and may change.",
+#|                     "Token price is not total deployment cost.",
+#|                 ]
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             Pricing(
+#|                 pricing_id=str(item.get("pricing_id") or stable_id("PRICE", item.get("entity_id"), item.get("effective_date"))),
+#|                 entity_id=item.get("entity_id"),
+#|                 currency=item.get("currency"),
+#|                 input_token_price_per_million=to_float(item.get("input_token_price_per_million")),
+#|                 output_token_price_per_million=to_float(item.get("output_token_price_per_million")),
+#|                 cached_token_price_per_million=to_float(item.get("cached_token_price_per_million")),
+#|                 effective_date=parse_dt(item.get("effective_date")),
+#|                 expiration_date=parse_dt(item.get("expiration_date")),
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_change_events(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ChangeEvent]:
+#|     out: List[ChangeEvent] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "change_event", now, "release_notes")
+#|         evidences.append(ev)
+#| 
+#|         old_state, old_flags = sanitize_mapping({"value": item.get("old_state")}, "change.old_state")
+#|         new_state, new_flags = sanitize_mapping({"value": item.get("new_state")}, "change.new_state")
+#| 
+#|         attributes, attr_flags = sanitize_mapping(
+#|             {k: v for k, v in item.items() if k not in META_KEYS},
+#|             "change.attributes",
+#|         )
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Change is not automatically improvement.",
+#|                     "Alias route changes may affect reproducibility and auditability.",
+#|                 ]
+#|                 + old_flags
+#|                 + new_flags
+#|                 + attr_flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             ChangeEvent(
+#|                 change_id=str(item.get("change_id") or stable_id("CHG", item.get("entity_id"), item.get("change_type"), item.get("effective_at"))),
+#|                 entity_id=item.get("entity_id"),
+#|                 change_type=enum_from_name(ChangeType, item.get("change_type"), ChangeType.UNKNOWN),
+#|                 old_state=old_state.get("value"),
+#|                 new_state=new_state.get("value"),
+#|                 effective_at=parse_dt(item.get("effective_at")),
+#|                 announced_at=parse_dt(item.get("announced_at")),
+#|                 source=item.get("source") or ev.source_id,
+#|                 impact_candidate=item.get("impact_candidate"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_cost_usage(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "cost_usage", now, "authorized_internal_log")
+#|         evidences.append(ev)
+#| 
+#|         sanitized, flags = sanitize_mapping(item, "cost_usage")
+#|         sanitized["evidence_ids"] = [ev.evidence_id]
+#|         sanitized["limitations"] = sorted(set(list(item.get("limitations", []) or []) + flags))
+#|         out.append(sanitized)
+#| 
+#|     return out
+#| 
+#| 
+#| # ==============================================================================
+#| # ANALYSIS
+#| # ==============================================================================
+#| 
+#| def build_indexes(
+#|     entities: List[Entity],
+#|     models: List[ModelObject],
+#|     relationships: List[Relationship],
+#|     evidences: List[EvidenceRef],
+#| ) -> Tuple[
+#|     Dict[str, Entity],
+#|     Dict[str, Set[str]],
+#|     Dict[str, List[Relationship]],
+#|     Dict[str, List[Relationship]],
+#|     Dict[str, EvidenceRef],
+#| ]:
+#|     entity_index: Dict[str, Entity] = {}
+#| 
+#|     for e in entities:
+#|         entity_index[e.entity_id] = e
+#| 
+#|     for m in models:
+#|         if m.model_id not in entity_index:
+#|             entity_index[m.model_id] = Entity(
+#|                 entity_id=m.model_id,
+#|                 entity_type="MODEL",
+#|                 name=m.canonical_name,
+#|                 aliases=m.aliases,
+#|                 attributes={
+#|                     "model_type": m.model_type.name,
+#|                     "access_type": m.access_type.name,
+#|                     "family_id": m.family_id,
+#|                     "developer_id": m.developer_id,
+#|                     "provider_ids": m.provider_ids,
+#|                     "license_id": m.license_id,
+#|                     "context_window": m.context_window,
+#|                     "parameter_count": m.parameter_count,
+#|                 },
+#|                 evidence_ids=m.evidence_ids,
+#|                 confidence=m.confidence,
+#|                 limitations=m.limitations,
+#|             )
+#| 
+#|     alias_to_ids: Dict[str, Set[str]] = defaultdict(set)
+#| 
+#|     for e in entity_index.values():
+#|         if e.name:
+#|             alias_to_ids[normalize_identifier(e.name)].add(e.entity_id)
+#|         for alias in e.aliases:
+#|             alias_to_ids[normalize_identifier(alias)].add(e.entity_id)
+#|         alias_to_ids[normalize_identifier(e.entity_id)].add(e.entity_id)
+#| 
+#|     rel_by_source: Dict[str, List[Relationship]] = defaultdict(list)
+#|     rel_by_target: Dict[str, List[Relationship]] = defaultdict(list)
+#| 
+#|     for r in relationships:
+#|         rel_by_source[r.source_id].append(r)
+#|         rel_by_target[r.target_id].append(r)
+#| 
+#|     evidence_by_id = {ev.evidence_id: ev for ev in evidences}
+#| 
+#|     return entity_index, alias_to_ids, rel_by_source, rel_by_target, evidence_by_id
+#| 
+#| 
+#| def resolve_references(
+#|     references: List[Any],
+#|     alias_to_ids: Dict[str, Set[str]],
+#|     entity_index: Dict[str, Entity],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     for ref in references or []:
+#|         if isinstance(ref, str):
+#|             query = ref
+#|             expected_type = None
+#|         elif isinstance(ref, dict):
+#|             query = str(ref.get("reference") or ref.get("name") or ref.get("id") or "")
+#|             expected_type = ref.get("expected_type")
+#|         else:
+#|             query = str(ref)
+#|             expected_type = None
+#| 
+#|         norm = normalize_identifier(query)
+#|         candidates = set(alias_to_ids.get(norm, set()))
+#| 
+#|         if expected_type:
+#|             et = str(expected_type).upper()
+#|             candidates = {cid for cid in candidates if entity_index.get(cid) and entity_index[cid].entity_type == et}
+#| 
+#|         resolved_ids = sorted(candidates)
+#|         primary_id = resolved_ids[0] if resolved_ids else None
+#|         layer = entity_index[primary_id].entity_type if primary_id in entity_index else "UNRESOLVED"
+#| 
+#|         out.append(
+#|             {
+#|                 "reference": query,
+#|                 "expected_type": expected_type,
+#|                 "resolved_ids": resolved_ids,
+#|                 "primary_id": primary_id,
+#|                 "layer": layer,
+#|                 "ambiguous": len(resolved_ids) > 1,
+#|                 "evidence_ids": entity_index[primary_id].evidence_ids if primary_id in entity_index else [],
+#|                 "limitations": [
+#|                     "Reference resolution is alias-based and may be ambiguous.",
+#|                     "API/product/model/deployment/agent layers must remain separate.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def lineage_confidence_from_evidence(
+#|     evidence_ids: List[str],
+#|     evidence_by_id: Dict[str, EvidenceRef],
+#| ) -> LineageConfidence:
+#|     types = {evidence_by_id[eid].source_type for eid in evidence_ids if eid in evidence_by_id}
+#| 
+#|     if types & OFFICIAL_LINEAGE_SOURCES:
+#|         return LineageConfidence.OFFICIAL
+#|     if types & SUPPORTED_LINEAGE_SOURCES:
+#|         return LineageConfidence.SUPPORTED
+#|     if types & PROBABLE_LINEAGE_SOURCES:
+#|         return LineageConfidence.PROBABLE
+#|     return LineageConfidence.UNKNOWN
+#| 
+#| 
+#| def build_lineage(
+#|     models: List[ModelObject],
+#|     relationships: List[Relationship],
+#|     evidence_by_id: Dict[str, EvidenceRef],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#|     seen: Set[Tuple[str, str, str]] = set()
+#| 
+#|     rel_by_source: Dict[str, List[Relationship]] = defaultdict(list)
+#|     for r in relationships:
+#|         rel_by_source[r.source_id].append(r)
+#| 
+#|     lineage_relations = {
+#|         "BASE_MODEL_OF",
+#|         "FINE_TUNED_FROM",
+#|         "DISTILLED_FROM",
+#|         "QUANTIZED_FROM",
+#|         "USES_ADAPTER",
+#|         "VERSION_OF",
+#|         "DERIVED_FROM",
+#|     }
+#| 
+#|     def add_edge(source: str, target: str, relation: str, confidence: float, evidence_ids: List[str], source_obj: str) -> None:
+#|         if not source or not target:
+#|             return
+#|         key = (source, target, relation)
+#|         if key in seen:
+#|             return
+#|         seen.add(key)
+#|         out.append(
+#|             {
+#|                 "lineage_id": new_id("LIN"),
+#|                 "source_model_id": source,
+#|                 "target_model_id": target,
+#|                 "relation": relation,
+#|                 "confidence": confidence,
+#|                 "lineage_confidence": lineage_confidence_from_evidence(evidence_ids, evidence_by_id).name,
+#|                 "evidence_ids": sorted(set(evidence_ids)),
+#|                 "source_object": source_obj,
+#|                 "limitations": [
+#|                     "Lineage confidence reflects evidence strength, not behavioral equivalence.",
+#|                     "Fine-tune/distill/quantize relationships do not imply capability or safety equivalence.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     for m in models:
+#|         if m.base_model_id:
+#|             add_edge(m.model_id, m.base_model_id, "BASED_ON", m.confidence, m.evidence_ids, m.model_id)
+#|         if m.fine_tuned_from:
+#|             add_edge(m.model_id, m.fine_tuned_from, "FINE_TUNED_FROM", m.confidence, m.evidence_ids, m.model_id)
+#|         if m.distilled_from:
+#|             add_edge(m.model_id, m.distilled_from, "DISTILLED_FROM", m.confidence, m.evidence_ids, m.model_id)
+#|         if m.quantized_from:
+#|             add_edge(m.model_id, m.quantized_from, "QUANTIZED_FROM", m.confidence, m.evidence_ids, m.model_id)
+#|         for adapter_id in m.adapter_ids:
+#|             add_edge(m.model_id, adapter_id, "USES_ADAPTER", m.confidence, m.evidence_ids, m.model_id)
+#| 
+#|         for r in rel_by_source.get(m.model_id, []):
+#|             if r.relation in lineage_relations:
+#|                 add_edge(r.source_id, r.target_id, r.relation, r.confidence, r.evidence_ids + m.evidence_ids, r.relationship_id)
+#| 
+#|     return out
+#| 
+#| 
+#| def assess_capability(
+#|     models: List[ModelObject],
+#|     benchmark_results: List[BenchmarkResult],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#|     results_by_model: Dict[str, List[BenchmarkResult]] = defaultdict(list)
+#| 
+#|     for br in benchmark_results:
+#|         if br.model_id:
+#|             results_by_model[br.model_id].append(br)
+#| 
+#|     for m in models:
+#|         claims: List[Dict[str, Any]] = []
+#| 
+#|         for claim in m.capability_claims:
+#|             claim_type = str(claim.get("claim_type") or CapabilityClaimType.PROVIDER_CLAIMED.name).upper()
+#|             claims.append(
+#|                 {
+#|                     "claim": claim.get("claim"),
+#|                     "claim_type": claim_type,
+#|                     "evidence_ids": claim.get("evidence_ids", []),
+#|                     "limitations": [
+#|                         "Provider claim is not independent measurement.",
+#|                         "Capability does not establish reliability or safety.",
+#|                     ],
+#|                 }
+#|             )
+#| 
+#|         measured: List[Dict[str, Any]] = []
+#| 
+#|         for br in results_by_model.get(m.model_id, []):
+#|             if br.source_type in INDEPENDENT_EVAL_SOURCES:
+#|                 ctype = CapabilityClaimType.INDEPENDENTLY_MEASURED
+#|             elif br.source_type in INTERNAL_EVAL_SOURCES:
+#|                 ctype = CapabilityClaimType.AUTHORIZED_INTERNAL_MEASUREMENT
+#|             elif br.source_type in PROVIDER_CLAIM_SOURCES:
+#|                 ctype = CapabilityClaimType.PROVIDER_CLAIMED
+#|             else:
+#|                 ctype = CapabilityClaimType.UNKNOWN
+#| 
+#|             measured.append(
+#|                 {
+#|                     "result_id": br.result_id,
+#|                     "benchmark_id": br.benchmark_id,
+#|                     "benchmark_version": br.benchmark_version,
+#|                     "score": br.score,
+#|                     "metric": br.metric,
+#|                     "claim_type": ctype.name,
+#|                     "comparability_status": br.comparability_status.name,
+#|                     "evidence_ids": br.evidence_ids,
+#|                     "limitations": br.limitations,
+#|                 }
+#|             )
+#| 
+#|         out.append(
+#|             {
+#|                 "model_id": m.model_id,
+#|                 "canonical_name": m.canonical_name,
+#|                 "claims": claims,
+#|                 "measurements": measured,
+#|                 "assessment": "CLAIMS_AND_MEASUREMENTS_SEPARATED",
+#|                 "limitations": [
+#|                     "Capability is not reliability.",
+#|                     "Capability is not safety.",
+#|                     "Benchmark performance is task/distribution/protocol specific.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def normalize_benchmark_results(
+#|     benchmark_results: List[BenchmarkResult],
+#| ) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+#|     groups: Dict[str, List[BenchmarkResult]] = defaultdict(list)
+#|     conflicts: List[Dict[str, Any]] = []
+#| 
+#|     for br in benchmark_results:
+#|         if br.protocol_complete:
+#|             group_key = stable_id(
+#|                 "BMGROUP",
+#|                 br.benchmark_id,
+#|                 br.benchmark_version,
+#|                 br.metric,
+#|                 br.prompting,
+#|                 br.shots,
+#|                 tuple(br.tools or []),
+#|                 br.sampling,
+#|                 br.evaluator,
+#|             )
+#|             br.comparability_group = group_key
+#|             br.comparability_status = BenchmarkComparability.COMPARABLE
+#|             groups[group_key].append(br)
+#|         else:
+#|             group_key = f"LIMITED::{br.result_id}"
+#|             br.comparability_group = group_key
+#|             br.comparability_status = BenchmarkComparability.COMPARABILITY_LIMITED
+#|             groups[group_key].append(br)
+#| 
+#|     group_objects: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     for gid, items in groups.items():
+#|         scores = [x.score for x in items if x.score is not None]
+#|         conflict = False
+#| 
+#|         if len(scores) > 1:
+#|             mean = statistics.mean(scores)
+#|             tolerance = max(1.0, abs(mean) * 0.02)
+#|             if max(scores) - min(scores) > tolerance:
+#|                 conflict = True
+#|                 for x in items:
+#|                     x.comparability_status = BenchmarkComparability.NOT_DIRECTLY_COMPARABLE
+#|                 conflicts.append(
+#|                     {
+#|                         "group_id": gid,
+#|                         "result_ids": [x.result_id for x in items],
+#|                         "scores": scores,
+#|                         "description": "Same protocol group produced materially different scores.",
+#|                     }
+#|                 )
+#| 
+#|         group_objects[gid] = {
+#|             "group_id": gid,
+#|             "result_ids": [x.result_id for x in items],
+#|             "protocol_complete": bool(items and items[0].protocol_complete),
+#|             "conflict": conflict,
+#|             "comparability_status": items[0].comparability_status.name if items else BenchmarkComparability.UNKNOWN.name,
+#|         }
+#| 
+#|     return group_objects, conflicts
+#| 
+#| 
+#| def get_related_models(
+#|     entity_id: Optional[str],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     rel_by_target: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#|     depth: int = 2,
+#| ) -> Set[str]:
+#|     if not entity_id:
+#|         return set()
+#| 
+#|     relations = {
+#|         "USES_MODEL",
+#|         "PRIMARY_MODEL_OF",
+#|         "SERVES_MODEL",
+#|         "DEPLOYS_MODEL",
+#|         "ROUTES_TO",
+#|         "USES_API",
+#|         "BASED_ON",
+#|         "VERSION_OF",
+#|     }
+#| 
+#|     visited: Set[str] = set()
+#|     frontier: Set[str] = {entity_id}
+#|     models: Set[str] = set()
+#| 
+#|     for _ in range(depth):
+#|         next_frontier: Set[str] = set()
+#| 
+#|         for node in frontier:
+#|             if node in visited:
+#|                 continue
+#|             visited.add(node)
+#| 
+#|             ent = entity_index.get(node)
+#|             if ent and ent.entity_type == "MODEL":
+#|                 models.add(node)
+#| 
+#|             for r in rel_by_source.get(node, []):
+#|                 if r.relation in relations:
+#|                     next_frontier.add(r.target_id)
+#| 
+#|             for r in rel_by_target.get(node, []):
+#|                 if r.relation in relations:
+#|                     next_frontier.add(r.source_id)
+#| 
+#|         frontier = next_frontier - visited
+#| 
+#|     return models
+#| 
+#| 
+#| def map_security_layers(
+#|     findings: List[SecurityFinding],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     rel_by_target: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     for f in findings:
+#|         affected_id = f.affected_entity_id
+#|         affected_type = (f.affected_entity_type or "unknown").upper()
+#|         related_models = get_related_models(affected_id, rel_by_source, rel_by_target, entity_index, depth=2)
+#| 
+#|         if affected_type in {"MODEL", "CHECKPOINT"}:
+#|             layer = "MODEL"
+#|             base_model_impact = "SUPPORTED" if f.verification_state == VerificationState.SUPPORTED else "PARTIAL"
+#|         elif affected_type in {"PRODUCT", "APPLICATION", "API", "DEPLOYMENT", "AGENT"}:
+#|             layer = affected_type
+#|             if f.attributes.get("base_model_vulnerable") is True:
+#|                 base_model_impact = "CANDIDATE_REQUIRES_VALIDATION"
+#|             else:
+#|                 base_model_impact = "NOT_ESTABLISHED"
+#|         else:
+#|             layer = affected_type or "UNKNOWN"
+#|             base_model_impact = "UNKNOWN"
+#| 
+#|         out.append(
+#|             {
+#|                 "finding_id": f.finding_id,
+#|                 "affected_layer": layer,
+#|                 "affected_entity_id": affected_id,
+#|                 "affected_version": f.affected_version,
+#|                 "related_model_ids": sorted(related_models),
+#|                 "base_model_impact": base_model_impact,
+#|                 "issue_type": f.issue_type.name,
+#|                 "mitigation": f.mitigation,
+#|                 "fixed_version": f.fixed_version,
+#|                 "evidence_ids": f.evidence_ids,
+#|                 "limitations": f.limitations,
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def propagate_incidents(
+#|     incidents: List[Incident],
+#|     entities: List[Entity],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     rel_by_target: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     deployment_like_types = {"DEPLOYMENT", "APPLICATION", "PRODUCT", "AGENT"}
+#| 
+#|     for inc in incidents:
+#|         model_id = inc.model_id
+#|         if not model_id and inc.system_id and entity_index.get(inc.system_id) and entity_index[inc.system_id].entity_type == "MODEL":
+#|             model_id = inc.system_id
+#| 
+#|         affected_versions = set(inc.affected_versions or [])
+#|         affected: List[Dict[str, Any]] = []
+#| 
+#|         for ent in entities:
+#|             if ent.entity_type not in deployment_like_types:
+#|                 continue
+#| 
+#|             related_models = get_related_models(ent.entity_id, rel_by_source, rel_by_target, entity_index, depth=2)
+#| 
+#|             if model_id and model_id not in related_models:
+#|                 continue
+#| 
+#|             version = ent.attributes.get("model_version") or ent.attributes.get("version")
+#|             if isinstance(version, list):
+#|                 version = version[0] if version else None
+#| 
+#|             if affected_versions and version and str(version) in affected_versions:
+#|                 state = "DEPLOYED_DURING_WINDOW"
+#|             elif not affected_versions:
+#|                 state = "POTENTIALLY_AFFECTED"
+#|             elif version and str(version) not in affected_versions:
+#|                 state = "NOT_AFFECTED_CANDIDATE"
+#|             else:
+#|                 state = "POTENTIALLY_AFFECTED"
+#| 

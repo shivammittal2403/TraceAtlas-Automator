@@ -1,0 +1,1000 @@
+#|             affected.append(
+#|                 {
+#|                     "entity_id": ent.entity_id,
+#|                     "entity_type": ent.entity_type,
+#|                     "state": state,
+#|                     "observed_version": version,
+#|                     "evidence_ids": ent.evidence_ids + inc.evidence_ids,
+#|                 }
+#|             )
+#| 
+#|         out.append(
+#|             {
+#|                 "incident_id": inc.incident_id,
+#|                 "model_id": model_id,
+#|                 "affected_versions": sorted(affected_versions),
+#|                 "deployment_propagation": affected if affected else [{"state": "NO_DEPLOYMENT_EVIDENCE", "entity_id": None}],
+#|                 "limitations": [
+#|                     "Incident propagation is version/deployment specific.",
+#|                     "No deployment evidence does not prove no impact; it may reflect missing inventory.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def map_supply_chain(
+#|     models: List[ModelObject],
+#|     entities: List[Entity],
+#|     relationships: List[Relationship],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#| ) -> Dict[str, Any]:
+#|     supply_relations = {
+#|         "DEPENDS_ON",
+#|         "RUNS_ON",
+#|         "SERVED_BY",
+#|         "HOSTED_BY",
+#|         "USES_FRAMEWORK",
+#|         "USES_PACKAGE",
+#|         "USES_INFERENCE_ENGINE",
+#|         "USES_CLOUD",
+#|         "RUNS_ON_CLOUD",
+#|         "RUNS_ON_HARDWARE",
+#|         "RETRIEVES_FROM",
+#|         "EMBEDDED_BY",
+#|         "RERANKED_BY",
+#|         "USES_VECTOR_DATABASE",
+#|         "GUARDED_BY",
+#|         "MONITORED_BY",
+#|         "USES_PROVIDER",
+#|         "PROVIDED_BY",
+#|     }
+#| 
+#|     paths: List[List[str]] = []
+#| 
+#|     for m in models:
+#|         visited: Set[str] = set()
+#|         frontier: List[List[str]] = [[m.model_id]]
+#| 
+#|         while frontier:
+#|             path = frontier.pop(0)
+#|             node = path[-1]
+#| 
+#|             if node in visited:
+#|                 continue
+#|             visited.add(node)
+#| 
+#|             if len(path) > 1:
+#|                 paths.append(path)
+#| 
+#|             if len(path) >= 6:
+#|                 continue
+#| 
+#|             for r in rel_by_source.get(node, []):
+#|                 if r.relation in supply_relations or r.relation.startswith(("USES_", "RUNS_ON_", "DEPENDS_ON_")):
+#|                     frontier.append(path + [r.target_id])
+#| 
+#|     dep_type_map = {
+#|         "USES_PROVIDER": "PROVIDER",
+#|         "PROVIDED_BY": "PROVIDER",
+#|         "HOSTED_BY": "PROVIDER",
+#|         "USES_FRAMEWORK": "FRAMEWORK",
+#|         "USES_PACKAGE": "PACKAGE",
+#|         "DEPENDS_ON_PACKAGE": "PACKAGE",
+#|         "USES_INFERENCE_ENGINE": "INFERENCE_ENGINE",
+#|         "RUNS_ON_HARDWARE": "HARDWARE",
+#|         "USES_CLOUD": "CLOUD",
+#|         "RUNS_ON_CLOUD": "CLOUD",
+#|         "RETRIEVES_FROM": "RAG",
+#|         "EMBEDDED_BY": "EMBEDDING_MODEL",
+#|         "RERANKED_BY": "RERANKER",
+#|         "USES_VECTOR_DATABASE": "VECTOR_DATABASE",
+#|         "GUARDED_BY": "GUARDRAIL",
+#|         "MONITORED_BY": "MONITORING",
+#|     }
+#| 
+#|     deployment_deps: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
+#|     dep_to_deployments: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+#| 
+#|     for ent in entities:
+#|         if ent.entity_type not in {"DEPLOYMENT", "APPLICATION", "PRODUCT", "AGENT"}:
+#|             continue
+#| 
+#|         for r in rel_by_source.get(ent.entity_id, []):
+#|             dep_type = dep_type_map.get(r.relation)
+#|             if dep_type:
+#|                 deployment_deps[ent.entity_id].add((dep_type, r.target_id))
+#|                 dep_to_deployments[(dep_type, r.target_id)].add(ent.entity_id)
+#| 
+#|         related_models = get_related_models(ent.entity_id, rel_by_source, defaultdict(list), entity_index, depth=2)
+#|         for mid in related_models:
+#|             deployment_deps[ent.entity_id].add(("MODEL", mid))
+#|             dep_to_deployments[("MODEL", mid)].add(ent.entity_id)
+#| 
+#|     common_mode = [
+#|         {
+#|             "dependency_type": dtype,
+#|             "dependency_id": did,
+#|             "deployment_ids": sorted(deps),
+#|             "risk_note": "Shared dependency may create common-mode failure or correlated change risk.",
+#|         }
+#|         for (dtype, did), deps in dep_to_deployments.items()
+#|         if len(deps) > 1
+#|     ]
+#| 
+#|     return {
+#|         "paths": paths[:200],
+#|         "common_mode_dependencies": common_mode,
+#|         "limitations": [
+#|             "Supply-chain map is evidence-based and may be incomplete.",
+#|             "Common-mode dependency is resilience context, not attack targeting.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def estimate_costs(
+#|     pricing: List[Pricing],
+#|     usage_items: List[Dict[str, Any]],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#|     now: datetime,
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     estimates: List[Dict[str, Any]] = []
+#|     missing: List[Dict[str, Any]] = []
+#| 
+#|     pricing_by_entity: Dict[str, List[Pricing]] = defaultdict(list)
+#|     for p in pricing:
+#|         if p.entity_id:
+#|             pricing_by_entity[p.entity_id].append(p)
+#| 
+#|     def select_pricing(entity_id: Optional[str]) -> Optional[Pricing]:
+#|         if not entity_id:
+#|             return None
+#|         candidates = pricing_by_entity.get(entity_id, [])
+#|         if not candidates:
+#|             return None
+#| 
+#|         active = [
+#|             p
+#|             for p in candidates
+#|             if (p.effective_date is None or p.effective_date <= now)
+#|             and (p.expiration_date is None or p.expiration_date >= now)
+#|         ]
+#| 
+#|         pool = active or candidates
+#|         return max(pool, key=lambda x: x.effective_date or datetime.min.replace(tzinfo=timezone.utc))
+#| 
+#|     def find_entity_for_usage(usage: Dict[str, Any]) -> Optional[str]:
+#|         for key in ("pricing_entity_id", "api_id", "model_id", "provider_id", "deployment_id"):
+#|             val = usage.get(key)
+#|             if val:
+#|                 return str(val)
+#|         return None
+#| 
+#|     for usage in usage_items or []:
+#|         entity_id = find_entity_for_usage(usage)
+#|         p = select_pricing(entity_id)
+#| 
+#|         input_tokens = to_float(usage.get("input_tokens")) or 0.0
+#|         output_tokens = to_float(usage.get("output_tokens")) or 0.0
+#|         cached_tokens = to_float(usage.get("cached_tokens")) or 0.0
+#|         period_days = to_float(usage.get("period_days")) or 30.0
+#| 
+#|         if not p:
+#|             missing.append(
+#|                 {
+#|                     "usage_id": usage.get("usage_id") or new_id("USAGE"),
+#|                     "entity_id": entity_id,
+#|                     "reason": "No applicable pricing record found.",
+#|                     "evidence_ids": usage.get("evidence_ids", []),
+#|                 }
+#|             )
+#|             continue
+#| 
+#|         input_cost = (input_tokens / 1_000_000.0) * (p.input_token_price_per_million or 0.0)
+#|         output_cost = (output_tokens / 1_000_000.0) * (p.output_token_price_per_million or 0.0)
+#|         cached_cost = (cached_tokens / 1_000_000.0) * (p.cached_token_price_per_million or 0.0)
+#|         total = input_cost + output_cost + cached_cost
+#| 
+#|         estimates.append(
+#|             {
+#|                 "estimate_id": new_id("COST"),
+#|                 "entity_id": p.entity_id,
+#|                 "pricing_id": p.pricing_id,
+#|                 "currency": p.currency,
+#|                 "input_tokens": input_tokens,
+#|                 "output_tokens": output_tokens,
+#|                 "cached_tokens": cached_tokens,
+#|                 "period_days": period_days,
+#|                 "input_cost": round(input_cost, 6),
+#|                 "output_cost": round(output_cost, 6),
+#|                 "cached_cost": round(cached_cost, 6),
+#|                 "total_cost": round(total, 6),
+#|                 "formula": "(input_tokens/1e6 * input_price_per_m) + (output_tokens/1e6 * output_price_per_m) + (cached_tokens/1e6 * cached_price_per_m)",
+#|                 "pricing_effective_date": p.effective_date,
+#|                 "limitations": [
+#|                     "Deterministic arithmetic only.",
+#|                     "Token price is not total infrastructure or engineering cost.",
+#|                     "Pricing is time-specific.",
+#|                 ],
+#|                 "evidence_ids": sorted(set(usage.get("evidence_ids", []) + p.evidence_ids)),
+#|             }
+#|         )
+#| 
+#|     return estimates, missing
+#| 
+#| 
+#| def assess_substitutability(
+#|     models: List[ModelObject],
+#|     resolved_references: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#|     models_by_id = {m.model_id: m for m in models}
+#| 
+#|     primary_ids = [
+#|         rr["primary_id"]
+#|         for rr in resolved_references
+#|         if rr.get("primary_id") and rr.get("layer") == "MODEL"
+#|     ]
+#| 
+#|     if not primary_ids and models:
+#|         primary_ids = [models[0].model_id]
+#| 
+#|     for pid in primary_ids:
+#|         primary = models_by_id.get(pid)
+#|         if not primary:
+#|             continue
+#| 
+#|         candidates: List[Dict[str, Any]] = []
+#| 
+#|         for m in models:
+#|             if m.model_id == pid:
+#|                 continue
+#| 
+#|             reasons: List[str] = []
+#|             state = Substitutability.UNKNOWN
+#| 
+#|             same_family = bool(primary.family_id and primary.family_id == m.family_id)
+#|             same_access = primary.access_type == m.access_type and primary.access_type != AccessType.UNKNOWN
+#|             context_ok = (
+#|                 primary.context_window is not None
+#|                 and m.context_window is not None
+#|                 and m.context_window >= primary.context_window
+#|             )
+#|             interfaces_primary = set(primary.attributes.get("supported_interfaces", []) or [])
+#|             interfaces_candidate = set(m.attributes.get("supported_interfaces", []) or [])
+#|             interface_overlap = bool(interfaces_primary & interfaces_candidate)
+#| 
+#|             tool_primary = bool(primary.attributes.get("tool_use") or primary.attributes.get("function_calling"))
+#|             tool_candidate = bool(m.attributes.get("tool_use") or m.attributes.get("function_calling"))
+#| 
+#|             if same_family and same_access and context_ok and (interface_overlap or tool_primary == tool_candidate):
+#|                 state = Substitutability.EASY
+#|                 reasons.append("Same family/access/context/tool profile.")
+#|             elif primary.developer_id and primary.developer_id == m.developer_id:
+#|                 state = Substitutability.MODERATE
+#|                 reasons.append("Same developer but version/lineage/capability differences require evaluation.")
+#|             elif set(primary.provider_ids) & set(m.provider_ids):
+#|                 state = Substitutability.MODERATE
+#|                 reasons.append("Same provider but model/version differences require evaluation.")
+#|             else:
+#|                 state = Substitutability.DIFFICULT
+#|                 reasons.append("Different family/provider/access profile.")
+#| 
+#|             if not context_ok:
+#|                 reasons.append("Context-window equivalence unresolved.")
+#|             if tool_primary != tool_candidate:
+#|                 reasons.append("Tool/function-calling profile differs.")
+#| 
+#|             candidates.append(
+#|                 {
+#|                     "candidate_model_id": m.model_id,
+#|                     "candidate_name": m.canonical_name,
+#|                     "state": state.name,
+#|                     "reasons": reasons,
+#|                     "limitations": [
+#|                         "Substitutability is not capability equivalence.",
+#|                         "Migration requires task-specific evaluation, license review, and deployment testing.",
+#|                     ],
+#|                 }
+#|             )
+#| 
+#|         out.append(
+#|             {
+#|                 "primary_model_id": pid,
+#|                 "primary_name": primary.canonical_name,
+#|                 "candidates": candidates,
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def assess_lock_in(
+#|     entities: List[Entity],
+#|     rel_by_source: Dict[str, List[Relationship]],
+#|     entity_index: Dict[str, Entity],
+#| ) -> List[Dict[str, Any]]:
+#|     out: List[Dict[str, Any]] = []
+#| 
+#|     for ent in entities:
+#|         if ent.entity_type not in {"DEPLOYMENT", "APPLICATION", "PRODUCT", "AGENT"}:
+#|             continue
+#| 
+#|         factors: List[str] = []
+#| 
+#|         for r in rel_by_source.get(ent.entity_id, []):
+#|             target = entity_index.get(r.target_id)
+#|             if not target:
+#|                 continue
+#| 
+#|             if r.relation == "USES_API" and target.attributes.get("proprietary") is True:
+#|                 factors.append("Proprietary API dependency.")
+#|             if r.relation in {"EMBEDDED_BY", "USES_VECTOR_DATABASE"}:
+#|                 factors.append("Embedding/vector-store coupling.")
+#|             if r.relation == "USES_MODEL":
+#|                 model = entity_index.get(r.target_id)
+#|                 if model and model.attributes.get("fine_tuned") is True:
+#|                     factors.append("Fine-tuned model coupling.")
+#| 
+#|         if ent.attributes.get("system_prompt_reference"):
+#|             factors.append("System prompt coupling.")
+#|         if ent.attributes.get("tool_schema_lock_in"):
+#|             factors.append("Tool schema coupling.")
+#|         if ent.attributes.get("stored_conversations") or ent.attributes.get("stored_embeddings"):
+#|             factors.append("Stored data coupling.")
+#| 
+#|         count = len(set(factors))
+#|         if count == 0:
+#|             state = "LOW"
+#|         elif count <= 2:
+#|             state = "MODERATE"
+#|         else:
+#|             state = "HIGH"
+#| 
+#|         out.append(
+#|             {
+#|                 "entity_id": ent.entity_id,
+#|                 "entity_type": ent.entity_type,
+#|                 "state": state,
+#|                 "factors": sorted(set(factors)),
+#|                 "limitations": [
+#|                     "Lock-in is architectural/operational context, not inherently bad.",
+#|                     "Migration difficulty requires substitutability and evaluation evidence.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def analyze_changes(change_events: List[ChangeEvent]) -> Dict[str, Any]:
+#|     ordered = sorted(
+#|         change_events,
+#|         key=lambda x: x.effective_at or x.announced_at or datetime.min.replace(tzinfo=timezone.utc),
+#|     )
+#| 
+#|     flags: List[str] = []
+#|     timeline: List[Dict[str, Any]] = []
+#| 
+#|     for ch in ordered:
+#|         timeline.append(
+#|             {
+#|                 "change_id": ch.change_id,
+#|                 "entity_id": ch.entity_id,
+#|                 "change_type": ch.change_type.name,
+#|                 "effective_at": ch.effective_at,
+#|                 "announced_at": ch.announced_at,
+#|                 "old_state": ch.old_state,
+#|                 "new_state": ch.new_state,
+#|                 "impact_candidate": ch.impact_candidate,
+#|                 "evidence_ids": ch.evidence_ids,
+#|                 "limitations": ch.limitations,
+#|             }
+#|         )
+#| 
+#|         if ch.change_type == ChangeType.ALIAS_ROUTE_CHANGE:
+#|             flags.append("ALIAS_ROUTE_CHANGE_REPRODUCIBILITY_RISK")
+#|         if ch.change_type == ChangeType.MODEL_SWITCH:
+#|             flags.append("MODEL_SWITCH_REQUIRES_EVALUATION")
+#|         if ch.change_type == ChangeType.PRICING_CHANGE:
+#|             flags.append("PRICING_CHANGE_TIME_BOUND_COST_CONTEXT")
+#|         if ch.change_type == ChangeType.LICENSE_CHANGE:
+#|             flags.append("LICENSE_CHANGE_REQUIRES_LEGAL_REVIEW")
+#|         if ch.change_type == ChangeType.GUARDRAIL_UPDATE:
+#|             flags.append("GUARDRAIL_UPDATE_MAY_SHIFT_SAFETY_BEHAVIOR")
+#| 
+#|     return {
+#|         "timeline": timeline,
+#|         "flags": sorted(set(flags)),
+#|         "limitations": [
+#|             "Change is not automatically improvement.",
+#|             "Behavior drift may arise from model, prompt, RAG, tool, guardrail, provider, or routing changes.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def analyze_source_independence(evidences: List[EvidenceRef]) -> Dict[str, Any]:
+#|     upstream_groups: Dict[str, List[str]] = defaultdict(list)
+#|     source_groups: Dict[str, List[str]] = defaultdict(list)
+#| 
+#|     for ev in evidences:
+#|         upstream_groups[ev.upstream_source_id].append(ev.evidence_id)
+#|         source_groups[ev.source_id].append(ev.evidence_id)
+#| 
+#|     dependent_roots = {root for root, ids in upstream_groups.items() if len(ids) > 1}
+#| 
+#|     if not upstream_groups:
+#|         state = SourceIndependenceState.UNKNOWN
+#|     elif not dependent_roots:
+#|         state = SourceIndependenceState.INDEPENDENT
+#|     elif len(dependent_roots) < len(upstream_groups):
+#|         state = SourceIndependenceState.PARTIALLY_DEPENDENT
+#|     else:
+#|         state = SourceIndependenceState.DEPENDENT
+#| 
+#|     return {
+#|         "state": state.name,
+#|         "total_evidence_items": len(evidences),
+#|         "unique_sources": len(source_groups),
+#|         "unique_upstream_families": len(upstream_groups),
+#|         "dependent_upstream_families": sorted(dependent_roots),
+#|         "upstream_groups": {root: sorted(ids) for root, ids in upstream_groups.items()},
+#|         "limitations": [
+#|             "Multiple articles quoting one model card are not independent sources.",
+#|             "Multiple leaderboards using the same evaluation harness/data are not independent evidence.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def detect_contradictions(
+#|     resolved_references: List[Dict[str, Any]],
+#|     alias_to_ids: Dict[str, Set[str]],
+#|     entity_index: Dict[str, Entity],
+#|     benchmark_groups: Dict[str, Dict[str, Any]],
+#|     benchmark_conflicts: List[Dict[str, Any]],
+#|     pricing: List[Pricing],
+#|     security_mappings: List[Dict[str, Any]],
+#|     change_events: List[ChangeEvent],
+#|     relationships: List[Relationship],
+#| ) -> List[Contradiction]:
+#|     out: List[Contradiction] = []
+#| 
+#|     for rr in resolved_references:
+#|         if rr.get("ambiguous"):
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="REFERENCE_AMBIGUITY",
+#|                     description=f"Reference '{rr.get('reference')}' resolved to multiple entities: {rr.get('resolved_ids')}.",
+#|                     object_ids=rr.get("resolved_ids", []),
+#|                     evidence_ids=rr.get("evidence_ids", []),
+#|                     severity="MEDIUM",
+#|                 )
+#|             )
+#| 
+#|     for alias, ids in alias_to_ids.items():
+#|         model_ids = [iid for iid in ids if entity_index.get(iid) and entity_index[iid].entity_type == "MODEL"]
+#|         if len(set(model_ids)) > 1:
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="MODEL_ALIAS_AMBIGUITY",
+#|                     description=f"Alias '{alias}' maps to multiple model identities: {sorted(set(model_ids))}.",
+#|                     object_ids=sorted(set(model_ids)),
+#|                     evidence_ids=[],
+#|                     severity="HIGH",
+#|                 )
+#|             )
+#| 
+#|     for conflict in benchmark_conflicts:
+#|         out.append(
+#|             Contradiction(
+#|                 contradiction_id=new_id("CONTRA"),
+#|                 contradiction_type="BENCHMARK_SCORE_CONFLICT",
+#|                 description=conflict.get("description", "Benchmark protocol group produced conflicting scores."),
+#|                 object_ids=conflict.get("result_ids", []),
+#|                 evidence_ids=[],
+#|                 severity="MEDIUM",
+#|             )
+#|         )
+#| 
+#|     pricing_by_entity: Dict[str, List[Pricing]] = defaultdict(list)
+#|     for p in pricing:
+#|         if p.entity_id:
+#|             pricing_by_entity[p.entity_id].append(p)
+#| 
+#|     for entity_id, items in pricing_by_entity.items():
+#|         sorted_items = sorted(items, key=lambda x: x.effective_date or datetime.min.replace(tzinfo=timezone.utc))
+#|         for i in range(len(sorted_items)):
+#|             for j in range(i + 1, len(sorted_items)):
+#|                 a = sorted_items[i]
+#|                 b = sorted_items[j]
+#|                 a_start = a.effective_date or datetime.min.replace(tzinfo=timezone.utc)
+#|                 a_end = a.expiration_date or (a_start + timedelta(days=3650))
+#|                 b_start = b.effective_date or datetime.min.replace(tzinfo=timezone.utc)
+#|                 b_end = b.expiration_date or (b_start + timedelta(days=3650))
+#| 
+#|                 if a_start <= b_end and b_start <= a_end:
+#|                     if (
+#|                         a.input_token_price_per_million is not None
+#|                         and b.input_token_price_per_million is not None
+#|                         and abs(a.input_token_price_per_million - b.input_token_price_per_million) > 1e-9
+#|                     ):
+#|                         out.append(
+#|                             Contradiction(
+#|                                 contradiction_id=new_id("CONTRA"),
+#|                                 contradiction_type="PRICING_OVERLAP_CONFLICT",
+#|                                 description=f"Overlapping pricing records for {entity_id} disagree on input token price.",
+#|                                 object_ids=[a.pricing_id, b.pricing_id],
+#|                                 evidence_ids=a.evidence_ids + b.evidence_ids,
+#|                                 severity="MEDIUM",
+#|                             )
+#|                         )
+#| 
+#|     for sm in security_mappings:
+#|         if sm.get("affected_layer") not in {"MODEL", "CHECKPOINT"} and sm.get("base_model_impact") == "CANDIDATE_REQUIRES_VALIDATION":
+#|             out.append(
+#|                 Contradiction(
+#|                     contradiction_id=new_id("CONTRA"),
+#|                     contradiction_type="SECURITY_LAYER_CONFUSION_CANDIDATE",
+#|                     description=f"Finding {sm.get('finding_id')} affects {sm.get('affected_layer')} but claims base-model vulnerability.",
+#|                     object_ids=[sm.get("finding_id") or "", sm.get("affected_entity_id") or ""],
+#|                     evidence_ids=[],
+#|                     severity="HIGH",
+#|                 )
+#|             )
+#| 
+#|     rel_by_source: Dict[str, List[Relationship]] = defaultdict(list)
+#|     for r in relationships:
+#|         rel_by_source[r.source_id].append(r)
+#| 
+#|     for ch in change_events:
+#|         if ch.change_type == ChangeType.MODEL_SWITCH and ch.entity_id and ch.effective_at:
+#|             old_model = None
+#|             new_model = None
+#| 
+#|             if isinstance(ch.old_state, dict):
+#|                 old_model = ch.old_state.get("model_id") or ch.old_state.get("value")
+#|             else:
+#|                 old_model = ch.old_state
+#| 
+#|             if isinstance(ch.new_state, dict):
+#|                 new_model = ch.new_state.get("model_id") or ch.new_state.get("value")
+#|             else:
+#|                 new_model = ch.new_state
+#| 
+#|             if old_model:
+#|                 for r in rel_by_source.get(ch.entity_id, []):
+#|                     if r.relation == "USES_MODEL" and r.target_id == old_model and (r.valid_to is None or r.valid_to > ch.effective_at):
+#|                         out.append(
+#|                             Contradiction(
+#|                                 contradiction_id=new_id("CONTRA"),
+#|                                 contradiction_type="DEPLOYMENT_STALE_MODEL_RELATIONSHIP_CANDIDATE",
+#|                                 description=f"Change event indicates model switch for {ch.entity_id}, but relationship to old model {old_model} remains active after effective time.",
+#|                                 object_ids=[ch.entity_id, old_model, r.relationship_id],
+#|                                 evidence_ids=ch.evidence_ids + r.evidence_ids,
+#|                                 severity="MEDIUM",
+#|                             )
+#|                         )
+#| 
+#|     return out
+#| 
+#| 
+#| def build_hypotheses(
+#|     resolved_references: List[Dict[str, Any]],
+#|     lineage: List[Dict[str, Any]],
+#|     benchmark_groups: Dict[str, Dict[str, Any]],
+#|     security_mappings: List[Dict[str, Any]],
+#|     incident_props: List[Dict[str, Any]],
+#|     supply_chain: Dict[str, Any],
+#|     change_analysis: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     known_facts: Dict[str, Any],
+#| ) -> List[Hypothesis]:
+#|     hypotheses: List[Hypothesis] = []
+#| 
+#|     alias_ambiguous = any(rr.get("ambiguous") for rr in resolved_references)
+#|     exact_version_resolved = any(rr.get("layer") == "MODEL" and not rr.get("ambiguous") for rr in resolved_references)
+#|     benchmark_limited = any(g.get("comparability_status") == BenchmarkComparability.COMPARABILITY_LIMITED.name for g in benchmark_groups.values())
+#|     benchmark_conflict = any(g.get("conflict") for g in benchmark_groups.values())
+#|     product_security = any(sm.get("affected_layer") not in {"MODEL", "CHECKPOINT"} for sm in security_mappings)
+#|     incident_no_deployment = any(
+#|         any(p.get("state") == "NO_DEPLOYMENT_EVIDENCE" for p in inc.get("deployment_propagation", []))
+#|         for inc in incident_props
+#|     )
+#|     common_mode = bool(supply_chain.get("common_mode_dependencies"))
+#|     alias_change = "ALIAS_ROUTE_CHANGE_REPRODUCIBILITY_RISK" in change_analysis.get("flags", [])
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H1",
+#|             description="The referenced AI entity is resolved to an exact model/version/checkpoint.",
+#|             support_evidence=["Non-ambiguous model reference resolved." if exact_version_resolved else ""],
+#|             opposition_evidence=["Alias/reference ambiguity detected." if alias_ambiguous else ""],
+#|             unknowns=["Exact checkpoint behind mutable API alias.", "Regional/provider routing variants."],
+#|             falsification_criteria="Reject if alias maps to multiple snapshots or provider routing is undisclosed.",
+#|             status=HypothesisStatus.CANDIDATE if exact_version_resolved and not alias_ambiguous else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H2",
+#|             description="Observed product/application capability is attributable to the base model alone.",
+#|             support_evidence=["No RAG/tool/guardrail dependencies observed."] if not common_mode else [],
+#|             opposition_evidence=["Product/deployment relationships include retrieval/tools/guardrails."] if common_mode or product_security else [],
+#|             unknowns=["System prompt", "Tool permissions", "RAG corpus version", "Guardrail effectiveness."],
+#|             falsification_criteria="Reject if capability depends on retrieval, tools, prompts, or policy layers.",
+#|             status=HypothesisStatus.REJECTED if common_mode or product_security else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H3",
+#|             description="Benchmark scores are directly comparable across reported systems.",
+#|             support_evidence=["Complete protocol groups without conflict."] if not benchmark_limited and not benchmark_conflict else [],
+#|             opposition_evidence=["Protocol-limited groups."] if benchmark_limited else [],
+#|             unknowns=["Prompting", "shots", "tools", "sampling", "evaluator", "benchmark version."],
+#|             falsification_criteria="Reject if protocol fields differ or scores conflict under same protocol.",
+#|             status=HypothesisStatus.CANDIDATE if not benchmark_limited and not benchmark_conflict else HypothesisStatus.REJECTED,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H4",
+#|             description="Security finding affects the base model rather than product/API/deployment layer.",
+#|             support_evidence=[],
+#|             opposition_evidence=["Finding mapped to non-model layer."] if product_security else [],
+#|             unknowns=["Model version", "deployment configuration", "guardrail layer", "tool authorization."],
+#|             falsification_criteria="Reject if advisory evidence ties issue to retrieval, prompt, tool, or runtime policy layer.",
+#|             status=HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H5",
+#|             description="Incident impacted all deployments using the referenced model.",
+#|             support_evidence=[],
+#|             opposition_evidence=["No deployment evidence or version mismatch."] if incident_no_deployment else [],
+#|             unknowns=["Exact deployed versions", "time windows", "regional routing."],
+#|             falsification_criteria="Reject if only specific versions/deployments were affected or inventory is missing.",
+#|             status=HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H6",
+#|             description="Multiple systems share common-mode AI dependencies creating correlated risk.",
+#|             support_evidence=["Shared provider/model/framework/vector-store/guardrail dependencies observed."] if common_mode else [],
+#|             opposition_evidence=[],
+#|             unknowns=["Hidden routing", "fallback models", "embedding migration constraints."],
+#|             falsification_criteria="Reject if dependencies are independent across version/provider/infrastructure.",
+#|             status=HypothesisStatus.ACTIVE if common_mode else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     hypotheses.append(
+#|         Hypothesis(
+#|             id="H7",
+#|             description="API alias route change may cause behavior or cost drift.",
+#|             support_evidence=["Alias route change event observed."] if alias_change else [],
+#|             opposition_evidence=["No alias change event."] if not alias_change else [],
+#|             unknowns=["Routing policy", "snapshot equivalence", "evaluation delta."],
+#|             falsification_criteria="Reject if alias route remained stable or new snapshot is proven equivalent.",
+#|             status=HypothesisStatus.ACTIVE if alias_change else HypothesisStatus.INCONCLUSIVE,
+#|         )
+#|     )
+#| 
+#|     return [h for h in hypotheses if h.support_evidence or h.opposition_evidence or h.unknowns]
+#| 
+#| 
+#| def skeptic_review(
+#|     resolved_references: List[Dict[str, Any]],
+#|     benchmark_groups: Dict[str, Dict[str, Any]],
+#|     security_mappings: List[Dict[str, Any]],
+#|     incident_props: List[Dict[str, Any]],
+#|     supply_chain: Dict[str, Any],
+#|     change_analysis: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     known_facts: Dict[str, Any],
+#| ) -> Dict[str, Any]:
+#|     flags: List[str] = []
+#|     alternatives: List[str] = []
+#|     questions: List[str] = []
+#| 
+#|     if any(rr.get("ambiguous") for rr in resolved_references):
+#|         flags.append("ENTITY_RESOLUTION_AMBIGUOUS")
+#|         alternatives.append("Reference may denote product, API alias, deployment, or model family rather than exact checkpoint.")
+#| 
+#|     if any(g.get("comparability_status") == BenchmarkComparability.COMPARABILITY_LIMITED.name for g in benchmark_groups.values()):
+#|         flags.append("BENCHMARK_COMPARABILITY_LIMITED")
+#|         alternatives.append("Scores may use different prompting, shots, tools, sampling, evaluator, or benchmark version.")
+#| 
+#|     if any(g.get("conflict") for g in benchmark_groups.values()):
+#|         flags.append("BENCHMARK_SCORE_CONFLICT")
+#|         alternatives.append("Conflict may reflect non-independent republication, protocol drift, or measurement error.")
+#| 
+#|     if any(sm.get("affected_layer") not in {"MODEL", "CHECKPOINT"} for sm in security_mappings):
+#|         flags.append("SECURITY_LAYER_NOT_MODEL")
+#|         alternatives.append("Issue may reside in RAG, prompt, tool authorization, output handling, or runtime policy.")
+#| 
+#|     if any(
+#|         any(p.get("state") == "NO_DEPLOYMENT_EVIDENCE" for p in inc.get("deployment_propagation", []))
+#|         for inc in incident_props
+#|     ):
+#|         flags.append("INCIDENT_DEPLOYMENT_SCOPE_UNRESOLVED")
+#|         alternatives.append("Missing deployment inventory may hide affected systems.")
+#| 
+#|     if supply_chain.get("common_mode_dependencies"):
+#|         flags.append("COMMON_MODE_DEPENDENCY")
+#|         alternatives.append("Shared dependency may be intentional, contracted, or an artifact of incomplete inventory.")
+#| 
+#|     if change_analysis.get("flags"):
+#|         flags.extend(change_analysis["flags"])
+#|         alternatives.append("Behavior change may be operational rollout rather than degradation.")
+#| 
+#|     if contradictions:
+#|         flags.append("CONTRADICTIONS_PRESENT")
+#|         alternatives.append("Contradictions may reflect stale docs, alias routing, provider updates, or source dependency.")
+#| 
+#|     questions.extend(
+#|         [
+#|             "Did we separate model, product, API, deployment, and agent?",
+#|             "Is the exact version/checkpoint resolved or only an alias?",
+#|             "Are benchmark protocols normalized?",
+#|             "Is capability provider-claimed or independently measured?",
+#|             "Could RAG/tools/guardrails explain observed behavior?",
+#|             "Does security finding affect base model or surrounding system?",
+#|             "Are multiple sources actually independent?",
+#|             "What evidence would disprove supply-chain or incident scope claims?",
+#|         ]
+#|     )
+#| 
+#|     return {
+#|         "flags": sorted(set(flags)),
+#|         "alternative_explanations": sorted(set(alternatives)),
+#|         "diagnostic_questions": questions,
+#|         "review_outcome": "PARTIAL_AGREEMENT" if flags else "AGREE",
+#|         "boundary": "Defensive intelligence only. No model theft, prompt extraction, safeguard bypass, poisoning, or harmful agent enablement.",
+#|     }
+#| 
+#| 
+#| def build_facts(
+#|     resolved_references: List[Dict[str, Any]],
+#|     models: List[ModelObject],
+#|     lineage: List[Dict[str, Any]],
+#|     benchmark_results: List[BenchmarkResult],
+#|     security_mappings: List[Dict[str, Any]],
+#|     incident_props: List[Dict[str, Any]],
+#|     supply_chain: Dict[str, Any],
+#|     cost_estimates: List[Dict[str, Any]],
+#|     change_analysis: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     source_independence: Dict[str, Any],
+#| ) -> List[FactRecord]:
+#|     facts: List[FactRecord] = []
+#| 
+#|     for rr in resolved_references:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"AI reference '{rr.get('reference')}' resolved to layer {rr.get('layer')} with primary id {rr.get('primary_id')}.",
+#|                 claim_type=ClaimType.INDEPENDENT_OBSERVATION.name if not rr.get("ambiguous") else ClaimType.HYPOTHESIS.name,
+#|                 verification_state=VerificationState.SUPPORTED if not rr.get("ambiguous") else VerificationState.INCONCLUSIVE,
+#|                 evidence_ids=rr.get("evidence_ids", []),
+#|                 object_ids=rr.get("resolved_ids", []),
+#|                 confidence=0.8 if not rr.get("ambiguous") else 0.45,
+#|                 limitations=["Reference resolution may be alias-dependent."],
+#|             )
+#|         )
+#| 
+#|     for m in models:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Model record observed: {m.canonical_name} ({m.model_id}), type={m.model_type.name}, access={m.access_type.name}.",
+#|                 claim_type=ClaimType.OFFICIAL_CLAIM.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=m.evidence_ids,
+#|                 object_ids=[m.model_id],
+#|                 confidence=m.confidence,
+#|                 limitations=m.limitations,
+#|             )
+#|         )
+#| 
+#|     for lin in lineage:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Model lineage edge observed: {lin.get('source_model_id')} {lin.get('relation')} {lin.get('target_model_id')}.",
+#|                 claim_type=ClaimType.DERIVED_RESULT.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=lin.get("evidence_ids", []),
+#|                 object_ids=[lin.get("source_model_id") or "", lin.get("target_model_id") or ""],
+#|                 confidence=float(lin.get("confidence", 0.5)),
+#|                 limitations=lin.get("limitations", []),
+#|             )
+#|         )
+#| 
+#|     for br in benchmark_results:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Benchmark result observed: model={br.model_id}, benchmark={br.benchmark_id}/{br.benchmark_version}, score={br.score}, comparability={br.comparability_status.name}.",
+#|                 claim_type=ClaimType.MEASURED_RESULT.name if br.source_type in INDEPENDENT_EVAL_SOURCES else ClaimType.OFFICIAL_CLAIM.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=br.evidence_ids,
+#|                 object_ids=[br.result_id],
+#|                 confidence=br.confidence,
+#|                 limitations=br.limitations,
+#|             )
+#|         )
+#| 
+#|     for sm in security_mappings:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Security finding mapped to layer {sm.get('affected_layer')}; base-model impact={sm.get('base_model_impact')}.",
+#|                 claim_type=ClaimType.INDEPENDENT_OBSERVATION.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=[],
+#|                 object_ids=[sm.get("finding_id") or ""],
+#|                 confidence=0.7,
+#|                 limitations=["Layer mapping does not establish exploitation."],
+#|             )
+#|         )
+#| 
+#|     for inc in incident_props:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Incident {inc.get('incident_id')} propagation state resolved against available deployment inventory.",
+#|                 claim_type=ClaimType.ANALYST_INFERENCE.name,
+#|                 verification_state=VerificationState.INCONCLUSIVE,
+#|                 evidence_ids=[],
+#|                 object_ids=[inc.get("incident_id") or ""],
+#|                 confidence=0.6,
+#|                 limitations=inc.get("limitations", []),
+#|             )
+#|         )
+#| 
+#|     if supply_chain.get("common_mode_dependencies"):
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement="Common-mode AI dependencies observed across multiple deployments/applications.",
+#|                 claim_type=ClaimType.ANALYST_INFERENCE.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=[],
+#|                 object_ids=[],
+#|                 confidence=0.7,
+#|                 limitations=supply_chain.get("limitations", []),
+#|             )
+#|         )
+#| 
+#|     for est in cost_estimates:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Deterministic cost estimate computed for entity {est.get('entity_id')} using pricing {est.get('pricing_id')}.",
+#|                 claim_type=ClaimType.DERIVED_RESULT.name,
+#|                 verification_state=VerificationState.SUPPORTED,
+#|                 evidence_ids=est.get("evidence_ids", []),
+#|                 object_ids=[est.get("estimate_id") or ""],
+#|                 confidence=0.9,
+#|                 limitations=est.get("limitations", []),
+#|             )
+#|         )
+#| 
+#|     for ch in change_analysis.get("timeline", []):
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Change event observed: {ch.get('change_type')} for entity {ch.get('entity_id')} effective {ch.get('effective_at')}.",
+#|                 claim_type=ClaimType.OFFICIAL_CLAIM.name,
+#|                 verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|                 evidence_ids=ch.get("evidence_ids", []),
+#|                 object_ids=[ch.get("change_id") or ""],
+#|                 confidence=0.75,
+#|                 limitations=["Change does not automatically imply improvement or degradation."],
+#|             )
+#|         )
+#| 
+#|     for c in contradictions:
+#|         facts.append(
+#|             FactRecord(
+#|                 fact_id=new_id("FACT"),
+#|                 statement=f"Contradiction: {c.contradiction_type} — {c.description}",
+#|                 claim_type=ClaimType.UNKNOWN.name,
+#|                 verification_state=VerificationState.DISPUTED,
+#|                 evidence_ids=c.evidence_ids,
+#|                 object_ids=c.object_ids,
+#|                 confidence=0.75,
+#|                 limitations=["Contradictions must be preserved, not silently resolved."],
+#|             )
+#|         )
+#| 
+#|     facts.append(
+#|         FactRecord(
+#|             fact_id=new_id("FACT"),
+#|             statement=f"Source independence state: {source_independence.get('state')}.",
+#|             claim_type=ClaimType.ANALYST_INFERENCE.name,
+#|             verification_state=VerificationState.PARTIALLY_SUPPORTED,
+#|             evidence_ids=[],
+#|             object_ids=[],
+#|             confidence=0.7,
+#|             limitations=source_independence.get("limitations", []),
+#|         )
+#|     )
+#| 
+#|     facts.append(
+#|         FactRecord(
+#|             fact_id=new_id("FACT"),
+#|             statement="No autonomous capability, harmful intent, model theft, safeguard bypass, or real-world attribution is established by AIINT artifact intelligence alone.",
+#|             claim_type=ClaimType.UNKNOWN.name,
+#|             verification_state=VerificationState.INCONCLUSIVE,
+#|             evidence_ids=[],
+#|             object_ids=[],
+#|             confidence=0.99,
+#|             limitations=["Consequential security, legal, governance, and attribution decisions require human review."],
+#|         )
+#|     )
+#| 
+#|     return facts
+#| 
+#| 
+#| def build_gaps(
+#|     resolved_references: List[Dict[str, Any]],
+#|     models: List[ModelObject],
+#|     lineage: List[Dict[str, Any]],
+#|     benchmark_results: List[BenchmarkResult],
+#|     security_mappings: List[Dict[str, Any]],
+#|     incident_props: List[Dict[str, Any]],
+#|     supply_chain: Dict[str, Any],
+#|     cost_estimates: List[Dict[str, Any]],
+#|     cost_missing: List[Dict[str, Any]],
+#|     change_analysis: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#| ) -> List[Gap]:
+#|     gaps: List[Gap] = []
+#| 
+#|     def add_gap(description: str, importance: str, recommended_source: str, specialist: str, expected_information_value: str) -> None:
+#|         gaps.append(
+#|             Gap(
+#|                 gap_id=new_id("GAP"),
+#|                 description=description,
+#|                 importance=importance,
+#|                 recommended_source=recommended_source,
+#|                 specialist=specialist,
+#|                 expected_information_value=expected_information_value,
+#|             )
+#|         )
+#| 
+#|     if not resolved_references or any(not rr.get("primary_id") for rr in resolved_references):
+#|         add_gap(
+#|             "AI entity reference unresolved.",
+#|             "HIGH",
+#|             "official model card / provider API docs / authorized model inventory",
+#|             "AIINT",
+#|             "Establishes whether reference denotes model, API, product, deployment, or agent.",
+#|         )
+#| 
+#|     if any(rr.get("ambiguous") for rr in resolved_references):
+#|         add_gap(
+#|             "Model/API/product alias ambiguity detected.",
+#|             "HIGH",
+#|             "release notes / versioned endpoint metadata / deployment logs",
+#|             "AIINT / CLOUDINT",
+#|             "Resolves exact version/checkpoint and avoids layer confusion.",
+#|         )
+#| 
+#|     if not any(m.model_id for m in models if m.access_type != AccessType.UNKNOWN):
+#|         add_gap(
+#|             "Model access type unknown.",

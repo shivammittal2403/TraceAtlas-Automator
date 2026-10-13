@@ -1,0 +1,1000 @@
+#|     clusters: List[Dict[str, Any]],
+#|     localization_results: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     issues: List[str],
+#| ) -> Dict[str, Any]:
+#|     primary = {
+#|         "role": "Primary Acoustic Analyst",
+#|         "assessment": (
+#|             "Acoustic event clusters and/or feature-level observations exist."
+#|             if clusters
+#|             else "No usable acoustic events were supplied."
+#|         ),
+#|         "classification": "Source-category conclusions remain conservative and evidence-bounded.",
+#|     }
+#| 
+#|     if not clusters:
+#|         skeptic = {
+#|             "role": "Independent Acoustic Skeptic",
+#|             "verdict": "INSUFFICIENT_EVIDENCE",
+#|             "reason": "No deterministic acoustic events were supplied. Do not infer events from narrative.",
+#|         }
+#|     elif issues:
+#|         skeptic = {
+#|             "role": "Independent Acoustic Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Validation issues require downgraded confidence.",
+#|         }
+#|     elif contradictions:
+#|         skeptic = {
+#|             "role": "Independent Acoustic Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Contradictions must be preserved; do not silently resolve sensor/classification/localization conflicts.",
+#|         }
+#|     elif clusters and any(c.get("source_independence") == "INDEPENDENT" for c in clusters):
+#|         skeptic = {
+#|             "role": "Independent Acoustic Skeptic",
+#|             "verdict": "AGREE_ON_EVENT_PRESENCE_ONLY",
+#|             "reason": "Independent multi-sensor support may justify event-presence assessment only, not source identity, person attribution, or weapon use.",
+#|         }
+#|     else:
+#|         skeptic = {
+#|             "role": "Independent Acoustic Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Single-source or incomplete evidence supports candidate events only.",
+#|         }
+#| 
+#|     return {
+#|         "primary": primary,
+#|         "skeptic": skeptic,
+#|         "comparison": skeptic.get("verdict", "INSUFFICIENT_EVIDENCE"),
+#|         "note": "Rule-based dual-review scaffold. AI agreement is not independent acoustic corroboration. Human review required for consequential conclusions.",
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Graphical memory scaffold
+#| # -----------------------------------------------------------------------------
+#| 
+#| def build_graph(
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     recordings: Dict[str, Dict[str, Any]],
+#|     events: List[Dict[str, Any]],
+#|     clusters: List[Dict[str, Any]],
+#|     localization_results: List[Dict[str, Any]],
+#|     signature_matches: List[Dict[str, Any]],
+#|     facts: List[Dict[str, Any]],
+#|     hypotheses: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#| ) -> Dict[str, Any]:
+#|     nodes: List[Dict[str, Any]] = []
+#|     edges: List[Dict[str, Any]] = []
+#| 
+#|     def add_node(node_id: str, node_type: str, props: Dict[str, Any]) -> None:
+#|         if not node_id:
+#|             return
+#|         if any(n.get("id") == node_id for n in nodes):
+#|             return
+#|         nodes.append({"id": node_id, "type": node_type, "properties": props})
+#| 
+#|     def add_edge(src: str, dst: str, rel: str, props: Dict[str, Any]) -> None:
+#|         if not src or not dst:
+#|             return
+#|         edges.append({"from": src, "to": dst, "type": rel, "properties": props})
+#| 
+#|     for sid, s in sensors.items():
+#|         node_type = "Hydrophone" if "HYDRO" in str(s.get("sensor_type", "")).upper() else "Microphone"
+#|         add_node(sid, "AcousticSensor", public_dict(s))
+#|         add_node(sid, node_type, {"sensor_id": sid})
+#|         add_edge(sid, node_type, "IS_A", {"sensor_id": sid})
+#| 
+#|     for rid, r in recordings.items():
+#|         add_node(rid, "AcousticRecording", public_dict(r))
+#|         if r.get("sensor_id"):
+#|             add_edge(rid, r["sensor_id"], "RECORDED_BY", {"recording_id": rid})
+#| 
+#|     for ev in events:
+#|         eid = ev.get("event_id")
+#|         add_node(
+#|             eid,
+#|             "AcousticEvent",
+#|             {
+#|                 "recording_id": ev.get("recording_id"),
+#|                 "sensor_ids": ev.get("_sensor_ids"),
+#|                 "start_time": iso_or_none(ev.get("_start")),
+#|                 "end_time": iso_or_none(ev.get("_end")),
+#|                 "event_types": ev.get("_event_types"),
+#|                 "source_categories": ev.get("_source_categories"),
+#|                 "quality_flags": ev.get("_quality_flags"),
+#|             },
+#|         )
+#|         if ev.get("recording_id"):
+#|             add_edge(eid, ev["recording_id"], "CONTAINED_IN", {"event_id": eid})
+#|         for sid in ev.get("_sensor_ids") or []:
+#|             add_edge(eid, sid, "OBSERVED_BY", {"event_id": eid})
+#| 
+#|     for cl in clusters:
+#|         cid = cl.get("cluster_id")
+#|         add_node(
+#|             cid,
+#|             "AcousticEvent",
+#|             {
+#|                 "cluster": True,
+#|                 "event_ids": cl.get("event_ids"),
+#|                 "sensor_ids": cl.get("sensor_ids"),
+#|                 "event_types": cl.get("event_types"),
+#|                 "source_categories": cl.get("source_categories"),
+#|                 "source_independence": cl.get("source_independence"),
+#|             },
+#|         )
+#|         for eid in cl.get("event_ids") or []:
+#|             add_edge(cid, eid, "CORRELATED_WITH", {"cluster_id": cid})
+#| 
+#|     for cat in sorted({c for cl in clusters for c in (cl.get("source_categories") or [])}):
+#|         add_node(f"CAT:{cat}", "SourceCategory", {"category": cat})
+#|         for cl in clusters:
+#|             if cat in (cl.get("source_categories") or []):
+#|                 add_edge(cl.get("cluster_id"), f"CAT:{cat}", "SOURCE_CATEGORY_CANDIDATE", {"cluster_id": cl.get("cluster_id")})
+#| 
+#|     for loc in localization_results:
+#|         lid = f"LOC:{loc.get('cluster_id')}"
+#|         cand = loc.get("location_candidate") or {}
+#|         add_node(
+#|             lid,
+#|             "LocalizationCandidate",
+#|             {
+#|                 "cluster_id": loc.get("cluster_id"),
+#|                 "method": loc.get("method"),
+#|                 "latitude": cand.get("latitude"),
+#|                 "longitude": cand.get("longitude"),
+#|                 "uncertainty_radius_m": cand.get("uncertainty_radius_m"),
+#|                 "precision": loc.get("precision"),
+#|                 "confidence": loc.get("confidence"),
+#|             },
+#|         )
+#|         if loc.get("cluster_id"):
+#|             add_edge(loc["cluster_id"], lid, "OCCURRED_AT_CANDIDATE", {"cluster_id": loc["cluster_id"]})
+#| 
+#|     for match in signature_matches:
+#|         mid = match.get("match_id")
+#|         add_node(mid, "AcousticSignature", match)
+#|         if match.get("cluster_id"):
+#|             add_edge(match["cluster_id"], mid, "HAS_SIGNATURE", {"match_id": mid})
+#| 
+#|     for fac in facts:
+#|         fid = fac.get("fact_id")
+#|         add_node(fid, "Fact", fac)
+#|         if fac.get("cluster_id"):
+#|             add_edge(fid, fac["cluster_id"], "SUPPORTED_BY", {"fact_id": fid})
+#| 
+#|     for h in hypotheses:
+#|         add_node(h.get("hypothesis_id"), "Hypothesis", h)
+#| 
+#|     for c in contradictions:
+#|         cid = f"CONTRA-{len([x for x in nodes if x.get('type') == 'Contradiction']) + 1}"
+#|         add_node(cid, "Contradiction", c)
+#| 
+#|     for g in gaps:
+#|         gid = g.get("gap_id") or f"GAP-{len(gaps)}"
+#|         add_node(gid, "Gap", g)
+#| 
+#|     return {"nodes": nodes, "edges": edges, "version": VERSION}
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Gaps, actions, handoffs, summary
+#| # -----------------------------------------------------------------------------
+#| 
+#| def build_knowledge_gaps(
+#|     clusters: List[Dict[str, Any]],
+#|     localization_results: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     issues: List[str],
+#|     sensors: Dict[str, Dict[str, Any]],
+#|     recordings: Dict[str, Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     gaps: List[Dict[str, Any]] = []
+#| 
+#|     if not clusters:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-NO-EVENTS",
+#|                 "gap": "No usable acoustic events supplied",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Authorized deterministic acoustic event export",
+#|                 "expected_information_value": "Establishes whether any acoustic event is measurable",
+#|             }
+#|         )
+#| 
+#|     if issues:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-VALIDATION-ISSUES",
+#|                 "gap": "Input validation issues present",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Corrected sensor metadata, calibration, clock sync, recording provenance",
+#|                 "expected_information_value": "Improves measurement trust",
+#|             }
+#|         )
+#| 
+#|     unknown_cal = [sid for sid, s in sensors.items() if s.get("_calibration_status") in ("UNCALIBRATED", "CALIBRATION_UNKNOWN")]
+#|     if unknown_cal:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-CALIBRATION",
+#|                 "gap": f"Calibration insufficient for sensors: {', '.join(unknown_cal)}",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Microphone/hydrophone calibration certificate",
+#|                 "expected_information_value": "Allows stronger amplitude/SPL interpretation",
+#|             }
+#|         )
+#| 
+#|     unsync = [sid for sid, s in sensors.items() if s.get("_clock_sync_state") in ("UNSYNCHRONIZED", "UNKNOWN")]
+#|     if unsync:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-CLOCK-SYNC",
+#|                 "gap": f"Clock synchronization insufficient for sensors: {', '.join(unsync)}",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "GPS/PTP/NTP sync record, clock offset measurement",
+#|                 "expected_information_value": "Required for TDOA/DOA confidence",
+#|             }
+#|         )
+#| 
+#|     if any(not r.get("content_hash") for r in recordings.values()):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-PROVENANCE",
+#|                 "gap": "Recording provenance/hash missing for some recordings",
+#|                 "importance": "MODERATE",
+#|                 "recommended_source": "Original file hash, capture chain-of-custody",
+#|                 "expected_information_value": "Supports duplicate/independence analysis",
+#|             }
+#|         )
+#| 
+#|     if localization_results and all(not l.get("location_candidate") for l in localization_results):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-LOCALIZATION",
+#|                 "gap": "Localization unresolved from supplied DOA/TDOA data",
+#|                 "importance": "MODERATE",
+#|                 "recommended_source": "Synchronized sensor array, known positions, propagation model, deterministic TDOA solver",
+#|                 "expected_information_value": "Constrains event region with uncertainty",
+#|             }
+#|         )
+#| 
+#|     if contradictions:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-CONTRADICTIONS",
+#|                 "gap": "Material contradictions present",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Raw sensor records, clock offsets, independent feed, video/incident logs",
+#|                 "expected_information_value": "Prevents silent false resolution",
+#|             }
+#|         )
+#| 
+#|     gaps.append(
+#|         {
+#|             "gap_id": "GAP-SOURCE-IDENTITY",
+#|             "gap": "Exact source identity unresolved by design",
+#|             "importance": "CONTEXTUAL",
+#|             "recommended_source": "TECHINT / authorized equipment records / independent phenomenology",
+#|             "expected_information_value": "ACOUSTINT alone rarely establishes exact source or actor",
+#|         }
+#|     )
+#| 
+#|     return gaps
+#| 
+#| 
+#| def build_next_actions(
+#|     clusters: List[Dict[str, Any]],
+#|     localization_results: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     actions: List[str] = []
+#| 
+#|     if not clusters:
+#|         actions.append("Supply deterministic authorized acoustic event exports with sensor metadata")
+#| 
+#|     if any(g["gap_id"] == "GAP-CALIBRATION" for g in gaps):
+#|         actions.append("Obtain microphone/hydrophone calibration record before absolute SPL interpretation")
+#| 
+#|     if any(g["gap_id"] == "GAP-CLOCK-SYNC" for g in gaps):
+#|         actions.append("Verify sensor clock synchronization and offset before TDOA/DOA interpretation")
+#| 
+#|     if any(g["gap_id"] == "GAP-PROVENANCE" for g in gaps):
+#|         actions.append("Preserve original recording hashes and processing chain")
+#| 
+#|     if contradictions:
+#|         actions.append("Preserve contradictions and inspect raw sensor/processing provenance before resolution")
+#| 
+#|     if localization_results:
+#|         actions.append("Correlate event-region candidates with authorized video, incident logs, and GEOINT context")
+#| 
+#|     if any(any(t in PERSON_RELATED_EVENT_TYPES for t in cl.get("event_types", [])) for cl in clusters):
+#|         actions.append("Hand speech content questions to AUDINT only under separate authorization; no ACOUSTINT voice biometrics")
+#| 
+#|     if any(set(cl.get("event_types", [])) & {"MACHINERY", "ROTATING_MACHINE", "MECHANICAL_FAILURE_LIKE"} for cl in clusters):
+#|         actions.append("Compare machine signature against context-matched baseline and maintenance/telemetry records")
+#| 
+#|     actions.append("Maintain passive-only posture; no covert recording, no person tracking, no sonic weapons, no targeting, no sonar evasion, no acoustic stealth optimization")
+#| 
+#|     return actions
+#| 
+#| 
+#| def build_specialist_handoffs(
+#|     clusters: List[Dict[str, Any]],
+#|     localization_results: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     handoffs: List[Dict[str, Any]] = []
+#| 
+#|     if any("SPEECH_PRESENT" in (cl.get("event_types") or []) for cl in clusters):
+#|         handoffs.append(
+#|             {
+#|                 "to": "AUDINT",
+#|                 "reason": "Speech content/speaker questions exceed ACOUSTINT boundary",
+#|                 "restrictions": [
+#|                     "No voiceprint-to-name",
+#|                     "No private conversation interception",
+#|                     "No sensitive trait inference",
+#|                     "Requires separate authorization",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     if localization_results and any(l.get("location_candidate") for l in localization_results):
+#|         handoffs.append(
+#|             {
+#|                 "to": "GEOINT",
+#|                 "reason": "Terrain, structures, propagation, and spatial validation may be required",
+#|                 "restrictions": ["No person location inference", "No weapon targeting"],
+#|             }
+#|         )
+#| 
+#|     if any(set(cl.get("event_types", [])) & {"IMPACT", "EXPLOSION_LIKE", "GUNSHOT_LIKE", "ALARM", "SIREN", "GLASS_BREAK_LIKE"} for cl in clusters):
+#|         handoffs.append(
+#|             {
+#|                 "to": "INCIDENTINT",
+#|                 "reason": "Possible public-safety or incident event requires authorized incident correlation",
+#|                 "restrictions": ["No shooter targeting", "No weapon attribution without evidence", "Human governance required"],
+#|             }
+#|         )
+#| 
+#|     if any(set(cl.get("event_types", [])) & {"MACHINERY", "ROTATING_MACHINE", "PUMP", "FAN", "MOTOR", "COMPRESSOR", "MECHANICAL_FAILURE_LIKE"} for cl in clusters):
+#|         handoffs.append(
+#|             {
+#|                 "to": "TECHINT / INDUSTRIAL ENGINEERING",
+#|                 "reason": "Machine identity/fault diagnosis exceeds acoustic signature similarity",
+#|                 "restrictions": ["No unsafe remote maintenance action", "Use authorized engineering review"],
+#|             }
+#|         )
+#| 
+#|     if any(set(cl.get("event_types", [])) & {"VEHICLE", "ENGINE", "AIRCRAFT_LIKE", "RAIL_LIKE", "MARINE_VESSEL_LIKE"} for cl in clusters):
+#|         handoffs.append(
+#|             {
+#|                 "to": "TRANSPORTINT / AISINT",
+#|                 "reason": "Vehicle/vessel movement identity requires transport/maritime intelligence",
+#|                 "restrictions": ["No driver/occupant inference", "No military targeting"],
+#|             }
+#|         )
+#| 
+#|     if contradictions:
+#|         handoffs.append(
+#|             {
+#|                 "to": "MASINT",
+#|                 "reason": "Cross-phenomenology fusion may help resolve acoustic contradictions",
+#|                 "restrictions": ["Do not force modal agreement", "Preserve uncertainty"],
+#|             }
+#|         )
+#| 
+#|     return handoffs
+#| 
+#| 
+#| def analyst_summary(r: Dict[str, Any]) -> str:
+#|     def fmt_list(lst: Any) -> str:
+#|         if not lst:
+#|             return "NONE"
+#|         if isinstance(lst, list):
+#|             return ", ".join(str(x) for x in lst)
+#|         return str(lst)
+#| 
+#|     clusters = r.get("acoustic_events") or []
+#|     locs = r.get("localization_candidates") or []
+#| 
+#|     lines = [
+#|         "ACOUSTIC DATA: recordings=" + str(len(r.get("recordings") or {})) + " events=" + str(len(r.get("event_segments") or [])) + " clusters=" + str(len(clusters)),
+#|         "SENSORS: " + fmt_list(r.get("sensors")),
+#|         "CALIBRATION: " + fmt_list([f"{k}={v}" for k, v in (r.get("calibration_states") or {}).items()]),
+#|         "CLOCK / SYNCHRONIZATION: " + fmt_list([f"{k}={v}" for k, v in (r.get("clock_states") or {}).items()]),
+#|         "SIGNAL QUALITY: " + fmt_list(sorted({flag for cl in clusters for flag in (cl.get("quality_flags") or [])})),
+#|         "EVENTS DETECTED: " + fmt_list([f"{c.get('cluster_id')}:{','.join(c.get('event_types') or [])}" for c in clusters]),
+#|         "EVENT CLASSIFICATION: " + fmt_list([f"{c.get('cluster_id')}={c.get('classification_state')}" for c in clusters]),
+#|         "SOURCE CATEGORY: " + fmt_list(sorted({cat for c in clusters for cat in (c.get("source_categories") or [])})),
+#|         "FREQUENCY CHARACTERISTICS: " + json.dumps(r.get("frequency_features") or {}, default=str),
+#|         "TEMPORAL CHARACTERISTICS: " + json.dumps(r.get("temporal_features") or {}, default=str),
+#|         "SIGNATURE COMPARISON: " + fmt_list([f"{m.get('reference_signature_id')}={m.get('match_state')}" for m in (r.get("signature_matches") or [])]),
+#|         "MULTI-SENSOR CORRELATION: " + fmt_list([f"{c.get('cluster_id')}={c.get('source_independence')}" for c in clusters]),
+#|         "DIRECTION OF ARRIVAL: " + str(len(r.get("doa_results") or [])),
+#|         "LOCALIZATION: " + fmt_list([f"{l.get('cluster_id')}={l.get('precision')}" for l in locs]),
+#|         "LOCALIZATION UNCERTAINTY: " + fmt_list([f"{l.get('cluster_id')} radius={ (l.get('location_candidate') or {}).get('uncertainty_radius_m') }" for l in locs]),
+#|         "MACHINE / VEHICLE / INDUSTRIAL CONTEXT: " + fmt_list(r.get("industrial_context") or r.get("vehicle_context") or []),
+#|         "ENVIRONMENTAL CONTEXT: " + json.dumps(r.get("environmental_context") or {}, default=str),
+#|         "PROVENANCE: duplicates=" + str(len(r.get("duplicate_recordings") or [])),
+#|         "SOURCE RELIABILITY: " + fmt_list([f"{s.get('sensor_id')}={s.get('reliability')}" for s in (r.get("sensor_reliability") or [])]),
+#|         "SOURCE INDEPENDENCE: " + str(r.get("source_independence")),
+#|         "CONTRADICTIONS: " + str(len(r.get("contradictions") or [])),
+#|         "ALTERNATIVE SOURCES: " + str(len(r.get("hypotheses") or [])),
+#|         "UNKNOWN: " + fmt_list(r.get("unknowns")),
+#|         "NEXT ACTION: " + ((r.get("recommended_next_actions") or ["NONE"])[0]),
+#|     ]
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Main analysis
+#| # -----------------------------------------------------------------------------
+#| 
+#| def analyze(case: Dict[str, Any], input_path: Optional[str] = None, input_hash: Optional[str] = None) -> Dict[str, Any]:
+#|     started = utcnow_iso()
+#| 
+#|     block_reasons = policy_block_reasons(case)
+#|     if block_reasons:
+#|         return blocked_result(case, block_reasons, started, input_path, input_hash)
+#| 
+#|     sensors, sensor_issues = validate_sensors(case)
+#|     recordings, rec_issues, rec_warnings = validate_recordings(case, sensors)
+#|     events, ev_issues, ev_warnings = validate_events(case, sensors, recordings)
+#|     doa_observations, doa_issues = validate_doa(case, sensors)
+#|     environment = case.get("environment_context") if isinstance(case.get("environment_context"), dict) else {}
+#|     tdoa_observations, tdoa_issues = validate_tdoa(case, sensors, environment)
+#|     supplied_candidates = validate_supplied_location_candidates(case)
+#| 
+#|     issues = sensor_issues + rec_issues + ev_issues + doa_issues + tdoa_issues
+#|     warnings = rec_warnings + ev_warnings
+#| 
+#|     settings_raw = case.get("analysis_settings") or {}
+#| 
+#|     def setting_float(name: str, default: float) -> float:
+#|         try:
+#|             return float(settings_raw.get(name, default))
+#|         except Exception:
+#|             return default
+#| 
+#|     settings = {
+#|         "correlation_time_window_s": setting_float("correlation_time_window_s", 2.0),
+#|         "spectral_similarity_threshold": setting_float("spectral_similarity_threshold", 0.75),
+#|         "signature_similarity_threshold": setting_float("signature_similarity_threshold", 0.80),
+#|         "localization_max_radius_m": setting_float("localization_max_radius_m", 100000.0),
+#|         "tdoa_residual_tolerance_s": setting_float("tdoa_residual_tolerance_s", 0.05),
+#|     }
+#| 
+#|     duplicate_recordings = detect_duplicate_recordings(recordings)
+#| 
+#|     clusters, correlation_contradictions = correlate_events(
+#|         events,
+#|         case.get("multi_sensor_correlations") or [],
+#|         sensors,
+#|         recordings,
+#|         settings,
+#|     )
+#| 
+#|     for cl in clusters:
+#|         cl["classification_state"] = classification_state(cl)
+#| 
+#|     signature_matches = build_signature_matches(
+#|         clusters,
+#|         case.get("reference_signatures") or [],
+#|         settings["signature_similarity_threshold"],
+#|     )
+#| 
+#|     localization_results, localization_contradictions = localize_clusters(
+#|         clusters,
+#|         doa_observations,
+#|         tdoa_observations,
+#|         supplied_candidates,
+#|         sensors,
+#|         environment,
+#|         settings,
+#|     )
+#| 
+#|     contradictions = detect_contradictions(
+#|         clusters,
+#|         events,
+#|         localization_results,
+#|         signature_matches,
+#|         duplicate_recordings,
+#|         list(case.get("existing_contradictions") or []) + correlation_contradictions + localization_contradictions,
+#|         settings,
+#|     )
+#| 
+#|     supported_facts, candidate_facts, partial_facts, disputed_facts, not_facts = build_facts(
+#|         clusters,
+#|         events,
+#|         localization_results,
+#|         signature_matches,
+#|         contradictions,
+#|     )
+#| 
+#|     hypotheses = build_hypotheses(clusters, localization_results, contradictions, issues)
+#|     dual = dual_ai_review(clusters, localization_results, contradictions, issues)
+#| 
+#|     gaps = build_knowledge_gaps(clusters, localization_results, contradictions, issues, sensors, recordings)
+#|     next_actions = build_next_actions(clusters, localization_results, gaps, contradictions)
+#|     handoffs = build_specialist_handoffs(clusters, localization_results, contradictions)
+#| 
+#|     graph = build_graph(
+#|         sensors,
+#|         recordings,
+#|         events,
+#|         clusters,
+#|         localization_results,
+#|         signature_matches,
+#|         supported_facts + candidate_facts + partial_facts,
+#|         hypotheses,
+#|         contradictions,
+#|         gaps,
+#|     )
+#| 
+#|     # Summaries
+#|     calibration_states = {sid: s.get("_calibration_status", "CALIBRATION_UNKNOWN") for sid, s in sensors.items()}
+#|     clock_states = {sid: s.get("_clock_sync_state", "UNKNOWN") for sid, s in sensors.items()}
+#| 
+#|     frequency_features = {
+#|         "dominant_frequency_summary": numeric_summary([f for e in events for f in (e.get("_dominant_frequencies_hz") or [])]),
+#|         "frequency_min_summary": numeric_summary([e.get("_freq_min_hz") for e in events]),
+#|         "frequency_max_summary": numeric_summary([e.get("_freq_max_hz") for e in events]),
+#|         "spectral_centroid_summary": numeric_summary([e.get("_spectral_features", {}).get("spectral_centroid_hz") for e in events]),
+#|         "spectral_rolloff_summary": numeric_summary([e.get("_spectral_features", {}).get("spectral_rolloff_hz") for e in events]),
+#|     }
+#| 
+#|     temporal_features = {
+#|         "duration_summary": numeric_summary([e.get("_duration_s") for e in events]),
+#|         "periodicity_interval_summary": numeric_summary([e.get("_periodicity_interval_s") for e in events]),
+#|         "impulsiveness_summary": numeric_summary([e.get("_impulsiveness") for e in events]),
+#|         "rise_time_ms_summary": numeric_summary([e.get("_rise_time_ms") for e in events]),
+#|     }
+#| 
+#|     signal_quality = {
+#|         "snr_summary": numeric_summary([e.get("_snr_db") for e in events]),
+#|         "noise_floor_summary": numeric_summary([r.get("_noise_floor_db") for r in recordings.values()]),
+#|         "clipping_count": sum(1 for r in recordings.values() if r.get("_clipping")),
+#|         "saturation_count": sum(1 for r in recordings.values() if r.get("_saturation")),
+#|         "dropout_count": sum(1 for r in recordings.values() if r.get("_dropout")),
+#|         "agc_count": sum(1 for r in recordings.values() if r.get("_agc_active")),
+#|         "lossy_count": sum(1 for r in recordings.values() if r.get("_lossy_compression")),
+#|         "generated_count": sum(1 for r in recordings.values() if r.get("_generated_or_reconstructed")),
+#|         "synthetic_candidate_count": sum(1 for r in recordings.values() if r.get("_synthetic_indicators")),
+#|     }
+#| 
+#|     event_segments = [
+#|         {
+#|             "event_id": e.get("event_id"),
+#|             "recording_id": e.get("recording_id"),
+#|             "sensor_ids": e.get("_sensor_ids"),
+#|             "start_time": iso_or_none(e.get("_start")),
+#|             "end_time": iso_or_none(e.get("_end")),
+#|             "duration_s": e.get("_duration_s"),
+#|             "event_type_candidate": e.get("_event_types"),
+#|             "source_category": e.get("_source_categories"),
+#|             "frequency_range_hz": [e.get("_freq_min_hz"), e.get("_freq_max_hz")],
+#|             "dominant_frequencies_hz": e.get("_dominant_frequencies_hz"),
+#|             "spectral_features": e.get("_spectral_features"),
+#|             "snr_db": e.get("_snr_db"),
+#|             "impulsiveness": e.get("_impulsiveness"),
+#|             "periodicity_interval_s": e.get("_periodicity_interval_s"),
+#|             "quality_flags": e.get("_quality_flags"),
+#|             "classification_confidence": e.get("_classification_confidence"),
+#|             "ood_candidate": e.get("_ood_candidate"),
+#|             "evidence_ids": e.get("_evidence_ids"),
+#|             "source_ids": e.get("_source_ids"),
+#|         }
+#|         for e in events
+#|     ]
+#| 
+#|     acoustic_events_public = [
+#|         {
+#|             "cluster_id": cl.get("cluster_id"),
+#|             "event_ids": cl.get("event_ids"),
+#|             "sensor_ids": cl.get("sensor_ids"),
+#|             "recording_ids": cl.get("recording_ids"),
+#|             "start_time": cl.get("start_time"),
+#|             "end_time": cl.get("end_time"),
+#|             "event_types": cl.get("event_types"),
+#|             "source_categories": cl.get("source_categories"),
+#|             "classification_state": cl.get("classification_state"),
+#|             "source_independence": cl.get("source_independence"),
+#|             "spectral_similarity": cl.get("spectral_similarity"),
+#|             "quality_flags": cl.get("quality_flags"),
+#|             "confidence": measurement_confidence(cl),
+#|             "limitations": cl.get("limitations"),
+#|         }
+#|         for cl in clusters
+#|     ]
+#| 
+#|     doa_results = [
+#|         {
+#|             "observation_id": d.get("observation_id"),
+#|             "event_id": d.get("_event_id"),
+#|             "sensor_id": d.get("_sensor_id"),
+#|             "bearing_deg": d.get("_bearing_deg"),
+#|             "bearing_uncertainty_deg": d.get("_uncertainty_deg"),
+#|             "timestamp": iso_or_none(d.get("_timestamp")),
+#|             "quality_flags": d.get("_quality_flags"),
+#|         }
+#|         for d in doa_observations
+#|     ]
+#| 
+#|     tdoa_results = [
+#|         {
+#|             "observation_id": t.get("observation_id"),
+#|             "event_id": t.get("_event_id"),
+#|             "sensor_pair": t.get("_sensor_pair"),
+#|             "time_difference_s": t.get("_time_difference_s"),
+#|             "uncertainty_s": t.get("_uncertainty_s"),
+#|             "sound_speed_m_s": t.get("_sound_speed_m_s"),
+#|             "timestamp": iso_or_none(t.get("_timestamp")),
+#|             "quality_flags": t.get("_quality_flags"),
+#|         }
+#|         for t in tdoa_observations
+#|     ]
+#| 
+#|     localization_candidates = [
+#|         {
+#|             "cluster_id": l.get("cluster_id"),
+#|             "method": l.get("method"),
+#|             "location_candidate": l.get("location_candidate"),
+#|             "precision": l.get("precision"),
+#|             "confidence": l.get("confidence"),
+#|             "sensor_ids": l.get("sensor_ids"),
+#|             "tdoa_evaluation": l.get("tdoa_evaluation"),
+#|             "privacy_restraint": l.get("privacy_restraint"),
+#|             "limitations": l.get("limitations"),
+#|         }
+#|         for l in localization_results
+#|     ]
+#| 
+#|     source_reliability = []
+#|     for sid, s in sensors.items():
+#|         cal = s.get("_calibration_status", "CALIBRATION_UNKNOWN")
+#|         sync = s.get("_clock_sync_state", "UNKNOWN")
+#|         if cal == "CALIBRATED" and sync in ("SYNCHRONIZED", "OFFSET_CORRECTED"):
+#|             rel = "HIGH"
+#|         elif cal == "CALIBRATED" or sync in ("SYNCHRONIZED", "OFFSET_CORRECTED", "APPROXIMATELY_ALIGNED"):
+#|             rel = "MODERATE"
+#|         elif cal == "PARTIALLY_CALIBRATED":
+#|             rel = "LOW"
+#|         else:
+#|             rel = "UNKNOWN"
+#|         source_reliability.append(
+#|             {
+#|                 "sensor_id": sid,
+#|                 "sensor_type": s.get("sensor_type"),
+#|                 "platform": s.get("platform"),
+#|                 "calibration_status": cal,
+#|                 "clock_sync_state": sync,
+#|                 "reliability": rel,
+#|                 "known_limitations": s.get("known_limitations"),
+#|                 "independence_group": s.get("independence_group"),
+#|                 "upstream_recording_id": s.get("upstream_recording_id"),
+#|             }
+#|         )
+#| 
+#|     if any(cl.get("source_independence") == "INDEPENDENT" for cl in clusters):
+#|         source_independence = "INDEPENDENT_OBSERVATION_AVAILABLE"
+#|     elif clusters:
+#|         source_independence = "SINGLE_SOURCE_OR_UNKNOWN"
+#|     else:
+#|         source_independence = "NO_OBSERVATION"
+#| 
+#|     unknowns: List[str] = []
+#|     if not clusters:
+#|         unknowns.append("No measurable acoustic event supplied")
+#|     if not any(cl.get("source_independence") == "INDEPENDENT" for cl in clusters):
+#|         unknowns.append("Independent multi-sensor corroboration unavailable")
+#|     if not localization_candidates or all(not l.get("location_candidate") for l in localization_candidates):
+#|         unknowns.append("Localization unresolved")
+#|     if any("SPEECH_PRESENT" in (cl.get("event_types") or []) for cl in clusters):
+#|         unknowns.append("Speech content/speaker identity not analyzed by ACOUSTINT")
+#|     unknowns.append("Exact source identity unresolved by design")
+#|     unknowns.append("Operator/actor/intent unresolved")
+#| 
+#|     if contradictions:
+#|         status = "SOURCE_CONFLICT"
+#|     elif issues:
+#|         status = "PARTIAL"
+#|     elif not clusters:
+#|         status = "INCONCLUSIVE"
+#|     elif clusters and all(cl.get("classification_state") in ("SUPPORTED_CATEGORY", "PROBABLE_CATEGORY") for cl in clusters):
+#|         status = "PARTIAL"
+#|     else:
+#|         status = "PARTIAL"
+#| 
+#|     industrial_context = [
+#|         cl.get("cluster_id")
+#|         for cl in clusters
+#|         if set(cl.get("event_types", [])) & {"MACHINERY", "ROTATING_MACHINE", "PUMP", "FAN", "MOTOR", "COMPRESSOR", "MECHANICAL_FAILURE_LIKE", "CONSTRUCTION"}
+#|     ]
+#|     vehicle_context = [
+#|         cl.get("cluster_id")
+#|         for cl in clusters
+#|         if set(cl.get("event_types", [])) & {"VEHICLE", "ENGINE", "AIRCRAFT_LIKE", "RAIL_LIKE", "MARINE_VESSEL_LIKE"}
+#|     ]
+#|     hydroacoustic_context = [
+#|         cl.get("cluster_id")
+#|         for cl in clusters
+#|         if set(cl.get("event_types", [])) & {"HYDROACOUSTIC_EVENT", "MARINE_VESSEL_LIKE"}
+#|     ]
+#| 
+#|     acoustic_scenes = sorted({str(environment.get("scene_class", "UNKNOWN")).upper()})
+#| 
+#|     result: Dict[str, Any] = {
+#|         "case_id": case.get("case_id"),
+#|         "task_id": case.get("task_id"),
+#|         "objective": case.get("objective"),
+#|         "questions": case.get("questions") or [],
+#|         "mode": case.get("model_mode", "LOCAL_ONLY"),
+#|         "status": status,
+#|         "source_ids": sorted({sid for e in events for sid in (e.get("_source_ids") or [])}),
+#|         "evidence_ids": sorted({eid for e in events for eid in (e.get("_evidence_ids") or [])}),
+#|         "recordings": {rid: public_dict(r) for rid, r in recordings.items()},
+#|         "recording_hashes": {rid: r.get("content_hash") for rid, r in recordings.items() if r.get("content_hash")},
+#|         "sensors": list(sensors.keys()),
+#|         "sensor_types": sorted({str(s.get("sensor_type")) for s in sensors.values() if s.get("sensor_type")}),
+#|         "sensor_positions": {
+#|             sid: {
+#|                 "latitude": s.get("_lat"),
+#|                 "longitude": s.get("_lon"),
+#|                 "altitude_m": s.get("_alt"),
+#|                 "accuracy_m": s.get("_position_accuracy_m"),
+#|             }
+#|             for sid, s in sensors.items()
+#|         },
+#|         "sensor_orientations": {sid: s.get("orientation") for sid, s in sensors.items()},
+#|         "calibration_states": calibration_states,
+#|         "clock_states": clock_states,
+#|         "sample_rates": {rid: r.get("_sample_rate_hz") for rid, r in recordings.items()},
+#|         "channels": {rid: r.get("channels") for rid, r in recordings.items()},
+#|         "signal_quality": signal_quality,
+#|         "noise_floors": {rid: r.get("_noise_floor_db") for rid, r in recordings.items()},
+#|         "snr_values": {e.get("event_id"): e.get("_snr_db") for e in events},
+#|         "clipping": {rid: bool(r.get("_clipping")) for rid, r in recordings.items()},
+#|         "dropouts": {rid: bool(r.get("_dropout")) for rid, r in recordings.items()},
+#|         "acoustic_events": acoustic_events_public,
+#|         "event_segments": event_segments,
+#|         "event_types": sorted({t for cl in clusters for t in (cl.get("event_types") or [])}),
+#|         "source_categories": sorted({c for cl in clusters for c in (cl.get("source_categories") or [])}),
+#|         "frequency_features": frequency_features,
+#|         "spectral_features": [e.get("_spectral_features") for e in events],
+#|         "temporal_features": temporal_features,
+#|         "periodicity_features": [
+#|             {
+#|                 "event_id": e.get("event_id"),
+#|                 "periodicity_interval_s": e.get("_periodicity_interval_s"),
+#|                 "periodicity": e.get("periodicity"),
+#|             }
+#|             for e in events
+#|             if e.get("_periodicity_interval_s") is not None or e.get("periodicity")
+#|         ],
+#|         "impulsive_events": [
+#|             cl.get("cluster_id")
+#|             for cl in clusters
+#|             if set(cl.get("event_types", [])) & {"IMPACT", "EXPLOSION_LIKE", "GUNSHOT_LIKE", "UNKNOWN_IMPULSIVE", "CONSTRUCTION", "GLASS_BREAK_LIKE"}
+#|         ],
+#|         "tonal_events": [
+#|             cl.get("cluster_id")
+#|             for cl in clusters
+#|             if set(cl.get("event_types", [])) & {"ALARM", "SIREN", "BELL", "ELECTRICAL_BUZZ", "UNKNOWN_TONAL", "ROTATING_MACHINE", "FAN", "MOTOR"}
+#|         ],
+#|         "machine_signatures": [
+#|             cl.get("cluster_id")
+#|             for cl in clusters
+#|             if set(cl.get("event_types", [])) & {"MACHINERY", "ROTATING_MACHINE", "PUMP", "FAN", "MOTOR", "COMPRESSOR", "MECHANICAL_FAILURE_LIKE"}
+#|         ],
+#|         "vehicle_context": vehicle_context,
+#|         "industrial_context": industrial_context,
+#|         "environmental_context": environment,
+#|         "hydroacoustic_context": hydroacoustic_context,
+#|         "acoustic_scenes": acoustic_scenes,
+#|         "signature_matches": signature_matches,
+#|         "duplicate_recordings": duplicate_recordings,
+#|         "provenance": case.get("provenance") or [
+#|             {
+#|                 "recording_id": rid,
+#|                 "content_hash": r.get("content_hash"),
+#|                 "codec": r.get("codec"),
+#|                 "container": r.get("container"),
+#|                 "sensor_id": r.get("sensor_id"),
+#|                 "authorization_context": r.get("authorization_context"),
+#|             }
+#|             for rid, r in recordings.items()
+#|         ],
+#|         "multi_sensor_correlations": clusters,
+#|         "doa_results": doa_results,
+#|         "tdoa_results": tdoa_results,
+#|         "localization_candidates": localization_candidates,
+#|         "localization_uncertainty": [
+#|             {
+#|                 "cluster_id": l.get("cluster_id"),
+#|                 "uncertainty_radius_m": (l.get("location_candidate") or {}).get("uncertainty_radius_m"),
+#|                 "precision": l.get("precision"),
+#|                 "confidence": l.get("confidence"),
+#|             }
+#|             for l in localization_results
+#|         ],
+#|         "weather_context": environment.get("weather") or {},
+#|         "environment_models": {
+#|             "sound_speed_m_s": sound_speed_m_s(environment),
+#|             "propagation_model": environment.get("propagation_model"),
+#|             "multipath_risk": environment.get("multipath_risk"),
+#|             "occlusion_risk": environment.get("occlusion_risk"),
+#|         },
+#|         "timeline_updates": [
+#|             {
+#|                 "cluster_id": cl.get("cluster_id"),
+#|                 "start_time": cl.get("start_time"),
+#|                 "end_time": cl.get("end_time"),
+#|                 "event_types": cl.get("event_types"),
+#|             }
+#|             for cl in clusters
+#|         ],
+#|         "observations": event_segments,
+#|         "candidate_facts": candidate_facts,
+#|         "supported_facts": supported_facts,
+#|         "partial_facts": partial_facts,
+#|         "disputed_facts": disputed_facts,
+#|         "source_reliability": source_reliability,
+#|         "sensor_reliability": source_reliability,
+#|         "source_bias": case.get("source_bias") or [
+#|             "Sensor placement, frequency response, AGC, codec, and platform processing can bias acoustic measurements.",
+#|             "Crowdsourced/public recordings may have uneven coverage and unknown capture conditions.",
+#|         ],
+#|         "source_limitations": case.get("source_limitations") or [
+#|             "Non-detection is not non-occurrence.",
+#|             "Processed audio is not original evidence.",
+#|             "Signature similarity is not source identity.",
+#|             "Event location is not person location.",
+#|         ],
+#|         "source_pedigree": case.get("source_pedigree") or [
+#|             {
+#|                 "recording_id": rid,
+#|                 "sensor_id": r.get("sensor_id"),
+#|                 "content_hash": r.get("content_hash"),
+#|                 "upstream_recording_id": r.get("upstream_recording_id"),
+#|                 "processing_version": r.get("processing_version"),
+#|             }
+#|             for rid, r in recordings.items()
+#|         ],
+#|         "source_independence": source_independence,
+#|         "contradictions": contradictions,
+#|         "hypotheses": hypotheses,
+#|         "falsification_results": [
+#|             {
+#|                 "hypothesis_id": h.get("hypothesis_id"),
+#|                 "status": "WEAKENED_BY_CONTRADICTIONS" if contradictions else "NOT_FALSIFIED_WITH_CURRENT_EVIDENCE",
+#|                 "required_additional_evidence": [
+#|                     "Independent authorized sensor",
+#|                     "Calibration record",
+#|                     "Clock synchronization record",
+#|                     "Original recording hash",
+#|                     "Environment/propagation metadata",
+#|                     "Video/incident/log correlation",
+#|                 ],
+#|             }
+#|             for h in hypotheses
+#|         ],
+#|         "privacy_flags": [
+#|             "NO_SPEECH_TRANSCRIPTION_WITHOUT_AUTHORIZATION",
+#|             "NO_VOICE_BIOMETRIC_IDENTIFICATION",
+#|             "NO_PERSON_TRACKING",
+#|             "NO_SENSITIVE_TRAIT_INFERENCE",
+#|             "EVENT_LOCATION_NOT_PERSON_LOCATION",
+#|             "METADATA_MINIMIZATION",
+#|         ],
+#|         "safety_flags": [
+#|             "PASSIVE_ONLY",
+#|             "NO_COVERT_LISTENING",
+#|             "NO_SONIC_WEAPON",
+#|             "NO_ULTRASONIC_HARASSMENT",
+#|             "NO_WEAPON_TARGETING",
+#|             "NO_SHOOTER_TARGETING",
+#|             "NO_MILITARY_TARGET_LOCALIZATION",
+#|             "NO_SONAR_EVASION",
+#|             "NO_ACOUSTIC_STEALTH_OPTIMIZATION",
+#|             "NO_JAMMING_PUBLIC_SAFETY_ACOUSTIC_SYSTEMS",
+#|         ],
+#|         "unknowns": unknowns,
+#|         "knowledge_gaps": gaps,
+#|         "recommended_next_actions": next_actions,
+#|         "specialist_handoffs": handoffs,
+#|         "limitations": [
+#|             "This scaffold does not process raw audio or activate sensors.",
+#|             "It consumes deterministic feature-level acoustic records only.",
+#|             "It does not invent events, frequencies, dB values, locations, source identities, or actors.",
+#|             "It separates detection, classification, identification, and attribution.",
+#|             "Speech content and speaker identity are handed to AUDINT only under separate authorization.",
+#|             "Localization outputs are event-region candidates with uncertainty, not person locations.",
+#|             "It blocks covert listening, voice biometrics, person tracking, sonic weapons, targeting, military localization, sonar evasion, and acoustic stealth optimization.",
+#|         ],
+#|         "dual_ai_review": dual,
+#|         "not_facts": not_facts,
+#|         "graphical_memory": graph,
+#|         "validation_issues": issues,
+#|         "validation_warnings": warnings,
+#|         "analysis_settings": settings,
+#|         "replay_manifest": {
+#|             "generated_at": started,
+#|             "finished_at": utcnow_iso(),
+#|             "code_version": VERSION,
+#|             "input_path": input_path,
+#|             "input_sha256": input_hash,
+#|             "deterministic_operations": [
+#|                 "timestamp normalization",
+#|                 "sensor/recording/event validation",
+#|                 "Nyquist checks",
+#|                 "quality flagging",
+#|                 "spectral feature summarization from supplied bands",
+#|                 "event vector construction",
+#|                 "cosine similarity signature matching",
+#|                 "multi-sensor correlation",
+#|                 "source independence summarization",
+#|                 "DOA bearing intersection",
+#|                 "TDOA residual validation",
+#|                 "duplicate recording detection",
+#|                 "contradiction detection",
+#|                 "fact gate",
+#|             ],
+#|             "note": "Replay requires original recording hashes, sensor metadata, calibration, clock sync, processing parameters, STFT/FFT configuration, event-detection thresholds, classifier versions, reference library versions, DOA/TDOA inputs, sound-speed model, and uncertainty calculations.",
+#|         },
+#|     }
+#| 
+#|     result["required_analyst_summary"] = analyst_summary(result)
+#|     return result
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Template
+#| # -----------------------------------------------------------------------------
+#| 
+#| def template_case() -> Dict[str, Any]:
+#|     return {
+#|         "_template_note": "Placeholders only. Replace with deterministic authorized acoustic feature exports. Do not treat this template as real measurement.",
+#|         "case_id": "CASE-ACOUSTINT-EXAMPLE",
+#|         "task_id": "TASK-ACOUSTINT-EXAMPLE",
+#|         "objective": "Authorized passive analysis of an industrial/environmental acoustic event cluster for safety and maintenance context.",
+#|         "questions": [
+#|             "What acoustic events are present?",
+#|             "Which source categories are plausible?",
+#|             "Do independent sensors corroborate the event?",
+#|             "What localization uncertainty exists?",
+#|             "What remains unknown?",
+#|         ],
+#|         "scope": {
+#|             "authorized_only": True,
+#|             "passive_only": True,
+#|             "no_person_tracking": True,
+#|             "voice_biometric": False,
+#|             "covert_recording": False,
+#|             "weapon_targeting": False,
+#|             "military_target_localization": False,
+#|             "metadata_minimization": True,
+#|         },
+#|         "authorization": {
+#|             "lawful_basis": "AUTHORIZED_FACILITY_ACOUSTIC_MONITORING",
+#|             "purpose": "DEFENSIVE_ACOUSTIC_EVENT_AND_SIGNATURE_ANALYSIS",
+#|             "approval_reference": "AUTH-ACOUSTINT-001",
+#|             "data_retention": "MINIMUM_NECESSARY",
+#|         },
+#|         "model_mode": "LOCAL_ONLY",
+#|         "analysis_settings": {
+#|             "correlation_time_window_s": 2.0,
+#|             "spectral_similarity_threshold": 0.75,
+#|             "signature_similarity_threshold": 0.8,
+#|             "localization_max_radius_m": 100000,
+#|             "tdoa_residual_tolerance_s": 0.05,
+#|         },
+#|         "sensors": [

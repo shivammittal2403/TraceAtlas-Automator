@@ -1,0 +1,1000 @@
+#| 
+#| HYPOTHESES = [
+#|     ("BENIGN_BUSINESS_CHANGE", "BENIGN"),
+#|     ("INSTRUMENTATION_FAILURE", "INSTRUMENTATION"),
+#|     ("CONFIGURATION_ERROR", "CONFIGURATION"),
+#|     ("SECURITY_INCIDENT_CANDIDATE", "SECURITY"),
+#|     ("EXTERNAL_EVENT", "EXTERNAL"),
+#|     ("UNKNOWN", "UNKNOWN"),
+#| ]
+#| 
+#| 
+#| def classify_ach(evidence_type: str, hypothesis_category: str) -> str:
+#|     if evidence_type == "known_maintenance":
+#|         if hypothesis_category in {"BENIGN", "CONFIGURATION"}:
+#|             return "CONSISTENT"
+#|         if hypothesis_category == "SECURITY":
+#|             return "INCONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type in {"data_quality_issue", "sensor_fault", "weak_baseline"}:
+#|         if hypothesis_category == "INSTRUMENTATION":
+#|             return "CONSISTENT"
+#|         if hypothesis_category in {"BENIGN", "CONFIGURATION"}:
+#|             return "NEUTRAL"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type == "source_independent_corroboration":
+#|         if hypothesis_category == "INSTRUMENTATION":
+#|             return "INCONSISTENT"
+#|         if hypothesis_category in {"SECURITY", "EXTERNAL", "BENIGN"}:
+#|             return "CONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type == "multivariate_context":
+#|         if hypothesis_category in {"SECURITY", "EXTERNAL"}:
+#|             return "CONSISTENT"
+#|         if hypothesis_category == "INSTRUMENTATION":
+#|             return "INCONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type == "policy_violation":
+#|         if hypothesis_category in {"CONFIGURATION", "BENIGN"}:
+#|             return "CONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type == "novelty":
+#|         if hypothesis_category in {"BENIGN", "SECURITY", "EXTERNAL"}:
+#|             return "CONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     if evidence_type == "signal_strength":
+#|         if hypothesis_category in {"SECURITY", "EXTERNAL"}:
+#|             return "CONSISTENT"
+#|         return "NEUTRAL"
+#| 
+#|     return "NEUTRAL"
+#| 
+#| 
+#| def evaluate_ach_for_episode(episode: Dict[str, Any], thresholds: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+#|     hypotheses = [
+#|         {
+#|             "hypothesis_id": stable_id("HYP", episode["episode_id"], hid),
+#|             "episode_id": episode["episode_id"],
+#|             "category": cat,
+#|             "statement": f"{hid.replace('_', ' ').title()} may explain the anomaly episode.",
+#|         }
+#|         for hid, cat in HYPOTHESES
+#|     ]
+#| 
+#|     evidence = []
+#|     if float(episode.get("max_score", 0.0)) >= float(thresholds.get("z_score", 3.0)):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "signal"), "type": "signal_strength", "description": f"Max anomaly score {episode.get('max_score')}"})
+#|     if episode.get("data_quality_issue"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "dq"), "type": "data_quality_issue", "description": "Data-quality issue present"})
+#|     if episode.get("sensor_fault"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "sensor"), "type": "sensor_fault", "description": "Sensor fault candidate present"})
+#|     if episode.get("known_maintenance"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "maint"), "type": "known_maintenance", "description": "Known maintenance/context overlap"})
+#|     if episode.get("source_independent_corroboration"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "indep"), "type": "source_independent_corroboration", "description": "Independent source corroboration present"})
+#|     if episode.get("novelty"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "novel"), "type": "novelty", "description": "Novel category / new counterparty / unseen pattern"})
+#|     if episode.get("policy_violation"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "policy"), "type": "policy_violation", "description": "Policy/specification deviation present"})
+#|     if episode.get("multivariate_context"):
+#|         evidence.append({"evidence_id": stable_id("ACHEV", episode["episode_id"], "multi"), "type": "multivariate_context", "description": "Multiple features anomalous in same episode"})
+#| 
+#|     # Weak baseline evidence can be inferred from anomaly confidence if needed; omitted for brevity.
+#| 
+#|     matrix = []
+#|     consistent_counts: Counter = Counter()
+#|     for ev in evidence:
+#|         row = {"evidence_id": ev["evidence_id"], "assessments": {}}
+#|         for h in hypotheses:
+#|             val = classify_ach(ev["type"], h["category"])
+#|             row["assessments"][h["hypothesis_id"]] = val
+#|             if val == "CONSISTENT":
+#|                 consistent_counts[h["hypothesis_id"]] += 1
+#|         matrix.append(row)
+#| 
+#|     by_cat: Dict[str, int] = defaultdict(int)
+#|     for h in hypotheses:
+#|         by_cat[h["category"]] += consistent_counts[h["hypothesis_id"]]
+#| 
+#|     benign_score = by_cat["BENIGN"]
+#|     artifact_score = by_cat["INSTRUMENTATION"]
+#|     config_score = by_cat["CONFIGURATION"]
+#|     security_score = by_cat["SECURITY"]
+#|     external_score = by_cat["EXTERNAL"]
+#| 
+#|     if artifact_score > 0 and artifact_score >= max(benign_score, config_score, security_score, external_score) and (episode.get("data_quality_issue") or episode.get("sensor_fault")):
+#|         status = "DATA_QUALITY_ISSUE"
+#|     elif benign_score > 0 and benign_score >= max(artifact_score, config_score, security_score, external_score):
+#|         status = "BENIGN_EXPLAINED"
+#|     elif config_score > 0 and config_score >= max(benign_score, artifact_score, security_score, external_score):
+#|         status = "CONTEXT_EXPLAINED"
+#|     elif security_score > 0 and security_score > max(benign_score, artifact_score, config_score):
+#|         status = "ESCALATION_CANDIDATE"
+#|     elif external_score > 0 and external_score > max(benign_score, artifact_score, config_score, security_score):
+#|         status = "EXTERNAL_EVENT_CANDIDATE"
+#|     else:
+#|         status = "UNRESOLVED"
+#| 
+#|     review = {
+#|         "episode_id": episode["episode_id"],
+#|         "evidence": evidence,
+#|         "matrix": matrix,
+#|         "status": status,
+#|         "scores": {
+#|             "benign": benign_score,
+#|             "instrumentation": artifact_score,
+#|             "configuration": config_score,
+#|             "security": security_score,
+#|             "external": external_score,
+#|         },
+#|         "limitations": [
+#|             "ACH output is analytical support, not proof.",
+#|             "Security-incident candidates require INCIDENTINT / human review and independent evidence.",
+#|             "No autonomous accusation or punitive action is implied.",
+#|         ],
+#|     }
+#|     return hypotheses, review
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Gaps / actions / handoffs / graph / report
+#| # --------------------------------------------------------------------
+#| 
+#| def build_observations_summary(
+#|     observations: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     episodes: List[Dict[str, Any]],
+#|     privacy_flags: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     obs = []
+#|     obs.append(f"Observations ingested: {len(observations)}.")
+#|     obs.append(f"Baselines built: {len(baselines)}.")
+#|     obs.append(f"Anomaly candidates detected: {len(anomalies)}.")
+#|     obs.append(f"Anomaly episodes clustered: {len(episodes)}.")
+#|     if any(b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"} for b in baselines):
+#|         obs.append("Some baselines are weak; anomaly conclusions are correspondingly weak.")
+#|     if any(a.get("status") == "DATA_QUALITY_ISSUE" for a in anomalies):
+#|         obs.append("Data-quality issues explain some anomaly candidates.")
+#|     if any(a.get("status") == "SENSOR_FAULT_CANDIDATE" for a in anomalies):
+#|         obs.append("Sensor-fault candidates were separated from operational anomalies.")
+#|     if any(a.get("corroborating_signals") for a in anomalies):
+#|         obs.append("Independent-source corroboration was detected for some anomalies.")
+#|     if privacy_flags:
+#|         obs.append("Sensitive features/attributes were removed and not used as anomaly evidence.")
+#|     obs.append("No anomaly was converted into guilt, fraud, incident, malware, or malicious-intent verdict.")
+#|     return obs
+#| 
+#| 
+#| def build_unknowns(
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     episodes: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     unknowns = []
+#|     for b in baselines:
+#|         if b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"}:
+#|             unknowns.append(f"Baseline {b['baseline_id']} quality insufficient for strong anomaly inference.")
+#|     for a in anomalies:
+#|         if a.get("status") in {"CANDIDATE", "UNRESOLVED", "VALIDATED_ANOMALY"}:
+#|             unknowns.append(f"Anomaly {a['anomaly_id']} cause unresolved: {a.get('status')}.")
+#|     for ep in episodes:
+#|         if ep.get("status") in {"UNRESOLVED", "ESCALATION_CANDIDATE"}:
+#|             unknowns.append(f"Episode {ep['episode_id']} root cause unresolved: {ep.get('status')}.")
+#|     unknowns.append("Account/operator/person identity remains unresolved unless separate authorized identity evidence exists.")
+#|     return list(dict.fromkeys(unknowns))[:500]
+#| 
+#| 
+#| def build_gaps(
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     episodes: List[Dict[str, Any]],
+#|     privacy_flags: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     gaps = []
+#| 
+#|     for b in baselines:
+#|         if b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "baseline", b["baseline_id"]),
+#|                 "type": "BASELINE_INSUFFICIENT",
+#|                 "importance": "HIGH",
+#|                 "baseline_id": b["baseline_id"],
+#|                 "recommended_source": "Longer clean historical window, peer cohort, policy specification, or sensor calibration record.",
+#|                 "specialist": "ANOMALYINT / LOGINT / DATA_STEWARD",
+#|                 "expected_information_value": "Reduce false anomalies and improve calibration.",
+#|             })
+#| 
+#|     for a in anomalies:
+#|         if a.get("status") == "DATA_QUALITY_ISSUE":
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "dq", a["anomaly_id"]),
+#|                 "type": "DATA_QUALITY_ISSUE",
+#|                 "importance": "HIGH",
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "recommended_source": "Parser/schema validation, collector health, duplicate detection, unit normalization.",
+#|                 "specialist": "LOGINT / DATA_STEWARD",
+#|                 "expected_information_value": "Prevent telemetry artifacts from becoming operational anomalies.",
+#|             })
+#|         if a.get("status") == "SENSOR_FAULT_CANDIDATE":
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "sensor", a["anomaly_id"]),
+#|                 "type": "SENSOR_HEALTH_UNRESOLVED",
+#|                 "importance": "HIGH",
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "recommended_source": "Sensor calibration log, adjacent sensor comparison, collector heartbeat.",
+#|                 "specialist": "SENSORINT / LOGINT",
+#|                 "expected_information_value": "Distinguish instrument fault from real-world change.",
+#|             })
+#|         if a.get("source_independence_state") in {"DEPENDENT", "UNKNOWN"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "indep", a["anomaly_id"]),
+#|                 "type": "SOURCE_INDEPENDENCE_UNRESOLVED",
+#|                 "importance": "MEDIUM",
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "recommended_source": "Source pedigree, upstream collector lineage, independent telemetry.",
+#|                 "specialist": "ANOMALYINT / LOGINT",
+#|                 "expected_information_value": "Prevent copied dashboards/pipelines from inflating confidence.",
+#|             })
+#| 
+#|     for ep in episodes:
+#|         if ep.get("status") in {"UNRESOLVED", "ESCALATION_CANDIDATE"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "episode", ep["episode_id"]),
+#|                 "type": "ROOT_CAUSE_UNRESOLVED",
+#|                 "importance": "HIGH" if ep.get("severity") in {"HIGH_REVIEW", "CRITICAL_REVIEW"} else "MEDIUM",
+#|                 "episode_id": ep["episode_id"],
+#|                 "recommended_source": "Specialist domain evidence, independent telemetry, maintenance/change records, human review.",
+#|                 "specialist": "ANOMALYINT / HUMAN_REVIEW",
+#|                 "expected_information_value": "Move from anomaly candidate to validated explanation or specialist escalation.",
+#|             })
+#| 
+#|     for pf in privacy_flags:
+#|         gaps.append({
+#|             "gap_id": stable_id("GAP", "privacy", pf.get("observation_id"), pf.get("type")),
+#|             "type": "SENSITIVE_DATA_EXCLUDED",
+#|             "importance": "HIGH",
+#|             "observation_id": pf.get("observation_id"),
+#|             "recommended_source": "Do not seek sensitive traits or private content unless exceptional lawful necessity and explicit policy permission.",
+#|             "specialist": "PRIVACY / HUMAN_REVIEW",
+#|             "expected_information_value": "Maintain privacy boundary.",
+#|         })
+#| 
+#|     return gaps[:500]
+#| 
+#| 
+#| def build_next_actions(gaps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     actions = []
+#|     priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+#| 
+#|     for g in gaps:
+#|         if g["type"] == "BASELINE_INSUFFICIENT":
+#|             action = "Extend clean baseline window, exclude contaminated periods, and validate peer group before escalating anomalies."
+#|         elif g["type"] == "DATA_QUALITY_ISSUE":
+#|             action = "Check parser/schema, collector health, duplicate ingestion, unit normalization, and missing-data semantics."
+#|         elif g["type"] == "SENSOR_HEALTH_UNRESOLVED":
+#|             action = "Verify sensor calibration/heartbeat and compare adjacent independent sensors before operational escalation."
+#|         elif g["type"] == "SOURCE_INDEPENDENCE_UNRESOLVED":
+#|             action = "Trace source pedigree and obtain at least one independent telemetry source."
+#|         elif g["type"] == "ROOT_CAUSE_UNRESOLVED":
+#|             action = "Route to relevant specialist and request authorized human review; do not infer cause from score alone."
+#|         elif g["type"] == "SENSITIVE_DATA_EXCLUDED":
+#|             action = "Maintain privacy boundary; do not pursue sensitive traits or private content."
+#|         else:
+#|             action = "Gather additional authorized evidence."
+#| 
+#|         actions.append({
+#|             "action": action,
+#|             "gap_id": g.get("gap_id"),
+#|             "priority": g.get("importance", "MEDIUM"),
+#|             "expected_information_value": g.get("expected_information_value"),
+#|             "prohibited_alternatives": [
+#|                 "Do not autonomously accuse, punish, terminate, suspend, freeze, block, or blacklist.",
+#|                 "Do not infer guilt, criminality, fraud verdict, malware verdict, or incident verdict from anomaly score.",
+#|                 "Do not infer sensitive traits from behavior or anomalies.",
+#|                 "Do not generate attack paths, chokepoints, sabotage plans, or evasion guidance.",
+#|                 "Do not track private persons or perform unauthorized surveillance.",
+#|             ],
+#|         })
+#| 
+#|     actions.sort(key=lambda x: priority_map.get(x.get("priority", "LOW"), 9))
+#|     return actions[:200]
+#| 
+#| 
+#| def build_handoffs(episodes: List[Dict[str, Any]], anomalies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     hands = []
+#|     seen = set()
+#| 
+#|     for ep in episodes:
+#|         if ep.get("severity") not in {"MEDIUM_REVIEW", "HIGH_REVIEW", "CRITICAL_REVIEW"} and ep.get("status") not in {"ESCALATION_CANDIDATE", "UNRESOLVED"}:
+#|             continue
+#|         for domain in ep.get("domains", []):
+#|             spec = DOMAIN_HANDOFF.get(domain, DOMAIN_HANDOFF["unknown"])
+#|             key = (ep["episode_id"], spec)
+#|             if key in seen:
+#|                 continue
+#|             seen.add(key)
+#|             hands.append({
+#|                 "specialist": spec,
+#|                 "reason": f"Anomaly episode {ep['episode_id']} requires {domain} specialist interpretation.",
+#|                 "episode_id": ep["episode_id"],
+#|                 "entity_display": ep.get("entity_display"),
+#|                 "features": ep.get("features", []),
+#|                 "time_window": {"start": iso(ep.get("start_utc")), "end": iso(ep.get("end_utc"))},
+#|                 "severity": ep.get("severity"),
+#|                 "status": ep.get("status"),
+#|                 "payload": ["anomaly_ids", "baseline_ids", "evidence_ids", "source_ids", "known_facts", "benign_explanations", "unknowns", "limitations"],
+#|             })
+#| 
+#|     for a in anomalies:
+#|         if a.get("status") == "DATA_QUALITY_ISSUE":
+#|             key = (a["anomaly_id"], "LOGINT / DATA_STEWARD")
+#|             if key not in seen:
+#|                 seen.add(key)
+#|                 hands.append({
+#|                     "specialist": "LOGINT / DATA_STEWARD",
+#|                     "reason": f"Anomaly {a['anomaly_id']} appears caused by data-quality issue.",
+#|                     "anomaly_id": a["anomaly_id"],
+#|                     "payload": ["observation_ids", "source_ids", "data_quality", "limitations"],
+#|                 })
+#| 
+#|     return hands[:200]
+#| 
+#| 
+#| class GraphMemory:
+#|     def __init__(self) -> None:
+#|         self.nodes: List[Dict[str, Any]] = []
+#|         self.edges: List[Dict[str, Any]] = []
+#|         self._node_ids: Set[str] = set()
+#| 
+#|     def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+#|         if node_id in self._node_ids:
+#|             return
+#|         self._node_ids.add(node_id)
+#|         self.nodes.append({"type": node_type, "id": node_id, "properties": properties or {}})
+#| 
+#|     def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+#|         self.edges.append({
+#|             "from": from_id,
+#|             "to": to_id,
+#|             "type": edge_type,
+#|             "properties": properties or {},
+#|         })
+#| 
+#|     def to_dict(self) -> Dict[str, Any]:
+#|         return {
+#|             "nodes": self.nodes[:2000],
+#|             "edges": self.edges[:4000],
+#|             "note": "Anomaly graph preserves baselines, deviations, context, hypotheses, and provenance. It does not prove guilt, fraud, incident, or malice.",
+#|         }
+#| 
+#| 
+#| def build_graph_memory(
+#|     observations: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     episodes: List[Dict[str, Any]],
+#|     contexts: List[Dict[str, Any]],
+#|     hypotheses: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#| ) -> GraphMemory:
+#|     g = GraphMemory()
+#| 
+#|     entity_ids = {o["entity_id"] for o in observations}
+#|     for eid in entity_ids:
+#|         g.add_node("Entity", eid, {"display": mask_entity(eid)})
+#| 
+#|     for o in observations:
+#|         g.add_node("Observation", o["observation_id"], {
+#|             "entity_id": o["entity_id"],
+#|             "feature_id": o["feature_id"],
+#|             "timestamp": iso(o.get("timestamp")),
+#|             "value": o.get("raw_value"),
+#|             "data_quality": o.get("data_quality"),
+#|         })
+#|         g.add_edge(o["entity_id"], o["observation_id"], "OBSERVED_AS", {"feature_id": o["feature_id"]})
+#| 
+#|     for b in baselines:
+#|         g.add_node("Baseline", b["baseline_id"], {
+#|             "entity_id": b["entity_id"],
+#|             "feature_id": b["feature_id"],
+#|             "type": b["baseline_type"],
+#|             "quality": b.get("quality", {}).get("confidence"),
+#|         })
+#|         g.add_edge(b["entity_id"], b["baseline_id"], "HAS_BASELINE", {"feature_id": b["feature_id"]})
+#| 
+#|     for a in anomalies:
+#|         g.add_node("Anomaly", a["anomaly_id"], {
+#|             "entity_id": a["entity_id"],
+#|             "feature_id": a["feature_id"],
+#|             "type": a["anomaly_type"],
+#|             "status": a["status"],
+#|             "severity": a["severity"],
+#|             "score": a["score"],
+#|         })
+#|         g.add_edge(a["anomaly_id"], a["baseline_id"], "DEVIATES_FROM", {"method": a.get("score_method")})
+#|         g.add_edge(a["observation_id"], a["anomaly_id"], "EXHIBITED", {"confidence": a.get("confidence")})
+#| 
+#|     for ep in episodes:
+#|         g.add_node("AnomalyEpisode", ep["episode_id"], {
+#|             "entity_id": ep["entity_id"],
+#|             "severity": ep["severity"],
+#|             "status": ep["status"],
+#|             "features": ep.get("features", []),
+#|         })
+#|         for aid in ep.get("anomaly_ids", [])[:100]:
+#|             g.add_edge(aid, ep["episode_id"], "CLUSTERED_WITH", {"episode": ep["episode_id"]})
+#| 
+#|     for ctx in contexts:
+#|         g.add_node("ContextWindow", ctx["context_id"], {
+#|             "class": ctx.get("context_class"),
+#|             "type": ctx.get("context_type"),
+#|             "valid_from": iso(ctx.get("valid_from")),
+#|             "valid_to": iso(ctx.get("valid_to")),
+#|         })
+#| 
+#|     for h in hypotheses[:500]:
+#|         g.add_node("Hypothesis", h["hypothesis_id"], {
+#|             "statement": h["statement"],
+#|             "category": h["category"],
+#|             "episode_id": h.get("episode_id"),
+#|         })
+#| 
+#|     for gap in gaps[:500]:
+#|         g.add_node("Gap", gap["gap_id"], {
+#|             "type": gap["type"],
+#|             "importance": gap["importance"],
+#|         })
+#| 
+#|     return g
+#| 
+#| 
+#| def dual_ai_review_stub(
+#|     anomalies: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     episodes: List[Dict[str, Any]],
+#| ) -> Dict[str, Any]:
+#|     review = {
+#|         "status": "INSUFFICIENT_EVIDENCE",
+#|         "primary_conclusions": [],
+#|         "skeptic_challenges": [],
+#|         "comparison": "NO_SECOND_MODEL_CONFIGURED",
+#|         "notes": [
+#|             "This starter does not call an independent second model.",
+#|             "AI agreement is not independent telemetry or ground truth.",
+#|             "Human review is required for consequential escalation.",
+#|         ],
+#|     }
+#|     if any(b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"} for b in baselines):
+#|         review["primary_conclusions"].append("Some baselines are weak.")
+#|         review["skeptic_challenges"].append("Do not escalate anomalies from weak baselines without independent context.")
+#|     if any(a.get("status") == "DATA_QUALITY_ISSUE" for a in anomalies):
+#|         review["primary_conclusions"].append("Some anomalies are data-quality candidates.")
+#|         review["skeptic_challenges"].append("Check parser, collector, duplicates, units, and missing-data semantics before operational interpretation.")
+#|     if any(ep.get("status") == "ESCALATION_CANDIDATE" for ep in episodes):
+#|         review["primary_conclusions"].append("Some episodes are escalation candidates.")
+#|         review["skeptic_challenges"].append("Escalation candidate is not incident/fraud/malice verdict; require specialist and human review.")
+#|     if review["primary_conclusions"]:
+#|         review["status"] = "PARTIAL_AGREEMENT"
+#|     return review
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Result assembly
+#| # --------------------------------------------------------------------
+#| 
+#| def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+#|         "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+#|         "objective": manifest.get("objective", ""),
+#|         "questions": manifest.get("questions", []) or [],
+#|         "generated_at": utc_now(),
+#|         "version": VERSION,
+#|         "source_ids": [],
+#|         "evidence_ids": [],
+#|         "entities": [],
+#|         "features": [],
+#|         "observations": [],
+#|         "baselines": [],
+#|         "baseline_quality": [],
+#|         "anomalies": [],
+#|         "anomaly_episodes": [],
+#|         "anomaly_types": [],
+#|         "anomaly_statuses": [],
+#|         "anomaly_scores": [],
+#|         "data_quality": [],
+#|         "sensor_health": [],
+#|         "known_events": [],
+#|         "maintenance_context": [],
+#|         "benign_explanations": [],
+#|         "root_cause_candidates": [],
+#|         "source_pedigree": [],
+#|         "source_independence": [],
+#|         "corroborating_signals": [],
+#|         "contradicting_signals": [],
+#|         "hypotheses": [],
+#|         "ach_matrix": [],
+#|         "falsification_results": [],
+#|         "specialist_routes": [],
+#|         "supported_facts": [],
+#|         "partial_facts": [],
+#|         "disputed_facts": [],
+#|         "privacy_flags": [],
+#|         "unknowns": [],
+#|         "knowledge_gaps": [],
+#|         "recommended_next_actions": [],
+#|         "specialist_handoffs": [],
+#|         "limitations": [],
+#|         "dual_ai_review": {},
+#|         "graph_memory": {},
+#|         "status": "PARTIAL",
+#|     }
+#| 
+#| 
+#| def summarize_observation(o: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "observation_id": o["observation_id"],
+#|         "entity_display": mask_entity(o["entity_id"]),
+#|         "entity_type": o.get("entity_type"),
+#|         "feature_id": o["feature_id"],
+#|         "timestamp": iso(o.get("timestamp")),
+#|         "raw_value": o.get("raw_value"),
+#|         "unit": o.get("unit"),
+#|         "target_display": mask_entity(o.get("target_entity")) if o.get("target_entity") else None,
+#|         "source_id": o.get("source_id"),
+#|         "source_type": o.get("source_type"),
+#|         "data_quality": o.get("data_quality"),
+#|         "issues": o.get("issues", []),
+#|         "duplicate_count": o.get("duplicate_count", 0),
+#|         "evidence_ids": o.get("evidence_ids", []),
+#|     }
+#| 
+#| 
+#| def summarize_baseline(b: Dict[str, Any]) -> Dict[str, Any]:
+#|     stats = b.get("stats", {})
+#|     return {
+#|         "baseline_id": b["baseline_id"],
+#|         "baseline_type": b["baseline_type"],
+#|         "entity_display": mask_entity(b["entity_id"]),
+#|         "feature_id": b["feature_id"],
+#|         "peer_group_id": b.get("peer_group_id"),
+#|         "training_start": iso(b.get("training_start")),
+#|         "training_end": iso(b.get("training_end")),
+#|         "sample_count": b.get("sample_count"),
+#|         "model_type": b.get("model_type"),
+#|         "expected_range": b.get("expected_range"),
+#|         "median": stats.get("median"),
+#|         "mad": stats.get("mad"),
+#|         "std": stats.get("std"),
+#|         "iqr": stats.get("iqr"),
+#|         "p05": stats.get("p05"),
+#|         "p95": stats.get("p95"),
+#|         "trend_slope": stats.get("trend_slope"),
+#|         "categorical_categories": b.get("categorical_stats", {}).get("categories", [])[:50],
+#|         "target_sample": b.get("target_stats", {}).get("targets", [])[:50],
+#|         "quality": b.get("quality", {}),
+#|         "evaluation_observation_count": len(b.get("evaluation_observation_ids", [])),
+#|         "limitations": b.get("limitations", []),
+#|     }
+#| 
+#| 
+#| def summarize_anomaly(a: Dict[str, Any]) -> Dict[str, Any]:
+#|     out = dict(a)
+#|     out["timestamp"] = iso(a.get("timestamp"))
+#|     out.pop("entity_id", None)
+#|     return out
+#| 
+#| 
+#| def summarize_episode(ep: Dict[str, Any]) -> Dict[str, Any]:
+#|     out = dict(ep)
+#|     out["start_utc"] = iso(ep.get("start_utc"))
+#|     out["end_utc"] = iso(ep.get("end_utc"))
+#|     out.pop("entity_id", None)
+#|     return out
+#| 
+#| 
+#| def finalize_status(
+#|     result: Dict[str, Any],
+#|     observations: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     auth_ok: bool,
+#|     policy_blocked: List[str],
+#| ) -> str:
+#|     if policy_blocked:
+#|         return "POLICY_BLOCKED"
+#|     if not auth_ok:
+#|         return "BLOCKED_PERMISSION"
+#|     if not observations:
+#|         return "INSUFFICIENT_INPUT"
+#|     if any(a.get("status") in {"CANDIDATE", "UNRESOLVED", "ESCALATION_CANDIDATE"} for a in anomalies):
+#|         return "PARTIAL"
+#|     if result.get("knowledge_gaps"):
+#|         return "PARTIAL"
+#|     return "SUCCEEDED"
+#| 
+#| 
+#| def analyze_anomaly_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     result = empty_result(manifest)
+#| 
+#|     policy_blocked = policy_screen(manifest)
+#|     if policy_blocked:
+#|         result["status"] = "POLICY_BLOCKED"
+#|         result["violations"] = policy_blocked
+#|         result["privacy_flags"] = [{"type": label, "action": "PROHIBITED_REQUEST_NOT_PERFORMED"} for label in policy_blocked]
+#|         result["limitations"] = [
+#|             "ANOMALYINT does not autonomously accuse, punish, freeze, block, infer sensitive traits, perform surveillance, or optimize attacks."
+#|         ]
+#|         return result
+#| 
+#|     auth_ok, auth_reasons = authorization_check(manifest)
+#|     if not auth_ok:
+#|         result["status"] = "BLOCKED_PERMISSION"
+#|         result["limitations"] = auth_reasons
+#|         return result
+#| 
+#|     privacy_cfg = privacy_config(manifest)
+#|     thresholds = threshold_settings(manifest)
+#| 
+#|     sources = ingest_sources(manifest)
+#|     source_roots = build_source_roots(sources)
+#|     features = ingest_features(manifest)
+#|     entities = ingest_entities(manifest)
+#|     contexts = all_contexts(manifest)
+#| 
+#|     observations, privacy_flags = ingest_observations(manifest, sources, features, entities, privacy_cfg)
+#|     observations = deduplicate_observations(observations)
+#|     sensor_fault_obs_ids = detect_data_quality_issues(observations, features)
+#| 
+#|     if not observations:
+#|         result["status"] = "INSUFFICIENT_INPUT"
+#|         result["limitations"].append("No usable observations provided.")
+#|         return result
+#| 
+#|     baselines = build_baselines(observations, features, manifest, contexts)
+#|     anomalies = detect_anomalies(observations, baselines, features, sources, source_roots, thresholds)
+#| 
+#|     enrich_with_context(anomalies, observations, contexts, sensor_fault_obs_ids)
+#|     enrich_corroboration_and_contradictions(anomalies, observations, sources, source_roots, thresholds)
+#|     enrich_persistence_and_recurrence(anomalies, thresholds)
+#| 
+#|     episodes = build_episodes(anomalies, thresholds)
+#| 
+#|     all_hypotheses = []
+#|     ach_results = []
+#|     for ep in episodes:
+#|         hyps, review = evaluate_ach_for_episode(ep, thresholds)
+#|         all_hypotheses.extend(hyps)
+#|         ach_results.append(review)
+#|         ep["status"] = review["status"]
+#|         ep["ach_scores"] = review["scores"]
+#| 
+#|     observations_summary = build_observations_summary(observations, baselines, anomalies, episodes, privacy_flags)
+#|     unknowns = build_unknowns(baselines, anomalies, episodes)
+#|     gaps = build_gaps(baselines, anomalies, episodes, privacy_flags)
+#|     actions = build_next_actions(gaps)
+#|     handoffs = build_handoffs(episodes, anomalies)
+#|     dual_review = dual_ai_review_stub(anomalies, baselines, episodes)
+#|     graph = build_graph_memory(observations, baselines, anomalies, episodes, contexts, all_hypotheses, gaps)
+#| 
+#|     result["observations"] = [summarize_observation(o) for o in observations]
+#|     result["baselines"] = [summarize_baseline(b) for b in baselines]
+#|     result["baseline_quality"] = [{"baseline_id": b["baseline_id"], "quality": b.get("quality", {})} for b in baselines]
+#|     result["anomalies"] = [summarize_anomaly(a) for a in anomalies]
+#|     result["anomaly_episodes"] = [summarize_episode(ep) for ep in episodes]
+#|     result["anomaly_types"] = [{"anomaly_id": a["anomaly_id"], "type": a["anomaly_type"]} for a in anomalies]
+#|     result["anomaly_statuses"] = [{"anomaly_id": a["anomaly_id"], "status": a["status"], "severity": a["severity"]} for a in anomalies]
+#|     result["anomaly_scores"] = [{"anomaly_id": a["anomaly_id"], "score": a["score"], "method": a["score_method"]} for a in anomalies]
+#|     result["data_quality"] = [{"observation_id": o["observation_id"], "data_quality": o.get("data_quality"), "issues": o.get("issues", [])} for o in observations if o.get("issues") or o.get("data_quality") not in {"OK"}}]
+#|     result["sensor_health"] = [{"observation_id": oid, "issue": "SENSOR_FLATLINE"} for oid in sorted(sensor_fault_obs_ids)]
+#|     result["known_events"] = [c for c in contexts if c.get("context_class") == "known_event"]
+#|     result["maintenance_context"] = [c for c in contexts if c.get("context_class") == "maintenance"]
+#|     result["benign_explanations"] = [{"anomaly_id": a["anomaly_id"], "explanations": a.get("possible_explanations", [])} for a in anomalies if a.get("possible_explanations")]
+#|     result["root_cause_candidates"] = [{"episode_id": ep["episode_id"], "candidates": ep.get("root_cause_candidates", [])} for ep in episodes]
+#|     result["corroborating_signals"] = [{"anomaly_id": a["anomaly_id"], "signals": a.get("corroborating_signals", [])} for a in anomalies if a.get("corroborating_signals")]
+#|     result["contradicting_signals"] = [{"anomaly_id": a["anomaly_id"], "signals": a.get("contradicting_signals", [])} for a in anomalies if a.get("contradicting_signals")]
+#|     result["hypotheses"] = all_hypotheses
+#|     result["ach_matrix"] = ach_results
+#|     result["falsification_results"] = [
+#|         {
+#|             "episode_id": r["episode_id"],
+#|             "status": r["status"],
+#|             "scores": r.get("scores"),
+#|             "limitations": r.get("limitations"),
+#|         }
+#|         for r in ach_results
+#|     ]
+#|     result["specialist_routes"] = handoffs
+#|     result["specialist_handoffs"] = handoffs
+#|     result["observations"] = result["observations"]
+#|     result["unknowns"] = unknowns
+#|     result["knowledge_gaps"] = gaps
+#|     result["recommended_next_actions"] = actions
+#|     result["dual_ai_review"] = dual_review
+#|     result["graph_memory"] = graph.to_dict()
+#|     result["privacy_flags"] = privacy_flags
+#|     result["analyst_summary"] = observations_summary
+#| 
+#|     for sid, src in sources.items():
+#|         result["source_ids"].append(sid)
+#|         result["source_pedigree"].append({
+#|             "source_id": sid,
+#|             "source_type": src.get("source_type"),
+#|             "upstream_source_id": src.get("upstream_source_id"),
+#|             "root_source_id": source_roots.get(sid, sid),
+#|             "reliability": src.get("reliability"),
+#|         })
+#| 
+#|     for o in observations:
+#|         for evid in o.get("evidence_ids", []):
+#|             result["evidence_ids"].append(evid)
+#| 
+#|     for a in anomalies:
+#|         result["source_independence"].append({
+#|             "anomaly_id": a["anomaly_id"],
+#|             "state": a.get("source_independence_state"),
+#|             "independent_source_family_count": a.get("independent_source_family_count"),
+#|         })
+#|         if a.get("status") in {"VALIDATED_ANOMALY", "BENIGN_EXPLAINED", "CONTEXT_EXPLAINED", "RELATED_TO_KNOWN_EVENT"}:
+#|             result["supported_facts"].append({"anomaly_id": a["anomaly_id"], "statement": f"Anomaly {a['anomaly_id']} status: {a['status']}."})
+#|         elif a.get("status") == "DATA_QUALITY_ISSUE":
+#|             result["disputed_facts"].append({"anomaly_id": a["anomaly_id"], "statement": f"Anomaly {a['anomaly_id']} disputed by data-quality issue."})
+#|         else:
+#|             result["partial_facts"].append({"anomaly_id": a["anomaly_id"], "statement": f"Anomaly {a['anomaly_id']} candidate."})
+#| 
+#|     base_limits = [
+#|         "ANOMALYINT starter uses only provided/local authorized records; no external network lookup was performed.",
+#|         "Anomaly means deviation from a baseline, not malice, fraud, incident, compromise, or criminality.",
+#|         "Model/statistical score is an analytical signal, not fact.",
+#|         "Weak, stale, contaminated, or insufficient baselines produce weak anomaly conclusions.",
+#|         "Data-quality issues and sensor faults are separated from operational anomalies where evidence supports.",
+#|         "Dependent/copied telemetry is not independent corroboration.",
+#|         "Correlation is not causation; root-cause candidates require specialist/human verification.",
+#|         "No autonomous accusation, punitive action, attack optimization, sensitive-trait inference, or private tracking was performed.",
+#|     ]
+#|     if auth_reasons:
+#|         base_limits.extend(auth_reasons)
+#|     result["limitations"] = list(dict.fromkeys(base_limits))
+#| 
+#|     result["status"] = finalize_status(result, observations, anomalies, auth_ok, policy_blocked)
+#|     return result
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Report generation
+#| # --------------------------------------------------------------------
+#| 
+#| def generate_report(result: Dict[str, Any]) -> str:
+#|     lines = []
+#|     lines.append("# ANOMALYINT Evidence-Linked Report")
+#|     lines.append("")
+#|     lines.append(f"- Case ID: `{result.get('case_id')}`")
+#|     lines.append(f"- Task ID: `{result.get('task_id')}`")
+#|     lines.append(f"- Generated: `{result.get('generated_at')}`")
+#|     lines.append(f"- Version: `{result.get('version')}`")
+#|     lines.append(f"- Status: `{result.get('status')}`")
+#|     lines.append("")
+#| 
+#|     if result.get("status") == "POLICY_BLOCKED":
+#|         lines.append("## POLICY BLOCKED")
+#|         lines.append("The request violated ANOMALYINT hard restrictions:")
+#|         for v in result.get("violations", []):
+#|             lines.append(f"- `{v}`")
+#|         lines.append("")
+#|         lines.append("No anomaly analysis was performed.")
+#|         return "\n".join(lines)
+#| 
+#|     lines.append("## Objective")
+#|     lines.append(str(result.get("objective", "")))
+#|     lines.append("")
+#| 
+#|     lines.append("## Required Analyst Summary")
+#|     for s in result.get("analyst_summary", [])[:50]:
+#|         lines.append(f"- {s}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Privacy / Anomaly Boundaries")
+#|     lines.append("- Deviation ≠ anomaly verdict; anomaly ≠ threat; threat ≠ incident; incident ≠ attributed actor.")
+#|     lines.append("- No autonomous accusation, punishment, termination, suspension, freezing, blocking, or blacklisting.")
+#|     lines.append("- No sensitive-trait inference, biometric identification, private tracking, or surveillance.")
+#|     lines.append("- No attack-path, chokepoint, sabotage, or evasion optimization.")
+#|     lines.append("- Anomaly score is analytical signal, not fact.")
+#|     lines.append("")
+#| 
+#|     lines.append("## Data Quality / Sensor Health")
+#|     dq = result.get("data_quality", [])
+#|     sh = result.get("sensor_health", [])
+#|     lines.append(f"- Data-quality flagged observations: {len(dq)}")
+#|     lines.append(f"- Sensor-fault candidate observations: {len(sh)}")
+#|     for d in dq[:100]:
+#|         lines.append(f"- `{d.get('observation_id')}` quality=`{d.get('data_quality')}` issues={d.get('issues')}")
+#|     for s in sh[:100]:
+#|         lines.append(f"- `{s.get('observation_id')}`: {s.get('issue')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Baselines")
+#|     for b in result.get("baselines", [])[:200]:
+#|         q = b.get("quality", {})
+#|         lines.append(f"### `{b.get('baseline_id')}`")
+#|         lines.append(f"- Entity: `{b.get('entity_display')}` feature=`{b.get('feature_id')}` type=`{b.get('baseline_type')}`")
+#|         lines.append(f"- Training: `{b.get('training_start')}` to `{b.get('training_end')}` sample=`{b.get('sample_count')}`")
+#|         lines.append(f"- Expected range: `{b.get('expected_range')}`")
+#|         lines.append(f"- Median=`{b.get('median')}` MAD=`{b.get('mad')}` std=`{b.get('std')}` IQR=`{b.get('iqr')}`")
+#|         lines.append(f"- Quality: `{q.get('confidence')}` completeness=`{q.get('data_completeness')}` contamination={q.get('contamination_contexts')}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Anomalies")
+#|     for a in result.get("anomalies", [])[:300]:
+#|         lines.append(f"### `{a.get('anomaly_id')}`")
+#|         lines.append(f"- Entity: `{a.get('entity_display')}` feature=`{a.get('feature_id')}` domain=`{a.get('domain')}`")
+#|         lines.append(f"- Type: `{a.get('anomaly_type')}` status=`{a.get('status')}` severity=`{a.get('severity')}` confidence=`{a.get('confidence')}`")
+#|         lines.append(f"- Observed: `{a.get('observed_value')}` expected_range=`{a.get('expected_range')}` deviation=`{a.get('deviation')}`")
+#|         lines.append(f"- Score: `{a.get('score')}` method={a.get('score_method')} threshold=`{a.get('threshold')}`")
+#|         lines.append(f"- Baseline: `{a.get('baseline_id')}` type=`{a.get('baseline_type')}`")
+#|         lines.append(f"- Source independence: `{a.get('source_independence_state')}` independent_families=`{a.get('independent_source_family_count')}`")
+#|         if a.get("corroborating_signals"):
+#|             lines.append(f"- Corroborating signals: {', '.join(a['corroborating_signals'])}")
+#|         if a.get("contradicting_signals"):
+#|             lines.append(f"- Contradicting signals: {', '.join(a['contradicting_signals'])}")
+#|         if a.get("possible_explanations"):
+#|             lines.append("- Possible explanations:")
+#|             for exp in a["possible_explanations"][:10]:
+#|                 lines.append(f"  - {exp}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Anomaly Episodes")
+#|     for ep in result.get("anomaly_episodes", [])[:200]:
+#|         lines.append(f"### `{ep.get('episode_id')}`")
+#|         lines.append(f"- Entity: `{ep.get('entity_display')}`")
+#|         lines.append(f"- Window: `{ep.get('start_utc')}` to `{ep.get('end_utc')}`")
+#|         lines.append(f"- Features: {', '.join(ep.get('features', []))}")
+#|         lines.append(f"- Severity: `{ep.get('severity')}` status: `{ep.get('status')}` multivariate=`{ep.get('multivariate_context')}`")
+#|         lines.append(f"- Root-cause candidates: {', '.join(ep.get('root_cause_candidates', []))}")
+#|         lines.append(f"- ACH scores: `{json.dumps(ep.get('ach_scores', {}), ensure_ascii=False)}`")
+#|         lines.append("")
+#| 
+#|     lines.append("## Hypotheses / ACH")
+#|     for r in result.get("ach_matrix", [])[:100]:
+#|         lines.append(f"### Episode `{r.get('episode_id')}` status=`{r.get('status')}`")
+#|         for ev in r.get("evidence", [])[:20]:
+#|             lines.append(f"- Evidence `{ev.get('evidence_id')}` [{ev.get('type')}]: {ev.get('description')}")
+#|         for row in r.get("matrix", [])[:20]:
+#|             lines.append(f"  - {row.get('evidence_id')}: {json.dumps(row.get('assessments', {}), ensure_ascii=False)}"[:700])
+#|     lines.append("")
+#| 
+#|     lines.append("## Knowledge Gaps")
+#|     for g in result.get("knowledge_gaps", [])[:200]:
+#|         lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Recommended Next Actions")
+#|     for a in result.get("recommended_next_actions", [])[:200]:
+#|         lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Specialist Handoffs")
+#|     for h in result.get("specialist_handoffs", []):
+#|         lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Dual-AI Review Stub")
+#|     dr = result.get("dual_ai_review", {})
+#|     lines.append(f"- Status: `{dr.get('status')}`")
+#|     lines.append(f"- Comparison: `{dr.get('comparison')}`")
+#|     for n in dr.get("notes", []):
+#|         lines.append(f"- {n}")
+#|     for c in dr.get("primary_conclusions", [])[:50]:
+#|         lines.append(f"- Primary: {c}")
+#|     for c in dr.get("skeptic_challenges", [])[:50]:
+#|         lines.append(f"- Skeptic: {c}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Limitations")
+#|     for lim in result.get("limitations", []):
+#|         lines.append(f"- {lim}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Non-Negotiable Boundary")
+#|     lines.append("- Check the data.")
+#|     lines.append("- Check the sensor.")
+#|     lines.append("- Check the clock.")
+#|     lines.append("- Check the baseline.")
+#|     lines.append("- Check the season and peer group.")
+#|     lines.append("- Measure deviation transparently.")
+#|     lines.append("- Test benign explanations before serious hypotheses.")
+#|     lines.append("- Escalate context, not just score.")
+#|     lines.append("- Attribute cause last, with specialist and human review.")
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # CLI
+#| # --------------------------------------------------------------------
+#| 
+#| def main() -> int:
+#|     parser = argparse.ArgumentParser(description="TRACEATLAS ANOMALYINT safe starter")
+#|     parser.add_argument("--manifest", required=True, help="Path to ANOMALYINT manifest JSON")
+#|     parser.add_argument("--output", default="anomalyint_result.json", help="Output JSON path")
+#|     parser.add_argument("--report", default="anomalyint_report.md", help="Output Markdown report path")
+#|     args = parser.parse_args()
+#| 
+#|     try:
+#|         manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+#|     except Exception as exc:
+#|         print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+#|         return 2
+#| 
+#|     result = analyze_anomaly_manifest(manifest)
+#| 
+#|     Path(args.output).write_text(
+#|         json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+#|         encoding="utf-8",
+#|     )
+#|     Path(args.report).write_text(generate_report(result), encoding="utf-8")
+#| 
+#|     print(f"Wrote: {args.output}")
+#|     print(f"Wrote: {args.report}")
+#|     return 0
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     raise SystemExit(main())
+#| 
+#| 
+#| 
+#|     {
+#|   "case_id": "ANOM-CASE-001",
+#|   "task_id": "ANOM-TASK-001",
+#|   "objective": "Analyze authorized observable telemetry, build baselines, detect anomaly candidates, test benign explanations, and route unresolved episodes to specialists without autonomous accusation or punitive action.",
+#|   "questions": [
+#|     "Which observations deviate from valid baselines?",
+#|     "Are deviations explained by data quality, sensor faults, maintenance, or known context?",
+#|     "Which anomalies are corroborated by independent sources?",
+#|     "Which episodes require specialist review?"
+#|   ],
+#|   "authorization": {
+#|     "approved": true,
+#|     "scope": "authorized_enterprise_telemetry",
+#|     "model_mode": "LOCAL_ONLY",
+#|     "cloud_approved": false,
+#|     "person_level_approved": false,
+#|     "privacy": {
+#|       "minimize_personal_data": true,
+#|       "mask_entity_display": true,
+#|       "hash_entities": false
+#|     }
+#|   },
+#|   "baseline_window": {
+#|     "start": "2026-10-01T00:00:00Z",
+#|     "end": "2026-10-14T23:59:59Z"
+#|   },
+#|   "comparison_window": {
+#|     "start": "2026-10-15T00:00:00Z",
+#|     "end": "2026-10-20T23:59:59Z"
+#|   },
+#|   "thresholds": {
+#|     "sensitivity": "medium",
+#|     "time_bucket_minutes": 15,
+#|     "episode_window_hours": 2.0,
+#|     "persistence_window_hours": 6.0
+#|   },
+#|   "sources": [
+#|     {
+#|       "source_id": "S1",
+#|       "source_type": "application_log",
+#|       "reliability": 0.82
+#|     },
+#|     {
+#|       "source_id": "S2",
+#|       "source_type": "identity_log",
+#|       "reliability": 0.88
+#|     }
+#|   ],
+#|   "entities": [

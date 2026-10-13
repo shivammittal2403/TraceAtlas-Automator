@@ -1,0 +1,1000 @@
+#|             "gap_id": g.get("gap_id"),
+#|             "priority": g.get("importance", "MEDIUM"),
+#|             "expected_information_value": g.get("expected_information_value"),
+#|             "prohibited_alternatives": [
+#|                 "Do not steal vehicles, clone keys, bypass immobilizers/gateways/diagnostic security access.",
+#|                 "Do not inject live CAN/UDS/DoIP commands or disable safety/regulatory systems.",
+#|                 "Do not tamper with odometer/emissions/vehicle identity or extract private keys.",
+#|                 "Do not track private vehicles/persons or access private telematics without authorization.",
+#|                 "Do not perform remote vehicle control/takeover or offensive exploitation.",
+#|             ],
+#|         })
+#|     actions.sort(key=lambda x: prio.get(x.get("priority", "LOW"), 9))
+#|     return actions[:300]
+#| 
+#| 
+#| def build_handoffs(cases: List[Dict[str, Any]], gaps: List[Dict[str, Any]], contradictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     hands = []
+#|     seen = set()
+#| 
+#|     def add(spec: str, reason: str, payload: Dict[str, Any]) -> None:
+#|         key = (spec, json.dumps(json_safe(payload), sort_keys=True, ensure_ascii=False))
+#|         if key not in seen:
+#|             seen.add(key)
+#|             hands.append({"specialist": spec, "reason": reason, "payload": payload})
+#| 
+#|     if any(case.get("ecus") for case in cases):
+#|         add("TECHINT", "ECU/component/part-number/hardware revision technical resolution may be required.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases][:100],
+#|         })
+#|     if any(v.get("applicability_state") in {"UNKNOWN", "POSSIBLY_APPLICABLE", "PROBABLY_APPLICABLE", "APPLICABLE_SUPPORTED"} for c in cases for v in c.get("vulnerabilities", [])):
+#|         add("VULNINT", "Automotive CVE/component applicability, fixed versions, KEV/EPSS, and exploitation context required.", {
+#|             "vulnerability_ids": [v.get("vulnerability_id") for c in cases for v in c.get("vulnerabilities", [])][:100],
+#|         })
+#|     if any(c.get("incidents") for c in cases):
+#|         add("INCIDENTINT / LOGINT", "Vehicle incident reconstruction and multi-source log correlation required.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("incidents")][:100],
+#|         })
+#|     if any(c.get("otas") for c in cases):
+#|         add("CLOUDINT / AUTOMOTIVE_BACKEND", "OTA campaign/backend update state verification required under authorization.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("otas")][:100],
+#|         })
+#|     if any(c.get("mobile_apps") or c.get("backend_services") or c.get("cloud_dependencies") for c in cases):
+#|         add("MOBILEINT / APPINT / CLOUDINT", "Companion app and backend/cloud dependency analysis required; no account takeover.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("mobile_apps") or c.get("backend_services") or c.get("cloud_dependencies")][:100],
+#|         })
+#|     if any(c.get("suppliers") for c in cases):
+#|         add("SUPPLYCHAININT", "OEM/Tier-1/Tier-2/component supplier concentration and dependency risk required.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("suppliers")][:100],
+#|         })
+#|     if any(c.get("certificates") for c in cases):
+#|         add("CERTINT", "Vehicle/PKI/code-signing/TLS certificate context required; no private key use.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("certificates")][:100],
+#|         })
+#|     if any(g.get("type") == "SAFETY_CRITICAL_HUMAN_REVIEW_REQUIRED" for g in gaps):
+#|         add("SAFETY_HUMAN_REVIEW / OEM_SAFETY_PROCESS", "Safety-critical ECU or impact requires qualified human safety review.", {
+#|             "gap_ids": [g["gap_id"] for g in gaps if g.get("type") == "SAFETY_CRITICAL_HUMAN_REVIEW_REQUIRED"][:100],
+#|         })
+#|     if any(c.get("can_context", {}).get("anomalies") for c in cases):
+#|         add("NETINT / IDS", "In-vehicle network anomaly correlation and defensive IDS context required; no live injection.", {
+#|             "vehicle_ids": [c["vehicle"]["vehicle_id"] for c in cases if c.get("can_context", {}).get("anomalies")][:100],
+#|         })
+#|     if contradictions:
+#|         add("HUMAN_REVIEW / OEM_VENDOR_LIAISON", "Material contradictions require human review before vendor/OEM notification or remediation decisions.", {
+#|             "contradiction_ids": [c["contradiction_id"] for c in contradictions][:100],
+#|         })
+#|     return hands
+#| 
+#| 
+#| class GraphMemory:
+#|     def __init__(self) -> None:
+#|         self.nodes: List[Dict[str, Any]] = []
+#|         self.edges: List[Dict[str, Any]] = []
+#|         self.ids: Set[str] = set()
+#| 
+#|     def node(self, ntype: str, nid: str, props: Optional[Dict[str, Any]] = None) -> None:
+#|         if nid and nid not in self.ids:
+#|             self.ids.add(nid)
+#|             self.nodes.append({"type": ntype, "id": nid, "properties": props or {}})
+#| 
+#|     def edge(self, frm: str, to: str, etype: str, props: Optional[Dict[str, Any]] = None) -> None:
+#|         if frm and to:
+#|             self.edges.append({"from": frm, "to": to, "type": etype, "properties": props or {}})
+#| 
+#|     def to_dict(self) -> Dict[str, Any]:
+#|         return {
+#|             "nodes": self.nodes[:3000],
+#|             "edges": self.edges[:6000],
+#|             "note": "Automotive graph preserves vehicle identity, ECU/version eras, supplier relationships, recall/vulnerability applicability uncertainty, safety classification, and source dependence. It does not prove compromise or authorize vehicle interaction.",
+#|         }
+#| 
+#| 
+#| def build_graph(cases: List[Dict[str, Any]], contradictions: List[Dict[str, Any]], hypotheses: List[Dict[str, Any]], gaps: List[Dict[str, Any]], sources: Dict[str, Dict[str, Any]]) -> GraphMemory:
+#|     g = GraphMemory()
+#|     for case in cases:
+#|         v = case["vehicle"]
+#|         vid = v["vehicle_id"]
+#|         g.node("Vehicle", vid, {
+#|             "make": v.get("make"),
+#|             "model": v.get("model"),
+#|             "model_year": v.get("model_year"),
+#|             "variant": v.get("variant"),
+#|             "platform": v.get("platform"),
+#|             "vin_masked": v.get("vin_masked"),
+#|         })
+#|         for typ, val in (
+#|             ("Make", v.get("make")),
+#|             ("Brand", v.get("brand")),
+#|             ("Model", v.get("model")),
+#|             ("ModelYear", v.get("model_year")),
+#|             ("Generation", v.get("generation")),
+#|             ("Platform", v.get("platform")),
+#|             ("Trim", v.get("trim")),
+#|             ("Variant", v.get("variant")),
+#|             ("Powertrain", v.get("powertrain")),
+#|             ("Region", v.get("region")),
+#|         ):
+#|             if val:
+#|                 nid = stable_id(typ, val)
+#|                 g.node(typ, nid, {"value": val})
+#|                 g.edge(vid, nid, f"HAS_{typ.upper()}_CANDIDATE", {})
+#|         for e in case.get("ecus", []):
+#|             eid = e.get("ecu_id")
+#|             g.node("ECU", eid, {
+#|                 "ecu_type": e.get("ecu_type"),
+#|                 "safety_critical": e.get("safety_critical"),
+#|                 "software_version": e.get("software_version"),
+#|                 "firmware_version": e.get("firmware_version"),
+#|             })
+#|             g.edge(eid, vid, "INSTALLED_IN", {})
+#|             for typ, val in (("Manufacturer", e.get("manufacturer")), ("Supplier", e.get("supplier"))):
+#|                 if val:
+#|                     nid = stable_id(typ, val)
+#|                     g.node(typ, nid, {"value": val})
+#|                     g.edge(eid, nid, f"HAS_{typ.upper()}_CANDIDATE", {})
+#|         for n in case.get("networks", []):
+#|             nid = n.get("record_id")
+#|             g.node("NetworkBus", nid, {"network_type": n.get("network_type"), "bus_name": n.get("bus_name")})
+#|             g.edge(nid, vid, "PART_OF_VEHICLE", {})
+#|         for r in case.get("recalls", []):
+#|             rid = r.get("record_id")
+#|             g.node("Recall", rid, {"status": r.get("status"), "applicability_state": r.get("applicability_state")})
+#|             g.edge(vid, rid, "SUBJECT_TO_RECALL_CANDIDATE", {"state": r.get("applicability_state")})
+#|         for vu in case.get("vulnerabilities", []):
+#|             vidu = vu.get("vulnerability_id")
+#|             g.node("Vulnerability", vidu, {"cve": vu.get("cve"), "applicability_state": vu.get("applicability_state"), "safety_impact": vu.get("safety_impact")})
+#|             if vu.get("ecu_id"):
+#|                 g.edge(vu["ecu_id"], vidu, "POSSIBLY_AFFECTED_BY", {"state": vu.get("applicability_state")})
+#|         for o in case.get("otas", []):
+#|             oid = o.get("record_id")
+#|             g.node("OTAUpdate", oid, {"state": o.get("ota_state"), "target_version": o.get("target_version")})
+#|             if o.get("ecu_id"):
+#|                 g.edge(o["ecu_id"], oid, "UPDATED_BY_CANDIDATE", {})
+#|         for i in case.get("incidents", []):
+#|             iid = i.get("record_id")
+#|             g.node("Incident", iid, {"type": i.get("incident_type"), "state": i.get("incident_state")})
+#|             g.edge(vid, iid, "OBSERVED_IN_INCIDENT", {})
+#|         for sid in v.get("source_ids", []):
+#|             g.node("Source", sid, {"source_type": sources.get(sid, {}).get("source_type")})
+#|             g.edge(vid, sid, "SUPPORTED_BY_SOURCE", {})
+#| 
+#|     for c in contradictions[:500]:
+#|         g.node("Contradiction", c["contradiction_id"], {"type": c.get("type"), "severity": c.get("severity")})
+#|     for h in hypotheses[:500]:
+#|         g.node("Hypothesis", h["hypothesis_id"], {"category": h.get("category"), "subject_id": h.get("subject_id")})
+#|     for gap in gaps[:500]:
+#|         g.node("Gap", gap["gap_id"], {"type": gap.get("type"), "importance": gap.get("importance")})
+#|     return g
+#| 
+#| 
+#| def dual_ai_review_stub(cases: List[Dict[str, Any]], contradictions: List[Dict[str, Any]], gaps: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     review = {
+#|         "status": "INSUFFICIENT_EVIDENCE",
+#|         "primary_conclusions": [],
+#|         "skeptic_challenges": [],
+#|         "comparison": "NO_SECOND_MODEL_CONFIGURED",
+#|         "notes": [
+#|             "Starter does not call an independent second model.",
+#|             "AI agreement is not automotive corroboration.",
+#|             "Human/qualified safety review required for safety-critical ECUs, remote-control claims, theft/key implications, live testing, fleet remediation, recall escalation, or public disclosure.",
+#|         ],
+#|     }
+#|     if any(v.get("applicability_state") in {"APPLICABLE_SUPPORTED", "PROBABLY_APPLICABLE", "POSSIBLY_APPLICABLE"} for c in cases for v in c.get("vulnerabilities", [])):
+#|         review["primary_conclusions"].append("Some vulnerability applicability states are resolved/candidate from supplied records.")
+#|         review["skeptic_challenges"].append("Check exact ECU part/revision/software/firmware, region/variant, supplier switch, service replacement, and configuration/reachability.")
+#|     if any(r.get("applicability_state") in {"APPLICABLE_SUPPORTED", "PROBABLY_APPLICABLE", "POSSIBLY_APPLICABLE", "APPLICABLE_PENDING_VIN_RANGE"} for c in cases for r in c.get("recalls", [])):
+#|         review["primary_conclusions"].append("Some recall applicability is candidate/pending VIN range.")
+#|         review["skeptic_challenges"].append("Do not equate recall with cyber vulnerability; verify VIN/build range and remedy status.")
+#|     if any(i.get("incident_state") in {"ANOMALY_OBSERVED", "CYBER_EVENT_CANDIDATE", "INCONCLUSIVE"} for c in cases for i in c.get("incidents", [])):
+#|         review["primary_conclusions"].append("Some incident causes remain unresolved.")
+#|         review["skeptic_challenges"].append("Do not equate malfunction/backend event with cyberattack; correlate vehicle-side evidence.")
+#|     if contradictions:
+#|         review["primary_conclusions"].append(f"{len(contradictions)} automotive contradiction candidate(s) detected.")
+#|         review["skeptic_challenges"].append("Contradictions may be stale inventory, replacement, regional variant, OTA mismatch, DBC error, or dependent sources.")
+#|     if any(g.get("type") == "SAFETY_CRITICAL_HUMAN_REVIEW_REQUIRED" for g in gaps):
+#|         review["primary_conclusions"].append("Safety-critical human review required.")
+#|         review["skeptic_challenges"].append("Remain analysis-only; do not provide control/testing procedures for safety-critical functions.")
+#|     if review["primary_conclusions"]:
+#|         review["status"] = "PARTIAL_AGREEMENT"
+#|     return review
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Result / report
+#| # --------------------------------------------------------------------
+#| 
+#| def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+#|         "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+#|         "objective": manifest.get("objective", ""),
+#|         "questions": manifest.get("questions", []) or [],
+#|         "generated_at": utc_now(),
+#|         "version": VERSION,
+#|         "source_ids": [],
+#|         "evidence_ids": [],
+#|         "vehicles": [],
+#|         "makes": [],
+#|         "brands": [],
+#|         "models": [],
+#|         "model_years": [],
+#|         "generations": [],
+#|         "platforms": [],
+#|         "trims": [],
+#|         "variants": [],
+#|         "powertrains": [],
+#|         "vin_references": [],
+#|         "vehicle_configuration_eras": [],
+#|         "ecus": [],
+#|         "ecu_types": [],
+#|         "part_numbers": [],
+#|         "hardware_versions": [],
+#|         "software_versions": [],
+#|         "firmware_versions": [],
+#|         "bootloaders": [],
+#|         "suppliers": [],
+#|         "oems": [],
+#|         "tier1s": [],
+#|         "tier2s": [],
+#|         "chipsets": [],
+#|         "sensors": [],
+#|         "actuators": [],
+#|         "gateways": [],
+#|         "domain_controllers": [],
+#|         "zonal_controllers": [],
+#|         "tcus": [],
+#|         "ivi_systems": [],
+#|         "adas_systems": [],
+#|         "bms_systems": [],
+#|         "charging_systems": [],
+#|         "network_buses": [],
+#|         "can_context": [],
+#|         "can_fd_context": [],
+#|         "lin_context": [],
+#|         "flexray_context": [],
+#|         "ethernet_context": [],
+#|         "doip_context": [],
+#|         "uds_context": [],
+#|         "obd_context": [],
+#|         "dtcs": [],
+#|         "diagnostic_context": [],
+#|         "mobile_apps": [],
+#|         "backend_services": [],
+#|         "cloud_dependencies": [],
+#|         "telematics_context": [],
+#|         "ota_updates": [],
+#|         "secure_boot_context": [],
+#|         "code_signing_context": [],
+#|         "certificate_context": [],
+#|         "hsm_context": [],
+#|         "sboms": [],
+#|         "packages": [],
+#|         "vulnerabilities": [],
+#|         "cves": [],
+#|         "vulnerability_applicability": [],
+#|         "exploit_context": [],
+#|         "recalls": [],
+#|         "tsbs": [],
+#|         "service_campaigns": [],
+#|         "fleet_context": [],
+#|         "charging_network_context": [],
+#|         "v2x_context": [],
+#|         "incident_context": [],
+#|         "forensic_context": [],
+#|         "safety_impact": [],
+#|         "cybersecurity_regulatory_context": [],
+#|         "source_reliability": [],
+#|         "source_bias": [],
+#|         "source_limitations": [],
+#|         "source_pedigree": [],
+#|         "source_independence": [],
+#|         "timeline_updates": [],
+#|         "observations": [],
+#|         "candidate_facts": [],
+#|         "supported_facts": [],
+#|         "partial_facts": [],
+#|         "disputed_facts": [],
+#|         "contradictions": [],
+#|         "hypotheses": [],
+#|         "falsification_results": [],
+#|         "privacy_flags": [
+#|             "VIN masked by default.",
+#|             "No private-person owner/driver inference performed.",
+#|             "No vehicle location tracking or private telematics retrieval performed.",
+#|         ],
+#|         "safety_flags": [
+#|             "Safety-critical functions default to analysis-only.",
+#|             "No live vehicle command, diagnostic bypass, key operation, firmware modification, or safety-system interaction performed.",
+#|             "Qualified human safety review required for consequential decisions.",
+#|         ],
+#|         "legal_flags": [
+#|             "AUTOMOTIVEINT does not make final legal certification, recall compliance, or liability determinations.",
+#|         ],
+#|         "unknowns": [],
+#|         "knowledge_gaps": [],
+#|         "recommended_next_actions": [],
+#|         "specialist_handoffs": [],
+#|         "limitations": [],
+#|         "dual_ai_review": {},
+#|         "graph_memory": {},
+#|         "status": "PARTIAL",
+#|     }
+#| 
+#| 
+#| def compute_source_bias(sources: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for sid, src in sources.items():
+#|         st = normalize_text(src.get("source_type", "unknown")).lower()
+#|         bias = []
+#|         if st in {"oem_advisory", "official_service_manual"}:
+#|             bias.append("OEM scope/marketing/simplification bias; may not match region/variant/build")
+#|         if st in {"regulatory_recall"}:
+#|             bias.append("recall range/publication lag; remedy completion may require service records")
+#|         if st in {"academic_research", "conference_research"}:
+#|             bias.append("lab conditions, selected trim/software, physical-access prerequisites")
+#|         if st in {"public_cve", "commercial_database"}:
+#|             bias.append("aggregation lag, component naming ambiguity, applicability overbreadth")
+#|         if st in {"authorized_can_trace", "authorized_diagnostic_export"}:
+#|             bias.append("visibility gaps, DBC version mismatch, clock drift, session context")
+#|         out.append({
+#|             "source_id": sid,
+#|             "source_type": st,
+#|             "potential_bias": bias,
+#|             "limitations": src.get("limitations", []),
+#|         })
+#|     return out
+#| 
+#| 
+#| def finalize_status(policy_blocked: List[str], auth_ok: bool, cases: List[Dict[str, Any]], contradictions: List[Dict[str, Any]], gaps: List[Dict[str, Any]]) -> str:
+#|     if policy_blocked:
+#|         return "POLICY_BLOCKED"
+#|     if not auth_ok:
+#|         return "BLOCKED_PERMISSION"
+#|     if not cases:
+#|         return "VEHICLE_UNRESOLVED"
+#|     if contradictions:
+#|         return "PARTIAL"
+#|     if any(g.get("importance") == "HIGH" for g in gaps):
+#|         return "PARTIAL"
+#|     if gaps:
+#|         return "PARTIAL"
+#|     return "SUCCEEDED"
+#| 
+#| 
+#| def analyze_automotiveint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     result = empty_result(manifest)
+#| 
+#|     policy_blocked = policy_screen(manifest)
+#|     if policy_blocked:
+#|         result["status"] = "POLICY_BLOCKED"
+#|         result["violations"] = policy_blocked
+#|         result["limitations"] = [
+#|             "AUTOMOTIVEINT does not assist theft, key cloning, immobilizer/gateway/diagnostic bypass, live command injection, safety tampering, odometer/emissions fraud, VIN cloning, private tracking, remote vehicle control, or offensive exploitation."
+#|         ]
+#|         return result
+#| 
+#|     auth_ok, auth_reasons = authorization_check(manifest)
+#|     if not auth_ok:
+#|         result["status"] = "BLOCKED_PERMISSION"
+#|         result["limitations"] = auth_reasons
+#|         return result
+#| 
+#|     sources = ingest_sources(manifest)
+#|     roots = build_source_roots(sources)
+#|     vehicles = ingest_vehicles(manifest)
+#|     ecus = ingest_ecus(manifest)
+#| 
+#|     networks = ingest_records(manifest, "network_architecture", "NET",
+#|         extra_str_fields=("network_type", "bus_name", "segment", "description"),
+#|         extra_list_fields=("connected_ecu_ids", "gateways"))
+#|     can_frames = ingest_records(manifest, "can_traces", "CAN",
+#|         extra_str_fields=("bus", "decode_status", "dbc_version", "signal_meaning", "direction"),
+#|         extra_time_fields=("timestamp",),
+#|         extra_int_fields=("can_id", "dlc", "length"),
+#|         extra_bool_fields=("anomaly", "baseline_expected"))
+#|     dtcs = ingest_records(manifest, "dtcs", "DTC",
+#|         extra_str_fields=("code", "module", "status", "description"),
+#|         extra_time_fields=("first_seen", "cleared_at"))
+#|     recalls = ingest_records(manifest, "recalls", "RECALL",
+#|         extra_str_fields=("authority", "oem", "issue", "risk", "remedy", "status", "vin_range_start", "vin_range_end"),
+#|         extra_list_fields=("makes", "models", "model_years", "variants", "regions"),
+#|         extra_time_fields=("effective_at",))
+#|     tsbs = ingest_records(manifest, "tsbs", "TSB",
+#|         extra_str_fields=("title", "issue", "remedy", "status"),
+#|         extra_list_fields=("models", "model_years", "variants"))
+#|     service_campaigns = ingest_records(manifest, "service_campaigns", "SVCAMP",
+#|         extra_str_fields=("title", "scope", "remedy", "status"),
+#|         extra_list_fields=("models", "model_years", "variants"))
+#|     vulnerabilities = ingest_records(manifest, "vulnerabilities", "VULN",
+#|         extra_str_fields=("cve", "vendor", "supplier", "product", "component", "advisory"),
+#|         extra_list_fields=("affected_versions", "fixed_versions", "mitigations"),
+#|         extra_bool_fields=("known_exploitation_reported", "kev"),
+#|         extra_float_fields=("epss",),
+#|         )
+#|     # Normalize vulnerability enum-ish strings after ingest
+#|     for v in vulnerabilities:
+#|         v["exploit_availability"] = norm_enum(v.get("exploit_availability"), EXPLOIT_AVAILABILITY_STATES)
+#|         v["safety_impact"] = normalize_token(v.get("safety_impact")) or None
+#|         v["remote_exploitability"] = normalize_token(v.get("remote_exploitability")) or None
+#| 
+#|     otas = ingest_records(manifest, "ota_metadata", "OTA",
+#|         extra_str_fields=("campaign", "target_version", "signature_present", "state", "region"),
+#|         extra_bool_fields=("installation_verified", "rollback_available"),
+#|         extra_time_fields=("installed_at",))
+#|     incidents = ingest_records(manifest, "incidents", "INC",
+#|         extra_str_fields=("incident_type", "description", "safety_impact"),
+#|         extra_list_fields=("involved_ecu_ids",),
+#|         extra_bool_fields=("backend_event_accepted", "vehicle_side_confirmation", "cyber_claim", "malfunction_candidate", "maintenance_candidate"),
+#|         extra_time_fields=("occurred_at",))
+#|     mobile_apps = ingest_records(manifest, "mobile_apps", "APP",
+#|         extra_str_fields=("name", "platform", "package", "version", "authentication_architecture"),
+#|         extra_list_fields=("permissions", "api_endpoints", "backend_dependencies"))
+#|     backend_services = ingest_records(manifest, "backend_services", "BE",
+#|         extra_str_fields=("service", "provider", "endpoint", "auth", "role"))
+#|     cloud_dependencies = ingest_records(manifest, "cloud_dependencies", "CLOUD",
+#|         extra_str_fields=("provider", "service", "endpoint", "role"))
+#|     telematics_context = ingest_records(manifest, "telematics_data", "TELEM",
+#|         extra_str_fields=("provider", "service"),
+#|         extra_list_fields=("capabilities", "data_categories", "privacy_sensitivity"))
+#|     certificates = ingest_records(manifest, "certificates", "CERT",
+#|         extra_str_fields=("role", "subject", "issuer", "fingerprint"),
+#|         extra_time_fields=("valid_from", "valid_to"))
+#|     sboms = ingest_records(manifest, "sboms", "SBOM",
+#|         extra_str_fields=("format",),
+#|         extra_list_fields=("components",),
+#|         extra_time_fields=("generated_at",))
+#|     fleet_context = ingest_records(manifest, "fleet_context", "FLEET",
+#|         extra_str_fields=("organization", "model_distribution", "software_versions", "recall_exposure", "patch_coverage"),
+#|         extra_list_fields=("vehicle_ids",))
+#|     maintenance = ingest_records(manifest, "maintenance_windows", "MAINT",
+#|         extra_str_fields=("description", "ticket"),
+#|         extra_bool_fields=("approved",),
+#|         extra_time_fields=("start", "end"))
+#| 
+#|     valid_vehicle_ids = set(vehicles)
+#|     ecus_by_id = {e["ecu_id"]: e for e in ecus}
+#|     unknown_refs: List[Dict[str, Any]] = []
+#| 
+#|     records_by_vehicle: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+#|     vehicle_scoped = {
+#|         "ecus": ecus,
+#|         "networks": networks,
+#|         "can_frames": can_frames,
+#|         "dtcs": dtcs,
+#|         "recalls": recalls,
+#|         "tsbs": tsbs,
+#|         "service_campaigns": service_campaigns,
+#|         "otas": otas,
+#|         "incidents": incidents,
+#|         "mobile_apps": mobile_apps,
+#|         "backend_services": backend_services,
+#|         "cloud_dependencies": cloud_dependencies,
+#|         "telematics_context": telematics_context,
+#|         "certificates": certificates,
+#|         "sboms": sboms,
+#|     }
+#|     for typ, recs in vehicle_scoped.items():
+#|         d, u = index_by_vehicle(recs, valid_vehicle_ids, typ)
+#|         records_by_vehicle[typ] = d
+#|         unknown_refs.extend(u)
+#| 
+#|     for v in vulnerabilities:
+#|         if v.get("vehicle_id") and v["vehicle_id"] not in valid_vehicle_ids:
+#|             unknown_refs.append({"record_type": "vulnerability", "record_id": v.get("record_id"), "vehicle_id": v.get("vehicle_id"), "ecu_id": v.get("ecu_id")})
+#|         if v.get("ecu_id") and v["ecu_id"] not in ecus_by_id:
+#|             unknown_refs.append({"record_type": "vulnerability", "record_id": v.get("record_id"), "vehicle_id": v.get("vehicle_id"), "ecu_id": v.get("ecu_id")})
+#| 
+#|     maintenance_by_vehicle, _ = index_by_vehicle(maintenance, valid_vehicle_ids, "maintenance")
+#| 
+#|     fleets_by_vehicle: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for f in fleet_context:
+#|         for vid in f.get("vehicle_ids", []):
+#|             if vid in valid_vehicle_ids:
+#|                 fleets_by_vehicle[vid].append(f)
+#|             else:
+#|                 unknown_refs.append({"record_type": "fleet", "record_id": f.get("record_id"), "vehicle_id": vid, "ecu_id": None})
+#| 
+#|     all_records_for_asof = {
+#|         "can_frames": can_frames, "dtcs": dtcs, "recalls": recalls, "otas": otas,
+#|         "incidents": incidents, "maintenance": maintenance, "certificates": certificates,
+#|         "sboms": sboms,
+#|     }
+#|     as_of = determine_as_of(manifest, vehicles, all_records_for_asof, sources)
+#| 
+#|     cases = [
+#|         assess_vehicle_case(vehicle, records_by_vehicle, fleets_by_vehicle, ecus_by_id, vulnerabilities, maintenance_by_vehicle, sources, roots, as_of)
+#|         for vehicle in vehicles.values()
+#|     ]
+#| 
+#|     contradictions = detect_contradictions(cases, unknown_refs, sources, roots, as_of)
+#|     hypotheses = build_hypotheses(cases)
+#|     gaps = build_gaps(cases, unknown_refs, contradictions, manifest)
+#|     actions = build_next_actions(gaps)
+#|     handoffs = build_handoffs(cases, gaps, contradictions)
+#|     graph = build_graph(cases, contradictions, hypotheses, gaps, sources)
+#|     review = dual_ai_review_stub(cases, contradictions, gaps)
+#| 
+#|     observations = [
+#|         f"Vehicles ingested: {len(vehicles)}.",
+#|         f"ECUs ingested: {len(ecus)}.",
+#|         f"Network architecture records: {len(networks)}.",
+#|         f"CAN frames: {len(can_frames)}.",
+#|         f"DTCs: {len(dtcs)}; recalls: {len(recalls)}; TSBs: {len(tsbs)}.",
+#|         f"Vulnerability records: {len(vulnerabilities)}.",
+#|         f"OTA records: {len(otas)}; incidents: {len(incidents)}.",
+#|         f"Mobile/backend/cloud/telematics records: {len(mobile_apps)}/{len(backend_services)}/{len(cloud_dependencies)}/{len(telematics_context)}.",
+#|         f"Certificates/SBOMs/fleet/maintenance records: {len(certificates)}/{len(sboms)}/{len(fleet_context)}/{len(maintenance)}.",
+#|         f"As-of date used for temporal validation: {iso(as_of)}.",
+#|         f"Contradiction candidates: {len(contradictions)}.",
+#|         f"Competing hypotheses: {len(hypotheses)}.",
+#|         "No live vehicle interaction, command injection, key operation, diagnostic bypass, firmware modification, safety-system tampering, private tracking, or remote control was performed.",
+#|         "VIN was masked; no owner/driver inference was performed.",
+#|         "CAN IDs were not equated with command semantics without DBC/mapping.",
+#|         "CVE/advisory was not equated with vehicle vulnerability without exact component/version evidence.",
+#|         "Backend event acceptance was not equated with vehicle execution.",
+#|         "Recall was not equated with cybersecurity vulnerability.",
+#|         "Safety-critical ECUs were treated as analysis-only with human review flags.",
+#|     ]
+#| 
+#|     unknowns = []
+#|     for case in cases:
+#|         vid = case["vehicle"]["vehicle_id"]
+#|         ident = case.get("identity_resolution", {})
+#|         if ident.get("model_state") in {"UNKNOWN", "CANDIDATE"}:
+#|             unknowns.append(f"Vehicle model unresolved for {vid}.")
+#|         if ident.get("variant_state") in {"UNKNOWN", "CANDIDATE"}:
+#|             unknowns.append(f"Vehicle variant unresolved for {vid}.")
+#|         for e in case.get("ecus", []):
+#|             ass = e.get("assessment", {})
+#|             if ass.get("software_version_state") in {"UNKNOWN", "CANDIDATE"}:
+#|                 unknowns.append(f"ECU software version unresolved for {e.get('ecu_id')}.")
+#|             if ass.get("hardware_version_state") in {"UNKNOWN", "CANDIDATE"}:
+#|                 unknowns.append(f"ECU hardware revision unresolved for {e.get('ecu_id')}.")
+#|         for v in case.get("vulnerabilities", []):
+#|             if v.get("applicability_state") in {"UNKNOWN", "POSSIBLY_APPLICABLE", "PROBABLY_APPLICABLE"}:
+#|                 unknowns.append(f"Vulnerability applicability unresolved for {v.get('vulnerability_id')} on {v.get('ecu_id')}.")
+#|         for i in case.get("incidents", []):
+#|             if i.get("incident_state") in {"ANOMALY_OBSERVED", "CYBER_EVENT_CANDIDATE", "INCONCLUSIVE", "MALFUNCTION_CANDIDATE"}:
+#|                 unknowns.append(f"Incident cause unresolved for {i.get('record_id')}.")
+#|     unknowns.append("Model-family research is not individual-vehicle exploitation evidence.")
+#|     unknowns.append("Paired device is not driver/owner identity.")
+#|     result["unknowns"] = list(dict.fromkeys(unknowns))[:500]
+#| 
+#|     result["vehicles"] = cases
+#|     for case in cases:
+#|         v = case["vehicle"]
+#|         vid = v["vehicle_id"]
+#|         result["makes"].append({"vehicle_id": vid, "make": v.get("make")})
+#|         result["brands"].append({"vehicle_id": vid, "brand": v.get("brand")})
+#|         result["models"].append({"vehicle_id": vid, "model": v.get("model")})
+#|         result["model_years"].append({"vehicle_id": vid, "model_year": v.get("model_year")})
+#|         result["generations"].append({"vehicle_id": vid, "generation": v.get("generation")})
+#|         result["platforms"].append({"vehicle_id": vid, "platform": v.get("platform")})
+#|         result["trims"].append({"vehicle_id": vid, "trim": v.get("trim")})
+#|         result["variants"].append({"vehicle_id": vid, "variant": v.get("variant")})
+#|         result["powertrains"].append({"vehicle_id": vid, "powertrain": v.get("powertrain")})
+#|         result["vin_references"].append({"vehicle_id": vid, "vin_masked": v.get("vin_masked"), "vin_hash": v.get("vin_hash")})
+#|         result["ecus"].extend([{**e, "vehicle_id": vid} for e in case.get("ecus", [])])
+#|         result["ecu_types"].extend([{"ecu_id": e.get("ecu_id"), "ecu_type": e.get("ecu_type")} for e in case.get("ecus", [])])
+#|         result["part_numbers"].extend([{"ecu_id": e.get("ecu_id"), "oem_part_number": e.get("oem_part_number"), "supplier_part_number": e.get("supplier_part_number")} for e in case.get("ecus", [])])
+#|         result["hardware_versions"].extend([{"ecu_id": e.get("ecu_id"), "hardware_version": e.get("hardware_version")} for e in case.get("ecus", [])])
+#|         result["software_versions"].extend([{"ecu_id": e.get("ecu_id"), "software_version": e.get("software_version")} for e in case.get("ecus", [])])
+#|         result["firmware_versions"].extend([{"ecu_id": e.get("ecu_id"), "firmware_version": e.get("firmware_version")} for e in case.get("ecus", [])])
+#|         result["bootloaders"].extend([{"ecu_id": e.get("ecu_id"), "bootloader_version": e.get("bootloader_version")} for e in case.get("ecus", [])])
+#|         result["suppliers"].extend(case.get("suppliers", []))
+#|         result["network_buses"].extend(case.get("networks", []))
+#|         result["can_context"].append({"vehicle_id": vid, **case.get("can_context", {})})
+#|         result["dtcs"].extend(case.get("dtcs", {}).get("items", []))
+#|         result["recalls"].extend(case.get("recalls", []))
+#|         result["tsbs"].extend(case.get("tsbs", []))
+#|         result["service_campaigns"].extend(case.get("service_campaigns", []))
+#|         result["vulnerabilities"].extend(case.get("vulnerabilities", []))
+#|         result["cves"].extend([{"vulnerability_id": x.get("vulnerability_id"), "cve": x.get("cve")} for x in case.get("vulnerabilities", [])])
+#|         result["vulnerability_applicability"].extend(case.get("vulnerabilities", []))
+#|         result["exploit_context"].extend([{"vulnerability_id": x.get("vulnerability_id"), "exploit_availability": x.get("exploit_availability"), "known_exploitation_reported": x.get("known_exploitation_reported")} for x in case.get("vulnerabilities", [])])
+#|         result["ota_updates"].extend(case.get("otas", []))
+#|         result["incident_context"].extend(case.get("incidents", []))
+#|         result["mobile_apps"].extend(case.get("mobile_apps", []))
+#|         result["backend_services"].extend(case.get("backend_services", []))
+#|         result["cloud_dependencies"].extend(case.get("cloud_dependencies", []))
+#|         result["telematics_context"].extend(case.get("telematics_context", []))
+#|         result["certificates"].extend(case.get("certificates", []))
+#|         result["sboms"].extend(case.get("sboms", []))
+#|         result["fleet_context"].extend(case.get("fleet_context", []))
+#|         result["safety_impact"].extend([{"vehicle_id": vid, "safety_flags": case.get("safety_flags", []), "risk_dimensions": case.get("risk_dimensions", {})}])
+#|         result["timeline_updates"].append({"vehicle_id": vid, "as_of": iso(as_of)})
+#| 
+#|     for sid, src in sources.items():
+#|         result["source_ids"].append(sid)
+#|         result["source_reliability"].append({
+#|             "source_id": sid,
+#|             "source_type": src.get("source_type"),
+#|             "reliability": src.get("reliability"),
+#|         })
+#|         result["source_limitations"].append({
+#|             "source_id": sid,
+#|             "limitations": src.get("limitations", []),
+#|         })
+#|         result["source_pedigree"].append({
+#|             "source_id": sid,
+#|             "upstream_source_id": src.get("upstream_source_id"),
+#|             "root_source_id": roots.get(sid, sid),
+#|         })
+#|     result["source_bias"] = compute_source_bias(sources)
+#| 
+#|     for case in cases:
+#|         vid = case["vehicle"]["vehicle_id"]
+#|         result["source_independence"].append({
+#|             "vehicle_id": vid,
+#|             "state": case.get("identity_resolution", {}).get("source_assessment", {}).get("state"),
+#|             "max_reliability": case.get("identity_resolution", {}).get("source_assessment", {}).get("max_reliability"),
+#|         })
+#| 
+#|     for case in cases:
+#|         vid = case["vehicle"]["vehicle_id"]
+#|         ident = case.get("identity_resolution", {})
+#|         if ident.get("model_state") == "SUPPORTED":
+#|             result["supported_facts"].append({"vehicle_id": vid, "statement": f"Authorized records support vehicle model identity for {vid}."})
+#|         elif ident.get("model_state") == "CANDIDATE":
+#|             result["partial_facts"].append({"vehicle_id": vid, "statement": f"Vehicle model identity is candidate for {vid}; exact model requires stronger evidence."})
+#|         else:
+#|             result["candidate_facts"].append({"vehicle_id": vid, "statement": f"Vehicle {vid} ingested but identity incomplete."})
+#|         for v in case.get("vulnerabilities", []):
+#|             result["candidate_facts"].append({
+#|                 "vehicle_id": vid,
+#|                 "ecu_id": v.get("ecu_id"),
+#|                 "vulnerability_id": v.get("vulnerability_id"),
+#|                 "statement": f"Vulnerability applicability state={v.get('applicability_state')}; reason={v.get('applicability_reason')}.",
+#|             })
+#| 
+#|     for c in contradictions:
+#|         result["disputed_facts"].append({
+#|             "contradiction_id": c["contradiction_id"],
+#|             "statement": c.get("detail", "Automotive contradiction candidate."),
+#|         })
+#| 
+#|     base_limits = [
+#|         "AUTOMOTIVEINT starter uses only provided/local authorized records; no live vehicle access, active scanning, command injection, diagnostic bypass, key operation, firmware modification, telematics retrieval, tracking, or exploitation was performed.",
+#|         "Passive-first default; active testing requires separate explicit authorization, controlled lab/HIL/SIL environment, safety guardrails, rate limits, and human approval.",
+#|         "Vehicle identity ladder is preserved: make/model/year/generation/platform/trim/variant/region/individual vehicle are separate claims.",
+#|         "VIN is privacy-sensitive and masked; VIN does not identify owner/driver automatically.",
+#|         "ECU function name is not exact ECU implementation; part-number family is not exact hardware without revision/version evidence.",
+#|         "CAN ID is not command semantics without trusted DBC/mapping; unknown message is not malicious.",
+#|         "DTC is not confirmed root cause; old DTC is not current failure.",
+#|         "Recall is not automatically cybersecurity vulnerability; model-family recall match is not individual-vehicle match without VIN/build range evidence.",
+#|         "TSB is not safety recall confirmation.",
+#|         "CVE/advisory is not vehicle vulnerability without exact component/version/configuration evidence.",
+#|         "Vulnerability is not exploitation; public PoC/research is not field exploitation; physical-access research is not remote compromise.",
+#|         "OTA available does not prove installed; installed-reported does not prove verified.",
+#|         "Backend event acceptance does not prove vehicle execution.",
+#|         "Incident is not automatically cyberattack; malfunction may have non-cyber causes.",
+#|         "Safety-critical functions are analysis-only and require qualified human review.",
+#|         "No private-person location/tracking or unauthorized telematics access was performed.",
+#|     ]
+#|     if auth_reasons:
+#|         base_limits.extend(auth_reasons)
+#|     result["limitations"] = list(dict.fromkeys(base_limits))
+#| 
+#|     result["contradictions"] = contradictions
+#|     result["hypotheses"] = hypotheses
+#|     result["falsification_results"] = [
+#|         {
+#|             "hypothesis_id": h["hypothesis_id"],
+#|             "category": h.get("category"),
+#|             "opposition": h.get("opposition", []),
+#|             "falsification_conditions": h.get("falsification_conditions", []),
+#|         }
+#|         for h in hypotheses
+#|     ]
+#|     result["knowledge_gaps"] = gaps
+#|     result["recommended_next_actions"] = actions
+#|     result["specialist_handoffs"] = handoffs
+#|     result["dual_ai_review"] = review
+#|     result["graph_memory"] = graph.to_dict()
+#|     result["status"] = finalize_status(policy_blocked, auth_ok, cases, contradictions, gaps)
+#|     return result
+#| 
+#| 
+#| def generate_report(result: Dict[str, Any]) -> str:
+#|     lines = ["# AUTOMOTIVEINT Defensive Automotive Intelligence Report", ""]
+#|     lines += [
+#|         f"- Case ID: `{result.get('case_id')}`",
+#|         f"- Task ID: `{result.get('task_id')}`",
+#|         f"- Generated: `{result.get('generated_at')}`",
+#|         f"- Version: `{result.get('version')}`",
+#|         f"- Status: `{result.get('status')}`",
+#|         "",
+#|     ]
+#| 
+#|     if result.get("status") == "POLICY_BLOCKED":
+#|         lines += ["## POLICY BLOCKED", "Violations:", *[f"- `{v}`" for v in result.get("violations", [])], ""]
+#|         lines += ["No automotive intelligence was performed."]
+#|         return "\n".join(lines)
+#| 
+#|     lines += ["## Objective", str(result.get("objective", "")), ""]
+#|     lines += ["## Safety / Privacy / Authorization Boundaries",
+#|               "- Passive/authorized evidence analysis only.",
+#|               "- No live vehicle command, diagnostic bypass, key cloning, immobilizer/gateway bypass, firmware modification, safety-system tampering, private tracking, remote control, or exploitation.",
+#|               "- VIN masked; no owner/driver inference.",
+#|               "- CAN ID ≠ command semantics without DBC/mapping.",
+#|               "- CVE ≠ vehicle vulnerability; vulnerability ≠ exploitation; PoC/research ≠ field exploitation.",
+#|               "- Backend event ≠ vehicle execution.",
+#|               "- Recall ≠ cyber vulnerability.",
+#|               "- Safety-critical functions are analysis-only and require qualified human review.",
+#|               ""]
+#| 
+#|     lines += ["## Vehicles / Identity"]
+#|     for case in result.get("vehicles", [])[:200]:
+#|         v = case.get("vehicle", {})
+#|         ident = case.get("identity_resolution", {})
+#|         lines.append(f"### `{v.get('vehicle_id')}`")
+#|         lines.append(f"- Make/brand/model/year: `{v.get('make')}` / `{v.get('brand')}` / `{v.get('model')}` / `{v.get('model_year')}`")
+#|         lines.append(f"- Generation/platform/trim/variant/region: `{v.get('generation')}` / `{v.get('platform')}` / `{v.get('trim')}` / `{v.get('variant')}` / `{v.get('region')}`")
+#|         lines.append(f"- Powertrain: `{v.get('powertrain')}`")
+#|         lines.append(f"- VIN reference: `{v.get('vin_masked')}` hash=`{mask_value(v.get('vin_hash'), 6, 4)}`")
+#|         lines.append(f"- Identity states: model=`{ident.get('model_state')}` year=`{ident.get('model_year_state')}` variant=`{ident.get('variant_state')}` platform=`{ident.get('platform_state')}`")
+#|         lines.append(f"- Source independence: `{ident.get('source_assessment', {}).get('state')}` max reliability: `{ident.get('source_assessment', {}).get('max_reliability')}`")
+#|         lines.append("")
+#| 
+#|     lines += ["## ECUs / Components / Suppliers"]
+#|     for e in result.get("ecus", [])[:500]:
+#|         ass = e.get("assessment", {})
+#|         lines.append(
+#|             f"- ECU `{e.get('ecu_id')}` vehicle=`{e.get('vehicle_id')}` type=`{e.get('ecu_type')}` "
+#|             f"manufacturer=`{e.get('manufacturer')}` supplier=`{e.get('supplier')}` "
+#|             f"part={e.get('oem_part_number')}/{e.get('supplier_part_number')} "
+#|             f"hw={e.get('hardware_version')} sw={e.get('software_version')} fw={e.get('firmware_version')} "
+#|             f"safety_critical={e.get('safety_critical')}"
+#|         )
+#|         lines.append(
+#|             f"  - states: part=`{ass.get('part_number_state')}` hw=`{ass.get('hardware_version_state')}` "
+#|             f"sw=`{ass.get('software_version_state')}` fw=`{ass.get('firmware_version_state')}` supplier=`{ass.get('supplier_state')}`"
+#|         )
+#|     for s in result.get("suppliers", [])[:300]:
+#|         lines.append(f"- Supplier `{s.get('role')}` `{s.get('name')}` ecu=`{s.get('ecu_id')}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## Network Architecture / CAN Context"]
+#|     for n in result.get("network_buses", [])[:300]:
+#|         lines.append(f"- Network `{n.get('record_id')}` vehicle=`{n.get('vehicle_id')}` type=`{n.get('network_type')}` bus=`{n.get('bus_name')}` segment=`{n.get('segment')}`")
+#|     for c in result.get("can_context", [])[:200]:
+#|         lines.append(
+#|             f"- CAN `{c.get('vehicle_id')}` frames={c.get('frame_count')} unknown_ids={c.get('unknown_can_ids', [])[:20]} "
+#|             f"dbc_coverage=`{c.get('dbc_coverage')}` anomalies={len(c.get('anomalies', []))}"
+#|         )
+#|         for a in c.get("anomalies", [])[:20]:
+#|             lines.append(f"  - anomaly `{a.get('record_id')}` can_id={a.get('can_id')} bus=`{a.get('bus')}` status=`{a.get('status')}` maintenance=`{a.get('maintenance_context')}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## DTC / Diagnostic Context"]
+#|     for d in result.get("dtcs", [])[:300]:
+#|         lines.append(
+#|             f"- DTC `{d.get('record_id')}` vehicle=`{d.get('vehicle_id')}` ecu=`{d.get('ecu_id')}` "
+#|             f"code=`{d.get('code')}` module=`{d.get('module')}` status=`{d.get('normalized_status')}` "
+#|             f"first={iso(d.get('first_seen'))} cleared={iso(d.get('cleared_at'))}"
+#|         )
+#|     lines.append("")
+#| 
+#|     lines += ["## Recalls / TSBs / Service Campaigns"]
+#|     for r in result.get("recalls", [])[:300]:
+#|         lines.append(
+#|             f"- Recall `{r.get('record_id')}` vehicle=`{r.get('vehicle_id')}` authority=`{r.get('authority')}` "
+#|             f"oem=`{r.get('oem')}` status=`{r.get('status')}` applicability=`{r.get('applicability_state')}` "
+#|             f"issue=`{r.get('issue')}` remedy=`{r.get('remedy')}`"
+#|         )
+#|     for t in result.get("tsbs", [])[:300]:
+#|         lines.append(f"- TSB `{t.get('record_id')}` vehicle=`{t.get('vehicle_id')}` applicability=`{t.get('applicability_state')}` title=`{t.get('title')}`")
+#|     for s in result.get("service_campaigns", [])[:300]:
+#|         lines.append(f"- Service campaign `{s.get('record_id')}` vehicle=`{s.get('vehicle_id')}` title=`{s.get('title')}` status=`{s.get('status')}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## Vulnerabilities / CVE Applicability / Exploit Context"]
+#|     for v in result.get("vulnerabilities", [])[:500]:
+#|         lines.append(
+#|             f"- Vuln `{v.get('vulnerability_id')}` cve=`{v.get('cve')}` vehicle=`{v.get('vehicle_id')}` "
+#|             f"ecu=`{v.get('ecu_id')}` applicability=`{v.get('applicability_state')}` "
+#|             f"safety=`{v.get('safety_impact')}` remote=`{v.get('remote_exploitability')}` "
+#|             f"exploit_avail=`{v.get('exploit_availability')}` known_exploitation={v.get('known_exploitation_reported')}"
+#|         )
+#|         lines.append(f"  - reason: {v.get('applicability_reason')}")
+#|         if v.get("mitigations"):
+#|             lines.append(f"  - mitigations: {', '.join(str(x) for x in v.get('mitigations', [])[:10])}")
+#|     lines.append("")
+#| 
+#|     lines += ["## OTA / Patch State"]
+#|     for o in result.get("ota_updates", [])[:300]:
+#|         lines.append(
+#|             f"- OTA `{o.get('record_id')}` vehicle=`{o.get('vehicle_id')}` ecu=`{o.get('ecu_id')}` "
+#|             f"campaign=`{o.get('campaign')}` target=`{o.get('target_version')}` state=`{o.get('ota_state')}` "
+#|             f"installed={o.get('installed')} verified={o.get('installation_verified')}"
+#|         )
+#|     lines.append("")
+#| 
+#|     lines += ["## Connectivity / Telematics / Mobile / Backend / Cloud"]
+#|     for t in result.get("telematics_context", [])[:300]:
+#|         lines.append(f"- Telematics `{t.get('record_id')}` vehicle=`{t.get('vehicle_id')}` provider=`{t.get('provider')}` service=`{t.get('service')}` capabilities={t.get('capabilities', [])[:10]}")
+#|     for a in result.get("mobile_apps", [])[:300]:
+#|         lines.append(f"- Mobile app `{a.get('record_id')}` vehicle=`{a.get('vehicle_id')}` name=`{a.get('name')}` platform=`{a.get('platform')}` package=`{a.get('package')}` version=`{a.get('version')}`")
+#|     for b in result.get("backend_services", [])[:300]:
+#|         lines.append(f"- Backend `{b.get('record_id')}` vehicle=`{b.get('vehicle_id')}` service=`{b.get('service')}` provider=`{b.get('provider')}` role=`{b.get('role')}` endpoint=`{mask_value(b.get('endpoint'),4,2)}`")
+#|     for c in result.get("cloud_dependencies", [])[:300]:
+#|         lines.append(f"- Cloud `{c.get('record_id')}` vehicle=`{c.get('vehicle_id')}` provider=`{c.get('provider')}` service=`{c.get('service')}` role=`{c.get('role')}` endpoint=`{mask_value(c.get('endpoint'),4,2)}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## Certificates / SBOM / Secure Context"]
+#|     for c in result.get("certificates", [])[:300]:
+#|         lines.append(f"- Certificate `{c.get('record_id')}` vehicle=`{c.get('vehicle_id')}` role=`{c.get('role')}` subject=`{c.get('subject')}` issuer=`{c.get('issuer')}` fp=`{mask_value(c.get('fingerprint'),6,4)}`")
+#|     for s in result.get("sboms", [])[:300]:
+#|         lines.append(f"- SBOM `{s.get('record_id')}` vehicle=`{s.get('vehicle_id')}` format=`{s.get('format')}` generated=`{iso(s.get('generated_at'))}` components={len(s.get('components', []))}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Incidents / Safety Impact / Risk Dimensions"]
+#|     for i in result.get("incident_context", [])[:300]:
+#|         lines.append(
+#|             f"- Incident `{i.get('record_id')}` vehicle=`{i.get('vehicle_id')}` type=`{i.get('incident_type')}` "
+#|             f"state=`{i.get('incident_state')}` occurred=`{iso(i.get('occurred_at'))}` maintenance=`{i.get('maintenance_context')}` "
+#|             f"safety=`{i.get('safety_impact')}` backend_not_executed={i.get('backend_event_not_vehicle_execution')}"
+#|         )
+#|     for s in result.get("safety_impact", [])[:200]:
+#|         lines.append(f"- Safety `{s.get('vehicle_id')}` flags={s.get('safety_flags', [])}")
+#|         lines.append(f"  - risk dimensions: `{json.dumps(json_safe(s.get('risk_dimensions', {})), ensure_ascii=False, default=str)}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## Source Independence / Reliability / Bias"]
+#|     for si in result.get("source_independence", [])[:300]:
+#|         lines.append(f"- Vehicle `{si.get('vehicle_id')}` source independence=`{si.get('state')}` max_reliability=`{si.get('max_reliability')}`")
+#|     for sr in result.get("source_reliability", [])[:300]:
+#|         lines.append(f"- Source `{sr.get('source_id')}` type=`{sr.get('source_type')}` reliability={sr.get('reliability')}")
+#|     for sb in result.get("source_bias", [])[:300]:
+#|         lines.append(f"- Source `{sb.get('source_id')}` type=`{sb.get('source_type')}` bias={sb.get('potential_bias', [])} limitations={sb.get('limitations', [])[:5]}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Contradictions"]
+#|     for c in result.get("contradictions", [])[:300]:
+#|         lines.append(f"- `{c.get('contradiction_id')}` [{c.get('severity')}] {c.get('type')}: {c.get('detail')}")
+#|         if c.get("possible_causes"):
+#|             lines.append(f"  - possible causes: {'; '.join(str(x) for x in c.get('possible_causes', [])[:10])}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Competing Hypotheses / Falsification"]
+#|     for h in result.get("hypotheses", [])[:500]:
+#|         lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('category')}] {h.get('subject_type')} `{h.get('subject_id')}`: {h.get('statement')}")
+#|         if h.get("falsification_conditions"):
+#|             lines.append(f"  - falsify if: {'; '.join(str(x) for x in h.get('falsification_conditions', [])[:5])}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Knowledge Gaps"]
+#|     for g in result.get("knowledge_gaps", [])[:500]:
+#|         lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Recommended Safe Next Actions"]
+#|     for a in result.get("recommended_next_actions", [])[:500]:
+#|         lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+#|         if a.get("prohibited_alternatives"):
+#|             lines.append(f"  - prohibited: {'; '.join(str(x) for x in a.get('prohibited_alternatives', [])[:5])}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Specialist Handoffs"]
+#|     for h in result.get("specialist_handoffs", []):
+#|         lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+#|         lines.append(f"  - payload: `{json.dumps(json_safe(h.get('payload', {})), ensure_ascii=False, default=str)}`"[:1000])
+#|     lines.append("")
+#| 
+#|     lines += ["## Dual-AI Review Stub"]
+#|     dr = result.get("dual_ai_review", {})
+#|     lines.append(f"- Status: `{dr.get('status')}`")
+#|     lines.append(f"- Comparison: `{dr.get('comparison')}`")
+#|     for n in dr.get("notes", []):
+#|         lines.append(f"- {n}")
+#|     for c in dr.get("primary_conclusions", [])[:50]:
+#|         lines.append(f"- Primary: {c}")
+#|     for c in dr.get("skeptic_challenges", [])[:50]:
+#|         lines.append(f"- Skeptic: {c}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Limitations"]
+#|     for lim in result.get("limitations", []):
+#|         lines.append(f"- {lim}")
+#|     lines.append("")
+#| 
+#|     lines += [
+#|         "## Non-Negotiable Boundary",
+#|         "- Resolve the vehicle.",
+#|         "- Resolve the variant.",
+#|         "- Resolve the component.",
+#|         "- Resolve the exact version.",
+#|         "- Verify the supplier.",
+#|         "- Verify the interface.",
+#|         "- Check the recall range.",
+#|         "- Check the patch state.",
+#|         "- Separate lab research from field exploitation.",
+#|         "- Separate cyber impact from safety impact.",
+#|         "- Test only in authorized safe environments.",
+#|         "- Never turn vehicle intelligence into vehicle takeover guidance.",
+#|     ]
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # CLI
+#| # --------------------------------------------------------------------
+#| 
+#| def main() -> int:
+#|     parser = argparse.ArgumentParser(description="TRACEATLAS AUTOMOTIVEINT safe defensive starter")
+#|     parser.add_argument("--manifest", required=True, help="Path to AUTOMOTIVEINT manifest JSON")
+#|     parser.add_argument("--output", default="automotiveint_result.json", help="Output JSON path")
+#|     parser.add_argument("--report", default="automotiveint_report.md", help="Output Markdown report path")
+#|     args = parser.parse_args()
+#| 
+#|     try:
+#|         manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+#|     except Exception as exc:
+#|         print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+#|         return 2
+#| 
+#|     result = analyze_automotiveint_manifest(manifest)
+#| 
+#|     Path(args.output).write_text(
+#|         json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+#|         encoding="utf-8",
+#|     )
+#|     Path(args.report).write_text(generate_report(result), encoding="utf-8")
+#| 
+#|     print(f"Wrote: {args.output}")
+#|     print(f"Wrote: {args.report}")
+#|     return 0
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     raise SystemExit(main())
+#| 
+#| 
+#| {
+#|   "case_id": "AUTO-CASE-001",
+#|   "task_id": "AUTO-TASK-001",
+#|   "objective": "Defensively analyze authorized synthetic vehicle ecosystem for identity, ECU firmware, recall/vulnerability applicability, OTA state, CAN telemetry anomalies, safety impact, and defensive next actions. This is passive/authorized evidence analysis only.",
+#|   "questions": [
+#|     "Is the vehicle identity resolved to model, model year, variant, and platform?",
+#|     "Are ECU part numbers, hardware revisions, and software/firmware versions separated?",
+#|     "Does the supplied CVE actually apply to the installed ECU version?",
+#|     "Is the recall applicable to this vehicle or pending VIN/build-range evidence?",
+#|     "Is the OTA update merely available or verified installed?",
+#|     "Can the CAN anomaly be explained by diagnostic/maintenance context?",
+#|     "What safety and privacy boundaries require human review?"
+#|   ],
+#|   "requested_actions": [],
+#|   "authorization": {
+#|     "approved": true,
+#|     "scope": "authorized_vehicle_records",
+#|     "model_mode": "LOCAL_ONLY",
+#|     "cloud_approved": false,
+#|     "vehicle_data_approved": true,
+#|     "active_testing_approved": false,
+#|     "private_telematics_approved": false,
+#|     "safety_review_approved": true
+#|   },
+#|   "active_testing_requested": false,
+#|   "private_telematics_requested": false,
+#|   "clock_offset_unknown": true,
+#|   "time_range": {
+#|     "as_of": "2026-10-09"
+#|   },
+#|   "sources": [
+#|     {"source_id": "SOEM", "source_type": "oem_advisory", "observed_at": "2026-09-01T00:00:00Z"},
+#|     {"source_id": "SRECALL", "source_type": "regulatory_recall", "observed_at": "2026-08-15T00:00:00Z"},
+#|     {"source_id": "SINV", "source_type": "authorized_ecu_record", "observed_at": "2026-10-08T00:00:00Z"},
+#|     {"source_id": "SDIAG", "source_type": "authorized_diagnostic_export", "observed_at": "2026-10-08T00:00:00Z"},
+#|     {"source_id": "SCAN", "source_type": "authorized_can_trace", "observed_at": "2026-10-08T00:00:00Z"},
+#|     {"source_id": "SCVE", "source_type": "public_cve", "observed_at": "2026-09-10T00:00:00Z"}
+#|   ],
+#|   "vehicles": [
+#|     {
+#|       "vehicle_id": "VEH-001",
+#|       "make": "SyntheticMotors",
+#|       "brand": "SyntheticMotors",
+#|       "model": "SM-X5",
+#|       "model_year": "2025",
+#|       "generation": "G2",
+#|       "platform": "SYN-MODULAR-EV",

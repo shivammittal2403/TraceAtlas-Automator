@@ -1,0 +1,1000 @@
+#|     role: str,
+#|     radius_km: float,
+#| ) -> Dict[str, Any]:
+#|     res = {
+#|         "role": role,
+#|         "state": "UNKNOWN",
+#|         "airport": None,
+#|         "distance_km": None,
+#|         "note": "Endpoint assessment is movement-derived, not occupant/purpose evidence.",
+#|     }
+#| 
+#|     lat = point.get("_lat")
+#|     lon = point.get("_lon")
+#|     if lat is None or lon is None:
+#|         return res
+#| 
+#|     ap, dist = nearest_airport(lat, lon, airports, radius_km)
+#|     if ap is None:
+#|         res["distance_km"] = dist
+#|         return res
+#| 
+#|     res["airport"] = public_airport(ap)
+#|     res["distance_km"] = dist
+#| 
+#|     if point.get("_on_ground"):
+#|         res["state"] = "OBSERVED_DEPARTURE" if role == "departure" else "OBSERVED_ARRIVAL"
+#|     else:
+#|         alt = point.get("_altitude_ft")
+#|         vr = point.get("_vertical_rate_fpm")
+#|         if alt is not None and alt < 5000 and (vr is None or vr < 1000):
+#|             res["state"] = "INFERRED"
+#|         else:
+#|             res["state"] = "PASSED_NEAR"
+#| 
+#|     return res
+#| 
+#| 
+#| def apply_provider_endpoint(
+#|     endpoint: Dict[str, Any],
+#|     code: Optional[str],
+#|     airports: List[Dict[str, Any]],
+#| ) -> None:
+#|     if not code:
+#|         return
+#|     if endpoint.get("state") in ("UNKNOWN", "PASSED_NEAR"):
+#|         ap = find_airport_by_code(airports, code)
+#|         endpoint["state"] = "PROVIDER_REPORTED"
+#|         endpoint["airport"] = public_airport(ap) if ap else {"icao_code": str(code).upper()}
+#|         endpoint["note"] = "Provider-reported airport association; not directly observed unless track evidence supports it."
+#| 
+#| 
+#| def route_metrics(points: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+#|     if not points:
+#|         return None
+#| 
+#|     first = next((p for p in points if p.get("_lat") is not None and p.get("_lon") is not None), None)
+#|     last = next((p for p in reversed(points) if p.get("_lat") is not None and p.get("_lon") is not None), None)
+#| 
+#|     if not first or not last:
+#|         return None
+#| 
+#|     dist = haversine_km(first.get("_lat"), first.get("_lon"), last.get("_lat"), last.get("_lon"))
+#|     start = first.get("_timestamp")
+#|     end = last.get("_timestamp")
+#|     duration_s = None
+#|     if isinstance(start, datetime) and isinstance(end, datetime):
+#|         duration_s = (end - start).total_seconds()
+#| 
+#|     avg_speed = speed_kt(dist, duration_s)
+#| 
+#|     return {
+#|         "start_lat": first.get("_lat"),
+#|         "start_lon": first.get("_lon"),
+#|         "end_lat": last.get("_lat"),
+#|         "end_lon": last.get("_lon"),
+#|         "great_circle_distance_km": dist,
+#|         "duration_seconds": duration_s,
+#|         "average_ground_speed_kt": avg_speed,
+#|         "limitation": "Great-circle endpoint distance is not filed route and not actual flown track length.",
+#|     }
+#| 
+#| 
+#| def find_track_gaps(points: List[Dict[str, Any]], threshold_minutes: float) -> List[Dict[str, Any]]:
+#|     gaps = []
+#|     for prev, curr in zip(points, points[1:]):
+#|         pt = prev.get("_timestamp")
+#|         ct = curr.get("_timestamp")
+#|         if not isinstance(pt, datetime) or not isinstance(ct, datetime):
+#|             continue
+#|         gap_min = (ct - pt).total_seconds() / 60.0
+#|         if gap_min > threshold_minutes:
+#|             gaps.append(
+#|                 {
+#|                     "from_time": pt.isoformat(),
+#|                     "to_time": ct.isoformat(),
+#|                     "gap_minutes": gap_min,
+#|                     "from_observation_id": prev.get("observation_id"),
+#|                     "to_observation_id": curr.get("observation_id"),
+#|                     "interpretation": "TRACK_GAP_OBSERVED. Possible coverage/feed/terrain/altitude/filtering causes. Does not establish transponder shutdown or evasion.",
+#|                 }
+#|             )
+#|     return gaps
+#| 
+#| 
+#| def detect_data_quality(points: List[Dict[str, Any]], max_speed_kt: float) -> List[Dict[str, Any]]:
+#|     flags = []
+#|     for prev, curr in zip(points, points[1:]):
+#|         pt = prev.get("_timestamp")
+#|         ct = curr.get("_timestamp")
+#|         if not isinstance(pt, datetime) or not isinstance(ct, datetime):
+#|             continue
+#|         dt = (ct - pt).total_seconds()
+#|         dist = haversine_km(prev.get("_lat"), prev.get("_lon"), curr.get("_lat"), curr.get("_lon"))
+#|         spd = speed_kt(dist, dt)
+#| 
+#|         if spd is not None and spd > max_speed_kt:
+#|             flags.append(
+#|                 {
+#|                     "type": "IMPOSSIBLE_SPEED_CANDIDATE",
+#|                     "from_observation_id": prev.get("observation_id"),
+#|                     "to_observation_id": curr.get("observation_id"),
+#|                     "computed_ground_speed_kt": spd,
+#|                     "threshold_kt": max_speed_kt,
+#|                     "note": "Data-quality candidate only. Do not infer spoofing from one segment.",
+#|                 }
+#|             )
+#| 
+#|         alt1 = prev.get("_altitude_ft")
+#|         alt2 = curr.get("_altitude_ft")
+#|         if alt1 is not None and alt2 is not None and dt > 0 and dt < 120 and abs(alt2 - alt1) > 10000:
+#|             flags.append(
+#|                 {
+#|                     "type": "ALTITUDE_JUMP_CANDIDATE",
+#|                     "from_observation_id": prev.get("observation_id"),
+#|                     "to_observation_id": curr.get("observation_id"),
+#|                     "altitude_delta_ft": abs(alt2 - alt1),
+#|                     "delta_seconds": dt,
+#|                     "note": "Data-quality candidate only. Could be source error, timestamp issue, or merged identity.",
+#|                 }
+#|             )
+#| 
+#|     return flags
+#| 
+#| 
+#| def estimate_flight_phase(point: Dict[str, Any]) -> str:
+#|     if point.get("_on_ground"):
+#|         return "GROUND"
+#| 
+#|     alt = point.get("_altitude_ft")
+#|     vr = point.get("_vertical_rate_fpm")
+#| 
+#|     if alt is None:
+#|         return "UNKNOWN"
+#| 
+#|     if alt < 1000:
+#|         if vr is not None and vr > 500:
+#|             return "TAKEOFF_CANDIDATE"
+#|         if vr is not None and vr < -500:
+#|             return "LANDING_CANDIDATE"
+#| 
+#|     if alt < 3000 and vr is not None and vr < -200:
+#|         return "APPROACH_CANDIDATE"
+#| 
+#|     if 1000 <= alt < 10000:
+#|         if vr is not None and vr > 300:
+#|             return "CLIMB"
+#|         if vr is not None and vr < -300:
+#|             return "DESCENT"
+#|         return "UNKNOWN"
+#| 
+#|     if alt >= 10000:
+#|         if vr is not None and abs(vr) < 300:
+#|             return "CRUISE"
+#|         if vr is not None and vr > 300:
+#|             return "CLIMB"
+#|         if vr is not None and vr < -300:
+#|             return "DESCENT"
+#| 
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def squawk_flags(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     flags = []
+#|     for p in points:
+#|         sq = p.get("_squawk")
+#|         if sq in EMERGENCY_SQUAWKS:
+#|             flags.append(
+#|                 {
+#|                     "observation_id": p.get("observation_id"),
+#|                     "squawk": sq,
+#|                     "state": "EMERGENCY_CODE_OBSERVED",
+#|                     "note": "Squawk observation is not verified incident cause. Requires official/public safety corroboration.",
+#|                 }
+#|             )
+#|     return flags
+#| 
+#| 
+#| def assess_independence(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> str:
+#|     groups = set()
+#|     unknown = False
+#| 
+#|     for sid in source_ids:
+#|         s = sources.get(sid)
+#|         if not s:
+#|             unknown = True
+#|             continue
+#|         groups.add(str(s.get("_independence_group") or s.get("provider") or sid).upper())
+#| 
+#|     if unknown and not groups:
+#|         return "UNKNOWN"
+#|     if len(groups) > 1:
+#|         return "INDEPENDENT"
+#|     if len(groups) == 1:
+#|         return "SINGLE_SOURCE"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def estimate_feed_coverage(flight: Dict[str, Any]) -> Dict[str, Any]:
+#|     point_count = len(flight.get("trackpoint_ids") or [])
+#|     duration_s = flight.get("duration_seconds")
+#|     gaps = flight.get("track_gaps") or []
+#|     independence = flight.get("source_independence")
+#| 
+#|     density = None
+#|     if duration_s and duration_s > 0:
+#|         density = point_count / (duration_s / 3600.0)
+#| 
+#|     if point_count == 0:
+#|         coverage = "UNKNOWN"
+#|     elif independence == "INDEPENDENT" and (density or 0) >= 6 and not gaps:
+#|         coverage = "HIGH"
+#|     elif (density or 0) >= 2 and len(gaps) <= 1:
+#|         coverage = "MEDIUM"
+#|     elif point_count > 0:
+#|         coverage = "LOW"
+#|     else:
+#|         coverage = "UNKNOWN"
+#| 
+#|     return {
+#|         "flight_id": flight.get("flight_id"),
+#|         "coverage_state": coverage,
+#|         "point_count": point_count,
+#|         "points_per_hour": density,
+#|         "track_gap_count": len(gaps),
+#|         "source_independence": independence,
+#|         "limitation": "Coverage estimate depends on supplied source metadata and observation density.",
+#|     }
+#| 
+#| 
+#| def find_provider_flight(flight: Dict[str, Any], provider_flights: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+#|     for pf in provider_flights or []:
+#|         if not isinstance(pf, dict):
+#|             continue
+#| 
+#|         if pf.get("aircraft_id") and pf.get("aircraft_id") == flight.get("aircraft_id"):
+#|             return pf
+#| 
+#|         pf_callsign = normalize_callsign(pf.get("callsign"))
+#|         pf_flight_number = normalize_flight_number(pf.get("flight_number"))
+#| 
+#|         if pf_callsign and pf_callsign in set(flight.get("callsigns") or []):
+#|             return pf
+#|         if pf_flight_number and pf_flight_number in set(flight.get("flight_numbers") or []):
+#|             return pf
+#| 
+#|     return None
+#| 
+#| 
+#| def build_flight(
+#|     flight_index: int,
+#|     group_key: str,
+#|     points: List[Dict[str, Any]],
+#|     airports: List[Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     provider_flights: List[Dict[str, Any]],
+#|     settings: Dict[str, float],
+#| ) -> Dict[str, Any]:
+#|     fid = f"FLT-{flight_index}"
+#|     for p in points:
+#|         p["_flight_id"] = fid
+#|         p["_flight_phase"] = estimate_flight_phase(p)
+#| 
+#|     callsigns = sorted({p.get("_callsign") for p in points if p.get("_callsign")})
+#|     flight_numbers = sorted({p.get("_flight_number") for p in points if p.get("_flight_number")})
+#|     source_ids = sorted({sid for p in points for sid in (p.get("_source_ids") or [])})
+#|     independence = assess_independence(source_ids, sources)
+#| 
+#|     dep = endpoint_assessment(points[0], airports, "departure", settings["airport_radius_km"])
+#|     arr = endpoint_assessment(points[-1], airports, "arrival", settings["airport_radius_km"])
+#| 
+#|     pf = find_provider_flight(
+#|         {
+#|             "aircraft_id": points[0].get("_aircraft_id"),
+#|             "callsigns": callsigns,
+#|             "flight_numbers": flight_numbers,
+#|         },
+#|         provider_flights,
+#|     )
+#| 
+#|     provider_context = None
+#|     diversion_candidate = False
+#|     if pf:
+#|         provider_context = public_dict(pf)
+#|         apply_provider_endpoint(dep, pf.get("departure_airport"), airports)
+#|         apply_provider_endpoint(arr, pf.get("arrival_airport"), airports)
+#| 
+#|         obs_dep_code = (dep.get("airport") or {}).get("icao_code") or (dep.get("airport") or {}).get("iata_code")
+#|         obs_arr_code = (arr.get("airport") or {}).get("icao_code") or (arr.get("airport") or {}).get("iata_code")
+#|         prov_arr_code = str(pf.get("arrival_airport", "")).strip().upper() or None
+#| 
+#|         if prov_arr_code and obs_arr_code and prov_arr_code != obs_arr_code:
+#|             diversion_candidate = True
+#| 
+#|     route = route_metrics(points)
+#|     gaps = find_track_gaps(points, settings["report_gap_minutes"])
+#|     dq = detect_data_quality(points, settings["max_speed_kt"])
+#|     sq = squawk_flags(points)
+#| 
+#|     phase_counts = Counter(p.get("_flight_phase") for p in points if p.get("_flight_phase"))
+#|     dominant_phase = phase_counts.most_common(1)[0][0] if phase_counts else "UNKNOWN"
+#| 
+#|     if dep.get("state") == "OBSERVED_DEPARTURE" and arr.get("state") == "OBSERVED_ARRIVAL" and independence == "INDEPENDENT" and not gaps and not dq:
+#|         segmentation_confidence = "SUPPORTED"
+#|     elif dep.get("state") in ("OBSERVED_DEPARTURE", "PROVIDER_REPORTED") and arr.get("state") in ("OBSERVED_ARRIVAL", "PROVIDER_REPORTED"):
+#|         segmentation_confidence = "PROBABLE"
+#|     elif dep.get("state") != "UNKNOWN" or arr.get("state") != "UNKNOWN":
+#|         segmentation_confidence = "POSSIBLE"
+#|     else:
+#|         segmentation_confidence = "UNKNOWN"
+#| 
+#|     start_ts = points[0].get("_timestamp")
+#|     end_ts = points[-1].get("_timestamp")
+#|     duration_s = None
+#|     if isinstance(start_ts, datetime) and isinstance(end_ts, datetime):
+#|         duration_s = (end_ts - start_ts).total_seconds()
+#| 
+#|     return {
+#|         "flight_id": fid,
+#|         "group_key": group_key,
+#|         "aircraft_id": points[0].get("_aircraft_id"),
+#|         "callsigns": callsigns,
+#|         "flight_numbers": flight_numbers,
+#|         "start_time": iso_or_none(start_ts),
+#|         "end_time": iso_or_none(end_ts),
+#|         "duration_seconds": duration_s,
+#|         "departure": dep,
+#|         "arrival": arr,
+#|         "observed_route": route,
+#|         "position_source_counts": dict(Counter(p.get("_position_source") for p in points)),
+#|         "source_ids": source_ids,
+#|         "source_independence": independence,
+#|         "trackpoint_ids": [p.get("observation_id") for p in points],
+#|         "track_gaps": gaps,
+#|         "data_quality_flags": dq,
+#|         "squawk_flags": sq,
+#|         "flight_phase_counts": dict(phase_counts),
+#|         "dominant_flight_phase": dominant_phase,
+#|         "segmentation_confidence": segmentation_confidence,
+#|         "provider_flight": provider_context,
+#|         "diversion_candidate": diversion_candidate,
+#|         "feed_coverage": estimate_feed_coverage(
+#|             {
+#|                 "flight_id": fid,
+#|                 "trackpoint_ids": [p.get("observation_id") for p in points],
+#|                 "duration_seconds": duration_s,
+#|                 "track_gaps": gaps,
+#|                 "source_independence": independence,
+#|             }
+#|         ),
+#|         "limitations": [
+#|             "Flight segmentation is provisional unless corroborated by independent sources or official records.",
+#|             "Departure/arrival states distinguish observed, provider-reported, inferred, and passed-near cases.",
+#|             "Track gaps are not evidence of transponder shutdown or evasion.",
+#|             "No passenger, pilot, owner presence, or flight purpose is inferred.",
+#|         ],
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Contradictions, facts, hypotheses, dual review
+#| # -----------------------------------------------------------------------------
+#| 
+#| def detect_contradictions(
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     initial: List[Dict[str, Any]],
+#|     settings: Dict[str, float],
+#| ) -> List[Dict[str, Any]]:
+#|     contradictions = list(initial)
+#| 
+#|     by_ts: Dict[Tuple[Any, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     for o in deduped:
+#|         if o.get("_lat") is not None and o.get("_lon") is not None and isinstance(o.get("_timestamp"), datetime):
+#|             by_ts[(o.get("_group_key"), o["_timestamp"].isoformat())].append(o)
+#| 
+#|     for (group_key, ts), lst in by_ts.items():
+#|         if len(lst) < 2:
+#|             continue
+#|         max_dist = 0.0
+#|         for i in range(len(lst)):
+#|             for j in range(i + 1, len(lst)):
+#|                 d = haversine_km(lst[i].get("_lat"), lst[i].get("_lon"), lst[j].get("_lat"), lst[j].get("_lon"))
+#|                 if d is not None and d > max_dist:
+#|                     max_dist = d
+#|         if max_dist > settings["position_conflict_km"]:
+#|             contradictions.append(
+#|                 {
+#|                     "type": "feed_position_conflict",
+#|                     "group_key": group_key,
+#|                     "timestamp": ts,
+#|                     "max_separation_km": max_dist,
+#|                     "observation_ids": [x.get("observation_id") for x in lst],
+#|                     "note": "Possible source mismatch, MLAT/ADS-B difference, timestamp error, aggregation bug, or different aircraft merged. Preserve contradiction.",
+#|                 }
+#|             )
+#| 
+#|     for f in flights:
+#|         for flag in f.get("data_quality_flags") or []:
+#|             contradictions.append(
+#|                 {
+#|                     "type": flag.get("type", "DATA_QUALITY_CANDIDATE"),
+#|                     "flight_id": f.get("flight_id"),
+#|                     "details": flag,
+#|                     "note": "Data-quality contradiction candidate. Do not infer malicious spoofing from one segment.",
+#|                 }
+#|             )
+#| 
+#|     return contradictions
+#| 
+#| 
+#| def build_facts(
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[str]]:
+#|     supported: List[Dict[str, Any]] = []
+#|     candidates: List[Dict[str, Any]] = []
+#|     partial: List[Dict[str, Any]] = []
+#|     disputed: List[Dict[str, Any]] = []
+#| 
+#|     not_facts = [
+#|         "No passenger or occupant identity is inferred.",
+#|         "No pilot identity is inferred.",
+#|         "No flight purpose is inferred.",
+#|         "Track gap is not evidence of transponder shutdown.",
+#|         "Near-airport position is not landing confirmation.",
+#|         "Scheduled route is not observed route.",
+#|         "MLAT position is not aircraft-reported ADS-B position.",
+#|         "Interpolated position is not direct observation.",
+#|         "Current registration/operator is not automatically historical registration/operator.",
+#|         "AI agreement is not independent aviation corroboration.",
+#|     ]
+#| 
+#|     for o in deduped:
+#|         src = ", ".join(o.get("_source_ids") or ["UNKNOWN_SOURCE"])
+#|         ident = o.get("_aircraft_id") or o.get("_icao24") or o.get("_registration") or o.get("_group_key")
+#|         ts = iso_or_none(o.get("_timestamp"))
+#| 
+#|         if o.get("_lat") is not None and o.get("_lon") is not None:
+#|             stmt = f"{src} observed {ident} at ({o['_lat']}, {o['_lon']}) at {ts}."
+#|         else:
+#|             stmt = f"{src} observed metadata for {ident} at {ts}."
+#| 
+#|         item = {
+#|             "fact_id": f"FCT-{len(supported) + len(candidates) + len(partial) + 1}",
+#|             "statement": stmt,
+#|             "observation_id": o.get("observation_id"),
+#|             "source_ids": o.get("_source_ids"),
+#|             "confidence": o.get("_resolution_confidence", "UNKNOWN"),
+#|         }
+#| 
+#|         if o.get("_resolution_basis") in ("DIRECT_AIRCRAFT_ID", "HISTORY_ICAO24", "HISTORY_REGISTRATION"):
+#|             supported.append(item)
+#|         elif o.get("_resolution_basis") in ("CURRENT_ICAO24", "CURRENT_REGISTRATION", "IDENTIFIER_MAP"):
+#|             candidates.append(item)
+#|         else:
+#|             partial.append(item)
+#| 
+#|     for f in flights:
+#|         dep = f.get("departure") or {}
+#|         arr = f.get("arrival") or {}
+#|         dep_ap = (dep.get("airport") or {}).get("icao_code") or (dep.get("airport") or {}).get("iata_code")
+#|         arr_ap = (arr.get("airport") or {}).get("icao_code") or (arr.get("airport") or {}).get("iata_code")
+#| 
+#|         if dep.get("state") == "OBSERVED_DEPARTURE" and arr.get("state") == "OBSERVED_ARRIVAL" and dep_ap and arr_ap:
+#|             supported.append(
+#|                 {
+#|                     "fact_id": f"FCT-FLT-{f.get('flight_id')}",
+#|                     "statement": f"Aircraft group {f.get('group_key')} was observed moving from {dep_ap} to {arr_ap} during {f.get('start_time')} to {f.get('end_time')}.",
+#|                     "flight_id": f.get("flight_id"),
+#|                     "confidence": f.get("segmentation_confidence"),
+#|                 }
+#|             )
+#|         elif dep_ap or arr_ap:
+#|             partial.append(
+#|                 {
+#|                     "fact_id": f"FCT-FLT-{f.get('flight_id')}",
+#|                     "statement": f"Aircraft group {f.get('group_key')} has partial endpoint evidence: departure={dep.get('state')} {dep_ap}, arrival={arr.get('state')} {arr_ap}.",
+#|                     "flight_id": f.get("flight_id"),
+#|                     "confidence": f.get("segmentation_confidence"),
+#|                 }
+#|             )
+#|         else:
+#|             candidates.append(
+#|                 {
+#|                     "fact_id": f"FCT-FLT-{f.get('flight_id')}",
+#|                     "statement": f"Aircraft group {f.get('group_key')} has a segmented movement candidate without resolved airport endpoints.",
+#|                     "flight_id": f.get("flight_id"),
+#|                     "confidence": f.get("segmentation_confidence"),
+#|                 }
+#|             )
+#| 
+#|     for c in contradictions:
+#|         disputed.append(
+#|             {
+#|                 "disputed_id": f"DIS-{len(disputed) + 1}",
+#|                 "type": c.get("type"),
+#|                 "statement": "Material contradiction present; do not silently resolve.",
+#|                 "details": c,
+#|             }
+#|         )
+#| 
+#|     return supported, candidates, partial, disputed, not_facts
+#| 
+#| 
+#| def build_hypotheses(
+#|     flights: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     issues: List[str],
+#| ) -> List[Dict[str, Any]]:
+#|     hypotheses: List[Dict[str, Any]] = []
+#| 
+#|     for f in flights:
+#|         fid = f.get("flight_id")
+#|         gaps = f.get("track_gaps") or []
+#|         dq = f.get("data_quality_flags") or []
+#|         dep = f.get("departure") or {}
+#|         arr = f.get("arrival") or {}
+#| 
+#|         hypotheses.append(
+#|             {
+#|                 "hypothesis_id": f"H-{fid}-OBSERVED-MOVEMENT",
+#|                 "statement": "The segmented track represents one observed movement episode for the aircraft group.",
+#|                 "support": [
+#|                     "Continuous or near-continuous trackpoints exist." if not gaps else "Some trackpoints exist but gaps are present.",
+#|                     f"Endpoint states: departure={dep.get('state')}, arrival={arr.get('state')}.",
+#|                 ],
+#|                 "opposition": [
+#|                     "Track gaps weaken continuity." if gaps else "No major gap objection recorded.",
+#|                     "Data-quality flags present." if dq else "No data-quality flags recorded.",
+#|                 ],
+#|                 "unknowns": ["Flight purpose", "occupants", "filed route", "ATC clearance"],
+#|                 "falsification_conditions": [
+#|                     "Independent source shows different aircraft identity for same track.",
+#|                     "Timestamp normalization reveals merged non-contiguous observations.",
+#|                     "Airport movement records contradict observed departure/arrival.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|         if dep.get("state") in ("PASSED_NEAR", "INFERRED", "UNKNOWN") or arr.get("state") in ("PASSED_NEAR", "INFERRED", "UNKNOWN"):
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-{fid}-NEAR-AIRPORT-WITHOUT-LANDING",
+#|                     "statement": "The aircraft may have passed near an airport without landing.",
+#|                     "support": ["Endpoint state is not OBSERVED_ARRIVAL/OBSERVED_DEPARTURE."],
+#|                     "opposition": ["On-ground track evidence would weaken this hypothesis." if dep.get("state") == "OBSERVED_DEPARTURE" or arr.get("state") == "OBSERVED_ARRIVAL" else "No strong on-ground contradiction recorded."],
+#|                     "unknowns": ["Actual landing location", "airport surface movement quality"],
+#|                     "falsification_conditions": [
+#|                         "Sustained ground taxi track at airport surface.",
+#|                         "Official airport movement record confirms landing.",
+#|                     ],
+#|                 }
+#|             )
+#| 
+#|         if gaps:
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-{fid}-TRACK-GAP-COVERAGE",
+#|                     "statement": "Track gaps may reflect feed coverage, receiver outage, terrain, altitude, filtering, or data latency.",
+#|                     "support": [f"{len(gaps)} observed gap(s)."],
+#|                     "opposition": ["Independent dense coverage across the gap would weaken coverage explanation." if f.get("source_independence") == "INDEPENDENT" else "No independent dense coverage recorded."],
+#|                     "unknowns": ["Receiver coverage logs", "feed outage records"],
+#|                     "falsification_conditions": [
+#|                         "Independent receiver shows continuous coverage during gap.",
+#|                         "Aircraft identity changes across gap.",
+#|                     ],
+#|                     "restriction": "Do not conclude deliberate transponder shutdown from gap alone.",
+#|                 }
+#|             )
+#| 
+#|         if f.get("provider_flight"):
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-{fid}-PROVIDER-ASSOCIATION-ERROR",
+#|                     "statement": "Provider airport/flight association may be incorrect or enriched from schedule rather than observation.",
+#|                     "support": ["Provider flight context exists."],
+#|                     "opposition": ["Observed ground endpoints weaken provider-error hypothesis." if dep.get("state") == "OBSERVED_DEPARTURE" and arr.get("state") == "OBSERVED_ARRIVAL" else "Observed endpoints are not fully conclusive."],
+#|                     "unknowns": ["Provider enrichment method", "schedule-to-observation mapping"],
+#|                     "falsification_conditions": [
+#|                         "Independent airport movement record matches provider association.",
+#|                         "Raw track clearly shows surface movement at provider airport.",
+#|                     ],
+#|                 }
+#|             )
+#| 
+#|         if dq:
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-{fid}-DATA-QUALITY",
+#|                     "statement": "Some segments may be caused by data corruption, timestamp error, source mismatch, or merged identity.",
+#|                     "support": [f"{len(dq)} data-quality flag(s)."],
+#|                     "opposition": ["Consistent independent sources would weaken data-quality hypothesis." if f.get("source_independence") == "INDEPENDENT" else "No strong independent corroboration recorded."],
+#|                     "unknowns": ["Source clock accuracy", "provider processing pipeline"],
+#|                     "falsification_conditions": [
+#|                         "Corrected source export removes impossible segment.",
+#|                         "Independent receiver reproduces same physical movement within uncertainty.",
+#|                     ],
+#|                     "restriction": "Do not infer spoofing solely from one impossible segment.",
+#|                 }
+#|             )
+#| 
+#|     for c in contradictions:
+#|         if c.get("type") == "identifier_conflict":
+#|             cid = c.get("group_key") or c.get("observation_id")
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-ID-{cid}-STALE-REGISTRY",
+#|                     "statement": "Identifier conflict may be caused by stale registry or outdated mapping.",
+#|                     "support": ["Conflicting identifier mapping supplied."],
+#|                     "opposition": ["Time-bounded registry history would weaken stale-mapping hypothesis."],
+#|                     "falsification_conditions": ["Authoritative registry history confirms single valid mapping for timestamp."],
+#|                 }
+#|             )
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-ID-{cid}-HISTORICAL-REASSIGNMENT",
+#|                     "statement": "ICAO24/registration may have been reassigned historically.",
+#|                     "support": ["Identifier conflict present."],
+#|                     "opposition": ["Valid-from/valid-to records resolve era."],
+#|                     "falsification_conditions": ["Registry era records show no reassignment at observation time."],
+#|                 }
+#|             )
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-ID-{cid}-MISCONFIGURED-TRANSPONDER",
+#|                     "statement": "Transponder/configuration error may produce inconsistent identifiers.",
+#|                     "support": ["Conflict exists without clear era resolution."],
+#|                     "opposition": ["Maintenance/operational records may explain configuration."],
+#|                     "falsification_conditions": ["Authorized maintenance/config record confirms correct identifier emission."],
+#|                 }
+#|             )
+#|             hypotheses.append(
+#|                 {
+#|                     "hypothesis_id": f"H-ID-{cid}-SPOOFING-CANDIDATE",
+#|                     "statement": "Deceptive identifier emission is possible in principle and may be considered only as a last-resort hypothesis.",
+#|                     "support": ["Unresolved identifier conflict."],
+#|                     "opposition": ["Data error, stale registry, reassignment, MLAT mismatch, aggregation bug are simpler explanations."],
+#|                     "falsification_conditions": [
+#|                         "Independent raw ADS-B/Mode S records show inconsistent identity with no data-error explanation.",
+#|                         "Authorized investigation confirms deceptive emission.",
+#|                     ],
+#|                     "restriction": "This scaffold does not provide spoofing methods and does not conclude spoofing without corroboration.",
+#|                 }
+#|             )
+#| 
+#|     if issues:
+#|         hypotheses.append(
+#|             {
+#|                 "hypothesis_id": "H-GLOBAL-VALIDATION-WEAKNESS",
+#|                 "statement": "Validation issues materially weaken all movement conclusions.",
+#|                 "support": issues[:10],
+#|                 "opposition": ["No independent clean source supplied yet."],
+#|                 "falsification_conditions": ["Resolve validation issues and rerun deterministic ingestion."],
+#|             }
+#|         )
+#| 
+#|     return hypotheses
+#| 
+#| 
+#| def dual_ai_review(
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     issues: List[str],
+#| ) -> Dict[str, Any]:
+#|     primary = {
+#|         "role": "Primary Aviation Analyst",
+#|         "assessment": (
+#|             "Observed movement candidates exist."
+#|             if flights
+#|             else "No segmented flights could be built from supplied observations."
+#|         ),
+#|         "classification": "Identity, route, and endpoint conclusions remain evidence-bounded.",
+#|     }
+#| 
+#|     if not deduped:
+#|         skeptic = {
+#|             "role": "Independent Aviation Skeptic",
+#|             "verdict": "INSUFFICIENT_EVIDENCE",
+#|             "reason": "No usable observations were supplied. Do not infer movement from narrative.",
+#|         }
+#|     elif issues:
+#|         skeptic = {
+#|             "role": "Independent Aviation Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Validation issues require downgraded confidence.",
+#|         }
+#|     elif contradictions:
+#|         skeptic = {
+#|             "role": "Independent Aviation Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Contradictions must be preserved; do not silently resolve identity/track conflicts.",
+#|         }
+#|     elif flights and any(f.get("source_independence") == "INDEPENDENT" and f.get("segmentation_confidence") in ("SUPPORTED", "PROBABLE") for f in flights):
+#|         skeptic = {
+#|             "role": "Independent Aviation Skeptic",
+#|             "verdict": "AGREE_ON_MOVEMENT_ONLY",
+#|             "reason": "Independent source corroboration supports movement assessment only, not occupant/purpose attribution.",
+#|         }
+#|     else:
+#|         skeptic = {
+#|             "role": "Independent Aviation Skeptic",
+#|             "verdict": "PARTIAL_AGREEMENT",
+#|             "reason": "Single-source or incomplete evidence supports candidate movement only.",
+#|         }
+#| 
+#|     return {
+#|         "primary": primary,
+#|         "skeptic": skeptic,
+#|         "comparison": skeptic.get("verdict", "INSUFFICIENT_EVIDENCE"),
+#|         "note": "Rule-based dual-review scaffold. AI agreement is not independent aviation evidence. Human review required for consequential conclusions.",
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Graphical memory scaffold
+#| # -----------------------------------------------------------------------------
+#| 
+#| def build_graph(
+#|     aircraft: Dict[str, Dict[str, Any]],
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     airports: List[Dict[str, Any]],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     facts: List[Dict[str, Any]],
+#|     hypotheses: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#| ) -> Dict[str, Any]:
+#|     nodes: List[Dict[str, Any]] = []
+#|     edges: List[Dict[str, Any]] = []
+#| 
+#|     def add_node(node_id: str, node_type: str, props: Dict[str, Any]) -> None:
+#|         if any(n.get("id") == node_id for n in nodes):
+#|             return
+#|         nodes.append({"id": node_id, "type": node_type, "properties": props})
+#| 
+#|     def add_edge(src: str, dst: str, rel: str, props: Dict[str, Any]) -> None:
+#|         edges.append({"from": src, "to": dst, "type": rel, "properties": props})
+#| 
+#|     for aid, a in aircraft.items():
+#|         add_node(aid, "Aircraft", public_dict(a))
+#| 
+#|     for o in deduped:
+#|         oid = o.get("observation_id")
+#|         add_node(
+#|             oid,
+#|             "ADSBObservation" if o.get("_position_source") == "ADS_B" else "MLATObservation" if o.get("_position_source") == "MLAT" else "Observation",
+#|             {
+#|                 "group_key": o.get("_group_key"),
+#|                 "aircraft_id": o.get("_aircraft_id"),
+#|                 "icao24": o.get("_icao24"),
+#|                 "registration": o.get("_registration"),
+#|                 "callsign": o.get("_callsign"),
+#|                 "flight_number": o.get("_flight_number"),
+#|                 "timestamp": iso_or_none(o.get("_timestamp")),
+#|                 "latitude": o.get("_lat"),
+#|                 "longitude": o.get("_lon"),
+#|                 "altitude_ft": o.get("_altitude_ft"),
+#|                 "ground_speed_kt": o.get("_ground_speed_kt"),
+#|                 "vertical_rate_fpm": o.get("_vertical_rate_fpm"),
+#|                 "position_source": o.get("_position_source"),
+#|                 "source_ids": o.get("_source_ids"),
+#|                 "resolution_basis": o.get("_resolution_basis"),
+#|             },
+#|         )
+#| 
+#|         if o.get("_aircraft_id"):
+#|             add_edge(oid, o["_aircraft_id"], "IDENTIFIED_BY", {"observation_id": oid})
+#|         if o.get("_icao24"):
+#|             iid = f"ICAO24:{o['_icao24']}"
+#|             add_node(iid, "ICAO24Identifier", {"value": o["_icao24"]})
+#|             add_edge(oid, iid, "OBSERVED_WITH_IDENTIFIER", {"observation_id": oid})
+#|         if o.get("_registration"):
+#|             rid = f"REG:{o['_registration']}"
+#|             add_node(rid, "Registration", {"value": o["_registration"]})
+#|             add_edge(oid, rid, "OBSERVED_WITH_IDENTIFIER", {"observation_id": oid})
+#|         if o.get("_callsign"):
+#|             csid = f"CALLSIGN:{o['_callsign']}"
+#|             add_node(csid, "Callsign", {"value": o["_callsign"]})
+#|             add_edge(oid, csid, "USED_CALLSIGN", {"observation_id": oid})
+#|         for sid in o.get("_source_ids") or []:
+#|             add_node(sid, "Source", public_dict(sources.get(sid, {"source_id": sid})))
+#|             add_edge(oid, sid, "OBSERVED_BY", {"observation_id": oid, "source_id": sid})
+#| 
+#|     for f in flights:
+#|         fid = f.get("flight_id")
+#|         add_node(
+#|             fid,
+#|             "Flight",
+#|             {
+#|                 "group_key": f.get("group_key"),
+#|                 "aircraft_id": f.get("aircraft_id"),
+#|                 "start_time": f.get("start_time"),
+#|                 "end_time": f.get("end_time"),
+#|                 "departure": f.get("departure"),
+#|                 "arrival": f.get("arrival"),
+#|                 "segmentation_confidence": f.get("segmentation_confidence"),
+#|             },
+#|         )
+#|         for oid in f.get("trackpoint_ids") or []:
+#|             add_edge(fid, oid, "HAS_TRACKPOINT", {"flight_id": fid})
+#|         dep_ap = (f.get("departure") or {}).get("airport") or {}
+#|         arr_ap = (f.get("arrival") or {}).get("airport") or {}
+#|         if dep_ap.get("airport_id"):
+#|             add_node(dep_ap["airport_id"], "Airport", dep_ap)
+#|             add_edge(fid, dep_ap["airport_id"], "DEPARTED_FROM", {"flight_id": fid, "state": (f.get("departure") or {}).get("state")})
+#|         if arr_ap.get("airport_id"):
+#|             add_node(arr_ap["airport_id"], "Airport", arr_ap)
+#|             add_edge(fid, arr_ap["airport_id"], "ARRIVED_AT", {"flight_id": fid, "state": (f.get("arrival") or {}).get("state")})
+#| 
+#|     for ap in airports:
+#|         apid = ap.get("airport_id")
+#|         if apid:
+#|             add_node(apid, "Airport", public_airport(ap))
+#| 
+#|     for fac in facts:
+#|         fid = fac.get("fact_id")
+#|         add_node(fid, "Fact", fac)
+#|         if fac.get("observation_id"):
+#|             add_edge(fid, fac["observation_id"], "SUPPORTED_BY", {"fact_id": fid})
+#|         if fac.get("flight_id"):
+#|             add_edge(fid, fac["flight_id"], "SUPPORTED_BY", {"fact_id": fid})
+#| 
+#|     for h in hypotheses:
+#|         add_node(h.get("hypothesis_id"), "Hypothesis", h)
+#| 
+#|     for c in contradictions:
+#|         cid = f"CONTRA-{len([x for x in nodes if x.get('type') == 'Contradiction']) + 1}"
+#|         add_node(cid, "Contradiction", c)
+#| 
+#|     for g in gaps:
+#|         gid = g.get("gap_id") or f"GAP-{len(gaps)}"
+#|         add_node(gid, "Gap", g)
+#| 
+#|     return {"nodes": nodes, "edges": edges, "version": VERSION}
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Gaps, actions, handoffs, summary
+#| # -----------------------------------------------------------------------------
+#| 
+#| def build_knowledge_gaps(
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#|     issues: List[str],
+#|     history: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     gaps: List[Dict[str, Any]] = []
+#| 
+#|     if not deduped:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-NO-OBSERVATIONS",
+#|                 "gap": "No usable aviation observations supplied",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Authorized/public historical ADS-B or MLAT export",
+#|                 "expected_information_value": "Establishes whether any movement is measurable",
+#|             }
+#|         )
+#| 
+#|     if issues:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-VALIDATION-ISSUES",
+#|                 "gap": "Input validation issues present",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Corrected source export, registry record, airport metadata",
+#|                 "expected_information_value": "Improves identity/track trust",
+#|             }
+#|         )
+#| 
+#|     unresolved = [o for o in deduped if o.get("_resolution_basis") == "UNRESOLVED"]
+#|     if unresolved:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-AIRCRAFT-IDENTITY",
+#|                 "gap": "Some observations could not be resolved to an aircraft airframe",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Official aircraft registry, ICAO24 allocation history, operator fleet records",
+#|                 "expected_information_value": "Reduces false aircraft attribution",
+#|             }
+#|         )
+#| 
+#|     if not any(h.get("_field") == "registration" for h in history):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-REGISTRATION-HISTORY",
+#|                 "gap": "Registration era history missing",
+#|                 "importance": "MODERATE",
+#|                 "recommended_source": "Registry history / authorized aircraft records",
+#|                 "expected_information_value": "Prevents historical-to-current contamination",
+#|             }
+#|         )
+#| 
+#|     if not any(h.get("_field") == "operator" for h in history):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-OPERATOR-HISTORY",
+#|                 "gap": "Operator era history missing",
+#|                 "importance": "MODERATE",
+#|                 "recommended_source": "Operator fleet records / corporate records",
+#|                 "expected_information_value": "Prevents false operator attribution",
+#|             }
+#|         )
+#| 
+#|     for f in flights:
+#|         if f.get("track_gaps"):
+#|             gaps.append(
+#|                 {
+#|                     "gap_id": f"GAP-TRACK-{f.get('flight_id')}",
+#|                     "gap": f"Track gap(s) in {f.get('flight_id')}",
+#|                     "importance": "MODERATE",
+#|                     "recommended_source": "Independent receiver coverage logs, alternate historical feed",
+#|                     "expected_information_value": "Distinguishes coverage loss from actual missing movement",
+#|                 }
+#|             )
+#| 
+#|         if f.get("feed_coverage", {}).get("coverage_state") in ("LOW", "UNKNOWN"):
+#|             gaps.append(
+#|                 {
+#|                     "gap_id": f"GAP-COVERAGE-{f.get('flight_id')}",
+#|                     "gap": f"Feed coverage low/unknown for {f.get('flight_id')}",
+#|                     "importance": "MODERATE",
+#|                     "recommended_source": "Coverage metadata, alternate feed",
+#|                     "expected_information_value": "Calibrates non-detection risk",
+#|                 }
+#|             )
+#| 
+#|     if contradictions:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": "GAP-CONTRADICTIONS",
+#|                 "gap": "Material contradictions present",
+#|                 "importance": "HIGH",
+#|                 "recommended_source": "Raw source records, registry history, independent feed",
+#|                 "expected_information_value": "Prevents silent false resolution",
+#|             }
+#|         )
+#| 
+#|     gaps.append(
+#|         {
+#|             "gap_id": "GAP-OCCUPANTS",
+#|             "gap": "Passengers/occupants unknown by design",
+#|             "importance": "CONTEXTUAL",
+#|             "recommended_source": "Only independent lawful evidence if separately authorized",
+#|             "expected_information_value": "ADS-B alone cannot establish occupants",
+#|         }
+#|     )
+#| 
+#|     gaps.append(
+#|         {
+#|             "gap_id": "GAP-PURPOSE",
+#|             "gap": "Flight purpose unknown by design",
+#|             "importance": "CONTEXTUAL",
+#|             "recommended_source": "Operator records, official filings, authorized investigation evidence",
+#|             "expected_information_value": "Movement alone does not establish purpose",
+#|         }
+#|     )
+#| 
+#|     return gaps
+#| 
+#| 
+#| def build_next_actions(
+#|     deduped: List[Dict[str, Any]],
+#|     flights: List[Dict[str, Any]],
+#|     gaps: List[Dict[str, Any]],
+#|     contradictions: List[Dict[str, Any]],
+#| ) -> List[str]:
+#|     actions: List[str] = []
+#| 
+#|     if not deduped:
+#|         actions.append("Supply deterministic public/authorized historical ADS-B or MLAT trackpoint exports")
+#| 
+#|     if any(g["gap_id"] == "GAP-AIRCRAFT-IDENTITY" for g in gaps):
+#|         actions.append("Check official aircraft registry and ICAO24/registration allocation history")
+#| 
+#|     if any(g["gap_id"] == "GAP-REGISTRATION-HISTORY" for g in gaps):

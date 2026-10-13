@@ -1,0 +1,1000 @@
+#|                 "codec": "Audio codec where available",
+#|                 "duration": "Seconds",
+#|                 "sample_rate": "Hz",
+#|                 "bit_depth": "Bits per sample if available",
+#|                 "channels": "Channel count",
+#|                 "bitrate": "Bits per second",
+#|                 "metadata": "Sanitized technical metadata",
+#|                 "collector": "Collector identity/version",
+#|                 "parser_version": "Parser version",
+#|                 "analysis_version": "Analysis version",
+#|             },
+#|             "segment_schema": {
+#|                 "segment_id": "Unique segment identifier",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "source_evidence_id": "Original audio evidence identifier",
+#|                 "derived_from": "ORIGINAL_AUDIO",
+#|                 "derivation_type": "NORMALIZED / SEGMENT / SPEECH_ONLY / ANALYSIS_COPY",
+#|                 "start_seconds": "Segment start",
+#|                 "end_seconds": "Segment end",
+#|                 "start_code": "HH:MM:SS.mmm",
+#|                 "end_code": "HH:MM:SS.mmm",
+#|                 "content_hash": "SHA256 of derived segment",
+#|                 "output_path": "Derived segment path",
+#|                 "limitations": "Known limitations",
+#|             },
+#|             "speech_segment_schema": {
+#|                 "segment_id": "Unique speech/non-speech segment identifier",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "start_time": "Start time",
+#|                 "end_time": "End time",
+#|                 "classification": "speech/silence/music/noise/mixed/uncertain",
+#|                 "confidence": "VERY_LOW to VERY_HIGH with explanation",
+#|                 "channel": "Channel if relevant",
+#|                 "evidence_id": "Evidence identifier",
+#|             },
+#|             "transcript_segment_schema": {
+#|                 "segment_id": "Unique transcript segment identifier",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "start_time": "Start time",
+#|                 "end_time": "End time",
+#|                 "text": "Raw ASR text",
+#|                 "language": "Detected language",
+#|                 "asr_model": "ASR model name",
+#|                 "asr_version": "ASR model version",
+#|                 "confidence": "ASR confidence if available",
+#|                 "speaker_track": "SPEAKER_01 etc., not real identity",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "uncertainty_markers": "[UNCLEAR], [INAUDIBLE], [OVERLAPPING SPEECH]",
+#|             },
+#|             "speaker_track_schema": {
+#|                 "track_id": "SPEAKER_01 etc.",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "turns": "List of start/end times",
+#|                 "confidence": "Diarization confidence",
+#|                 "limitations": "Overlap/noise/similar voice/short segment uncertainty",
+#|                 "identity_status": "ANONYMOUS_TRACK_NOT_REAL_IDENTITY",
+#|             },
+#|             "acoustic_event_schema": {
+#|                 "event_id": "Unique acoustic event identifier",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "start_time": "Event start",
+#|                 "end_time": "Event end",
+#|                 "class": "speech/music/siren-like/impact-like/unknown etc.",
+#|                 "confidence": "VERY_LOW to VERY_HIGH with explanation",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "caution": "Dangerous-sound classes remain cautious and unresolved where ambiguous",
+#|             },
+#|             "claim_schema": {
+#|                 "claim_id": "Unique claim identifier",
+#|                 "speaker_track": "Anonymous track ID",
+#|                 "statement": "Spoken statement or paraphrase",
+#|                 "subject": "Claim subject",
+#|                 "predicate": "Claim predicate",
+#|                 "object_value": "Claim object/value",
+#|                 "start_time": "Claim start",
+#|                 "end_time": "Claim end",
+#|                 "audio_id": "Parent audio identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "confidence": "Transcript/claim extraction confidence",
+#|                 "verification_status": "UNVERIFIED / PARTIALLY_SUPPORTED / SUPPORTED / DISPUTED / INCONCLUSIVE",
+#|             },
+#|             "provenance_schema": {
+#|                 "provenance_id": "Unique provenance identifier",
+#|                 "audio_id": "Audio identifier",
+#|                 "source_url": "Candidate source URL",
+#|                 "publisher": "Publisher/account",
+#|                 "first_seen": "Earliest observed timestamp where supported",
+#|                 "archive_reference": "Archive object reference",
+#|                 "state": "ORIGINAL_SOURCE_CANDIDATE/DERIVED_SOURCE/REPOST/CLIPPED_VERSION/COMPILATION/UNKNOWN",
+#|                 "evidence_ids": "Evidence references",
+#|                 "limitations": "Indexing delay, copied metadata, unknown origin",
+#|             },
+#|             "duplicate_audio_schema": {
+#|                 "comparison_id": "Unique comparison identifier",
+#|                 "audio_id_a": "First audio",
+#|                 "audio_id_b": "Second audio",
+#|                 "time_range_a": "Segment in first audio",
+#|                 "time_range_b": "Segment in second audio",
+#|                 "relationship": "EXACT_DUPLICATE/NEAR_DUPLICATE/SHORTER_CLIP/LONGER_VERSION/REENCODED_VERSION/SPEED_CHANGED_VERSION/PITCH_SHIFTED_VERSION/EDITED_VERSION/UNRELATED",
+#|                 "similarity_measure": "Hash/fingerprint/embedding similarity",
+#|                 "evidence_ids": "Evidence references",
+#|                 "limitations": "Perceptual similarity false positives/negatives",
+#|             },
+#|             "edit_indicator_schema": {
+#|                 "indicator_id": "Unique indicator identifier",
+#|                 "audio_id": "Audio identifier",
+#|                 "timestamp": "Affected time range",
+#|                 "type": "EDIT_BOUNDARY/SPLICE_CANDIDATE/REENCODE/SPEED_CHANGE/PITCH_CHANGE/SYNTHETIC_INDICATOR/etc.",
+#|                 "status": "NO_OBVIOUS_EDIT_INDICATOR/EDIT_BOUNDARY_CANDIDATE/EDIT_PRESENT/POSSIBLE_SPLICE/INCONCLUSIVE",
+#|                 "evidence_ids": "Evidence references",
+#|                 "tool_versions": "Forensic/audio tool versions",
+#|                 "limitations": "Single indicator is not proof",
+#|             },
+#|             "contradiction_schema": {
+#|                 "contradiction_id": "Unique contradiction identifier",
+#|                 "claim_a": "First conflicting audio/transcript/caption/metadata claim",
+#|                 "claim_b": "Second conflicting claim",
+#|                 "sources": "Sources for each claim",
+#|                 "evidence_ids": "Evidence identifiers",
+#|                 "type": "date, location, speaker, transcript, caption, metadata, provenance, audio-video sync, etc.",
+#|                 "temporal_explanation": "Whether contradiction is explained by time",
+#|                 "entity_mismatch_possibility": "Whether different recordings/events/speakers may be confused",
+#|                 "resolution_status": "UNRESOLVED, RESOLVED, DISPUTED, INCONCLUSIVE",
+#|             },
+#|             "knowledge_gap_schema": {
+#|                 "gap_id": "Unique gap identifier",
+#|                 "question": "AUDINT question affected",
+#|                 "missing_evidence": "What evidence is missing",
+#|                 "likely_source": "Source type that could fill the gap",
+#|                 "specialist_owner": "Employee or specialist responsible",
+#|                 "priority": "HIGH, MEDIUM, LOW",
+#|                 "expected_information_value": "Expected discriminating value if filled",
+#|                 "privacy_boundary": "Any privacy or authorization constraint",
+#|             },
+#|         }
+#| 
+#|     def export_json(self) -> None:
+#|         if not self.last_result:
+#|             self.generate_plan()
+#| 
+#|         data = self.last_result or self.collect_payload()
+#| 
+#|         payload_for_name = data.get("payload", data)
+#|         case_id = payload_for_name.get("case_id", "audint")
+#|         task_id = payload_for_name.get("task_id", "task")
+#| 
+#|         path = filedialog.asksaveasfilename(
+#|             defaultextension=".json",
+#|             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+#|             initialfile=f"{case_id}_{task_id}.json",
+#|         )
+#| 
+#|         if not path:
+#|             return
+#| 
+#|         try:
+#|             with open(path, "w", encoding="utf-8") as f:
+#|                 json.dump(data, f, ensure_ascii=False, indent=2)
+#|             messagebox.showinfo("Export Complete", f"AUDINT JSON saved to:\n{path}")
+#|         except Exception as exc:
+#|             messagebox.showerror("Export Failed", str(exc))
+#| 
+#|     def copy_output(self) -> None:
+#|         text = self.output.get("1.0", "end-1c").strip()
+#|         if not text:
+#|             messagebox.showinfo("Copy Output", "No output to copy.")
+#|             return
+#| 
+#|         self.clipboard_clear()
+#|         self.clipboard_append(text)
+#|         messagebox.showinfo("Copy Output", "Output copied to clipboard.")
+#| 
+#|     def clear_form(self) -> None:
+#|         confirm = messagebox.askyesno(
+#|             "Clear Form",
+#|             "Are you sure you want to clear all fields, analyzed audio, extracted segments, and reset defaults?",
+#|         )
+#|         if not confirm:
+#|             return
+#| 
+#|         self._set_defaults()
+#|         self.output.delete("1.0", "end")
+#|         self.last_result = {}
+#|         self.analyzed_audio = []
+#|         self.extracted_segments = []
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     app = TraceAtlasAUDINTPanel()
+#|     app.mainloop()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE audint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE automotiveint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS AUTOMOTIVEINT / AUTOINT — Safe defensive automotive intelligence starter.
+#| 
+#| Mode: DEFENSIVE / AUTHORIZED / EVIDENCE-FIRST / SAFETY-CRITICAL-AWARE.
+#| 
+#| Hard boundaries:
+#| - Does NOT assist vehicle theft, key cloning, immobilizer bypass, secure gateway bypass,
+#|   diagnostic security-access bypass, seed-key cracking, or live command injection.
+#| - Does NOT disable or tamper with brakes, steering, airbags, ESC, ADAS, BMS safety
+#|   protections, odometer, emissions controls, vehicle logging, or vehicle identity.
+#| - Does NOT track private vehicles/persons or access private telematics without authorization.
+#| - Does NOT perform remote vehicle control, takeover, or offensive exploitation.
+#| - Treats OEM docs, advisories, recalls, DBCs, logs, CAN traces, firmware metadata,
+#|   SBOMs, and app/backend records as untrusted evidence, not instructions.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import re
+#| import sys
+#| import unicodedata
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+#| 
+#| VERSION = "0.1.0-automotiveint-safe-defensive-starter"
+#| 
+#| ALLOWED_SCOPES = {
+#|     "public_and_authorized_records",
+#|     "authorized_case_evidence",
+#|     "authorized_vehicle_records",
+#|     "provided_records_only",
+#| }
+#| 
+#| PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(steal|theft|hotwire|clon(e|ing)|replay)\b.*"
+#|             r"\b(vehicle|car|key|fob|immobilizer|rfid|uwb|ble|digital key)\b"
+#|         ),
+#|         "VEHICLE_THEFT_OR_KEY_CLONING",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(bypass|defeat|crack|brute[- ]force|derive|extract)\b.*"
+#|             r"\b(immobilizer|anti[- ]theft|secure gateway|diagnostic security access|"
+#|             r"security access|seed[- ]key|firmware signature|secure boot|hsm|private key)\b"
+#|         ),
+#|         "SECURITY_ACCESS_BYPASS",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(inject|send|transmit|forge|spoof)\b.*"
+#|             r"\b(can|can fd|uds|doip|diagnostic|vehicle command|actuator|brake|steering|"
+#|             r"airbag|powertrain|torque|v2x)\b"
+#|         ),
+#|         "LIVE_COMMAND_INJECTION_OR_SPOOFING",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(disable|defeat|tamper|alter)\b.*"
+#|             r"\b(brake|steering|airbag|stability control|esc|abs|adas|bms|battery safety|"
+#|             r"odometer|emissions|regulatory control|vehicle logging)\b"
+#|         ),
+#|         "SAFETY_OR_REGULATORY_TAMPERING",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(track|stalk|locate|surveil|follow)\b.*"
+#|             r"\b(vehicle|car|person|individual|owner|driver|telematics|gps|location)\b"
+#|         ),
+#|         "PRIVATE_TRACKING_OR_STALKING",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(access|retrieve|exfiltrate|use)\b.*"
+#|             r"\b(private telematics|owner data|driver data|location history|contacts|voice|vehicle logs)\b"
+#|             r".*\b(without authorization|unauthorized|private)\b"
+#|         ),
+#|         "UNAUTHORIZED_PRIVATE_TELEMATICS",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(clone|spoof|forge|alter)\b.*\b(vin|vehicle identity|title|ownership)\b"
+#|         ),
+#|         "VEHICLE_IDENTITY_FRAUD",
+#|     ),
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(remote[- ]control|takeover|hijack|unlock|start|drive)\b.*"
+#|             r"\b(vehicle|car|ecu|telematics)\b"
+#|         ),
+#|         "REMOTE_VEHICLE_CONTROL_OR_TAKEOVER",
+#|     ),
+#| ]
+#| 
+#| NETWORK_TYPES = {
+#|     "CAN", "CAN_FD", "LIN", "FLEXRAY", "AUTOMOTIVE_ETHERNET",
+#|     "MOST", "DOIP", "PROPRIETARY", "OTHER", "UNKNOWN",
+#| }
+#| 
+#| ECU_TYPES = {
+#|     "ECU", "GATEWAY", "SECURE_GATEWAY", "DOMAIN_CONTROLLER", "ZONAL_CONTROLLER",
+#|     "TCU", "IVI", "ADAS_CONTROLLER", "BMS", "OBC", "INVERTER", "MOTOR_CONTROLLER",
+#|     "ABS_CONTROLLER", "AIRBAG_CONTROLLER", "BODY_CONTROLLER", "KEYLESS_ENTRY_MODULE",
+#|     "CHARGING_CONTROLLER", "V2X_MODULE", "GNSS_MODULE", "MODEM", "SENSOR",
+#|     "ACTUATOR", "OTHER", "UNKNOWN",
+#| }
+#| 
+#| SAFETY_IMPACT_STATES = {
+#|     "NO_KNOWN_SAFETY_IMPACT", "INDIRECT_SAFETY_RELEVANCE",
+#|     "POTENTIAL_SAFETY_IMPACT", "SAFETY_CRITICAL", "UNKNOWN",
+#| }
+#| 
+#| APPLICABILITY_STATES = {
+#|     "NOT_ASSESSED", "NOT_APPLICABLE", "POSSIBLY_APPLICABLE",
+#|     "PROBABLY_APPLICABLE", "APPLICABLE_SUPPORTED", "FIXED",
+#|     "MITIGATED", "UNKNOWN",
+#| }
+#| 
+#| EXPLOIT_AVAILABILITY_STATES = {
+#|     "NO_PUBLIC_EXPLOIT_KNOWN", "POC_REPORTED", "PUBLIC_RESEARCH_EXISTS",
+#|     "EXPLOITATION_REPORTED", "UNKNOWN",
+#| }
+#| 
+#| REMOTE_EXPLOITABILITY_STATES = {
+#|     "LOCAL_PHYSICAL", "PROXIMITY_REQUIRED", "AUTHORIZED_ACCOUNT_REQUIRED",
+#|     "NETWORK_ADJACENT", "REMOTE_SERVICE_DEPENDENT", "REMOTE_CANDIDATE",
+#|     "REMOTE_SUPPORTED", "UNKNOWN",
+#| }
+#| 
+#| OTA_STATES = {
+#|     "AVAILABLE", "SCHEDULED", "DOWNLOADED", "VERIFIED",
+#|     "INSTALLED_REPORTED", "INSTALLATION_VERIFIED", "FAILED",
+#|     "ROLLED_BACK", "UNKNOWN",
+#| }
+#| 
+#| RECALL_STATUSES = {
+#|     "OPEN", "COMPLETED", "PENDING_PARTS", "REMEDIED", "TERMINATED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| DTC_STATUSES = {
+#|     "CURRENT", "PENDING", "HISTORICAL", "CLEARED", "CONFIRMED",
+#|     "TEST_FAILED", "UNKNOWN",
+#| }
+#| 
+#| INCIDENT_TYPES = {
+#|     "CYBERSECURITY_EVENT", "FLEET_ANOMALY", "SOFTWARE_FAILURE",
+#|     "OTA_FAILURE", "SERVICE_OUTAGE", "TELEMETRY_ISSUE",
+#|     "COMPONENT_DEFECT", "DIAGNOSTIC_SESSION", "OTHER", "UNKNOWN",
+#| }
+#| 
+#| INCIDENT_STATES = {
+#|     "NO_CYBER_EVIDENCE", "ANOMALY_OBSERVED", "CYBER_EVENT_CANDIDATE",
+#|     "CYBER_EVENT_SUPPORTED", "MALFUNCTION_CANDIDATE", "INCONCLUSIVE",
+#| }
+#| 
+#| SOURCE_RELIABILITY: Dict[str, float] = {
+#|     "oem_advisory": 0.90,
+#|     "regulatory_recall": 0.90,
+#|     "supplier_bulletin": 0.86,
+#|     "authorized_ecu_record": 0.86,
+#|     "authorized_diagnostic_export": 0.84,
+#|     "authorized_can_trace": 0.82,
+#|     "authorized_telematics_export": 0.80,
+#|     "official_service_manual": 0.78,
+#|     "public_cve": 0.74,
+#|     "academic_research": 0.68,
+#|     "conference_research": 0.66,
+#|     "commercial_database": 0.58,
+#|     "media_article": 0.45,
+#|     "forum_post": 0.30,
+#|     "unknown": 0.30,
+#| }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Generic helpers
+#| # --------------------------------------------------------------------
+#| 
+#| def utc_now() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(json_safe(p)) for p in parts)
+#|     return f"{prefix}-{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:16]}"
+#| 
+#| 
+#| def json_safe(obj: Any) -> Any:
+#|     if isinstance(obj, dict):
+#|         return {str(k): json_safe(v) for k, v in obj.items()}
+#|     if isinstance(obj, (list, tuple, set)):
+#|         return [json_safe(x) for x in obj]
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, bytes):
+#|         return obj.hex()
+#|     if isinstance(obj, (str, int, float, bool, type(None))):
+#|         return obj
+#|     return str(obj)
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     if value is None:
+#|         return ""
+#|     s = unicodedata.normalize("NFKC", str(value))
+#|     s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+#|     return s.strip()
+#| 
+#| 
+#| def normalize_token(value: Any) -> str:
+#|     s = normalize_text(value).upper()
+#|     s = re.sub(r"[^A-Z0-9]+", "_", s)
+#|     return s.strip("_")
+#| 
+#| 
+#| def iso(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def parse_time(value: Any) -> Optional[datetime]:
+#|     if isinstance(value, datetime):
+#|         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     if s.endswith("Z"):
+#|         s = s[:-1] + "+00:00"
+#|     try:
+#|         dt = datetime.fromisoformat(s)
+#|         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+#|     except Exception:
+#|         pass
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d",
+#|         "%Y-%m",
+#|         "%Y",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(s, fmt)
+#|             return dt.replace(tzinfo=timezone.utc)
+#|         except Exception:
+#|             continue
+#|     return None
+#| 
+#| 
+#| def parse_int(value: Any) -> Optional[int]:
+#|     if isinstance(value, bool):
+#|         return None
+#|     if isinstance(value, int):
+#|         return value
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     try:
+#|         return int(float(s))
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def parse_float(value: Any) -> Optional[float]:
+#|     if isinstance(value, bool):
+#|         return None
+#|     if isinstance(value, (int, float)):
+#|         return float(value)
+#|     s = normalize_text(value).replace(",", "")
+#|     m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", s)
+#|     if not m:
+#|         return None
+#|     try:
+#|         return float(m.group())
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def source_list(*items: Any) -> List[str]:
+#|     out: List[str] = []
+#|     for it in items:
+#|         if it is None:
+#|             continue
+#|         if isinstance(it, list):
+#|             out.extend(normalize_text(x) for x in it if normalize_text(x))
+#|         else:
+#|             s = normalize_text(it)
+#|             if s:
+#|                 out.append(s)
+#|     return list(dict.fromkeys(out))
+#| 
+#| 
+#| def unique_preserve(items: Iterable[Any]) -> List[Any]:
+#|     seen: Set[str] = set()
+#|     out = []
+#|     for item in items:
+#|         key = json.dumps(json_safe(item), sort_keys=True, ensure_ascii=False)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+#|     return max(lo, min(hi, value))
+#| 
+#| 
+#| def norm_enum(value: Any, allowed: Set[str], default: str = "UNKNOWN") -> str:
+#|     s = normalize_token(value)
+#|     return s if s in allowed else default
+#| 
+#| 
+#| def mask_value(value: Any, keep_prefix: int = 2, keep_suffix: int = 2) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     if len(s) <= keep_prefix + keep_suffix:
+#|         return "*" * len(s)
+#|     return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+#| 
+#| 
+#| def mask_vin(value: Any) -> str:
+#|     s = normalize_text(value).upper()
+#|     if not s:
+#|         return ""
+#|     clean = re.sub(r"[^A-Z0-9]", "", s)
+#|     if len(clean) >= 6:
+#|         return f"REDACTED_VIN_LAST6:{clean[-6:]}"
+#|     return mask_value(clean, 1, 1)
+#| 
+#| 
+#| def vin_hash(value: Any) -> Optional[str]:
+#|     s = normalize_text(value).upper()
+#|     if not s:
+#|         return None
+#|     clean = re.sub(r"[^A-Z0-9]", "", s)
+#|     if not clean:
+#|         return None
+#|     return hashlib.sha256(clean.encode("utf-8")).hexdigest()
+#| 
+#| 
+#| def days_between(a: Optional[datetime], b: Optional[datetime]) -> Optional[int]:
+#|     if not a or not b:
+#|         return None
+#|     return (b - a).days
+#| 
+#| 
+#| def within_time(ts: Optional[datetime], start: Optional[datetime], end: Optional[datetime]) -> bool:
+#|     if ts is None:
+#|         return False
+#|     if start and ts < start:
+#|         return False
+#|     if end and ts > end:
+#|         return False
+#|     return True
+#| 
+#| 
+#| def normalize_version(value: Any) -> str:
+#|     return normalize_text(value).lower()
+#| 
+#| 
+#| def version_in_list(value: Any, values: Any) -> Optional[bool]:
+#|     v = normalize_version(value)
+#|     if not v or values in (None, "", []):
+#|         return None
+#|     if isinstance(values, str):
+#|         vals = [values]
+#|     elif isinstance(values, list):
+#|         vals = values
+#|     else:
+#|         vals = [str(values)]
+#|     norm = [normalize_text(x).lower() for x in vals if normalize_text(x)]
+#|     if not norm:
+#|         return None
+#|     if v in norm:
+#|         return True
+#|     if any(re.search(r"[-~]|through|to|<|>|=", x) for x in norm):
+#|         return None
+#|     return False
+#| 
+#| 
+#| def field_match(left: Any, right: Any) -> Optional[bool]:
+#|     l = normalize_text(left).lower()
+#|     r = normalize_text(right).lower()
+#|     if not l or not r:
+#|         return None
+#|     return l == r
+#| 
+#| 
+#| def list_match(values: Any, value: Any) -> Optional[bool]:
+#|     vals = source_list(values)
+#|     v = normalize_text(value).lower()
+#|     if not vals or not v:
+#|         return None
+#|     return v in [normalize_text(x).lower() for x in vals]
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / authorization
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_intent_text(manifest: Dict[str, Any]) -> str:
+#|     parts = [
+#|         normalize_text(manifest.get("objective", "")),
+#|         " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+#|         " ".join(normalize_text(x) for x in manifest.get("requested_actions", []) or []),
+#|     ]
+#|     return " ".join(parts)
+#| 
+#| 
+#| def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+#|     blob = collect_intent_text(manifest)
+#|     blocked = []
+#|     for pat, label in PROHIBITED_PATTERNS:
+#|         if pat.search(blob):
+#|             blocked.append(label)
+#|     return list(dict.fromkeys(blocked))
+#| 
+#| 
+#| def has_safety_critical_data(manifest: Dict[str, Any]) -> bool:
+#|     for e in manifest.get("ecus", []) or []:
+#|         if bool(e.get("safety_critical")):
+#|             return True
+#|     for v in manifest.get("vulnerabilities", []) or manifest.get("vulnerability_data", []) or []:
+#|         if normalize_token(v.get("safety_impact")) == "SAFETY_CRITICAL":
+#|             return True
+#|     for i in manifest.get("incidents", []) or []:
+#|         if normalize_token(i.get("safety_impact")) == "SAFETY_CRITICAL":
+#|             return True
+#|     return False
+#| 
+#| 
+#| def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+#|     auth = manifest.get("authorization") or {}
+#|     reasons: List[str] = []
+#| 
+#|     if not auth.get("approved"):
+#|         reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+#| 
+#|     scope = auth.get("scope", "provided_records_only")
+#|     if scope not in ALLOWED_SCOPES:
+#|         reasons.append("UNSUPPORTED_SCOPE")
+#| 
+#|     mode = auth.get("model_mode", "LOCAL_ONLY")
+#|     if mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+#|         reasons.append("UNKNOWN_MODEL_MODE")
+#|     if mode == "CLOUD" and not auth.get("cloud_approved"):
+#|         reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+#| 
+#|     vehicle_data_keys = (
+#|         "vehicles", "ecus", "network_architecture", "can_traces",
+#|         "diagnostic_exports", "dtcs", "telematics_data", "ota_metadata",
+#|         "sboms", "firmware_versions", "mobile_apps", "backend_services",
+#|     )
+#|     if any(manifest.get(k) for k in vehicle_data_keys) and not auth.get("vehicle_data_approved"):
+#|         reasons.append("VEHICLE_DATA_NOT_APPROVED")
+#| 
+#|     if manifest.get("active_testing_requested") and not auth.get("active_testing_approved"):
+#|         reasons.append("ACTIVE_TESTING_NOT_APPROVED")
+#| 
+#|     if manifest.get("private_telematics_requested") and not auth.get("private_telematics_approved"):
+#|         reasons.append("PRIVATE_TELEMATICS_NOT_APPROVED")
+#| 
+#|     if has_safety_critical_data(manifest) and not auth.get("safety_review_approved"):
+#|         reasons.append("SAFETY_CRITICAL_HUMAN_REVIEW_REQUIRED")
+#| 
+#|     return len(reasons) == 0, reasons
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Sources / pedigree / independence
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_referenced_source_ids(obj: Any) -> Set[str]:
+#|     ids: Set[str] = set()
+#| 
+#|     def walk(x: Any) -> None:
+#|         if isinstance(x, dict):
+#|             for k, v in x.items():
+#|                 if k in ("source_id", "source_ids"):
+#|                     if isinstance(v, list):
+#|                         ids.update(normalize_text(i) for i in v if normalize_text(i))
+#|                     else:
+#|                         s = normalize_text(v)
+#|                         if s:
+#|                             ids.add(s)
+#|                 walk(v)
+#|         elif isinstance(x, list):
+#|             for i in x:
+#|                 walk(i)
+#| 
+#|     walk(obj)
+#|     return ids
+#| 
+#| 
+#| def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     sources: Dict[str, Dict[str, Any]] = {}
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if not sid:
+#|             continue
+#|         stype = normalize_text(s.get("source_type", "unknown")).lower().replace("-", "_").replace(" ", "_")
+#|         rel = s.get("reliability", SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"]))
+#|         sources[sid] = {
+#|             "source_id": sid,
+#|             "source_type": stype,
+#|             "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+#|             "reliability": clamp(float(rel)),
+#|             "observed_at": normalize_text(s.get("observed_at")) or None,
+#|             "limitations": list(s.get("limitations", []) or []),
+#|         }
+#| 
+#|     for sid in collect_referenced_source_ids(manifest):
+#|         if sid not in sources:
+#|             sources[sid] = {
+#|                 "source_id": sid,
+#|                 "source_type": "unknown",
+#|                 "upstream_source_id": None,
+#|                 "reliability": SOURCE_RELIABILITY["unknown"],
+#|                 "observed_at": None,
+#|                 "limitations": ["Source referenced but not defined in manifest."],
+#|             }
+#|     return sources
+#| 
+#| 
+#| def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+#|     if sid in memo:
+#|         return memo[sid]
+#|     if sid in visiting:
+#|         return sid
+#|     visiting.add(sid)
+#|     src = sources.get(sid)
+#|     if not src or not src.get("upstream_source_id"):
+#|         memo[sid] = sid
+#|     else:
+#|         memo[sid] = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+#|     visiting.discard(sid)
+#|     return memo[sid]
+#| 
+#| 
+#| def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+#|     memo: Dict[str, str] = {}
+#|     for sid in sources:
+#|         resolve_source_root(sid, sources, memo, set())
+#|     return memo
+#| 
+#| 
+#| def source_family_ids(source_ids: List[str], roots: Dict[str, str]) -> List[str]:
+#|     return list(dict.fromkeys(roots.get(sid, sid) for sid in source_ids))
+#| 
+#| 
+#| def source_quality(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> Tuple[float, float]:
+#|     vals = [float(sources.get(sid, {}).get("reliability", SOURCE_RELIABILITY["unknown"])) for sid in source_ids]
+#|     if not vals:
+#|         return SOURCE_RELIABILITY["unknown"], SOURCE_RELIABILITY["unknown"]
+#|     return max(vals), sum(vals) / len(vals)
+#| 
+#| 
+#| def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+#|     if not source_ids:
+#|         return "UNKNOWN"
+#|     if len(families) <= 1:
+#|         return "DEPENDENT"
+#|     rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+#|     types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+#|     if len(types) == 1 and max(rels) < 0.70:
+#|         return "PARTIALLY_DEPENDENT"
+#|     if max(rels) >= 0.70:
+#|         return "INDEPENDENT"
+#|     return "PARTIALLY_DEPENDENT"
+#| 
+#| 
+#| def source_assessment(sids: List[str], sources: Dict[str, Dict[str, Any]], roots: Dict[str, str]) -> Dict[str, Any]:
+#|     fams = source_family_ids(sids, roots)
+#|     state = independence_state(fams, sources, sids)
+#|     max_rel, avg_rel = source_quality(sids, sources)
+#|     return {
+#|         "source_ids": sids,
+#|         "source_families": fams,
+#|         "state": state,
+#|         "max_reliability": round(max_rel, 4),
+#|         "avg_reliability": round(avg_rel, 4),
+#|     }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Ingestion
+#| # --------------------------------------------------------------------
+#| 
+#| def ingest_vehicles(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     vehicles: Dict[str, Dict[str, Any]] = {}
+#|     for idx, v in enumerate(manifest.get("vehicles", []) or []):
+#|         vid = normalize_text(v.get("vehicle_id") or v.get("id") or f"VEHICLE-{idx}")
+#|         vin = normalize_text(v.get("vin_reference") or v.get("vin"))
+#|         vehicles[vid] = {
+#|             "vehicle_id": vid,
+#|             "make": normalize_text(v.get("make")) or None,
+#|             "brand": normalize_text(v.get("brand")) or None,
+#|             "model": normalize_text(v.get("model")) or None,
+#|             "generation": normalize_text(v.get("generation")) or None,
+#|             "model_year": normalize_text(v.get("model_year")) or None,
+#|             "platform": normalize_text(v.get("platform")) or None,
+#|             "body_style": normalize_text(v.get("body_style")) or None,
+#|             "powertrain": normalize_text(v.get("powertrain")) or None,
+#|             "trim": normalize_text(v.get("trim")) or None,
+#|             "variant": normalize_text(v.get("variant")) or None,
+#|             "region": normalize_text(v.get("region")) or None,
+#|             "build_date": parse_time(v.get("build_date")),
+#|             "vin_masked": mask_vin(vin),
+#|             "vin_hash": vin_hash(vin),
+#|             "software_generation": normalize_text(v.get("software_generation")) or None,
+#|             "connectivity_package": normalize_text(v.get("connectivity_package")) or None,
+#|             "adas_package": normalize_text(v.get("adas_package")) or None,
+#|             "source_ids": source_list(v.get("source_ids"), v.get("source_id")),
+#|             "confidence": clamp(float(v.get("confidence", 0.70))),
+#|             "limitations": list(v.get("limitations", []) or []) + [
+#|                 "VIN-derived fields are claims until authoritative mapping supports them.",
+#|                 "Model is not model year; model year is not build date; platform is not individual vehicle.",
+#|             ],
+#|         }
+#|     return vehicles
+#| 
+#| 
+#| def ingest_ecus(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for idx, e in enumerate(manifest.get("ecus", []) or []):
+#|         out.append({
+#|             "ecu_id": normalize_text(e.get("ecu_id") or e.get("id") or f"ECU-{idx}"),
+#|             "vehicle_id": normalize_text(e.get("vehicle_id")) or None,
+#|             "ecu_type": norm_enum(e.get("ecu_type"), ECU_TYPES),
+#|             "manufacturer": normalize_text(e.get("manufacturer")) or None,
+#|             "supplier": normalize_text(e.get("supplier")) or None,
+#|             "oem_part_number": normalize_text(e.get("oem_part_number")) or None,
+#|             "supplier_part_number": normalize_text(e.get("supplier_part_number")) or None,
+#|             "hardware_version": normalize_text(e.get("hardware_version")) or None,
+#|             "software_version": normalize_text(e.get("software_version")) or None,
+#|             "firmware_version": normalize_text(e.get("firmware_version")) or None,
+#|             "bootloader_version": normalize_text(e.get("bootloader_version")) or None,
+#|             "network_interfaces": source_list(e.get("network_interfaces")),
+#|             "diagnostic_interfaces": source_list(e.get("diagnostic_interfaces")),
+#|             "security_features": source_list(e.get("security_features")),
+#|             "safety_critical": bool(e.get("safety_critical")),
+#|             "valid_from": parse_time(e.get("valid_from")),
+#|             "valid_to": parse_time(e.get("valid_to")),
+#|             "source_ids": source_list(e.get("source_ids"), e.get("source_id")),
+#|             "confidence": clamp(float(e.get("confidence", 0.65))),
+#|             "limitations": [
+#|                 "ECU function name is not exact ECU implementation.",
+#|                 "Part-number family is not exact hardware without revision/version evidence.",
+#|             ],
+#|         })
+#|     return out
+#| 
+#| 
+#| def ingest_records(
+#|     manifest: Dict[str, Any],
+#|     key: str,
+#|     id_prefix: str,
+#|     extra_str_fields: Tuple[str, ...] = (),
+#|     extra_list_fields: Tuple[str, ...] = (),
+#|     extra_bool_fields: Tuple[str, ...] = (),
+#|     extra_time_fields: Tuple[str, ...] = (),
+#|     extra_int_fields: Tuple[str, ...] = (),
+#|     extra_float_fields: Tuple[str, ...] = (),
+#| ) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for idx, r in enumerate(manifest.get(key, []) or []):
+#|         rec = {
+#|             "record_id": normalize_text(r.get("id") or r.get(f"{id_prefix.lower()}_id")) or f"{id_prefix}-{idx}",
+#|             "vehicle_id": normalize_text(r.get("vehicle_id")) or None,
+#|             "ecu_id": normalize_text(r.get("ecu_id")) or None,
+#|             "source_ids": source_list(r.get("source_ids"), r.get("source_id")),
+#|             "confidence": clamp(float(r.get("confidence", 0.60))),
+#|         }
+#|         for f in extra_str_fields:
+#|             rec[f] = normalize_text(r.get(f)) or None
+#|         for f in extra_list_fields:
+#|             rec[f] = source_list(r.get(f))
+#|         for f in extra_bool_fields:
+#|             rec[f] = bool(r.get(f)) if r.get(f) is not None else None
+#|         for f in extra_time_fields:
+#|             rec[f] = parse_time(r.get(f))
+#|         for f in extra_int_fields:
+#|             rec[f] = parse_int(r.get(f))
+#|         for f in extra_float_fields:
+#|             rec[f] = parse_float(r.get(f))
+#|         out.append(rec)
+#|     return out
+#| 
+#| 
+#| def index_by_vehicle(records: List[Dict[str, Any]], valid_ids: Set[str], record_type: str) -> Tuple[Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]]]:
+#|     d: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     unknown = []
+#|     for r in records:
+#|         vid = r.get("vehicle_id")
+#|         if vid and vid in valid_ids:
+#|             d[vid].append(r)
+#|         else:
+#|             unknown.append({
+#|                 "record_type": record_type,
+#|                 "record_id": r.get("record_id"),
+#|                 "vehicle_id": vid,
+#|                 "ecu_id": r.get("ecu_id"),
+#|             })
+#|     return d, unknown
+#| 
+#| 
+#| def determine_as_of(
+#|     manifest: Dict[str, Any],
+#|     vehicles: Dict[str, Dict[str, Any]],
+#|     all_records: Dict[str, List[Dict[str, Any]]],
+#|     sources: Dict[str, Dict[str, Any]],
+#| ) -> Optional[datetime]:
+#|     candidates: List[datetime] = []
+#|     as_of = parse_time((manifest.get("time_range") or {}).get("as_of"))
+#|     if as_of:
+#|         candidates.append(as_of)
+#|     for v in vehicles.values():
+#|         for k in ("build_date",):
+#|             dt = v.get(k)
+#|             if isinstance(dt, datetime):
+#|                 candidates.append(dt)
+#|     date_keys = (
+#|         "timestamp", "occurred_at", "first_seen", "cleared_at",
+#|         "effective_at", "installed_at", "generated_at", "valid_from",
+#|         "valid_to", "start", "end", "observed_at",
+#|     )
+#|     for recs in all_records.values():
+#|         for r in recs:
+#|             for k in date_keys:
+#|                 dt = r.get(k)
+#|                 if isinstance(dt, datetime):
+#|                     candidates.append(dt)
+#|     for s in sources.values():
+#|         dt = parse_time(s.get("observed_at"))
+#|         if dt:
+#|             candidates.append(dt)
+#|     return max(candidates) if candidates else None
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Assessment
+#| # --------------------------------------------------------------------
+#| 
+#| def assess_vehicle_identity(v: Dict[str, Any], sa: Dict[str, Any]) -> Dict[str, Any]:
+#|     max_rel = float(sa.get("max_reliability", 0.0))
+#| 
+#|     def state(field: str, threshold: float = 0.80) -> str:
+#|         if not v.get(field):
+#|             return "UNKNOWN"
+#|         return "SUPPORTED" if max_rel >= threshold else "CANDIDATE"
+#| 
+#|     return {
+#|         "make_state": state("make"),
+#|         "model_state": state("model"),
+#|         "model_year_state": state("model_year"),
+#|         "generation_state": state("generation"),
+#|         "platform_state": state("platform"),
+#|         "trim_state": state("trim"),
+#|         "variant_state": state("variant"),
+#|         "region_state": state("region"),
+#|         "powertrain_state": state("powertrain"),
+#|         "vin_privacy_state": "REDACTED_BY_DEFAULT",
+#|         "source_assessment": sa,
+#|         "limitations": [
+#|             "VIN is privacy-sensitive and masked in normal reports.",
+#|             "VIN does not identify owner/driver automatically.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def assess_ecu(e: Dict[str, Any], sa: Dict[str, Any]) -> Dict[str, Any]:
+#|     max_rel = float(sa.get("max_reliability", 0.0))
+#| 
+#|     def state(field: str, threshold: float = 0.80) -> str:
+#|         if not e.get(field):
+#|             return "UNKNOWN"
+#|         return "SUPPORTED" if max_rel >= threshold else "CANDIDATE"
+#| 
+#|     part_state = "UNKNOWN"
+#|     if e.get("oem_part_number") or e.get("supplier_part_number"):
+#|         part_state = "SUPPORTED" if max_rel >= 0.80 else "CANDIDATE"
+#| 
+#|     return {
+#|         "ecu_type_state": state("ecu_type"),
+#|         "manufacturer_state": state("manufacturer"),
+#|         "supplier_state": state("supplier"),
+#|         "part_number_state": part_state,
+#|         "hardware_version_state": state("hardware_version"),
+#|         "software_version_state": state("software_version"),
+#|         "firmware_version_state": state("firmware_version"),
+#|         "bootloader_version_state": state("bootloader_version"),
+#|         "safety_critical": bool(e.get("safety_critical")),
+#|         "source_assessment": sa,
+#|         "limitations": [
+#|             "ECU class/name is not exact implementation.",
+#|             "Hardware revision and software/firmware version affect applicability.",
+#|         ],
+#|     }
+#| 
+#| 

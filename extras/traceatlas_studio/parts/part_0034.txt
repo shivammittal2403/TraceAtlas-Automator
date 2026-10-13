@@ -1,0 +1,1000 @@
+#|                 "No speech transcription performed.",
+#|                 "No speaker diarization performed.",
+#|                 "Selected segment may miss relevant context outside time range.",
+#|             ],
+#|         }
+#| 
+#|         cmd = [
+#|             ffmpeg,
+#|             "-hide_banner",
+#|             "-loglevel",
+#|             "error",
+#|             "-ss",
+#|             f"{start:.3f}",
+#|             "-t",
+#|             f"{seg_len:.3f}",
+#|             "-i",
+#|             str(path),
+#|             "-vn",
+#|             "-acodec",
+#|             "pcm_s16le",
+#|             "-ar",
+#|             "16000",
+#|             "-ac",
+#|             "1",
+#|             str(out),
+#|             "-y",
+#|         ]
+#| 
+#|         try:
+#|             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+#|         except subprocess.TimeoutExpired:
+#|             segment["status"] = "FAILED_TIMEOUT"
+#|             segments.append(segment)
+#|             continue
+#|         except Exception as exc:
+#|             segment["status"] = "FAILED_EXCEPTION"
+#|             segment["error"] = f"{exc.__class__.__name__}: {exc}"
+#|             segments.append(segment)
+#|             continue
+#| 
+#|         if proc.returncode == 0 and out.exists():
+#|             try:
+#|                 segment["content_hash"] = sha256_file(out)
+#|                 segment["size_bytes"] = out.stat().st_size
+#|             except Exception as exc:
+#|                 segment["hash_error"] = str(exc)
+#|             segment["status"] = "SUCCEEDED"
+#|         else:
+#|             segment["status"] = "FAILED_FFMPEG"
+#|             segment["returncode"] = proc.returncode
+#|             segment["stderr"] = proc.stderr[:1000]
+#| 
+#|         segments.append(segment)
+#| 
+#|     return segments
+#| 
+#| 
+#| class TraceAtlasAUDINTPanel(tk.Tk):
+#|     def __init__(self) -> None:
+#|         super().__init__()
+#|         self.title(APP_TITLE)
+#|         self.geometry("1380x940")
+#|         self.minsize(1100, 760)
+#| 
+#|         self.entries: Dict[str, Any] = {}
+#|         self.last_result: Dict[str, Any] = {}
+#|         self.analyzed_audio: List[Dict[str, Any]] = []
+#|         self.extracted_segments: List[Dict[str, Any]] = []
+#| 
+#|         self._configure_style()
+#|         self._build_ui()
+#|         self._set_defaults()
+#| 
+#|     def _configure_style(self) -> None:
+#|         style = ttk.Style(self)
+#| 
+#|         try:
+#|             style.theme_use("clam")
+#|         except tk.TclError:
+#|             pass
+#| 
+#|         self.configure(bg="#0b0f19")
+#| 
+#|         style.configure("TFrame", background="#0b0f19")
+#|         style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+#|         style.configure(
+#|             "Header.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#facc15",
+#|             font=("Segoe UI", 17, "bold"),
+#|         )
+#|         style.configure(
+#|             "Subheader.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#94a3b8",
+#|             font=("Segoe UI", 9),
+#|         )
+#|         style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+#|         style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+#| 
+#|         style.configure(
+#|             "TEntry",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             insertcolor="#ffffff",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TCombobox",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             arrowcolor="#e5e7eb",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TButton",
+#|             padding=7,
+#|             font=("Segoe UI", 10, "bold"),
+#|             background="#1f2937",
+#|             foreground="#e5e7eb",
+#|             bordercolor="#475569",
+#|             lightcolor="#475569",
+#|             darkcolor="#475569",
+#|         )
+#| 
+#|         style.map(
+#|             "TButton",
+#|             background=[("active", "#334155")],
+#|             foreground=[("active", "#ffffff")],
+#|         )
+#| 
+#|         style.configure(
+#|             "Vertical.TScrollbar",
+#|             background="#1f2937",
+#|             troughcolor="#0b0f19",
+#|             arrowcolor="#e5e7eb",
+#|         )
+#| 
+#|     def _build_ui(self) -> None:
+#|         header = ttk.Frame(self)
+#|         header.pack(fill="x", padx=16, pady=(14, 8))
+#| 
+#|         ttk.Label(header, text="TraceAtlas AUDINT AI Employee", style="Header.TLabel").pack(anchor="w")
+#| 
+#|         ttk.Label(
+#|             header,
+#|             text=(
+#|                 "Public / authorized audio intelligence only • Evidence-first • Privacy-safe • "
+#|                 "Local deterministic hashing/metadata/loudness/segments only • No wiretapping • No private calls • "
+#|                 "No biometric voice ID • No lie detection • No emotion diagnosis • ASR/diarization planning-only unless configured"
+#|             ),
+#|             style="Subheader.TLabel",
+#|             wraplength=1280,
+#|             justify="left",
+#|         ).pack(anchor="w", pady=(2, 0))
+#| 
+#|         self.notebook = ttk.Notebook(self)
+#|         self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+#| 
+#|         self.input_tab = ttk.Frame(self.notebook)
+#|         self.output_tab = ttk.Frame(self.notebook)
+#| 
+#|         self.notebook.add(self.input_tab, text="AUDINT Task Input")
+#|         self.notebook.add(self.output_tab, text="Output / AUDINT Plan / Evidence")
+#| 
+#|         self._build_input_tab()
+#|         self._build_output_tab()
+#| 
+#|     def _build_input_tab(self) -> None:
+#|         container = ttk.Frame(self.input_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+#|         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+#|         self.form = ttk.Frame(self.canvas)
+#| 
+#|         self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+#|         self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+#|         self.canvas.configure(yscrollcommand=scrollbar.set)
+#| 
+#|         self.canvas.pack(side="left", fill="both", expand=True)
+#|         scrollbar.pack(side="right", fill="y")
+#| 
+#|         row = 0
+#| 
+#|         for key, label, kind in FIELDS:
+#|             ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+#| 
+#|             if kind == "entry":
+#|                 widget = ttk.Entry(self.form, width=102)
+#| 
+#|             elif kind == "combo":
+#|                 widget = ttk.Combobox(
+#|                     self.form,
+#|                     values=TARGET_TYPES if key == "target_type" else [],
+#|                     width=100,
+#|                     state="readonly",
+#|                 )
+#| 
+#|             else:
+#|                 widget = tk.Text(
+#|                     self.form,
+#|                     height=3,
+#|                     width=102,
+#|                     bg="#111827",
+#|                     fg="#e5e7eb",
+#|                     insertbackground="white",
+#|                     relief="flat",
+#|                     highlightthickness=1,
+#|                     highlightbackground="#334155",
+#|                     font=("Segoe UI", 10),
+#|                     wrap="word",
+#|                 )
+#| 
+#|             widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+#|             self.entries[key] = widget
+#|             row += 1
+#| 
+#|         self.form.columnconfigure(1, weight=1)
+#| 
+#|         buttons = ttk.Frame(self.input_tab)
+#|         buttons.pack(fill="x", padx=10, pady=12)
+#| 
+#|         ttk.Button(buttons, text="Add Audio Files", command=self.add_audio_files).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Analyze Local Audio", command=self.analyze_local_audio).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Extract Sample Segments", command=self.extract_sample_segments).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Generate AUDINT Plan", command=self.generate_plan).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+#| 
+#|     def _build_output_tab(self) -> None:
+#|         container = ttk.Frame(self.output_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.output = tk.Text(
+#|             container,
+#|             wrap="word",
+#|             bg="#020617",
+#|             fg="#fef08a",
+#|             insertbackground="white",
+#|             relief="flat",
+#|             highlightthickness=1,
+#|             highlightbackground="#334155",
+#|             font=("Consolas", 11),
+#|         )
+#| 
+#|         output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+#|         self.output.configure(yscrollcommand=output_scroll.set)
+#| 
+#|         self.output.pack(side="left", fill="both", expand=True)
+#|         output_scroll.pack(side="right", fill="y")
+#| 
+#|     def _set_defaults(self) -> None:
+#|         self.set_widget_value("case_id", "AUDINT-CASE-001")
+#|         self.set_widget_value("task_id", "AUDINT-TASK-001")
+#|         self.set_widget_value(
+#|             "objective",
+#|             "Analyze lawfully supplied, public, or explicitly authorized audio evidence using evidence-first, "
+#|             "privacy-safe AUDINT methods. Preserve originals, extract deterministic technical metadata and sample "
+#|             "segments where lawful/authorized, separate observations from inferences, and produce structured "
+#|             "intelligence without private interception, biometric voice identification, lie detection, or "
+#|             "sensitive-attribute inference.",
+#|         )
+#|         self.set_widget_value("target", "Illustrative public audio context")
+#|         self.set_widget_value("target_type", "audio")
+#|         self.set_widget_value(
+#|             "questions",
+#|             "What audio evidence is present and how reliable is its technical metadata?\n"
+#|             "What speech, non-speech, music, noise, or silence segments exist if ASR/VAD are configured?\n"
+#|             "What was actually said, with timestamps, if transcription is authorized/configured?\n"
+#|             "How many distinguishable anonymous speaker tracks exist, if diarization is configured?\n"
+#|             "What languages or code-switching are present, if language ID is configured?\n"
+#|             "What acoustic events or background clues are present?\n"
+#|             "What spoken claims are made, and how are they separated from verified facts?\n"
+#|             "Are clips duplicated, reused, edited, recompressed, speed/pitch changed, or synthetic?\n"
+#|             "What provenance/source-independence limitations exist?\n"
+#|             "Which specialist should investigate next?",
+#|         )
+#|         self.set_widget_value("audio_paths", "")
+#|         self.set_widget_value(
+#|             "audio_sources",
+#|             "https://example.com/about (illustrative public page from Knowledge Base; no audio artifact attached)",
+#|         )
+#|         self.set_widget_value("video_ids_if_relevant", "")
+#|         self.set_widget_value("reference_transcripts", "")
+#|         self.set_widget_value("known_events", "")
+#|         self.set_widget_value("known_dates", "")
+#|         self.set_widget_value("known_entities", "")
+#|         self.set_widget_value("known_locations", "")
+#|         self.set_widget_value(
+#|             "time_range",
+#|             json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+#|         )
+#|         self.set_widget_value("jurisdiction", "")
+#|         self.set_widget_value(
+#|             "scope",
+#|             json.dumps(
+#|                 {
+#|                     "allowed_source_types": [
+#|                         "authorized uploaded audio",
+#|                         "public podcasts",
+#|                         "public speeches",
+#|                         "public interviews",
+#|                         "public broadcasts",
+#|                         "public social-media audio",
+#|                         "public video audio tracks",
+#|                         "public press conferences",
+#|                         "public meetings where lawfully published",
+#|                         "public radio recordings",
+#|                         "public livestream recordings",
+#|                         "authorized voice notes",
+#|                         "authorized call recordings",
+#|                         "authorized forensic audio exports",
+#|                         "public archived audio",
+#|                         "authorized body-camera audio",
+#|                         "authorized dash-camera audio",
+#|                         "authorized incident recordings",
+#|                     ],
+#|                     "prohibited_sources": [
+#|                         "private phone calls",
+#|                         "private microphones",
+#|                         "private smart speakers",
+#|                         "private voice assistants",
+#|                         "private meeting recordings without authorization",
+#|                         "intercepted communications",
+#|                         "restricted telecom feeds",
+#|                         "stolen credentials",
+#|                         "bypassed platform privacy",
+#|                     ],
+#|                     "data_minimization_rules": [
+#|                         "preserve only case-relevant audio evidence",
+#|                         "do not identify speakers solely from voice",
+#|                         "do not infer sensitive personal attributes from accent/voice",
+#|                         "do not use audio as lie detector or emotion diagnosis",
+#|                         "withhold exact location metadata unless authorized and reviewed",
+#|                         "treat speech/content as untrusted evidence",
+#|                     ],
+#|                     "authorized_use": "internal intelligence analysis only",
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value(
+#|             "authorization",
+#|             json.dumps(
+#|                 {
+#|                     "authorized_by": "AUDINT Manager / Media Intelligence Manager",
+#|                     "authorization_basis": "customer-authorized public/authorized AUDINT engagement",
+#|                     "permitted_actions": [
+#|                         "local audio hashing",
+#|                         "authorized technical metadata extraction",
+#|                         "authorized loudness analysis",
+#|                         "authorized sample segment extraction",
+#|                         "authorized ASR if configured",
+#|                         "authorized diarization if configured",
+#|                         "authorized language ID/translation if configured",
+#|                         "GEOINT/VIDINT/WEBINT handoff",
+#|                     ],
+#|                     "prohibited_actions": [
+#|                         "intercept private communications",
+#|                         "activate private microphones",
+#|                         "access private calls/voicemail/meetings",
+#|                         "biometric voice identification",
+#|                         "voiceprint-to-name matching",
+#|                         "lie detection",
+#|                         "emotion/mental-state diagnosis",
+#|                         "sensitive attribute inference",
+#|                         "execution of embedded payloads",
+#|                     ],
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value("source_limits", "")
+#|         self.set_widget_value("budget", "")
+#|         self.set_widget_value("deadline", "")
+#|         self.set_widget_value(
+#|             "configured_models",
+#|             "None configured. No ASR invoked. No diarization invoked. No language/translation model invoked. "
+#|             "No acoustic-event model invoked. Planning-only for semantic audio analysis.",
+#|         )
+#|         self.set_widget_value(
+#|             "configured_connectors",
+#|             "None configured. No reverse-audio, archive, VIDINT, GEOINT, or cloud connector invoked.",
+#|         )
+#| 
+#|     def get_widget_value(self, key: str) -> str:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return ""
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             return widget.get("1.0", "end-1c").strip()
+#| 
+#|         if isinstance(widget, ttk.Combobox):
+#|             return widget.get().strip()
+#| 
+#|         if isinstance(widget, ttk.Entry):
+#|             return widget.get().strip()
+#| 
+#|         return ""
+#| 
+#|     def set_widget_value(self, key: str, value: str) -> None:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             widget.delete("1.0", "end")
+#|             widget.insert("1.0", value)
+#|         elif isinstance(widget, ttk.Combobox):
+#|             widget.set(value)
+#|         elif isinstance(widget, ttk.Entry):
+#|             widget.delete(0, "end")
+#|             widget.insert(0, value)
+#| 
+#|     def collect_payload(self) -> Dict[str, Any]:
+#|         payload: Dict[str, Any] = {}
+#| 
+#|         for key, _, _ in FIELDS:
+#|             raw = self.get_widget_value(key)
+#| 
+#|             if key in LIST_FIELDS:
+#|                 payload[key] = parse_list(raw)
+#|             elif key in DICT_FIELDS:
+#|                 payload[key] = parse_dict(raw)
+#|             else:
+#|                 payload[key] = raw
+#| 
+#|         payload["generated_at"] = now_utc()
+#|         payload["panel_version"] = APP_VERSION
+#|         payload["operating_mode"] = "PLANNING_ONLY"
+#|         payload["source_boundary"] = "PUBLIC_OR_AUTHORIZED_AUDIO_ONLY"
+#|         payload["tool_availability"] = {
+#|             "ffprobe": bool(shutil.which("ffprobe")),
+#|             "ffmpeg": bool(shutil.which("ffmpeg")),
+#|         }
+#|         return payload
+#| 
+#|     def validate_payload(self, payload: Dict[str, Any]) -> List[str]:
+#|         warnings: List[str] = []
+#| 
+#|         required = ["case_id", "task_id", "objective", "target", "target_type"]
+#|         for field in required:
+#|             if not payload.get(field):
+#|                 warnings.append(f"Missing required field: {field}")
+#| 
+#|         if not payload.get("questions"):
+#|             warnings.append("No AUDINT questions provided. Default questions will be inferred.")
+#| 
+#|         if not payload.get("audio_paths") and not payload.get("audio_sources"):
+#|             warnings.append("No local audio paths or audio sources provided. Output remains planning-only.")
+#| 
+#|         if not payload.get("tool_availability", {}).get("ffprobe"):
+#|             warnings.append("ffprobe is not available. Technical audio metadata will be limited.")
+#| 
+#|         if not payload.get("tool_availability", {}).get("ffmpeg"):
+#|             warnings.append("ffmpeg is not available. Loudness analysis and sample segment extraction will be blocked.")
+#| 
+#|         if not payload.get("configured_models"):
+#|             warnings.append("No ASR/diarization/language/event models configured. Semantic audio analysis remains planning-only.")
+#| 
+#|         if not payload.get("configured_connectors"):
+#|             warnings.append("No reverse-audio/archive/VIDINT/GEOINT connectors configured. External provenance checks remain planning-only.")
+#| 
+#|         if payload.get("target_type") in {
+#|             "authorized_call_recording",
+#|             "voice_note",
+#|             "body_camera_audio",
+#|             "dash_camera_audio",
+#|             "speaker_identity_context_privacy_limited",
+#|         }:
+#|             warnings.append(
+#|                 "Sensitive/authorized recording context triggers privacy controls. "
+#|                 "No private interception, biometric voice ID, lie detection, or sensitive-attribute inference is permitted."
+#|             )
+#| 
+#|         if payload.get("video_ids_if_relevant") and not payload.get("configured_connectors"):
+#|             warnings.append("Video context referenced but no VIDINT connector configured. Audio-video sync remains planning-only.")
+#| 
+#|         time_range = payload.get("time_range", {})
+#|         if isinstance(time_range, dict):
+#|             if not time_range.get("from") and not time_range.get("to"):
+#|                 warnings.append("No time range provided. Temporal audio analysis may be incomplete.")
+#| 
+#|         return warnings
+#| 
+#|     def policy_screen(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+#|         scanned_text = " ".join(
+#|             [
+#|                 str(payload.get("objective", "")),
+#|                 " ".join(str(q) for q in payload.get("questions", [])),
+#|                 str(payload.get("target", "")),
+#|                 " ".join(str(s) for s in payload.get("audio_sources", [])),
+#|                 " ".join(str(e) for e in payload.get("known_entities", [])),
+#|                 " ".join(str(l) for l in payload.get("known_locations", [])),
+#|                 " ".join(str(ev) for ev in payload.get("known_events", [])),
+#|             ]
+#|         ).lower()
+#| 
+#|         blocked_reasons: List[str] = []
+#| 
+#|         for pattern in POLICY_BLOCK_PATTERNS:
+#|             if re.search(pattern, scanned_text, re.IGNORECASE):
+#|                 blocked_reasons.append(pattern)
+#| 
+#|         human_review_required = False
+#|         privacy_notes: List[str] = []
+#| 
+#|         sensitive_types = {
+#|             "authorized_call_recording",
+#|             "voice_note",
+#|             "body_camera_audio",
+#|             "dash_camera_audio",
+#|             "speaker_identity_context_privacy_limited",
+#|         }
+#| 
+#|         if payload.get("target_type") in sensitive_types:
+#|             human_review_required = True
+#|             privacy_notes.append(
+#|                 "Sensitive/authorized recording context requires privacy-preserving analysis. "
+#|                 "No private interception, biometric voice identification, lie detection, emotion diagnosis, "
+#|                 "or sensitive-attribute inference is permitted."
+#|             )
+#| 
+#|         if payload.get("known_entities") and payload.get("target_type") in sensitive_types:
+#|             human_review_required = True
+#|             privacy_notes.append(
+#|                 "Entity/speaker context must not be resolved from voice alone. "
+#|                 "Identity attribution must come from independent, authorized evidence."
+#|             )
+#| 
+#|         if blocked_reasons:
+#|             return {
+#|                 "status": "POLICY_BLOCKED",
+#|                 "reasons": sorted(set(blocked_reasons)),
+#|                 "human_review_required": True,
+#|                 "privacy_notes": privacy_notes,
+#|                 "explanation": (
+#|                     "The requested task appears to require private communication interception, microphone access, "
+#|                     "private call/voicemail access, biometric voice identification, lie detection, emotion/mental-state "
+#|                     "diagnosis, sensitive-attribute inference, or other prohibited AUDINT behavior."
+#|                 ),
+#|                 "safe_alternatives": SAFE_ALTERNATIVES,
+#|             }
+#| 
+#|         if human_review_required:
+#|             return {
+#|                 "status": "HUMAN_REVIEW_REQUIRED",
+#|                 "reasons": [],
+#|                 "human_review_required": True,
+#|                 "privacy_notes": privacy_notes,
+#|                 "explanation": (
+#|                     "No obvious hard policy violation detected, but sensitive/authorized recording or speaker-identity "
+#|                     "context applies. Conclusions must remain privacy-preserving, non-biometric, and human-reviewed."
+#|                 ),
+#|                 "safe_alternatives": SAFE_ALTERNATIVES,
+#|             }
+#| 
+#|         return {
+#|             "status": "ALLOWED_PUBLIC_OR_AUTHORIZED",
+#|             "reasons": [],
+#|             "human_review_required": False,
+#|             "privacy_notes": [],
+#|             "explanation": (
+#|                 "No obvious policy violation detected. Execution remains planning-only unless authorized audio models, "
+#|                 "connectors, or forensic tools are configured."
+#|             ),
+#|             "safe_alternatives": [],
+#|         }
+#| 
+#|     def add_audio_files(self) -> None:
+#|         paths = filedialog.askopenfilenames(
+#|             title="Select authorized/public audio files",
+#|             filetypes=[
+#|                 ("Audio files", "*.mp3 *.wav *.m4a *.aac *.ogg *.opus *.flac *.wma *.amr *.mp4 *.m4b *.webm"),
+#|                 ("All files", "*.*"),
+#|             ],
+#|         )
+#| 
+#|         if not paths:
+#|             return
+#| 
+#|         current = self.get_widget_value("audio_paths")
+#|         added = "\n".join(paths)
+#|         new_value = current + ("\n" if current else "") + added
+#|         self.set_widget_value("audio_paths", new_value)
+#|         messagebox.showinfo("Audio Files Added", f"{len(paths)} audio path(s) added to Local Audio File Paths.")
+#| 
+#|     def run_policy_screen(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = self.policy_screen(payload)
+#| 
+#|         result = {
+#|             "mode": "POLICY_SCREEN_ONLY",
+#|             "panel_version": APP_VERSION,
+#|             "policy_screen": policy,
+#|             "payload_preview": {
+#|                 "case_id": payload.get("case_id"),
+#|                 "task_id": payload.get("task_id"),
+#|                 "objective": payload.get("objective"),
+#|                 "target": payload.get("target"),
+#|                 "target_type": payload.get("target_type"),
+#|                 "has_local_audio": bool(payload.get("audio_paths")),
+#|                 "has_audio_sources": bool(payload.get("audio_sources")),
+#|                 "has_video_context": bool(payload.get("video_ids_if_relevant")),
+#|                 "has_reference_transcripts": bool(payload.get("reference_transcripts")),
+#|                 "tool_availability": payload.get("tool_availability"),
+#|             },
+#|         }
+#| 
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             messagebox.showwarning(
+#|                 "Policy Blocked",
+#|                 "This AUDINT request is policy-blocked.\n\n"
+#|                 + "\n".join(policy["reasons"])
+#|                 + "\n\nUse only lawful/public/authorized audio alternatives.",
+#|             )
+#|         elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+#|             messagebox.showwarning(
+#|                 "Human Review Required",
+#|                 "No hard policy block detected, but sensitive/authorized recording privacy controls apply.",
+#|             )
+#|         else:
+#|             messagebox.showinfo(
+#|                 "Policy Screen",
+#|                 "No obvious policy violation detected. Planning-only mode remains active.",
+#|             )
+#| 
+#|     def analyze_local_audio(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = self.policy_screen(payload)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             result = {
+#|                 "mode": "POLICY_BLOCKED",
+#|                 "panel_version": APP_VERSION,
+#|                 "policy_screen": policy,
+#|                 "audio_inventory": [],
+#|                 "observations": [],
+#|                 "candidate_facts": [],
+#|             }
+#|             self.last_result = result
+#|             self._write_output(result)
+#|             messagebox.showwarning("Policy Blocked", "Local audio analysis blocked by policy screen.")
+#|             return
+#| 
+#|         paths = [str(p).strip() for p in payload.get("audio_paths", []) if str(p).strip()]
+#| 
+#|         if not paths:
+#|             messagebox.showwarning("No Audio", "Add local audio files or enter audio paths first.")
+#|             return
+#| 
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", "Analyzing local audio. Hashing and ffmpeg checks may take time...\n")
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         def worker() -> None:
+#|             analyzed: List[Dict[str, Any]] = []
+#|             for p in paths[:10]:
+#|                 analyzed.append(analyze_audio_file(p))
+#| 
+#|             self.analyzed_audio = analyzed
+#|             report = self._build_local_analysis_report(analyzed, payload, policy)
+#|             self.after(0, lambda: self._show_local_analysis(report))
+#| 
+#|         threading.Thread(target=worker, daemon=True).start()
+#| 
+#|     def extract_sample_segments(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = self.policy_screen(payload)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             result = {
+#|                 "mode": "POLICY_BLOCKED",
+#|                 "panel_version": APP_VERSION,
+#|                 "policy_screen": policy,
+#|                 "segment_inventory": [],
+#|             }
+#|             self.last_result = result
+#|             self._write_output(result)
+#|             messagebox.showwarning("Policy Blocked", "Sample segment extraction blocked by policy screen.")
+#|             return
+#| 
+#|         paths = [str(p).strip() for p in payload.get("audio_paths", []) if str(p).strip()]
+#| 
+#|         if not paths:
+#|             messagebox.showwarning("No Audio", "Add local audio files or enter audio paths first.")
+#|             return
+#| 
+#|         output_dir = filedialog.askdirectory(title="Select output folder for derived audio segments")
+#|         if not output_dir:
+#|             return
+#| 
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", "Extracting sample audio segments with local ffmpeg. This may take time...\n")
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         def worker() -> None:
+#|             analyzed_map = {a.get("path"): a for a in self.analyzed_audio}
+#|             all_segments: List[Dict[str, Any]] = []
+#| 
+#|             for p in paths[:5]:
+#|                 expanded = str(Path(p).expanduser())
+#|                 meta = analyzed_map.get(expanded)
+#|                 all_segments.extend(
+#|                     extract_sample_segments_for_audio(
+#|                         path_str=p,
+#|                         output_dir_str=output_dir,
+#|                         max_segments=3,
+#|                         segment_seconds=10.0,
+#|                         audio_meta=meta,
+#|                     )
+#|                 )
+#| 
+#|             self.extracted_segments = all_segments
+#|             report = self._build_segment_report(all_segments, payload, policy)
+#|             self.after(0, lambda: self._show_segment_report(report))
+#| 
+#|         threading.Thread(target=worker, daemon=True).start()
+#| 
+#|     def generate_plan(self) -> None:
+#|         payload = self.collect_payload()
+#|         warnings = self.validate_payload(payload)
+#|         policy = self.policy_screen(payload)
+#| 
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             result = {
+#|                 "mode": "POLICY_BLOCKED",
+#|                 "panel_version": APP_VERSION,
+#|                 "policy_screen": policy,
+#|                 "warnings": warnings,
+#|                 "payload": payload,
+#|                 "audint_collection_plan": [],
+#|                 "next_best_action": {
+#|                     "action": "Revise task to remove prohibited audio-intelligence behavior.",
+#|                     "owner": "AUDINT Manager / Media Intelligence Manager",
+#|                     "expected_output": "Policy-compliant AUDINT scope and question set.",
+#|                 },
+#|             }
+#|             self.last_result = result
+#|             self._write_output(result)
+#|             messagebox.showwarning(
+#|                 "Policy Blocked",
+#|                 "AUDINT plan not generated because the request is policy-blocked.",
+#|             )
+#|             return
+#| 
+#|         questions = payload.get("questions") or self._default_questions(payload)
+#|         analyzed = self.analyzed_audio
+#|         segments = self.extracted_segments
+#| 
+#|         observations = self._build_observations_from_analyzed_audio(analyzed)
+#|         observations.extend(self._build_observations_from_segments(segments))
+#| 
+#|         candidate_facts = self._build_candidate_facts_from_analyzed_audio(analyzed)
+#|         candidate_facts.extend(self._build_candidate_facts_from_segments(segments))
+#| 
+#|         overall_status = "PLANNING_ONLY"
+#|         if policy["status"] == "HUMAN_REVIEW_REQUIRED":
+#|             overall_status = "HUMAN_REVIEW_REQUIRED"
+#|         if analyzed or segments:
+#|             overall_status = "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE"
+#| 
+#|         result = {
+#|             "mode": overall_status,
+#|             "panel_version": APP_VERSION,
+#|             "policy": (
+#|                 "This output does not intercept private communications, access private microphones/calls, "
+#|                 "perform biometric voice identification, use voice as a lie detector, infer emotion/mental state, "
+#|                 "or infer sensitive attributes from accent/voice. Local deterministic analysis is limited to hashing, "
+#|                 "container detection, technical metadata via ffprobe if available, loudness via ffmpeg if available, "
+#|                 "and derived sample segments via ffmpeg if available. ASR, diarization, language ID, translation, "
+#|                 "acoustic-event detection, provenance, and synthetic-audio analysis remain planning-only unless configured."
+#|             ),
+#|             "policy_screen": policy,
+#|             "warnings": warnings,
+#|             "payload": payload,
+#|             "intelligence_questions": questions,
+#|             "audio_inventory": analyzed,
+#|             "segment_inventory": segments,
+#|             "observations": observations,
+#|             "candidate_facts": candidate_facts,
+#|             "fact_gate": self._fact_gate_for_local_analysis(analyzed, segments),
+#|             "audint_collection_plan": self._build_collection_plan(payload, questions, analyzed, segments),
+#|             **self._policy_sections(),
+#|             **self._schemas(),
+#|         }
+#| 
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         if warnings:
+#|             messagebox.showwarning(
+#|                 "Validation Warnings",
+#|                 "AUDINT plan generated with warnings:\n\n" + "\n".join(warnings),
+#|             )
+#| 
+#|     def _show_local_analysis(self, report: Dict[str, Any]) -> None:
+#|         self.last_result = report
+#|         self._write_output(report)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         succeeded = sum(1 for a in report.get("audio_inventory", []) if a.get("status") == "SUCCEEDED")
+#|         messagebox.showinfo(
+#|             "Local Audio Analysis Complete",
+#|             f"Processed {len(report.get('audio_inventory', []))} audio path(s).\n"
+#|             f"Succeeded: {succeeded}\n"
+#|             "Review output for limitations and next actions.",
+#|         )
+#| 
+#|     def _show_segment_report(self, report: Dict[str, Any]) -> None:
+#|         self.last_result = report
+#|         self._write_output(report)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|         succeeded = sum(1 for s in report.get("segment_inventory", []) if s.get("status") == "SUCCEEDED")
+#|         messagebox.showinfo(
+#|             "Sample Segment Extraction Complete",
+#|             f"Processed segment extraction requests.\nSucceeded segments: {succeeded}\n"
+#|             "Review output for derived-artifact provenance and limitations.",
+#|         )
+#| 
+#|     def _write_output(self, result: Dict[str, Any]) -> None:
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2))
+#| 
+#|     def _default_questions(self, payload: Dict[str, Any]) -> List[str]:
+#|         target = payload.get("target", "target")
+#|         target_type = payload.get("target_type", "audio")
+#| 
+#|         base = [
+#|             f"What audio evidence is present and how reliable is its technical metadata?",
+#|             "What speech, non-speech, music, noise, or silence segments exist if ASR/VAD are configured?",
+#|             "What was actually said, with timestamps, if transcription is authorized/configured?",
+#|             "How many distinguishable anonymous speaker tracks exist, if diarization is configured?",
+#|             "What languages or code-switching are present, if language ID is configured?",
+#|             "What acoustic events or background clues are present?",
+#|             "What spoken claims are made, and how are they separated from verified facts?",
+#|             "Are clips duplicated, reused, edited, recompressed, speed/pitch changed, or synthetic?",
+#|             "What provenance/source-independence limitations exist?",
+#|             "Which specialist should investigate next?",
+#|         ]
+#| 
+#|         if target_type in {"public_speech", "public_interview", "podcast", "public_broadcast"}:
+#|             base.extend(
+#|                 [
+#|                     "What public statements are made and by which anonymous speaker track?",
+#|                     "Are captions/subtitles consistent with the audio transcript?",
+#|                     "Could the clip be edited, clipped, or old audio reused?",
+#|                 ]
+#|             )
+#| 
+#|         if target_type in {"authorized_call_recording", "voice_note", "body_camera_audio", "dash_camera_audio"}:
+#|             base.extend(
+#|                 [
+#|                     "What privacy controls apply before any speaker-identity conclusion?",
+#|                     "Can speaker turns be described without biometric identification?",
+#|                     "What independent evidence, not voice similarity, supports identity attribution?",
+#|                 ]
+#|             )
+#| 
+#|         if target_type == "video_audio_track":
+#|             base.extend(
+#|                 [
+#|                     "How does audio timing align with video events and subtitles?",
+#|                     "Is there evidence of dubbing, offset, desynchronization, or edited audio?",
+#|                     "Should VIDINT provide frame/timestamp context?",
+#|                 ]
+#|             )
+#| 
+#|         if target_type == "incident_recording":
+#|             base.extend(
+#|                 [
+#|                     "What acoustic events occur in sequence?",
+#|                     "Are dangerous-sound classifications kept cautious and unresolved where ambiguous?",
+#|                     "Is temporal sequence being confused with causality?",
+#|                 ]
+#|             )
+#| 
+#|         if target_type == "synthetic_audio_suspect":
+#|             base.extend(
+#|                 [
+#|                     "What provenance, metadata, credential, and acoustic artifacts are available?",
+#|                     "Are synthetic-audio indicators kept probabilistic rather than absolute?",
+#|                     "Is voice cloning being avoided as a conclusion without independent identity/forensic support?",
+#|                 ]
+#|             )
+#| 
+#|         return base
+#| 
+#|     def _build_observations_from_analyzed_audio(self, analyzed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|         observations: List[Dict[str, Any]] = []
+#| 
+#|         for a in analyzed:
+#|             evidence_id = a.get("evidence_id")
+#| 
+#|             if a.get("sha256"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"A local audio artifact was accessed and hashed for audio_id {a.get('audio_id')}.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FILESYSTEM",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "local_deterministic_file_hash",
+#|                         "limitations": "File access and hash do not establish audio content, speaker identity, origin, or truth.",
+#|                     }
+#|                 )
+#| 
+#|             if a.get("container_detected"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"Detected audio container: {a.get('container_detected')}.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FILE_MAGIC",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "magic_bytes",
+#|                         "limitations": "Container detection does not authenticate origin or content.",
+#|                     }
+#|                 )
+#| 
+#|             if a.get("duration_code"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"Audio duration is {a.get('duration_code')}.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FFPROBE_METADATA",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "ffprobe_format_duration",
+#|                         "limitations": "Duration metadata may be inaccurate or container-dependent.",
+#|                     }
+#|                 )
+#| 
+#|             tech = a.get("technical_metadata") or {}
+#|             audio_stream = tech.get("audio_stream") or {}
+#| 
+#|             if audio_stream.get("codec_name"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"Audio codec reported: {audio_stream.get('codec_name')}.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FFPROBE_METADATA",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "ffprobe_audio_stream",
+#|                         "limitations": "Codec metadata does not establish speech content or authenticity.",
+#|                     }
+#|                 )
+#| 
+#|             if audio_stream.get("sample_rate"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"Audio sample rate reported: {audio_stream.get('sample_rate')} Hz.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FFPROBE_METADATA",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "ffprobe_audio_stream",
+#|                         "limitations": "Sample rate does not establish speech clarity or bandwidth sufficiency.",
+#|                     }
+#|                 )
+#| 
+#|             if audio_stream.get("channels"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": f"Audio channel count reported: {audio_stream.get('channels')}.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FFPROBE_METADATA",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "ffprobe_audio_stream",
+#|                         "limitations": "Channel count does not establish microphone geometry or speaker separation.",
+#|                     }
+#|                 )
+#| 
+#|             if a.get("location_metadata_present"):
+#|                 observations.append(
+#|                     {
+#|                         "observation_id": f"OBS-{uuid.uuid4()}",
+#|                         "statement": "Location/GPS-like metadata is present but redacted pending privacy/GEOINT review.",
+#|                         "evidence_id": evidence_id,
+#|                         "source_id": "LOCAL_FFPROBE_TAGS",
+#|                         "observed_at": now_utc(),
+#|                         "extraction_method": "ffprobe_tag_sanitization",
