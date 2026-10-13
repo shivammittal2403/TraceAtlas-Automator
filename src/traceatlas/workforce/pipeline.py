@@ -31,7 +31,7 @@ from .service import WorkforceService
 from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
 from .normalization import NORMALIZER_VERSION, recompute_document, live_facts as _live_facts
-from .colrf import build_colrf_review
+from .colrf import COLRF_STAGES, build_colrf_review
 
 WORKFLOW_VERSION = "evidence-investigation/1.4.0"
 PARSER_VERSION = NORMALIZER_VERSION
@@ -461,8 +461,8 @@ class InvestigationPipeline:
             colrf = product["colrf_review"]
             lines += ["", "## COLRF lifecycle and reliability review",
                       "Conceptual, uncalibrated review; human release is required."]
-            lines += ["- " + esc(name) + ": " + esc(status)
-                      for name, status in colrf["stages"].items()]
+            lines += ["- " + esc(name) + ": " + esc(colrf["stages"][name])
+                      for name in COLRF_STAGES]
             lines += ["", "### Finding-level verification"]
             lines += ["- " + esc(row["claim_id"]) + ": " + esc(row["verification_status"])
                       + "; source reliability: " + esc(row["dimensions"]["source_reliability"])
