@@ -31,6 +31,7 @@ from .service import WorkforceService
 from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
 from .normalization import NORMALIZER_VERSION, recompute_document, live_facts as _live_facts
+from .colrf import build_colrf_review
 
 WORKFLOW_VERSION = "evidence-investigation/1.4.0"
 PARSER_VERSION = NORMALIZER_VERSION
@@ -255,6 +256,7 @@ class InvestigationPipeline:
                 product['source_costs'].update(estimated_cost=gateway_result['estimated_cost'], currency='USD',
                     remaining_estimated_budget=round(task.budget.amount - gateway_result['estimated_cost'], 8))
                 product['collection_limits'] = gateway_result['concurrency']
+            product["colrf_review"] = build_colrf_review(task, analysis, tuple(collected), evidence, outcomes)
             product["report_markdown"] = self.render_report(product)
             product = json.loads(canonical(product))
             # Store only after service-level result checks succeed.
@@ -455,6 +457,19 @@ class InvestigationPipeline:
                   'Objective completion requires analyst review. Scores are uncalibrated review rules.']
         lines += ['- ' + esc(a['action_id']) + ': score ' + str(a['score']) + '; evidence: ' + ', '.join(a['evidence_ids'])
                   for a in analysis['ranked_next_actions']]
+        if product.get("colrf_review"):
+            colrf = product["colrf_review"]
+            lines += ["", "## COLRF lifecycle and reliability review",
+                      "Conceptual, uncalibrated review; human release is required."]
+            lines += ["- " + esc(name) + ": " + esc(status)
+                      for name, status in colrf["stages"].items()]
+            lines += ["", "### Finding-level verification"]
+            lines += ["- " + esc(row["claim_id"]) + ": " + esc(row["verification_status"])
+                      + "; source reliability: " + esc(row["dimensions"]["source_reliability"])
+                      + "; actionability: " + esc(row["dimensions"]["actionability"])
+                      for row in colrf["claim_reviews"]]
+            lines += ["", "### COLRF limitations"]
+            lines += ["- " + esc(limitation) for limitation in colrf["limitations"]]
         lines += ["", "## Technical appendix and replay", "Workflow: " + WORKFLOW_VERSION,
                   "Analysis SHA-256: " + product["replay_manifest"]["analysis_digest"],
                   "Model: deterministic-no-model; no prompt or model chain-of-thought exists.", "",
@@ -509,6 +524,11 @@ class InvestigationPipeline:
         analysis = self.analyze(task["envelope"], tuple(documents), evidence, manifest["source_outcomes"])
         if digest(analysis) != manifest["analysis_digest"] or digest(analysis) != digest(product['analysis']):
             raise ValueError("replay analysis digest mismatch")
+        if "colrf_review" in product:
+            replay_colrf = build_colrf_review(task["envelope"], analysis, tuple(documents), evidence,
+                                              manifest["source_outcomes"])
+            if replay_colrf != product["colrf_review"]:
+                raise ValueError("replay COLRF review derivation mismatch")
         if product['report_markdown'] != self.render_report(product):
             raise ValueError('replay report derivation mismatch')
         return {"task_id": task_id, "verified": True, "requires_network": False,
