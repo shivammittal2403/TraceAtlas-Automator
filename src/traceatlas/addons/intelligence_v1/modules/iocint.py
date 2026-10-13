@@ -213,9 +213,9 @@ CERT_FP_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}:){15,31}[0-9A-Fa-f]{2}\b")
 JA3_RE = re.compile(r"(?i)\bja3(?:[_-]?(?:hash|value|fingerprint))?\s*[:=]\s*([0-9a-fA-F]{32})\b")
 JA4_RE = re.compile(r"(?i)\bja4(?:[_-]?(?:t|s|hash|value|fingerprint))?\s*[:=]\s*([A-Za-z0-9_\-\.]{8,80})\b")
 
-MUTEX_RE = re.compile(r"(?i)\b(?:Global\\|Local\\|BaseNamedObjects\\|Sessions\\[^\\]+\\BaseNamedObjects\\)[^\s,;\"']{1,200}")
-REGISTRY_RE = re.compile(r"\bHK(?:LM|CU|U|CR|CC)\\[^\s,;\"']+ ")
-WINPATH_RE = re.compile(r"\b[A-Za-z]:\\[^\s,;\"']+ ")
+MUTEX_RE = re.compile(r"(?i)\b(?:(?:Global|Local|BaseNamedObjects)\\[^\s,;\"']{1,200}|Sessions\\\d+\\BaseNamedObjects\\[^\s,;\"']{1,200})")
+REGISTRY_RE = re.compile(r"\bHK(?:LM|CU|U|CR|CC)\\[^\s,;\"']+")
+WINPATH_RE = re.compile(r"\b[A-Za-z]:\\[^\s,;\"']+")
 UNIXPATH_RE = re.compile(
     r"(?<![\w:])/(?:usr|var|tmp|etc|home|Users|Windows|ProgramData|opt|mnt|media|private|Library|Applications|root|bin|sbin|dev|proc|sys)\b[^\s,;\"']* "
 )
