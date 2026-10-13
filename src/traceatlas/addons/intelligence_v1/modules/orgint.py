@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+from .panel_state import invalidate, sync_inputs
 
 
 APP_TITLE = "TraceAtlas ORGINT AI Employee — Lawful / Authorized / Privacy-Aware Organizational Intelligence Panel"
@@ -3643,6 +3644,7 @@ class TraceAtlasORGINTPanel(tk.Tk):
         payload["panel_version"] = APP_VERSION
         payload["operating_mode"] = "PLANNING_ONLY_LAWFUL_AUTHORIZED_PRIVACY_AWARE_EVIDENCE_FIRST"
         payload["source_boundary"] = "LAWFUL_AUTHORIZED_EVIDENCE_FIRST_PRIVACY_AWARE_ORGINT_ONLY"
+        sync_inputs(self, payload, empty_parsed)
         return payload
 
     def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
@@ -4100,6 +4102,7 @@ class TraceAtlasORGINTPanel(tk.Tk):
 
         return {
             "mode": "LOCAL_DETERMINISTIC_ORGINT_ANALYSIS",
+            "payload": payload,
             "panel_version": APP_VERSION,
             "policy_screen": policy,
             "covert_infiltration_performed": False,
@@ -4231,3 +4234,42 @@ class TraceAtlasORGINTPanel(tk.Tk):
                 "contractor != employee",
             ],
         }
+
+    def export_json(self) -> None:
+        """Export a result belonging to the current form, never a previous case."""
+        self.collect_payload()
+        if not self.last_result:
+            self.generate_plan()
+        if not self.last_result:
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json")],
+            initialfile="orgint-report.json",
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as stream:
+                json.dump(self.last_result, stream, ensure_ascii=False, indent=2, default=str)
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showerror("Export Failed", str(exc))
+            return
+        messagebox.showinfo("Export Complete", f"Report saved to:\n{path}")
+
+    def copy_output(self) -> None:
+        self.collect_payload()
+        if not self.last_result:
+            self.generate_plan()
+        self.clipboard_clear()
+        self.clipboard_append(json.dumps(self.last_result, ensure_ascii=False, indent=2, default=str))
+
+    def clear_form(self) -> None:
+        if not messagebox.askyesno("Clear Form", "Clear all fields and reset defaults?"):
+            return
+        invalidate(self, empty_parsed)
+        for key, _, _ in FIELDS:
+            self.set_widget_value(key, "")
+        self._set_defaults()
+        self.collect_payload()
+        self.output.delete("1.0", "end")
