@@ -1,0 +1,3866 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS / DEVINT — Local lawful developer & software ecosystem intelligence pipeline.
+
+IMPORTANT SAFETY / POLICY NOTES:
+- This is a local demo implementation.
+- It does NOT access live platforms, private repositories, registries, or internal SCM systems.
+- It does NOT use/test/redeem developer credentials, tokens, SSH keys, PATs, or session cookies.
+- It does NOT bypass private repositories or organization permissions.
+- It does NOT dox, stalk, profile, infer home location, infer sensitive traits, or target developers.
+- It does NOT enable malicious contributions, typosquatting, dependency confusion, package poisoning,
+  maintainer phishing, build-pipeline compromise, signing-key theft, or supply-chain attacks.
+- It supports lawful, public-or-authorized, evidence-first developer/ecosystem intelligence only.
+- Sample data is synthetic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import unicodedata
+from collections import defaultdict
+from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+PIPELINE_VERSION = "0.1.0-devint-ecosystem-safe-demo"
+DEFAULT_AS_OF = "2026-10-09T00:00:00Z"
+
+
+# =====================================================================
+# ENUMS
+# =====================================================================
+
+class Status(str, Enum):
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    ACCOUNT_UNRESOLVED = "ACCOUNT_UNRESOLVED"
+    PERSON_IDENTITY_UNRESOLVED = "PERSON_IDENTITY_UNRESOLVED"
+    MAINTAINER_UNRESOLVED = "MAINTAINER_UNRESOLVED"
+    PACKAGE_OWNER_UNRESOLVED = "PACKAGE_OWNER_UNRESOLVED"
+    REPOSITORY_UNRESOLVED = "REPOSITORY_UNRESOLVED"
+    PROJECT_STATUS_UNRESOLVED = "PROJECT_STATUS_UNRESOLVED"
+    ORGANIZATION_AFFILIATION_UNRESOLVED = "ORGANIZATION_AFFILIATION_UNRESOLVED"
+    PROVENANCE_UNRESOLVED = "PROVENANCE_UNRESOLVED"
+    BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+    BLOCKED_POLICY = "BLOCKED_POLICY"
+    BLOCKED_PRIVACY = "BLOCKED_PRIVACY"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
+class SourceType(str, Enum):
+    GIT_METADATA = "GIT_METADATA"
+    GITHUB_API = "GITHUB_API"
+    GITLAB_API = "GITLAB_API"
+    BITBUCKET_API = "BITBUCKET_API"
+    CODEBERG_API = "CODEBERG_API"
+    SOURCEHUT = "SOURCEHUT"
+    PACKAGE_REGISTRY = "PACKAGE_REGISTRY"
+    PUBLIC_PROFILE = "PUBLIC_PROFILE"
+    ORGANIZATION_SITE = "ORGANIZATION_SITE"
+    PROJECT_DOCS = "PROJECT_DOCS"
+    GOVERNANCE_DOC = "GOVERNANCE_DOC"
+    RELEASE_METADATA = "RELEASE_METADATA"
+    SBOM = "SBOM"
+    SECURITY_ADVISORY = "SECURITY_ADVISORY"
+    CONFERENCE_BIO = "CONFERENCE_BIO"
+    THIRD_PARTY_INDEX = "THIRD_PARTY_INDEX"
+    MEDIA = "MEDIA"
+    OTHER = "OTHER"
+
+
+class AccountType(str, Enum):
+    HUMAN = "HUMAN"
+    BOT = "BOT"
+    ORGANIZATION = "ORGANIZATION"
+    SERVICE = "SERVICE"
+    SHARED = "SHARED"
+    UNKNOWN = "UNKNOWN"
+
+
+class IdentityState(str, Enum):
+    ACCOUNT_RESOLVED = "ACCOUNT_RESOLVED"
+    PERSON_CANDIDATE = "PERSON_CANDIDATE"
+    SHARED_ACCOUNT = "SHARED_ACCOUNT"
+    BOT_ACCOUNT = "BOT_ACCOUNT"
+    ORGANIZATION_ACCOUNT = "ORGANIZATION_ACCOUNT"
+    UNKNOWN = "UNKNOWN"
+
+
+class VerificationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    OBSERVED = "OBSERVED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DISPUTED = "DISPUTED"
+    UNSUPPORTED = "UNSUPPORTED"
+    RETRACTED = "RETRACTED"
+
+
+class ForkState(str, Enum):
+    NOT_FORK = "NOT_FORK"
+    VERIFIED_FORK = "VERIFIED_FORK"
+    SUPPORTED_FORK = "SUPPORTED_FORK"
+    PROBABLE_FORK = "PROBABLE_FORK"
+    POSSIBLE_FORK = "POSSIBLE_FORK"
+    MIRROR_OF = "MIRROR_OF"
+    UNKNOWN = "UNKNOWN"
+
+
+class VisibilityState(str, Enum):
+    PUBLIC = "PUBLIC"
+    PRIVATE_AUTHORIZED = "PRIVATE_AUTHORIZED"
+    INTERNAL = "INTERNAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class MaintainerState(str, Enum):
+    VERIFIED_MAINTAINER = "VERIFIED_MAINTAINER"
+    SUPPORTED_MAINTAINER = "SUPPORTED_MAINTAINER"
+    PROBABLE_MAINTAINER = "PROBABLE_MAINTAINER"
+    PAST_MAINTAINER = "PAST_MAINTAINER"
+    CONTRIBUTOR = "CONTRIBUTOR"
+    RELEASE_MANAGER = "RELEASE_MANAGER"
+    PACKAGE_PUBLISHER = "PACKAGE_PUBLISHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class ContributionType(str, Enum):
+    CODE = "CODE"
+    DOCUMENTATION = "DOCUMENTATION"
+    ISSUE = "ISSUE"
+    REVIEW = "REVIEW"
+    TEST = "TEST"
+    RELEASE = "RELEASE"
+    SECURITY = "SECURITY"
+    TRANSLATION = "TRANSLATION"
+    DESIGN = "DESIGN"
+    MAINTENANCE = "MAINTENANCE"
+    GOVERNANCE = "GOVERNANCE"
+    AUTOMATION = "AUTOMATION"
+    OTHER = "OTHER"
+
+
+class ProjectHealthState(str, Enum):
+    ACTIVE = "ACTIVE"
+    LOW_ACTIVITY = "LOW_ACTIVITY"
+    MAINTENANCE_MODE = "MAINTENANCE_MODE"
+    MATURE_STABLE = "MATURE_STABLE"
+    DORMANT_CANDIDATE = "DORMANT_CANDIDATE"
+    ARCHIVED = "ARCHIVED"
+    DEPRECATED = "DEPRECATED"
+    TRANSFERRED = "TRANSFERRED"
+    UNKNOWN = "UNKNOWN"
+
+
+class SigningState(str, Enum):
+    SIGNED_VERIFIED = "SIGNED_VERIFIED"
+    SIGNED_UNVERIFIED = "SIGNED_UNVERIFIED"
+    UNSIGNED = "UNSIGNED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ProvenanceState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    CLAIMED = "CLAIMED"
+    MISSING = "MISSING"
+    UNKNOWN = "UNKNOWN"
+
+
+class AffiliationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    HISTORICAL = "HISTORICAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class FindingType(str, Enum):
+    ACCOUNT_RESOLVED = "ACCOUNT_RESOLVED"
+    PERSON_CANDIDATE = "PERSON_CANDIDATE"
+    BOT_ACTIVITY_OBSERVED = "BOT_ACTIVITY_OBSERVED"
+    MAINTAINER_SUPPORTED = "MAINTAINER_SUPPORTED"
+    PAST_MAINTAINER = "PAST_MAINTAINER"
+    CONTRIBUTOR_OBSERVED = "CONTRIBUTOR_OBSERVED"
+    RELEASE_PUBLISHER_OBSERVED = "RELEASE_PUBLISHER_OBSERVED"
+    RELEASE_APPROVER_OBSERVED = "RELEASE_APPROVER_OBSERVED"
+    PACKAGE_MAINTAINER_OBSERVED = "PACKAGE_MAINTAINER_OBSERVED"
+    PACKAGE_PUBLISHER_OBSERVED = "PACKAGE_PUBLISHER_OBSERVED"
+    MIRROR_SUPPORTED = "MIRROR_SUPPORTED"
+    FORK_CANDIDATE = "FORK_CANDIDATE"
+    ARCHIVED_REPOSITORY_OBSERVED = "ARCHIVED_REPOSITORY_OBSERVED"
+    ORGANIZATION_MEMBERSHIP_SUPPORTED = "ORGANIZATION_MEMBERSHIP_SUPPORTED"
+    EMPLOYMENT_CANDIDATE = "EMPLOYMENT_CANDIDATE"
+    EMPLOYMENT_HISTORICAL = "EMPLOYMENT_HISTORICAL"
+    HISTORICAL_AFFILIATION = "HISTORICAL_AFFILIATION"
+    SECURITY_FIX_RELEASE_SUPPORTED = "SECURITY_FIX_RELEASE_SUPPORTED"
+    PROVENANCE_OBSERVED = "PROVENANCE_OBSERVED"
+    PROFILE_STALE_AFFILIATION = "PROFILE_STALE_AFFILIATION"
+    MAINTAINER_CONCENTRATION_OBSERVED = "MAINTAINER_CONCENTRATION_OBSERVED"
+    BUS_FACTOR_CANDIDATE = "BUS_FACTOR_CANDIDATE"
+    PROJECT_HEALTH_ACTIVE = "PROJECT_HEALTH_ACTIVE"
+    TECHNOLOGY_STACK_OBSERVED = "TECHNOLOGY_STACK_OBSERVED"
+
+
+class GapType(str, Enum):
+    PERSON_IDENTITY_UNRESOLVED = "PERSON_IDENTITY_UNRESOLVED"
+    CURRENT_EMPLOYMENT_UNRESOLVED = "CURRENT_EMPLOYMENT_UNRESOLVED"
+    MAINTAINER_ROLE_UNCLEAR = "MAINTAINER_ROLE_UNCLEAR"
+    PACKAGE_PUBLISHER_UNKNOWN = "PACKAGE_PUBLISHER_UNKNOWN"
+    RELEASE_AUTHORITY_UNKNOWN = "RELEASE_AUTHORITY_UNKNOWN"
+    REPOSITORY_MIRROR_STATUS_UNCLEAR = "REPOSITORY_MIRROR_STATUS_UNCLEAR"
+    ORGANIZATION_AFFILIATION_UNCERTAIN = "ORGANIZATION_AFFILIATION_UNCERTAIN"
+    REPOSITORY_PACKAGE_MAPPING_UNCERTAIN = "REPOSITORY_PACKAGE_MAPPING_UNCERTAIN"
+    GOVERNANCE_OUTDATED = "GOVERNANCE_OUTDATED"
+    PROJECT_HEALTH_UNCLEAR = "PROJECT_HEALTH_UNCLEAR"
+    CURRENT_MAINTAINER_UNKNOWN = "CURRENT_MAINTAINER_UNKNOWN"
+    SBOM_UNAVAILABLE = "SBOM_UNAVAILABLE"
+    RELEASE_PROVENANCE_MISSING = "RELEASE_PROVENANCE_MISSING"
+    SECURITY_RESPONSE_UNCLEAR = "SECURITY_RESPONSE_UNCLEAR"
+    PROJECT_SUCCESSOR_UNKNOWN = "PROJECT_SUCCESSOR_UNKNOWN"
+    SUPPLY_CHAIN_RISK_REQUIRES_SPECIALIST = "SUPPLY_CHAIN_RISK_REQUIRES_SPECIALIST"
+    VULNERABILITY_APPLICABILITY_UNKNOWN = "VULNERABILITY_APPLICABILITY_UNKNOWN"
+    SOURCE_INDEPENDENCE_GAP = "SOURCE_INDEPENDENCE_GAP"
+
+
+class PrivacyFlag(str, Enum):
+    CASE_SCOPED = "CASE_SCOPED"
+    PUBLIC_OR_AUTHORIZED_ONLY = "PUBLIC_OR_AUTHORIZED_ONLY"
+    NO_DOXXING = "NO_DOXXING"
+    NO_CREDENTIAL_USE = "NO_CREDENTIAL_USE"
+    NO_SUPPLY_CHAIN_ATTACK_ENABLEMENT = "NO_SUPPLY_CHAIN_ATTACK_ENABLEMENT"
+    NO_SENSITIVE_TRAIT_INFERENCE = "NO_SENSITIVE_TRAIT_INFERENCE"
+    NO_HOME_LOCATION_INFERENCE = "NO_HOME_LOCATION_INFERENCE"
+    NO_REAL_PERSON_ATTRIBUTION_WITHOUT_EVIDENCE = "NO_REAL_PERSON_ATTRIBUTION_WITHOUT_EVIDENCE"
+    NO_PERSONAL_TRUSTWORTHINESS_SCORE = "NO_PERSONAL_TRUSTWORTHINESS_SCORE"
+    LOCAL_ONLY_DEFAULT = "LOCAL_ONLY_DEFAULT"
+
+
+class PolicyFlag(str, Enum):
+    NONE = "NONE"
+    BLOCKED_REQUEST = "BLOCKED_REQUEST"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+    DEFENSIVE_ONLY = "DEFENSIVE_ONLY"
+    PRIVACY_AWARE = "PRIVACY_AWARE"
+
+
+class HypothesisStatus(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    UNRESOLVED = "UNRESOLVED"
+    DISPUTED = "DISPUTED"
+    REJECTED = "REJECTED"
+
+
+# =====================================================================
+# CONSTANTS
+# =====================================================================
+
+SOURCE_FACTOR: Dict[SourceType, float] = {
+    SourceType.GIT_METADATA: 0.95,
+    SourceType.GITHUB_API: 0.90,
+    SourceType.GITLAB_API: 0.88,
+    SourceType.BITBUCKET_API: 0.86,
+    SourceType.CODEBERG_API: 0.86,
+    SourceType.SOURCEHUT: 0.86,
+    SourceType.PACKAGE_REGISTRY: 0.90,
+    SourceType.PUBLIC_PROFILE: 0.65,
+    SourceType.ORGANIZATION_SITE: 0.75,
+    SourceType.PROJECT_DOCS: 0.80,
+    SourceType.GOVERNANCE_DOC: 0.88,
+    SourceType.RELEASE_METADATA: 0.90,
+    SourceType.SBOM: 0.78,
+    SourceType.SECURITY_ADVISORY: 0.85,
+    SourceType.CONFERENCE_BIO: 0.65,
+    SourceType.THIRD_PARTY_INDEX: 0.60,
+    SourceType.MEDIA: 0.55,
+    SourceType.OTHER: 0.65,
+}
+
+PROHIBITED_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
+    (
+        "DOXXING_OR_PERSONAL_TARGETING",
+        re.compile(
+            r"\b(dox|doxx|home address|private phone|family members|stalk|"
+            r"target the developer|target developer|target maintainer|"
+            r"personal information|private residence)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "CREDENTIAL_USE_OR_TOKEN_TESTING",
+        re.compile(
+            r"\b(use|test|validate|redeem|authenticate with|login with)\s+"
+            r"(?:the\s+)?(?:token|pat|ssh key|session cookie|credential|api key|access token)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "MALICIOUS_CONTRIBUTION_OR_SUPPLY_CHAIN_ATTACK",
+        re.compile(
+            r"\b(malicious (?:pull request|package|dependency)|poison(?:ing)? dependenc|"
+            r"typosquat|dependency[- ]confus|hijack package|compromise (?:maintainer|developer|"
+            r"build pipeline|release)|attack supply chain|supply-chain attack)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "UNAUTHORIZED_ACCESS_OR_CIRCUMVENTION",
+        re.compile(
+            r"\b(bypass|scrape|access)\s+(?:private repository|organization permission|"
+            r"rate limit|captcha|access control)\b|\bcircumvent rate limit\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "SENSITIVE_TRAIT_OR_LOCATION_INFERENCE",
+        re.compile(
+            r"\b(infer|determine|identify)\s+(?:religion|ethnicity|political|health|"
+            r"sexual orientation|nationality|home location|private residence)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "TARGETING_LIST",
+        re.compile(
+            r"\b(best|easiest|most exploitable)\s+(?:developer|maintainer|package|dependency)\s+"
+            r"(?:to|for)?\s*(?:target|compromise|attack|phish|hijack|poison)\b",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+# =====================================================================
+# UTILITIES
+# =====================================================================
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id(prefix: str, seed: str) -> str:
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:10]
+    return f"{prefix}{h}" if prefix else h
+
+
+def stable_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_short(text: str) -> str:
+    return stable_hash(text)[:16]
+
+
+def jsonable(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: jsonable(getattr(obj, f.name)) for f in fields(obj)}
+    if isinstance(obj, (list, tuple, set)):
+        return [jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): jsonable(v) for k, v in obj.items()}
+    return obj
+
+
+def normalize_text(value: str) -> str:
+    s = unicodedata.normalize("NFKC", value or "")
+    s = s.lower().strip()
+    s = re.sub(r"[^\w\s\-'.:/@]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def dt_or_min(value: Optional[str]) -> datetime:
+    dt = parse_dt(value)
+    return dt if dt else datetime.min.replace(tzinfo=timezone.utc)
+
+
+def days_between(a: Optional[str], b: Optional[str]) -> Optional[int]:
+    da = parse_dt(a)
+    db = parse_dt(b)
+    if not da or not db:
+        return None
+    return abs((db - da).days)
+
+
+def median(values: List[float]) -> Optional[float]:
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    if n % 2 == 1:
+        return float(s[n // 2])
+    return float((s[n // 2 - 1] + s[n // 2]) / 2)
+
+
+def active_at(valid_from: Optional[str], valid_to: Optional[str], as_of: str) -> bool:
+    t = parse_dt(as_of)
+    vf = parse_dt(valid_from)
+    vt = parse_dt(valid_to)
+    if t is None:
+        return vt is None or (vt and vt >= datetime.now(timezone.utc))
+    if vf and vf > t:
+        return False
+    if vt and vt < t:
+        return False
+    return True
+
+
+def policy_guard(text: str) -> List[Dict[str, str]]:
+    violations: List[Dict[str, str]] = []
+    for rule, rx in PROHIBITED_PATTERNS:
+        m = rx.search(text or "")
+        if m:
+            violations.append({"rule": rule, "matched": m.group(0)})
+    return violations
+
+
+# =====================================================================
+# DATACLASSES
+# =====================================================================
+
+@dataclass
+class Source:
+    id: str
+    title: str
+    url: str
+    source_type: SourceType
+    independence_group: str = "UNKNOWN"
+    reliability: float = 0.5
+    derived_from: Optional[str] = None
+    published_at: Optional[str] = None
+    retrieved_at: Optional[str] = None
+    notes: str = ""
+
+
+@dataclass
+class Evidence:
+    id: str
+    source_id: str
+    artifact_type: str
+    excerpt: str
+    observed_at: Optional[str] = None
+    content_hash: str = ""
+    parsed_fields: Dict[str, Any] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class DeveloperAccount:
+    id: str
+    platform: str
+    username: str
+    display_name: str = ""
+    profile_url: str = ""
+    account_created_at: Optional[str] = None
+    public_bio: str = ""
+    public_location_claim: str = ""
+    public_email_reference: str = ""
+    account_type: AccountType = AccountType.UNKNOWN
+    verified_identity_state: IdentityState = IdentityState.UNKNOWN
+    linked_accounts: List[str] = field(default_factory=list)
+    public_affiliation_claims: List[Dict[str, str]] = field(default_factory=list)
+    organizations: List[str] = field(default_factory=list)
+    repositories: List[str] = field(default_factory=list)
+    contributions: List[str] = field(default_factory=list)
+    maintainer_roles: List[str] = field(default_factory=list)
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Organization:
+    id: str
+    name: str
+    namespace: str = ""
+    org_type: str = "UNKNOWN"
+    website: str = ""
+    description: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Repository:
+    id: str
+    platform: str
+    owner_namespace: str
+    name: str
+    canonical_url: str = ""
+    visibility_state: VisibilityState = VisibilityState.UNKNOWN
+    default_branch: str = "main"
+    created_at: Optional[str] = None
+    archived: bool = False
+    fork_state: ForkState = ForkState.UNKNOWN
+    source_repository: Optional[str] = None
+    successor_repository: Optional[str] = None
+    languages: List[str] = field(default_factory=list)
+    topics: List[str] = field(default_factory=list)
+    license: str = ""
+    contributors: List[str] = field(default_factory=list)
+    maintainers: List[str] = field(default_factory=list)
+    releases: List[str] = field(default_factory=list)
+    packages: List[str] = field(default_factory=list)
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Package:
+    id: str
+    ecosystem: str
+    name: str
+    purl: str = ""
+    registry: str = ""
+    repository_id: Optional[str] = None
+    maintainers: List[str] = field(default_factory=list)
+    publishers: List[str] = field(default_factory=list)
+    latest_version: Optional[str] = None
+    deprecated: bool = False
+    replacement: Optional[str] = None
+    first_seen: Optional[str] = None
+    last_seen: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contribution:
+    id: str
+    developer_account_id: str
+    repository_id: str
+    contribution_types: List[ContributionType] = field(default_factory=list)
+    first_contribution: Optional[str] = None
+    last_contribution: Optional[str] = None
+    commit_count: int = 0
+    pull_requests: int = 0
+    reviews: int = 0
+    issues: int = 0
+    role_state: MaintainerState = MaintainerState.UNKNOWN
+    is_mirror_derived: bool = False
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class MaintainerRole:
+    id: str
+    developer_account_id: str
+    subject_type: str
+    subject_id: str
+    role_state: MaintainerState
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class OrganizationMembership:
+    id: str
+    developer_account_id: str
+    organization_id: str
+    membership_type: str
+    relationship_state: AffiliationState
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Release:
+    id: str
+    repository_id: Optional[str] = None
+    package_id: Optional[str] = None
+    version: str = ""
+    tag: Optional[str] = None
+    publisher_account_id: Optional[str] = None
+    approver_account_ids: List[str] = field(default_factory=list)
+    published_at: Optional[str] = None
+    commit_reference: Optional[str] = None
+    artifact_references: List[str] = field(default_factory=list)
+    signing_state: SigningState = SigningState.UNKNOWN
+    provenance_state: ProvenanceState = ProvenanceState.UNKNOWN
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Commit:
+    id: str
+    repository_id: str
+    hash: str
+    author_account_id: Optional[str] = None
+    committer_account_id: Optional[str] = None
+    pushed_by_account_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    message: str = ""
+    signature_state: SigningState = SigningState.UNKNOWN
+    automated: bool = False
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class SecurityAdvisory:
+    id: str
+    package_id: Optional[str] = None
+    repository_id: Optional[str] = None
+    cve: Optional[str] = None
+    summary: str = ""
+    affected_versions: Optional[str] = None
+    fixed_versions: Optional[str] = None
+    published_at: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class TechnologyProfile:
+    id: str
+    repository_id: Optional[str] = None
+    package_id: Optional[str] = None
+    languages: List[str] = field(default_factory=list)
+    frameworks: List[str] = field(default_factory=list)
+    build_systems: List[str] = field(default_factory=list)
+    ci_systems: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Finding:
+    id: str
+    finding_type: FindingType
+    subject_id: str
+    statement: str
+    verification_state: VerificationState = VerificationState.INCONCLUSIVE
+    confidence: float = 0.0
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    specialist_handoff: Optional[str] = None
+
+
+@dataclass
+class Hypothesis:
+    id: str
+    statement: str
+    kind: str
+    supporting_finding_ids: List[str] = field(default_factory=list)
+    supporting_evidence_ids: List[str] = field(default_factory=list)
+    contradicting_evidence_ids: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    predictions: List[str] = field(default_factory=list)
+    falsification_conditions: List[str] = field(default_factory=list)
+    status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    id: str
+    contradiction_type: str
+    description: str
+    subject_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    severity: str = "MEDIUM"
+    status: str = "OPEN"
+    recommended_resolution: str = ""
+
+
+@dataclass
+class KnowledgeGap:
+    id: str
+    gap_type: GapType
+    description: str
+    about_subject_ids: List[str] = field(default_factory=list)
+    about_finding_ids: List[str] = field(default_factory=list)
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: Optional[str] = None
+    expected_information_value: float = 0.0
+
+
+@dataclass
+class NextAction:
+    id: str
+    description: str
+    priority: int = 1
+    privacy_impact: str = "LOW_IF_AUTHORIZED"
+    expected_gain: float = 0.0
+    specialist: Optional[str] = None
+    requires_human_approval: bool = False
+
+
+@dataclass
+class Case:
+    case_id: str
+    task_id: str
+    objective: str
+    questions: List[str] = field(default_factory=list)
+    scope: List[str] = field(default_factory=lambda: ["public_or_authorized_only", "privacy_aware", "case_scoped"])
+    authorization: str = "demo_lawful_developer_ecosystem_intelligence"
+    developer_accounts: List[str] = field(default_factory=list)
+    organizations: List[str] = field(default_factory=list)
+    repositories: List[str] = field(default_factory=list)
+    packages: List[str] = field(default_factory=list)
+    time_range: Optional[str] = None
+    as_of: str = DEFAULT_AS_OF
+    sample: bool = False
+    budget: Optional[str] = None
+    deadline: Optional[str] = None
+
+
+# =====================================================================
+# DEVINT ENGINE
+# =====================================================================
+
+class DevInt:
+    def __init__(self, case: Case) -> None:
+        self.case = case
+        self.as_of = case.as_of or DEFAULT_AS_OF
+
+        self.sources: Dict[str, Source] = {}
+        self.evidence: Dict[str, Evidence] = {}
+        self.accounts: Dict[str, DeveloperAccount] = {}
+        self.organizations: Dict[str, Organization] = {}
+        self.repositories: Dict[str, Repository] = {}
+        self.packages: Dict[str, Package] = {}
+        self.contributions: Dict[str, Contribution] = {}
+        self.maintainer_roles: Dict[str, MaintainerRole] = {}
+        self.memberships: Dict[str, OrganizationMembership] = {}
+        self.releases: Dict[str, Release] = {}
+        self.commits: Dict[str, Commit] = {}
+        self.advisories: Dict[str, SecurityAdvisory] = {}
+        self.technology_profiles: Dict[str, TechnologyProfile] = {}
+        self.findings: Dict[str, Finding] = {}
+        self.hypotheses: List[Hypothesis] = []
+        self.contradictions: List[Contradiction] = []
+        self.gaps: List[KnowledgeGap] = []
+        self.actions: List[NextAction] = []
+        self.handoffs: List[Dict[str, str]] = []
+        self.health: Dict[str, Any] = {}
+        self.active_maintainer_ids: Set[str] = set()
+        self.validation_errors: List[str] = []
+
+    # -----------------------------------------------------------------
+    # Adders
+    # -----------------------------------------------------------------
+
+    def add_source(self, source: Source) -> Source:
+        self.sources[source.id] = source
+        return source
+
+    def add_evidence(self, evidence: Evidence) -> Evidence:
+        if not evidence.content_hash:
+            evidence.content_hash = stable_hash("|".join([
+                evidence.source_id,
+                evidence.artifact_type,
+                evidence.excerpt,
+            ]))
+        self.evidence[evidence.id] = evidence
+        return evidence
+
+    def add_account(self, account: DeveloperAccount) -> DeveloperAccount:
+        self.accounts[account.id] = account
+        return account
+
+    def add_organization(self, org: Organization) -> Organization:
+        self.organizations[org.id] = org
+        return org
+
+    def add_repository(self, repo: Repository) -> Repository:
+        self.repositories[repo.id] = repo
+        return repo
+
+    def add_package(self, package: Package) -> Package:
+        self.packages[package.id] = package
+        return package
+
+    def add_contribution(self, contribution: Contribution) -> Contribution:
+        self.contributions[contribution.id] = contribution
+        return contribution
+
+    def add_maintainer_role(self, role: MaintainerRole) -> MaintainerRole:
+        self.maintainer_roles[role.id] = role
+        return role
+
+    def add_membership(self, membership: OrganizationMembership) -> OrganizationMembership:
+        self.memberships[membership.id] = membership
+        return membership
+
+    def add_release(self, release: Release) -> Release:
+        self.releases[release.id] = release
+        return release
+
+    def add_commit(self, commit: Commit) -> Commit:
+        self.commits[commit.id] = commit
+        return commit
+
+    def add_advisory(self, advisory: SecurityAdvisory) -> SecurityAdvisory:
+        self.advisories[advisory.id] = advisory
+        return advisory
+
+    def add_technology_profile(self, profile: TechnologyProfile) -> TechnologyProfile:
+        self.technology_profiles[profile.id] = profile
+        return profile
+
+    def add_finding(self, finding: Finding) -> Finding:
+        self.findings[finding.id] = finding
+        return finding
+
+    # -----------------------------------------------------------------
+    # Source lineage / independence
+    # -----------------------------------------------------------------
+
+    def get_source_family(self, source_id: str) -> Optional[str]:
+        src = self.sources.get(source_id)
+        if not src:
+            return None
+        seen: Set[str] = set()
+        cur = src
+        while (
+            cur
+            and cur.derived_from
+            and cur.derived_from in self.sources
+            and cur.id not in seen
+        ):
+            seen.add(cur.id)
+            cur = self.sources[cur.derived_from]
+        if cur and cur.independence_group and cur.independence_group != "UNKNOWN":
+            return cur.independence_group
+        return cur.id if cur else source_id
+
+    def source_families(self, source_ids: List[str]) -> Set[str]:
+        families: Set[str] = set()
+        for sid in source_ids:
+            fam = self.get_source_family(sid)
+            families.add(fam or sid)
+        return families
+
+    def independence_state(self, source_ids: List[str]) -> str:
+        if not source_ids:
+            return "UNKNOWN"
+        families = self.source_families(source_ids)
+        if len(source_ids) == 1:
+            return "SINGLE_SOURCE"
+        if len(families) == 1:
+            return "DEPENDENT"
+        if len(families) == len(source_ids):
+            return "INDEPENDENT"
+        return "PARTIALLY_DEPENDENT"
+
+    # -----------------------------------------------------------------
+    # Resolution / analysis
+    # -----------------------------------------------------------------
+
+    def resolve_accounts(self) -> None:
+        for acc in self.accounts.values():
+            if acc.account_type == AccountType.BOT:
+                acc.verified_identity_state = IdentityState.BOT_ACCOUNT
+                acc.limitations.append("Bot account; do not interpret activity as human workload.")
+            elif acc.account_type == AccountType.ORGANIZATION:
+                acc.verified_identity_state = IdentityState.ORGANIZATION_ACCOUNT
+            elif acc.account_type == AccountType.SHARED:
+                acc.verified_identity_state = IdentityState.SHARED_ACCOUNT
+            else:
+                linked = [lid for lid in acc.linked_accounts if lid in self.accounts]
+                if linked:
+                    acc.verified_identity_state = IdentityState.PERSON_CANDIDATE
+                    acc.limitations.append(
+                        "Cross-platform account linkage observed. Real-person identity is not verified."
+                    )
+                else:
+                    acc.verified_identity_state = IdentityState.ACCOUNT_RESOLVED
+
+            acc.limitations.append("Platform account is not automatically a real person.")
+
+    def detect_repository_relationships(self) -> None:
+        for repo in self.repositories.values():
+            if repo.fork_state == ForkState.MIRROR_OF:
+                repo.limitations.append(
+                    "Mirror may duplicate upstream history. Do not count mirrored commits as independent development."
+                )
+            elif repo.fork_state in {
+                ForkState.VERIFIED_FORK,
+                ForkState.SUPPORTED_FORK,
+                ForkState.PROBABLE_FORK,
+                ForkState.POSSIBLE_FORK,
+            }:
+                repo.limitations.append("Fork does not imply endorsement, ownership, or active maintenance.")
+            if repo.archived:
+                repo.limitations.append("Archived repository indicates no active development on this repository, not necessarily project abandonment.")
+
+    def aggregate_contributions(self) -> None:
+        for contrib in self.contributions.values():
+            repo = self.repositories.get(contrib.repository_id)
+            if repo and repo.fork_state == ForkState.MIRROR_OF:
+                contrib.is_mirror_derived = True
+                contrib.limitations.append("Derived from mirror repository; excluded from independent contribution aggregation.")
+            else:
+                contrib.is_mirror_derived = False
+
+    def compute_project_health(self) -> None:
+        releases = sorted(self.releases.values(), key=lambda r: dt_or_min(r.published_at))
+        intervals: List[float] = []
+        for prev, curr in zip(releases, releases[1:]):
+            d = days_between(prev.published_at, curr.published_at)
+            if d is not None:
+                intervals.append(float(d))
+
+        latest_age = None
+        if releases:
+            latest_age = days_between(releases[-1].published_at, self.as_of)
+
+        commits = sorted(
+            [c for c in self.commits.values()
+             if self.repositories.get(c.repository_id)
+             and self.repositories[c.repository_id].fork_state != ForkState.MIRROR_OF],
+            key=lambda c: dt_or_min(c.timestamp),
+        )
+        commit_count_90d = 0
+        commit_count_365d = 0
+        for c in commits:
+            age = days_between(c.timestamp, self.as_of)
+            if age is None:
+                continue
+            if age <= 90:
+                commit_count_90d += 1
+            if age <= 365:
+                commit_count_365d += 1
+
+        active_maintainers: Set[str] = set()
+        for role in self.maintainer_roles.values():
+            if role.subject_type in {"REPOSITORY", "PACKAGE"}:
+                if role.role_state in {MaintainerState.VERIFIED_MAINTAINER, MaintainerState.SUPPORTED_MAINTAINER}:
+                    if active_at(role.valid_from, role.valid_to, self.as_of):
+                        active_maintainers.add(role.developer_account_id)
+        self.active_maintainer_ids = active_maintainers
+
+        release_actor_counts = defaultdict(int)
+        releases_with_active_maintainer = 0
+        for rel in releases:
+            actors = set(rel.approver_account_ids)
+            if not actors and rel.publisher_account_id:
+                pub = self.accounts.get(rel.publisher_account_id)
+                if pub and pub.account_type != AccountType.BOT:
+                    actors.add(rel.publisher_account_id)
+            for a in actors:
+                release_actor_counts[a] += 1
+            if actors & active_maintainers:
+                releases_with_active_maintainer += 1
+
+        release_share = None
+        if releases:
+            release_share = round(releases_with_active_maintainer / len(releases), 3)
+
+        contrib_by_account: Dict[str, int] = defaultdict(int)
+        for contrib in self.contributions.values():
+            if contrib.is_mirror_derived:
+                continue
+            contrib_by_account[contrib.developer_account_id] += contrib.commit_count
+        total_commits = sum(contrib_by_account.values())
+        top_contributor = None
+        top_share = None
+        if contrib_by_account and total_commits:
+            top_contributor = max(contrib_by_account.items(), key=lambda x: x[1])
+            top_share = round(top_contributor[1] / total_commits, 3)
+
+        bus_factor_candidate = None
+        if active_maintainers and release_share is not None and release_share >= 0.80 and len(active_maintainers) <= 3:
+            bus_factor_candidate = len(active_maintainers)
+
+        archived_repos = [r for r in self.repositories.values() if r.archived]
+        active_repos = [r for r in self.repositories.values() if not r.archived and r.fork_state != ForkState.MIRROR_OF]
+
+        if latest_age is not None and latest_age <= 180 and active_maintainers and active_repos:
+            health_state = ProjectHealthState.ACTIVE
+        elif latest_age is not None and latest_age <= 365:
+            health_state = ProjectHealthState.LOW_ACTIVITY
+        elif archived_repos and not active_repos:
+            health_state = ProjectHealthState.ARCHIVED
+        else:
+            health_state = ProjectHealthState.UNKNOWN
+
+        self.health = {
+            "as_of": self.as_of,
+            "project_health_state": health_state.value,
+            "release_count": len(releases),
+            "release_intervals_days": intervals,
+            "median_release_interval_days": median(intervals),
+            "latest_release_age_days": latest_age,
+            "commit_count_90d": commit_count_90d,
+            "commit_count_365d": commit_count_365d,
+            "active_maintainer_ids": sorted(active_maintainers),
+            "active_maintainer_count": len(active_maintainers),
+            "release_share_by_active_maintainers": release_share,
+            "bus_factor_candidate": bus_factor_candidate,
+            "top_contributor": top_contributor[0] if top_contributor else None,
+            "top_contributor_commit_share": top_share,
+            "archived_repository_count": len(archived_repos),
+            "active_non_mirror_repository_count": len(active_repos),
+            "guardrails": [
+                "Project health is ecosystem resilience context, not developer personal worth.",
+                "Low commit activity does not automatically mean abandoned.",
+                "Single maintainer does not automatically mean insecure.",
+                "Bus-factor candidate is not a targeting metric.",
+            ],
+        }
+
+    def build_findings(self) -> None:
+        # Accounts
+        for acc in self.accounts.values():
+            if acc.account_type == AccountType.BOT:
+                ftype = FindingType.BOT_ACTIVITY_OBSERVED
+            elif acc.verified_identity_state == IdentityState.PERSON_CANDIDATE:
+                ftype = FindingType.PERSON_CANDIDATE
+            else:
+                ftype = FindingType.ACCOUNT_RESOLVED
+
+            self.add_finding(Finding(
+                id=new_id("FIND-ACC-", acc.id + ftype.value),
+                finding_type=ftype,
+                subject_id=acc.id,
+                statement=(
+                    f"Platform account {acc.id} ({acc.platform}:{acc.username}) is resolved as "
+                    f"{acc.verified_identity_state.value}."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                source_ids=acc.source_ids,
+                evidence_ids=acc.evidence_ids,
+                limitations=acc.limitations.copy(),
+            ))
+
+        # Maintainer roles
+        for role in self.maintainer_roles.values():
+            isActive = active_at(role.valid_from, role.valid_to, self.as_of)
+            if role.role_state in {MaintainerState.VERIFIED_MAINTAINER, MaintainerState.SUPPORTED_MAINTAINER} and isActive:
+                ftype = FindingType.MAINTAINER_SUPPORTED
+            elif role.role_state == MaintainerState.PAST_MAINTAINER or not isActive:
+                ftype = FindingType.PAST_MAINTAINER
+            elif role.role_state == MaintainerState.CONTRIBUTOR:
+                ftype = FindingType.CONTRIBUTOR_OBSERVED
+            elif role.role_state == MaintainerState.RELEASE_MANAGER:
+                ftype = FindingType.RELEASE_APPROVER_OBSERVED
+            elif role.role_state == MaintainerState.PACKAGE_PUBLISHER:
+                ftype = FindingType.PACKAGE_PUBLISHER_OBSERVED
+            else:
+                ftype = FindingType.ACCOUNT_RESOLVED
+
+            self.add_finding(Finding(
+                id=new_id("FIND-ROLE-", role.id),
+                finding_type=ftype,
+                subject_id=role.subject_id,
+                statement=(
+                    f"Account {role.developer_account_id} has role {role.role_state.value} on "
+                    f"{role.subject_type} {role.subject_id}."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                valid_from=role.valid_from,
+                valid_to=role.valid_to,
+                source_ids=role.source_ids,
+                evidence_ids=role.evidence_ids,
+                limitations=role.limitations.copy(),
+            ))
+
+        # Contributions
+        for contrib in self.contributions.values():
+            if contrib.role_state == MaintainerState.CONTRIBUTOR or contrib.commit_count > 0:
+                self.add_finding(Finding(
+                    id=new_id("FIND-CONTRIB-", contrib.id),
+                    finding_type=FindingType.CONTRIBUTOR_OBSERVED,
+                    subject_id=contrib.repository_id,
+                    statement=(
+                        f"Account {contrib.developer_account_id} contributed to repository "
+                        f"{contrib.repository_id}: commits={contrib.commit_count}, "
+                        f"PRs={contrib.pull_requests}, reviews={contrib.reviews}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    valid_from=contrib.first_contribution,
+                    valid_to=contrib.last_contribution,
+                    source_ids=contrib.source_ids,
+                    evidence_ids=contrib.evidence_ids,
+                    limitations=contrib.limitations.copy() + [
+                        "Contribution does not establish maintainer, owner, or release authority."
+                    ],
+                ))
+
+        # Repositories
+        for repo in self.repositories.values():
+            if repo.fork_state == ForkState.MIRROR_OF:
+                self.add_finding(Finding(
+                    id=new_id("FIND-MIRROR-", repo.id),
+                    finding_type=FindingType.MIRROR_SUPPORTED,
+                    subject_id=repo.id,
+                    statement=f"Repository {repo.id} is a mirror of {repo.source_repository}.",
+                    verification_state=VerificationState.OBSERVED,
+                    source_ids=repo.source_ids,
+                    evidence_ids=repo.evidence_ids,
+                    limitations=repo.limitations.copy(),
+                ))
+            elif repo.fork_state in {ForkState.SUPPORTED_FORK, ForkState.PROBABLE_FORK, ForkState.POSSIBLE_FORK}:
+                self.add_finding(Finding(
+                    id=new_id("FIND-FORK-", repo.id),
+                    finding_type=FindingType.FORK_CANDIDATE,
+                    subject_id=repo.id,
+                    statement=f"Repository {repo.id} is a candidate fork of {repo.source_repository}.",
+                    verification_state=VerificationState.CANDIDATE,
+                    source_ids=repo.source_ids,
+                    evidence_ids=repo.evidence_ids,
+                    limitations=repo.limitations.copy(),
+                ))
+            if repo.archived:
+                self.add_finding(Finding(
+                    id=new_id("FIND-ARCH-", repo.id),
+                    finding_type=FindingType.ARCHIVED_REPOSITORY_OBSERVED,
+                    subject_id=repo.id,
+                    statement=f"Repository {repo.id} is archived.",
+                    verification_state=VerificationState.OBSERVED,
+                    source_ids=repo.source_ids,
+                    evidence_ids=repo.evidence_ids,
+                    limitations=repo.limitations.copy(),
+                ))
+
+        # Packages
+        for pkg in self.packages.values():
+            for maint in pkg.maintainers:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PKGMAINT-", pkg.id + maint),
+                    finding_type=FindingType.PACKAGE_MAINTAINER_OBSERVED,
+                    subject_id=pkg.id,
+                    statement=f"Registry metadata lists {maint} as package maintainer for {pkg.id}.",
+                    verification_state=VerificationState.OBSERVED,
+                    source_ids=pkg.source_ids,
+                    evidence_ids=pkg.evidence_ids,
+                    limitations=pkg.limitations.copy() + [
+                        "Package maintainer is not automatically repository maintainer or legal owner."
+                    ],
+                ))
+            for pub in pkg.publishers:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PKGPUB-", pkg.id + pub),
+                    finding_type=FindingType.PACKAGE_PUBLISHER_OBSERVED,
+                    subject_id=pkg.id,
+                    statement=f"Registry metadata lists {pub} as package publisher for {pkg.id}.",
+                    verification_state=VerificationState.OBSERVED,
+                    source_ids=pkg.source_ids,
+                    evidence_ids=pkg.evidence_ids,
+                    limitations=pkg.limitations.copy() + [
+                        "Publisher may be automation and does not establish real-person identity."
+                    ],
+                ))
+
+        # Releases
+        for rel in self.releases.values():
+            if rel.publisher_account_id:
+                self.add_finding(Finding(
+                    id=new_id("FIND-RELPUB-", rel.id),
+                    finding_type=FindingType.RELEASE_PUBLISHER_OBSERVED,
+                    subject_id=rel.id,
+                    statement=f"Release {rel.id} version {rel.version} was published by {rel.publisher_account_id}.",
+                    verification_state=VerificationState.OBSERVED,
+                    valid_from=rel.published_at,
+                    source_ids=rel.source_ids,
+                    evidence_ids=rel.evidence_ids,
+                    limitations=rel.limitations.copy() + [
+                        "Release publisher is not automatically release approver or real person."
+                    ],
+                ))
+            for appr in rel.approver_account_ids:
+                self.add_finding(Finding(
+                    id=new_id("FIND-RELAPP-", rel.id + appr),
+                    finding_type=FindingType.RELEASE_APPROVER_OBSERVED,
+                    subject_id=rel.id,
+                    statement=f"Release {rel.id} records {appr} as approver/releaser context.",
+                    verification_state=VerificationState.OBSERVED,
+                    valid_from=rel.published_at,
+                    source_ids=rel.source_ids,
+                    evidence_ids=rel.evidence_ids,
+                    limitations=rel.limitations.copy(),
+                ))
+            if rel.signing_state != SigningState.UNKNOWN or rel.provenance_state != ProvenanceState.UNKNOWN:
+                self.add_finding(Finding(
+                    id=new_id("FIND-PROV-", rel.id),
+                    finding_type=FindingType.PROVENANCE_OBSERVED,
+                    subject_id=rel.id,
+                    statement=(
+                        f"Release {rel.id} has signing_state={rel.signing_state.value} and "
+                        f"provenance_state={rel.provenance_state.value}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    valid_from=rel.published_at,
+                    source_ids=rel.source_ids,
+                    evidence_ids=rel.evidence_ids,
+                    limitations=rel.limitations.copy() + [
+                        "Signed/provenance-supported release supports integrity metadata, not absence of vulnerabilities."
+                    ],
+                ))
+
+        # Memberships
+        for mem in self.memberships.values():
+            org = self.organizations.get(mem.organization_id)
+            isActive = active_at(mem.valid_from, mem.valid_to, self.as_of)
+            if mem.relationship_state == AffiliationState.HISTORICAL or (not isActive and mem.valid_to):
+                if org and org.org_type == "COMPANY":
+                    ftype = FindingType.EMPLOYMENT_HISTORICAL
+                else:
+                    ftype = FindingType.HISTORICAL_AFFILIATION
+            elif isActive and org and org.org_type == "COMPANY":
+                ftype = FindingType.EMPLOYMENT_CANDIDATE
+            else:
+                ftype = FindingType.ORGANIZATION_MEMBERSHIP_SUPPORTED
+
+            self.add_finding(Finding(
+                id=new_id("FIND-MEM-", mem.id),
+                finding_type=ftype,
+                subject_id=mem.organization_id,
+                statement=(
+                    f"Account {mem.developer_account_id} has {mem.membership_type} relationship with "
+                    f"organization {mem.organization_id} ({ftype.value})."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                valid_from=mem.valid_from,
+                valid_to=mem.valid_to,
+                source_ids=mem.source_ids,
+                evidence_ids=mem.evidence_ids,
+                limitations=mem.limitations.copy() + [
+                    "Organization membership is not automatically employment.",
+                    "Historical affiliation must not be retroactively assigned to old commits.",
+                ],
+            ))
+
+        # Advisory + fixed release
+        for adv in self.advisories.values():
+            fixed_rel = None
+            if adv.fixed_versions:
+                for rel in self.releases.values():
+                    if rel.package_id == adv.package_id and rel.version == adv.fixed_versions:
+                        fixed_rel = rel
+                        break
+            if fixed_rel:
+                self.add_finding(Finding(
+                    id=new_id("FIND-ADVFIX-", adv.id + fixed_rel.id),
+                    finding_type=FindingType.SECURITY_FIX_RELEASE_SUPPORTED,
+                    subject_id=adv.id,
+                    statement=(
+                        f"Advisory {adv.id} affecting versions {adv.affected_versions} is associated with "
+                        f"fixed release {fixed_rel.id} version {fixed_rel.version}."
+                    ),
+                    verification_state=VerificationState.OBSERVED,
+                    valid_from=adv.published_at,
+                    source_ids=sorted(set(adv.source_ids + fixed_rel.source_ids)),
+                    evidence_ids=sorted(set(adv.evidence_ids + fixed_rel.evidence_ids)),
+                    limitations=adv.limitations.copy() + fixed_rel.limitations.copy() + [
+                        "Fix release relationship is defensive context, not exploit evidence."
+                    ],
+                    specialist_handoff="VULNINT",
+                ))
+
+        # Technology profiles
+        for tech in self.technology_profiles.values():
+            self.add_finding(Finding(
+                id=new_id("FIND-TECH-", tech.id),
+                finding_type=FindingType.TECHNOLOGY_STACK_OBSERVED,
+                subject_id=tech.repository_id or tech.package_id or tech.id,
+                statement=(
+                    f"Technology profile observed: languages={tech.languages}, "
+                    f"frameworks={tech.frameworks}, build_systems={tech.build_systems}, ci_systems={tech.ci_systems}."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                source_ids=tech.source_ids,
+                evidence_ids=tech.evidence_ids,
+                limitations=tech.limitations.copy() + [
+                    "Technology presence is not developer expertise."
+                ],
+            ))
+
+        # Health findings
+        if self.health.get("project_health_state") == ProjectHealthState.ACTIVE.value:
+            self.add_finding(Finding(
+                id="FIND-HEALTH-ACTIVE",
+                finding_type=FindingType.PROJECT_HEALTH_ACTIVE,
+                subject_id=self.case.case_id,
+                statement="Project health indicators support ACTIVE ecosystem maintenance as of the analysis date.",
+                verification_state=VerificationState.OBSERVED,
+                source_ids=[],
+                evidence_ids=[],
+                limitations=[
+                    "Project health is multi-dimensional and not a security verdict."
+                ],
+            ))
+
+        if self.health.get("bus_factor_candidate"):
+            self.add_finding(Finding(
+                id="FIND-BUSFACTOR",
+                finding_type=FindingType.BUS_FACTOR_CANDIDATE,
+                subject_id=self.case.case_id,
+                statement=(
+                    f"Bus-factor candidate: {self.health.get('bus_factor_candidate')} active maintainers "
+                    f"account for {self.health.get('release_share_by_active_maintainers')} share of recent release activity."
+                ),
+                verification_state=VerificationState.CANDIDATE,
+                source_ids=[],
+                evidence_ids=[],
+                limitations=[
+                    "Continuity risk context only.",
+                    "Not a personal risk score.",
+                    "Not a supply-chain attack targeting metric.",
+                ],
+                specialist_handoff="SUPPLYCHAININT",
+            ))
+
+        if self.health.get("release_share_by_active_maintainers") is not None and self.health.get("release_share_by_active_maintainers") >= 0.8:
+            self.add_finding(Finding(
+                id="FIND-MAINTCONC",
+                finding_type=FindingType.MAINTAINER_CONCENTRATION_OBSERVED,
+                subject_id=self.case.case_id,
+                statement=(
+                    f"Maintainer concentration observed: active maintainers account for "
+                    f"{self.health.get('release_share_by_active_maintainers')} of release activity."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                source_ids=[],
+                evidence_ids=[],
+                limitations=[
+                    "Concentration is resilience/governance context, not maliciousness."
+                ],
+            ))
+
+    def detect_contradictions(self) -> None:
+        existing = {c.description for c in self.contradictions}
+
+        for acc in self.accounts.values():
+            for claim in acc.public_affiliation_claims:
+                org_id = claim.get("organization_id")
+                if not org_id:
+                    continue
+                active_memberships = [
+                    m for m in self.memberships.values()
+                    if m.developer_account_id == acc.id
+                    and m.organization_id == org_id
+                    and active_at(m.valid_from, m.valid_to, self.as_of)
+                ]
+                historical_memberships = [
+                    m for m in self.memberships.values()
+                    if m.developer_account_id == acc.id
+                    and m.organization_id == org_id
+                    and m.valid_to
+                    and parse_dt(m.valid_to)
+                    and parse_dt(m.valid_to) < parse_dt(self.as_of)
+                ]
+                if not active_memberships and historical_memberships:
+                    desc = (
+                        f"Account {acc.id} publicly claims affiliation with organization {org_id}, "
+                        "but authorized/public membership evidence indicates the relationship is historical, "
+                        "not current. This is a stale-profile / historical-affiliation contradiction."
+                    )
+                    if desc in existing:
+                        continue
+                    finding_id = new_id("FIND-STALE-", acc.id + org_id)
+                    self.add_finding(Finding(
+                        id=finding_id,
+                        finding_type=FindingType.PROFILE_STALE_AFFILIATION,
+                        subject_id=acc.id,
+                        statement=desc,
+                        verification_state=VerificationState.DISPUTED,
+                        source_ids=claim.get("source_ids", "").split(",") if isinstance(claim.get("source_ids"), str) else claim.get("source_ids", []),
+                        evidence_ids=claim.get("evidence_ids", "").split(",") if isinstance(claim.get("evidence_ids"), str) else claim.get("evidence_ids", []),
+                        limitations=[
+                            "Do not infer resignation or deception from silence.",
+                            "Current employment remains unresolved without authoritative professional evidence.",
+                        ],
+                    ))
+                    self.contradictions.append(Contradiction(
+                        id=new_id("CON-", desc),
+                        contradiction_type="PROFILE_STALE_AFFILIATION",
+                        description=desc,
+                        subject_ids=[acc.id, org_id],
+                        finding_ids=[finding_id],
+                        evidence_ids=claim.get("evidence_ids", []),
+                        source_ids=claim.get("source_ids", []),
+                        severity="MEDIUM",
+                        status="OPEN",
+                        recommended_resolution=(
+                            "Resolve current affiliation through authoritative professional sources; "
+                            "keep historical affiliation time-bound."
+                        ),
+                    ))
+                    existing.add(desc)
+
+    def fact_gate_findings(self) -> None:
+        for f in self.findings.values():
+            srcs = [self.sources[sid] for sid in f.source_ids if sid in self.sources]
+            if not srcs:
+                f.confidence = 0.0
+                if f.verification_state == VerificationState.OBSERVED:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                f.limitations.append("No mapped source for fact gate.")
+                continue
+
+            families = self.source_families(f.source_ids)
+            max_rel = max((s.reliability for s in srcs), default=0.5)
+            direct = max((SOURCE_FACTOR.get(s.source_type, 0.65) for s in srcs), default=0.65)
+            base = max_rel * direct
+
+            if len(families) >= 2:
+                base = min(0.99, base * 1.05)
+            elif len(families) == 1 and len(f.source_ids) > 1:
+                base *= 0.90
+                f.limitations.append("Multiple sources share one upstream source family.")
+
+            # Semantic guards.
+            if f.finding_type == FindingType.PERSON_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.65)
+                f.limitations.extend([
+                    "Real-person identity is not verified.",
+                    "Cross-platform username/display-name similarity is weak evidence.",
+                    "Do not use for doxxing or consequential personal attribution.",
+                ])
+
+            elif f.finding_type == FindingType.EMPLOYMENT_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE if base >= 0.55 else VerificationState.INCONCLUSIVE
+                base = min(base, 0.70)
+                f.limitations.extend([
+                    "Organization membership is not employment.",
+                    "Email domain or profile claim is not verified employer evidence.",
+                ])
+
+            elif f.finding_type == FindingType.EMPLOYMENT_HISTORICAL:
+                if base >= 0.70 and f.valid_to and parse_dt(f.valid_to) and parse_dt(f.valid_to) < parse_dt(self.as_of):
+                    f.verification_state = VerificationState.SUPPORTED
+                else:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Historical employment/affiliation must not be treated as current.")
+
+            elif f.finding_type == FindingType.HISTORICAL_AFFILIATION:
+                if base >= 0.70:
+                    f.verification_state = VerificationState.SUPPORTED
+                else:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Historical affiliation is time-bound.")
+
+            elif f.finding_type == FindingType.ORGANIZATION_MEMBERSHIP_SUPPORTED:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                else:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Membership does not establish employment, authority, or ownership.")
+
+            elif f.finding_type == FindingType.MAINTAINER_SUPPORTED:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                elif base >= 0.60:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                else:
+                    f.verification_state = VerificationState.CANDIDATE
+                f.limitations.extend([
+                    "Maintainer does not automatically equal owner, release manager, or security contact.",
+                    "Governance documents may be stale; correlate with activity and registry metadata.",
+                ])
+
+            elif f.finding_type == FindingType.PAST_MAINTAINER:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Past maintainer status is not current maintenance authority.")
+
+            elif f.finding_type == FindingType.CONTRIBUTOR_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED if base >= 0.60 else VerificationState.INCONCLUSIVE
+                f.limitations.append("Contributor is not maintainer, owner, or release authority.")
+
+            elif f.finding_type == FindingType.RELEASE_PUBLISHER_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Publisher may be automation; publisher is not necessarily real person or approver.")
+
+            elif f.finding_type == FindingType.RELEASE_APPROVER_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED if base >= 0.65 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Approver metadata may be incomplete or workflow-specific.")
+
+            elif f.finding_type in {FindingType.PACKAGE_MAINTAINER_OBSERVED, FindingType.PACKAGE_PUBLISHER_OBSERVED}:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.78 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.extend([
+                    "Package registry rights are separate from repository maintenance rights.",
+                    "Package owner is not automatically company owner.",
+                ])
+
+            elif f.finding_type == FindingType.MIRROR_SUPPORTED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Mirror is not independent development activity.")
+
+            elif f.finding_type == FindingType.FORK_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                f.limitations.append("Fork candidate does not imply endorsement, ownership, or active maintenance.")
+
+            elif f.finding_type == FindingType.BOT_ACTIVITY_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Bot activity should not be counted as human workload.")
+
+            elif f.finding_type == FindingType.SECURITY_FIX_RELEASE_SUPPORTED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.extend([
+                    "Fix release relationship is defensive context.",
+                    "Does not provide exploit instructions or imply active exploitation.",
+                ])
+
+            elif f.finding_type == FindingType.PROVENANCE_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Provenance/signing supports integrity metadata, not security correctness.")
+
+            elif f.finding_type == FindingType.PROFILE_STALE_AFFILIATION:
+                f.verification_state = VerificationState.DISPUTED
+                base = min(base, 0.80)
+                f.limitations.append("Do not infer deception or resignation from stale profile alone.")
+
+            elif f.finding_type == FindingType.BUS_FACTOR_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.70)
+                f.limitations.append("Bus-factor candidate is continuity risk, not personal worth or attack target.")
+
+            elif f.finding_type == FindingType.MAINTAINER_CONCENTRATION_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Concentration is governance/resilience context, not targeting.")
+
+            elif f.finding_type == FindingType.PROJECT_HEALTH_ACTIVE:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Project health is multi-dimensional and not a security verdict.")
+
+            elif f.finding_type == FindingType.TECHNOLOGY_STACK_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.limitations.append("Technology use is not developer expertise.")
+
+            else:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                elif base >= 0.60:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                elif base >= 0.40:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                else:
+                    f.verification_state = VerificationState.UNSUPPORTED
+
+            f.confidence = round(max(0.0, min(0.99, base)), 3)
+
+    def build_hypotheses(self) -> None:
+        hyps: List[Hypothesis] = []
+
+        # Cross-platform person candidate.
+        seen_groups: Set[Tuple[str, ...]] = set()
+        for acc in self.accounts.values():
+            if acc.verified_identity_state != IdentityState.PERSON_CANDIDATE:
+                continue
+            ids = tuple(sorted([acc.id] + [x for x in acc.linked_accounts if x in self.accounts]))
+            if ids in seen_groups:
+                continue
+            seen_groups.add(ids)
+            hyps.append(Hypothesis(
+                id=new_id("HYP-PERSON-", "|".join(ids)),
+                statement=f"Accounts {', '.join(ids)} may represent the same real person.",
+                kind="REAL_PERSON_IDENTITY",
+                supporting_evidence_ids=sorted({eid for aid in ids for eid in self.accounts[aid].evidence_ids}),
+                assumptions=["Cross-platform profile linkage is suggestive but not conclusive."],
+                predictions=["Independent verified website, cryptographic identity, or explicit authorized identity evidence would strengthen the hypothesis."],
+                falsification_conditions=[
+                    "Accounts belong to different people with same username.",
+                    "Linkage is self-claimed and unverified.",
+                    "One account is shared, bot, or organization-controlled.",
+                ],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.45,
+                limitations=[
+                    "DEVINT does not assert real-person identity from username/display name alone.",
+                    "No doxxing or private personal data collection.",
+                ],
+            ))
+
+        # Current maintainers.
+        if self.active_maintainer_ids:
+            maint_findings = [
+                f.id for f in self.findings.values()
+                if f.finding_type == FindingType.MAINTAINER_SUPPORTED
+                and f.verification_state in {VerificationState.SUPPORTED, VerificationState.PARTIALLY_SUPPORTED}
+            ]
+            hyps.append(Hypothesis(
+                id="HYP-CURRENT-MAINTAINERS",
+                statement=f"Accounts {', '.join(sorted(self.active_maintainer_ids))} are current maintainers of the observed project/package ecosystem.",
+                kind="MAINTAINER_ROLE",
+                supporting_finding_ids=maint_findings,
+                assumptions=["Governance documents and activity metadata are current enough for as-of analysis."],
+                predictions=["Recent merge/review/release approval activity would continue from these accounts or documented successors."],
+                falsification_conditions=[
+                    "Governance docs are stale.",
+                    "Role transferred to another account/organization.",
+                    "Activity is bot-generated without maintainer approval.",
+                ],
+                status=HypothesisStatus.SUPPORTED if maint_findings else HypothesisStatus.UNRESOLVED,
+                confidence=0.75 if maint_findings else 0.40,
+                limitations=["Maintainer does not equal owner, release manager, or security contact."],
+            ))
+
+        # Current employment dispute/candidate.
+        employment_findings = [
+            f for f in self.findings.values()
+            if f.finding_type in {FindingType.EMPLOYMENT_CANDIDATE, FindingType.PROFILE_STALE_AFFILIATION}
+        ]
+        if employment_findings:
+            hyps.append(Hypothesis(
+                id="HYP-CURRENT-EMPLOYMENT",
+                statement="Public profile affiliation claim indicates current employment at the claimed company.",
+                kind="EMPLOYMENT",
+                supporting_finding_ids=[f.id for f in employment_findings if f.finding_type == FindingType.EMPLOYMENT_CANDIDATE],
+                contradicting_evidence_ids=sorted({eid for f in employment_findings if f.finding_type == FindingType.PROFILE_STALE_AFFILIATION for eid in f.evidence_ids}),
+                assumptions=["Self-reported profile bio may be stale."],
+                predictions=["Authoritative professional/source-of-truth evidence would confirm current affiliation."],
+                falsification_conditions=[
+                    "Membership is historical only.",
+                    "Profile is outdated.",
+                    "Contractor/partner/volunteer relationship, not employment.",
+                ],
+                status=HypothesisStatus.DISPUTED,
+                confidence=0.35,
+                limitations=[
+                    "Do not infer resignation or deception from silence.",
+                    "Current employment remains unresolved without authoritative evidence.",
+                ],
+            ))
+
+        # Bot releases.
+        bot_publishers = [
+            rel.publisher_account_id for rel in self.releases.values()
+            if rel.publisher_account_id and self.accounts.get(rel.publisher_account_id)
+            and self.accounts[rel.publisher_account_id].account_type == AccountType.BOT
+        ]
+        if bot_publishers:
+            hyps.append(Hypothesis(
+                id="HYP-BOT-RELEASES",
+                statement="Recent releases are published through automation/bot accounts rather than directly by human maintainers.",
+                kind="RELEASE_PROCESS",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type == FindingType.RELEASE_PUBLISHER_OBSERVED],
+                assumptions=["Release metadata identifies publisher account type correctly."],
+                predictions=["CI/release workflow metadata would show bot-triggered publication."],
+                falsification_conditions=[
+                    "Bot account is misclassified.",
+                    "Bot only mirrors manual publication metadata.",
+                ],
+                status=HypothesisStatus.SUPPORTED,
+                confidence=0.80,
+                limitations=["Bot publisher does not remove maintainer approval context where recorded."],
+            ))
+
+        # Mirror independence.
+        mirrors = [r.id for r in self.repositories.values() if r.fork_state == ForkState.MIRROR_OF]
+        if mirrors:
+            hyps.append(Hypothesis(
+                id="HYP-MIRROR-INDEPENDENT",
+                statement=f"Mirror repositories {', '.join(mirrors)} represent independent development activity.",
+                kind="REPOSITORY_RELATIONSHIP",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type == FindingType.MIRROR_SUPPORTED],
+                assumptions=["Mirrors may duplicate upstream history."],
+                predictions=["Independent commits/divergent history would be observable."],
+                falsification_conditions=[
+                    "Mirror is read-only synchronization.",
+                    "Commit history matches upstream.",
+                ],
+                status=HypothesisStatus.REJECTED,
+                confidence=0.85,
+                limitations=["Do not double-count mirrored commits as independent contribution."],
+            ))
+
+        # Supply-chain concentration.
+        if self.health.get("bus_factor_candidate"):
+            hyps.append(Hypothesis(
+                id="HYP-SUPPLY-CHAIN-CONCENTRATION",
+                statement="Project/package ecosystem exhibits maintainer concentration relevant to continuity and supply-chain resilience.",
+                kind="SUPPLY_CHAIN_RESILIENCE",
+                supporting_finding_ids=[f.id for f in self.findings.values() if f.finding_type in {FindingType.BUS_FACTOR_CANDIDATE, FindingType.MAINTAINER_CONCENTRATION_OBSERVED}],
+                assumptions=["Release/review activity metadata is representative."],
+                predictions=["Diversifying maintainers/reviewers would reduce single-dependency continuity risk."],
+                falsification_conditions=[
+                    "Hidden maintainers or foundation governance mitigates concentration.",
+                    "Release activity is automated with broad approval process.",
+                ],
+                status=HypothesisStatus.POSSIBLE,
+                confidence=0.65,
+                limitations=[
+                    "This is defensive resilience context.",
+                    "Not a targeting list or attack-path recommendation.",
+                ],
+            ))
+
+        self.hypotheses = hyps
+
+    def build_knowledge_gaps(self) -> None:
+        existing = {g.description for g in self.gaps}
+
+        for acc in self.accounts.values():
+            if acc.verified_identity_state == IdentityState.PERSON_CANDIDATE:
+                desc = f"Real-person identity for account {acc.id} remains unresolved."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-PERSON-", acc.id),
+                        gap_type=GapType.PERSON_IDENTITY_UNRESOLVED,
+                        description=desc,
+                        about_subject_ids=[acc.id],
+                        importance="MEDIUM",
+                        recommended_source="Explicit authorized identity evidence or verified public professional source; no doxxing.",
+                        specialist="PERSONINT only if lawful/authorized and necessary",
+                        expected_information_value=0.55,
+                    ))
+                    existing.add(desc)
+
+        for f in self.findings.values():
+            if f.finding_type == FindingType.EMPLOYMENT_CANDIDATE:
+                desc = f"Current employment/affiliation for {f.subject_id} is candidate-only."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-EMP-", f.id),
+                        gap_type=GapType.CURRENT_EMPLOYMENT_UNRESOLVED,
+                        description=desc,
+                        about_subject_ids=[f.subject_id],
+                        about_finding_ids=[f.id],
+                        importance="MEDIUM",
+                        recommended_source="Authoritative professional affiliation source",
+                        specialist="CORPINT / ORGINT",
+                        expected_information_value=0.65,
+                    ))
+                    existing.add(desc)
+
+            if f.finding_type == FindingType.PACKAGE_PUBLISHER_OBSERVED:
+                desc = f"Package publishing authority for {f.subject_id} should be verified separately from repository maintenance."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-PUB-", f.id),
+                        gap_type=GapType.PACKAGE_PUBLISHER_UNKNOWN,
+                        description=desc,
+                        about_subject_ids=[f.subject_id],
+                        about_finding_ids=[f.id],
+                        importance="MEDIUM",
+                        recommended_source="Registry maintainer/publisher metadata and release workflow records",
+                        specialist="PACKAGEINT / SUPPLYCHAININT",
+                        expected_information_value=0.70,
+                    ))
+                    existing.add(desc)
+
+            if f.finding_type == FindingType.PROVENANCE_OBSERVED and f.verification_state != VerificationState.SUPPORTED:
+                desc = f"Release provenance details for {f.subject_id} are incomplete."
+                if desc not in existing:
+                    self.gaps.append(KnowledgeGap(
+                        id=new_id("GAP-PROV-", f.id),
+                        gap_type=GapType.RELEASE_PROVENANCE_MISSING,
+                        description=desc,
+                        about_subject_ids=[f.subject_id],
+                        about_finding_ids=[f.id],
+                        importance="MEDIUM",
+                        recommended_source="Signed attestations, SLSA-like provenance, build metadata",
+                        specialist="SUPPLYCHAININT / PACKAGEINT",
+                        expected_information_value=0.70,
+                    ))
+                    existing.add(desc)
+
+        for adv in self.advisories.values():
+            desc = f"Security advisory {adv.id} requires vulnerability applicability and downstream exposure validation."
+            if desc not in existing:
+                self.gaps.append(KnowledgeGap(
+                    id=new_id("GAP-ADV-", adv.id),
+                    gap_type=GapType.VULNERABILITY_APPLICABILITY_UNKNOWN,
+                    description=desc,
+                    about_subject_ids=[adv.package_id or adv.repository_id or adv.id],
+                    importance="HIGH",
+                    recommended_source="VULNINT affected-version/reachability analysis",
+                    specialist="VULNINT",
+                    expected_information_value=0.85,
+                ))
+                existing.add(desc)
+
+        if self.health.get("bus_factor_candidate"):
+            desc = "Maintainer concentration / bus-factor candidate requires supply-chain resilience review."
+            if desc not in existing:
+                self.gaps.append(KnowledgeGap(
+                    id="GAP-SUPPLY-CONC",
+                    gap_type=GapType.SUPPLY_CHAIN_RISK_REQUIRES_SPECIALIST,
+                    description=desc,
+                    about_subject_ids=list(self.active_maintainer_ids),
+                    importance="HIGH",
+                    recommended_source="Governance docs, maintainer lists, release workflow, foundation records",
+                    specialist="SUPPLYCHAININT",
+                    expected_information_value=0.80,
+                ))
+                existing.add(desc)
+
+    def build_next_actions(self) -> None:
+        self.actions = [
+            NextAction(
+                id="ACT-RESOLVE-STABLE-IDS",
+                description="Resolve stable platform account/repository/package IDs instead of relying on mutable usernames or names.",
+                priority=1,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="REPOINT / PACKAGEINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-VERIFY-GOVERNANCE",
+                description="Inspect current governance documents, maintainer lists, and CODEOWNERS-like files; compare with recent review/merge/release activity.",
+                priority=2,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="DEVINT / ORGINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-VERIFY-REGISTRY-PUBLISHER",
+                description="Verify package registry maintainers/publishers separately from repository maintainers.",
+                priority=3,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="PACKAGEINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-CHECK-PROVENANCE",
+                description="Retrieve signed release metadata, attestations, SBOMs, and build provenance where publicly/authorized available.",
+                priority=4,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="SUPPLYCHAININT / PACKAGEINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HANDOFF-VULN",
+                description="Hand off advisory/affected-version questions to VULNINT; DEVINT does not operationalize exploits.",
+                priority=5,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="VULNINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HANDOFF-SUPPLYCHAIN",
+                description="Hand off maintainer concentration and dependency centrality to SUPPLYCHAININT for defensive resilience analysis.",
+                priority=6,
+                privacy_impact="LOW",
+                expected_gain=0.75,
+                specialist="SUPPLYCHAININT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HANDOFF-CREDINT",
+                description="If exposed secret candidates appear, hand off to CREDINT; do not test, use, or redeem credentials.",
+                priority=7,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.75,
+                specialist="CREDINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-HUMAN-REVIEW",
+                description="Require human review before real-person attribution, employment allegations, malicious-maintainer claims, or public disclosure.",
+                priority=8,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.85,
+                specialist=None,
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-NO-HARM",
+                description="Do not phish developers, submit malicious PRs, publish malicious packages, typosquat, dependency-confuse, poison dependencies, or compromise releases.",
+                priority=99,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.0,
+                specialist=None,
+                requires_human_approval=False,
+            ),
+        ]
+
+    def build_handoffs(self) -> None:
+        self.handoffs = [
+            {"specialist": "REPOINT", "reason": "Repository-centric metadata, branches, issues, releases, forks."},
+            {"specialist": "PACKAGEINT", "reason": "Package identity, registry metadata, versions, maintainers, typosquat defense."},
+            {"specialist": "SUPPLYCHAININT", "reason": "Dependency centrality, maintainer concentration, release provenance, vendor risk."},
+            {"specialist": "VULNINT", "reason": "Advisory applicability, affected versions, reachability, remediation priority."},
+            {"specialist": "MALINT", "reason": "If malicious package/sample behavior is reported."},
+            {"specialist": "CREDINT", "reason": "Exposed secret/token handling; DEVINT must not use credentials."},
+            {"specialist": "CORPINT", "reason": "Legal company identity, corporate affiliation, ownership."},
+            {"specialist": "ORGINT", "reason": "Organizational roles and governance structure."},
+            {"specialist": "CTI / THREATACTORINT", "reason": "Threat actor attribution only with independent evidence; not from developer activity alone."},
+            {"specialist": "LEGALINT", "reason": "License/IP/public disclosure review."},
+        ]
+
+    def dual_ai_review(self) -> Dict[str, Any]:
+        issues: List[str] = []
+
+        if any(acc.verified_identity_state == IdentityState.PERSON_CANDIDATE for acc in self.accounts.values()):
+            issues.append("Real-person identity remains candidate-only.")
+
+        if any(f.finding_type == FindingType.EMPLOYMENT_CANDIDATE for f in self.findings.values()):
+            issues.append("Current employment/affiliation is candidate-only.")
+
+        if any(f.finding_type == FindingType.PROFILE_STALE_AFFILIATION for f in self.findings.values()):
+            issues.append("Profile affiliation conflicts with time-bound membership evidence.")
+
+        if any(f.finding_type == FindingType.MIRROR_SUPPORTED for f in self.findings.values()):
+            issues.append("Mirror repositories must not be double-counted as independent development.")
+
+        if any(f.finding_type == FindingType.BOT_ACTIVITY_OBSERVED for f in self.findings.values()):
+            issues.append("Bot activity is present and should not be interpreted as human workload.")
+
+        if self.health.get("bus_factor_candidate"):
+            issues.append("Maintainer concentration / bus-factor candidate requires resilience review.")
+
+        if any(rel.provenance_state in {ProvenanceState.MISSING, ProvenanceState.UNKNOWN} for rel in self.releases.values()):
+            issues.append("Release provenance is incomplete for some releases.")
+
+        if self.advisories:
+            issues.append("Security advisory applicability requires VULNINT handoff.")
+
+        if self.contradictions:
+            issues.append(f"{len(self.contradictions)} contradiction(s) remain open.")
+
+        if not issues:
+            verdict = "AGREE"
+        elif len(issues) <= 5:
+            verdict = "PARTIAL_AGREEMENT"
+        else:
+            verdict = "INSUFFICIENT_EVIDENCE"
+
+        return {
+            "primary_developer_ecosystem_analyst": (
+                "Public/authorized ecosystem metadata supports current maintainer roles for the observed project, "
+                "separate package publishing automation, historical company affiliation, mirror repository duplication, "
+                "and a security-fix release relationship. Real-person identity and current employment remain unresolved."
+            ),
+            "independent_developer_ecosystem_skeptic_issues": issues,
+            "verdict": verdict,
+            "adversarial_checks": [
+                "Are contributor and maintainer conflated? No; roles separated.",
+                "Are maintainer and owner conflated? No; ownership not asserted.",
+                "Are package publishers conflated with repository maintainers? No; separate findings.",
+                "Are mirrored repositories double-counted? No; mirror flag applied.",
+                "Are bots counted as human workload? No; bot account type preserved.",
+                "Are historical affiliations treated as current? No; time-bound memberships used.",
+                "Are real people identified from username/style/timezone? No.",
+                "Are credentials/tokens tested or used? No.",
+                "Is centrality converted into targeting? No.",
+            ],
+            "note": "AI agreement is analytical agreement, not independent source corroboration.",
+        }
+
+    def analyst_summary(self, dual: Dict[str, Any]) -> str:
+        acc = next(iter(self.accounts.values()), None)
+        repo = next(iter(self.repositories.values()), None)
+        pkg = next(iter(self.packages.values()), None)
+
+        lines: List[str] = []
+        if acc:
+            lines.append(f"ACCOUNT: {acc.id} ({acc.platform}:{acc.username}).")
+            lines.append(f"IDENTITY STATE: {acc.verified_identity_state.value}.")
+        else:
+            lines.append("ACCOUNT: None configured.")
+
+        if repo:
+            lines.append(f"REPOSITORY: {repo.id} on {repo.platform}, fork_state={repo.fork_state.value}, archived={repo.archived}.")
+        if pkg:
+            lines.append(f"PACKAGE: {pkg.id} ({pkg.ecosystem}:{pkg.name}), latest_version={pkg.latest_version}.")
+
+        lines.extend([
+            "",
+            "ROLE RESOLUTION:",
+            f"- Active maintainer accounts: {', '.join(sorted(self.active_maintainer_ids)) or 'NONE'}.",
+            "- Contributor status is not maintainer status.",
+            "- Package publisher is not automatically repository maintainer.",
+            "- Release publisher may be automation.",
+            "",
+            "AFFILIATION:",
+            "- Organization membership is not employment.",
+            "- Historical affiliation is time-bound and not retroactively assigned to old commits.",
+            "- Current employment remains unresolved where only profile claims exist.",
+            "",
+            "ECOSYSTEM HEALTH:",
+            f"- Project health state: {self.health.get('project_health_state', 'UNKNOWN')}.",
+            f"- Active maintainer count: {self.health.get('active_maintainer_count', 0)}.",
+            f"- Release share by active maintainers: {self.health.get('release_share_by_active_maintainers', 'UNKNOWN')}.",
+            f"- Bus-factor candidate: {self.health.get('bus_factor_candidate', 'NONE')}.",
+            "",
+            "NOT ESTABLISHED:",
+            "- Real-person identity from account linkage alone.",
+            "- Current employment from stale profile claim alone.",
+            "- Malicious maintainer or supply-chain compromise.",
+            "- Exploitability of security advisory.",
+            "",
+            f"DUAL-AI REVIEW: {dual['verdict']}.",
+            "PRIVACY/POLICY: Lawful public/authorized developer-ecosystem intelligence only. No doxxing, credential use, private repo bypass, malicious contribution, or supply-chain attack enablement.",
+            "NEXT ACTION: Resolve stable IDs, verify governance/registry publisher separation, check provenance, hand off vulnerability applicability to VULNINT and resilience risk to SUPPLYCHAININT.",
+        ])
+        return "\n".join(lines)
+
+    def prepare(self) -> None:
+        self.resolve_accounts()
+        self.detect_repository_relationships()
+        self.aggregate_contributions()
+        self.compute_project_health()
+        self.build_findings()
+        self.detect_contradictions()
+        self.fact_gate_findings()
+        self.build_hypotheses()
+        self.build_knowledge_gaps()
+        self.build_next_actions()
+        self.build_handoffs()
+
+
+# =====================================================================
+# SAMPLE DATA
+# =====================================================================
+
+def sample_case() -> Case:
+    return Case(
+        case_id="SAMPLE-DEVINT-001",
+        task_id="TASK-DEVINT-001",
+        objective=(
+            "Authorized public/developer-ecosystem intelligence for payments-lib: resolve maintainer roles, "
+            "separate package publishing from repository maintenance, assess release cadence/provenance, "
+            "identify mirror/bot effects, and provide defensive supply-chain resilience context without doxxing "
+            "or credential use."
+        ),
+        questions=[
+            "Which platform accounts are relevant?",
+            "Is real-person identity resolved?",
+            "Which accounts are current maintainers?",
+            "Which accounts are contributors only?",
+            "Who publishes the package?",
+            "Are releases automated by bots?",
+            "Is the GitLab repository a mirror?",
+            "What is the project health / maintainer concentration context?",
+            "What security advisory relationships are supported?",
+            "What remains unknown?",
+        ],
+        scope=["public_or_authorized_only", "privacy_aware", "case_scoped", "no_credential_use", "no_supply_chain_attack_enablement"],
+        authorization="demo_lawful_developer_ecosystem_intelligence",
+        developer_accounts=["ACC-GH-ALPHA", "ACC-PYPI-ALPHA", "ACC-GH-BETA", "ACC-GH-GAMMA", "ACC-GH-BOT"],
+        organizations=["ORG-PAYMENTS-FOUNDATION", "ORG-COMPANY-X"],
+        repositories=["REPO-GH-PAYMENTS", "REPO-GL-PAYMENTS"],
+        packages=["PKG-PYPI-PAYMENTS"],
+        time_range="2022-01-01/2026-10-09",
+        as_of=DEFAULT_AS_OF,
+        sample=True,
+    )
+
+
+def build_sample_devint() -> DevInt:
+    d = DevInt(sample_case())
+    retrieved = now_iso()
+
+    # Sources
+    d.add_source(Source(
+        id="SRC-GIT-HISTORY",
+        title="Synthetic Git history / repository metadata",
+        url="https://git.example/payments-foundation/payments-lib",
+        source_type=SourceType.GIT_METADATA,
+        independence_group="GIT_HISTORY_ROOT",
+        reliability=0.95,
+        published_at="2026-10-08T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Upstream Git history family. GitHub/GitLab APIs representing same history are not independent for commit-level facts.",
+    ))
+    d.add_source(Source(
+        id="SRC-GITHUB-API",
+        title="Synthetic GitHub API metadata",
+        url="https://api.github.example/repos/payments-foundation/payments-lib",
+        source_type=SourceType.GITHUB_API,
+        independence_group="GIT_HISTORY_ROOT",
+        reliability=0.90,
+        derived_from="SRC-GIT-HISTORY",
+        published_at="2026-10-08T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Platform API derivative of same Git history family.",
+    ))
+    d.add_source(Source(
+        id="SRC-GITLAB-MIRROR",
+        title="Synthetic GitLab mirror metadata",
+        url="https://gitlab.example/payments-foundation/payments-lib",
+        source_type=SourceType.GITLAB_API,
+        independence_group="GIT_HISTORY_ROOT",
+        reliability=0.82,
+        derived_from="SRC-GIT-HISTORY",
+        published_at="2026-10-08T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Mirror source; not independent development evidence.",
+    ))
+    d.add_source(Source(
+        id="SRC-PYPI",
+        title="Synthetic PyPI registry metadata",
+        url="https://pypi.example/project/payments-lib",
+        source_type=SourceType.PACKAGE_REGISTRY,
+        independence_group="PYPI_ROOT",
+        reliability=0.90,
+        published_at="2026-10-08T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Package registry is separate from code-hosting platform.",
+    ))
+    d.add_source(Source(
+        id="SRC-GOVERNANCE",
+        title="Synthetic project governance document MAINTAINERS.md",
+        url="https://git.example/payments-foundation/payments-lib/MAINTAINERS.md",
+        source_type=SourceType.GOVERNANCE_DOC,
+        independence_group="GIT_HISTORY_ROOT",
+        reliability=0.88,
+        derived_from="SRC-GIT-HISTORY",
+        published_at="2026-09-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Governance docs can be stale; correlate with activity.",
+    ))
+    d.add_source(Source(
+        id="SRC-ORG-WEB",
+        title="Synthetic Payments Foundation website",
+        url="https://paymentsfoundation.example",
+        source_type=SourceType.ORGANIZATION_SITE,
+        independence_group="ORG_WEB_ROOT",
+        reliability=0.75,
+        published_at="2026-08-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Organization self-presentation; not legal company identity.",
+    ))
+    d.add_source(Source(
+        id="SRC-CONF-BIO",
+        title="Synthetic conference speaker bio",
+        url="https://conf.example/speakers/alpha-dev",
+        source_type=SourceType.CONFERENCE_BIO,
+        independence_group="CONF_BIO_ROOT",
+        reliability=0.65,
+        published_at="2026-06-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Self-reported professional bio; may be stale.",
+    ))
+    d.add_source(Source(
+        id="SRC-ADVISORY",
+        title="Synthetic security advisory",
+        url="https://advisory.example/payments-lib-2026-001",
+        source_type=SourceType.SECURITY_ADVISORY,
+        independence_group="ADVISORY_ROOT",
+        reliability=0.85,
+        published_at="2026-08-20T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Advisory context only; exploitability requires VULNINT.",
+    ))
+    d.add_source(Source(
+        id="SRC-SBOM",
+        title="Synthetic SBOM for release 2.4.0",
+        url="https://build.example/payments-lib/sbom-2.4.0.cdx.json",
+        source_type=SourceType.SBOM,
+        independence_group="SBOM_ROOT",
+        reliability=0.78,
+        published_at="2026-09-01T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="SBOM is build-specific and not deployed-runtime truth.",
+    ))
+
+    # Evidence
+    d.add_evidence(Evidence(
+        id="EV-GH-ALPHA",
+        source_id="SRC-GITHUB-API",
+        artifact_type="developer_profile",
+        excerpt="GitHub account alpha-dev. Bio: 'Maintainer of payments-lib. Engineer at Company X.' Location claim: Remote.",
+        observed_at="2026-10-08T00:00:00Z",
+        parsed_fields={
+            "username": "alpha-dev",
+            "display_name": "Alpha Dev",
+            "account_type": "HUMAN",
+            "linked_pypi_profile": "alpha-dev",
+        },
+        limitations=["Profile bio is self-reported.", "Location claim is not precise location."],
+    ))
+    d.add_evidence(Evidence(
+        id="EV-PYPI-ALPHA",
+        source_id="SRC-PYPI",
+        artifact_type="package_maintainer_profile",
+        excerpt="PyPI profile alpha-dev links to GitHub alpha-dev. Maintainer of payments-lib.",
+        observed_at="2026-10-08T00:00:00Z",
+        parsed_fields={
+            "username": "alpha-dev",
+            "linked_github_profile": "alpha-dev",
+        },
+        limitations=["Cross-platform linkage is person-candidate evidence only."],
+    ))
+    d.add_evidence(Evidence(
+        id="EV-GH-BETA",
+        source_id="SRC-GITHUB-API",
+        artifact_type="developer_profile",
+        excerpt="GitHub account beta-maint. Bio: Co-maintainer of payments-lib.",
+        observed_at="2026-10-08T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-GH-GAMMA",
+        source_id="SRC-GITHUB-API",
+        artifact_type="developer_profile",
+        excerpt="GitHub account gamma-contrib. External contributor; submitted patches and reviews.",
+        observed_at="2026-10-08T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-GH-BOT",
+        source_id="SRC-GITHUB-API",
+        artifact_type="bot_account_metadata",
+        excerpt="GitHub account payments-release-bot is a bot/app used for release automation.",
+        observed_at="2026-10-08T00:00:00Z",
+        parsed_fields={"account_type": "BOT"},
+    ))
+    d.add_evidence(Evidence(
+        id="EV-GOVERNANCE",
+        source_id="SRC-GOVERNANCE",
+        artifact_type="maintainers_md",
+        excerpt="MAINTAINERS.md as of 2026-09-01 lists alpha-dev and beta-maint as maintainers.",
+        observed_at="2026-09-01T00:00:00Z",
+        parsed_fields={"maintainers": ["ACC-GH-ALPHA", "ACC-GH-BETA"]},
+    ))
+    d.add_evidence(Evidence(
+        id="EV-PYPI-MAINTAINERS",
+        source_id="SRC-PYPI",
+        artifact_type="registry_maintainer_list",
+        excerpt="PyPI maintainer list for payments-lib includes alpha-dev and legacy-dev.",
+        observed_at="2026-10-08T00:00:00Z",
+        parsed_fields={"maintainers": ["ACC-PYPI-ALPHA", "ACC-PYPI-LEGACY"]},
+        limitations=["Registry maintainer list may be stale or separate from repository governance."],
+    ))
+    d.add_evidence(Evidence(
+        id="EV-REPO-GH",
+        source_id="SRC-GITHUB-API",
+        artifact_type="repository_metadata",
+        excerpt="GitHub repository payments-foundation/payments-lib, public, default branch main, not archived, languages Python.",
+        observed_at="2026-10-08T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-REPO-GL",
+        source_id="SRC-GITLAB-MIRROR",
+        artifact_type="repository_metadata",
+        excerpt="GitLab repository payments-foundation/payments-lib is a mirror of GitHub repository.",
+        observed_at="2026-10-08T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-RELEASE-240",
+        source_id="SRC-GITHUB-API",
+        artifact_type="release_metadata",
+        excerpt="Release v2.4.0 published 2026-09-01 by payments-release-bot, approved by alpha-dev and beta-maint, signed, provenance candidate.",
+        observed_at="2026-09-01T00:00:00Z",
+        parsed_fields={
+            "publisher": "ACC-GH-BOT",
+            "approvers": ["ACC-GH-ALPHA", "ACC-GH-BETA"],
+            "signing": "SIGNED_VERIFIED",
+            "provenance": "CANDIDATE",
+        },
+    ))
+    d.add_evidence(Evidence(
+        id="EV-RELEASE-230",
+        source_id="SRC-GITHUB-API",
+        artifact_type="release_metadata",
+        excerpt="Release v2.3.0 published 2026-03-01 by alpha-dev, unsigned, provenance missing.",
+        observed_at="2026-03-01T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-ADVISORY",
+        source_id="SRC-ADVISORY",
+        artifact_type="security_advisory",
+        excerpt="Advisory affects payments-lib <2.4.0 and is fixed in 2.4.0.",
+        observed_at="2026-08-20T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-MEMBERSHIPS",
+        source_id="SRC-GITHUB-API",
+        artifact_type="organization_membership_metadata",
+        excerpt="alpha-dev is current member of Payments Foundation organization since 2024-01-01. Historical membership with Company X ended 2023-12-31.",
+        observed_at="2026-10-08T00:00:00Z",
+    ))
+    d.add_evidence(Evidence(
+        id="EV-CONF-BIO",
+        source_id="SRC-CONF-BIO",
+        artifact_type="conference_bio",
+        excerpt="Conference bio from 2026-06 describes alpha-dev as 'Engineer at Company X' and payments-lib maintainer.",
+        observed_at="2026-06-01T00:00:00Z",
+        limitations=["Conference bio may be stale."],
+    ))
+
+    # Organizations
+    d.add_organization(Organization(
+        id="ORG-PAYMENTS-FOUNDATION",
+        name="Payments Foundation",
+        namespace="payments-foundation",
+        org_type="FOUNDATION",
+        website="https://paymentsfoundation.example",
+        description="Synthetic foundation governing payments-lib.",
+        source_ids=["SRC-ORG-WEB", "SRC-GITHUB-API"],
+        evidence_ids=["EV-REPO-GH"],
+        confidence=0.85,
+        limitations=["Foundation hosting does not automatically imply day-to-day technical control."],
+    ))
+    d.add_organization(Organization(
+        id="ORG-COMPANY-X",
+        name="Company X",
+        namespace="company-x",
+        org_type="COMPANY",
+        website="https://companyx.example",
+        description="Synthetic company historically affiliated with alpha-dev.",
+        source_ids=["SRC-CONF-BIO", "SRC-GITHUB-API"],
+        evidence_ids=["EV-CONF-BIO", "EV-MEMBERSHIPS"],
+        confidence=0.75,
+        limitations=["Corporate identity/legal ownership requires CORPINT."],
+    ))
+
+    # Accounts
+    d.add_account(DeveloperAccount(
+        id="ACC-GH-ALPHA",
+        platform="github",
+        username="alpha-dev",
+        display_name="Alpha Dev",
+        profile_url="https://github.example/alpha-dev",
+        account_created_at="2021-05-01T00:00:00Z",
+        public_bio="Maintainer of payments-lib. Engineer at Company X.",
+        public_location_claim="Remote",
+        public_email_reference="alpha-dev users.noreply.github.example",
+        account_type=AccountType.HUMAN,
+        verified_identity_state=IdentityState.UNKNOWN,
+        linked_accounts=["ACC-PYPI-ALPHA"],
+        public_affiliation_claims=[
+            {
+                "organization_id": "ORG-COMPANY-X",
+                "statement": "Engineer at Company X",
+                "source_ids": "SRC-GITHUB-API,SRC-CONF-BIO",
+                "evidence_ids": "EV-GH-ALPHA,EV-CONF-BIO",
+            }
+        ],
+        organizations=["ORG-PAYMENTS-FOUNDATION", "ORG-COMPANY-X"],
+        repositories=["REPO-GH-PAYMENTS"],
+        contributions=["CONTRIB-ALPHA-GH"],
+        maintainer_roles=["MR-ALPHA-REPO", "MR-ALPHA-PACKAGE"],
+        first_seen="2023-01-01T00:00:00Z",
+        last_seen="2026-09-01T00:00:00Z",
+        source_ids=["SRC-GITHUB-API", "SRC-CONF-BIO"],
+        evidence_ids=["EV-GH-ALPHA", "EV-CONF-BIO"],
+        confidence=0.90,
+        limitations=[
+            "Public bio is self-reported.",
+            "Location claim is not precise location.",
+            "No home-location inference.",
+        ],
+    ))
+    d.add_account(DeveloperAccount(
+        id="ACC-PYPI-ALPHA",
+        platform="pypi",
+        username="alpha-dev",
+        display_name="alpha-dev",
+        profile_url="https://pypi.example/user/alpha-dev/",
+        account_type=AccountType.HUMAN,
+        verified_identity_state=IdentityState.UNKNOWN,
+        linked_accounts=["ACC-GH-ALPHA"],
+        packages=["PKG-PYPI-PAYMENTS"],
+        source_ids=["SRC-PYPI"],
+        evidence_ids=["EV-PYPI-ALPHA", "EV-PYPI-MAINTAINERS"],
+        confidence=0.88,
+        limitations=["Registry account is separate from code-hosting account."],
+    ))
+    d.add_account(DeveloperAccount(
+        id="ACC-GH-BETA",
+        platform="github",
+        username="beta-maint",
+        display_name="Beta Maint",
+        profile_url="https://github.example/beta-maint",
+        account_type=AccountType.HUMAN,
+        verified_identity_state=IdentityState.ACCOUNT_RESOLVED,
+        repositories=["REPO-GH-PAYMENTS"],
+        contributions=["CONTRIB-BETA-GH"],
+        maintainer_roles=["MR-BETA-REPO"],
+        source_ids=["SRC-GITHUB-API", "SRC-GOVERNANCE"],
+        evidence_ids=["EV-GH-BETA", "EV-GOVERNANCE"],
+        confidence=0.88,
+    ))
+    d.add_account(DeveloperAccount(
+        id="ACC-GH-GAMMA",
+        platform="github",
+        username="gamma-contrib",
+        display_name="Gamma Contrib",
+        profile_url="https://github.example/gamma-contrib",
+        account_type=AccountType.HUMAN,
+        verified_identity_state=IdentityState.ACCOUNT_RESOLVED,
+        repositories=["REPO-GH-PAYMENTS"],
+        contributions=["CONTRIB-GAMMA-GH"],
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-GH-GAMMA"],
+        confidence=0.80,
+        limitations=["External contributor; not maintainer based on current evidence."],
+    ))
+    d.add_account(DeveloperAccount(
+        id="ACC-GH-BOT",
+        platform="github",
+        username="payments-release-bot",
+        display_name="Payments Release Bot",
+        profile_url="https://github.example/apps/payments-release-bot",
+        account_type=AccountType.BOT,
+        verified_identity_state=IdentityState.BOT_ACCOUNT,
+        repositories=["REPO-GH-PAYMENTS"],
+        contributions=["CONTRIB-BOT-GH"],
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-GH-BOT", "EV-RELEASE-240"],
+        confidence=0.92,
+        limitations=["Bot account; do not interpret as human workload."],
+    ))
+    d.add_account(DeveloperAccount(
+        id="ACC-PYPI-LEGACY",
+        platform="pypi",
+        username="legacy-dev",
+        display_name="legacy-dev",
+        profile_url="https://pypi.example/user/legacy-dev/",
+        account_type=AccountType.UNKNOWN,
+        verified_identity_state=IdentityState.UNKNOWN,
+        packages=["PKG-PYPI-PAYMENTS"],
+        source_ids=["SRC-PYPI"],
+        evidence_ids=["EV-PYPI-MAINTAINERS"],
+        confidence=0.70,
+        limitations=["Registry maintainer may be stale; no current role asserted."],
+    ))
+
+    # Repositories
+    d.add_repository(Repository(
+        id="REPO-GH-PAYMENTS",
+        platform="github",
+        owner_namespace="payments-foundation",
+        name="payments-lib",
+        canonical_url="https://github.example/payments-foundation/payments-lib",
+        visibility_state=VisibilityState.PUBLIC,
+        default_branch="main",
+        created_at="2022-01-01T00:00:00Z",
+        archived=False,
+        fork_state=ForkState.NOT_FORK,
+        languages=["Python"],
+        topics=["payments", "library"],
+        license="MIT",
+        contributors=["ACC-GH-ALPHA", "ACC-GH-BETA", "ACC-GH-GAMMA", "ACC-GH-BOT"],
+        maintainers=["ACC-GH-ALPHA", "ACC-GH-BETA"],
+        releases=["REL-2.4.0", "REL-2.3.0"],
+        packages=["PKG-PYPI-PAYMENTS"],
+        first_seen="2022-01-01T00:00:00Z",
+        last_seen="2026-10-08T00:00:00Z",
+        source_ids=["SRC-GITHUB-API", "SRC-GIT-HISTORY"],
+        evidence_ids=["EV-REPO-GH", "EV-GOVERNANCE"],
+        confidence=0.93,
+    ))
+    d.add_repository(Repository(
+        id="REPO-GL-PAYMENTS",
+        platform="gitlab",
+        owner_namespace="payments-foundation",
+        name="payments-lib",
+        canonical_url="https://gitlab.example/payments-foundation/payments-lib",
+        visibility_state=VisibilityState.PUBLIC,
+        default_branch="main",
+        created_at="2023-01-01T00:00:00Z",
+        archived=False,
+        fork_state=ForkState.MIRROR_OF,
+        source_repository="REPO-GH-PAYMENTS",
+        languages=["Python"],
+        first_seen="2023-01-01T00:00:00Z",
+        last_seen="2026-10-08T00:00:00Z",
+        source_ids=["SRC-GITLAB-MIRROR"],
+        evidence_ids=["EV-REPO-GL"],
+        confidence=0.88,
+        limitations=["Mirror; not independent development."],
+    ))
+
+    # Packages
+    d.add_package(Package(
+        id="PKG-PYPI-PAYMENTS",
+        ecosystem="pypi",
+        name="payments-lib",
+        purl="pkg:pypi/payments-lib",
+        registry="PyPI",
+        repository_id="REPO-GH-PAYMENTS",
+        maintainers=["ACC-PYPI-ALPHA", "ACC-PYPI-LEGACY"],
+        publishers=["ACC-PYPI-ALPHA"],
+        latest_version="2.4.0",
+        deprecated=False,
+        first_seen="2022-06-01T00:00:00Z",
+        last_seen="2026-09-01T00:00:00Z",
+        source_ids=["SRC-PYPI", "SRC-SBOM"],
+        evidence_ids=["EV-PYPI-MAINTAINERS", "EV-RELEASE-240"],
+        confidence=0.90,
+        limitations=[
+            "Package registry identity is separate from code-hosting account.",
+            "Package maintainer is not automatically repository maintainer.",
+        ],
+    ))
+
+    # Contributions
+    d.add_contribution(Contribution(
+        id="CONTRIB-ALPHA-GH",
+        developer_account_id="ACC-GH-ALPHA",
+        repository_id="REPO-GH-PAYMENTS",
+        contribution_types=[ContributionType.CODE, ContributionType.REVIEW, ContributionType.MAINTENANCE],
+        first_contribution="2023-01-01T00:00:00Z",
+        last_contribution="2026-09-01T00:00:00Z",
+        commit_count=120,
+        pull_requests=35,
+        reviews=80,
+        issues=20,
+        role_state=MaintainerState.SUPPORTED_MAINTAINER,
+        source_ids=["SRC-GITHUB-API", "SRC-GIT-HISTORY"],
+        evidence_ids=["EV-GH-ALPHA", "EV-GOVERNANCE"],
+        confidence=0.92,
+    ))
+    d.add_contribution(Contribution(
+        id="CONTRIB-BETA-GH",
+        developer_account_id="ACC-GH-BETA",
+        repository_id="REPO-GH-PAYMENTS",
+        contribution_types=[ContributionType.CODE, ContributionType.REVIEW],
+        first_contribution="2024-02-01T00:00:00Z",
+        last_contribution="2026-08-15T00:00:00Z",
+        commit_count=90,
+        pull_requests=25,
+        reviews=70,
+        issues=15,
+        role_state=MaintainerState.SUPPORTED_MAINTAINER,
+        source_ids=["SRC-GITHUB-API", "SRC-GIT-HISTORY"],
+        evidence_ids=["EV-GH-BETA", "EV-GOVERNANCE"],
+        confidence=0.90,
+    ))
+    d.add_contribution(Contribution(
+        id="CONTRIB-GAMMA-GH",
+        developer_account_id="ACC-GH-GAMMA",
+        repository_id="REPO-GH-PAYMENTS",
+        contribution_types=[ContributionType.CODE, ContributionType.REVIEW],
+        first_contribution="2025-01-01T00:00:00Z",
+        last_contribution="2026-07-01T00:00:00Z",
+        commit_count=8,
+        pull_requests=5,
+        reviews=3,
+        issues=2,
+        role_state=MaintainerState.CONTRIBUTOR,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-GH-GAMMA"],
+        confidence=0.85,
+        limitations=["External contributor; not maintainer."],
+    ))
+    d.add_contribution(Contribution(
+        id="CONTRIB-BOT-GH",
+        developer_account_id="ACC-GH-BOT",
+        repository_id="REPO-GH-PAYMENTS",
+        contribution_types=[ContributionType.AUTOMATION, ContributionType.RELEASE],
+        first_contribution="2025-01-01T00:00:00Z",
+        last_contribution="2026-09-01T00:00:00Z",
+        commit_count=250,
+        pull_requests=0,
+        reviews=0,
+        issues=0,
+        role_state=MaintainerState.RELEASE_MANAGER,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-GH-BOT", "EV-RELEASE-240"],
+        confidence=0.92,
+        limitations=["Bot automation; do not count as human workload."],
+    ))
+    d.add_contribution(Contribution(
+        id="CONTRIB-ALPHA-GL",
+        developer_account_id="ACC-GH-ALPHA",
+        repository_id="REPO-GL-PAYMENTS",
+        contribution_types=[ContributionType.CODE],
+        first_contribution="2023-01-01T00:00:00Z",
+        last_contribution="2026-09-01T00:00:00Z",
+        commit_count=120,
+        role_state=MaintainerState.UNKNOWN,
+        source_ids=["SRC-GITLAB-MIRROR"],
+        evidence_ids=["EV-REPO-GL"],
+        confidence=0.70,
+        limitations=["Mirror-derived; excluded from independent aggregation."],
+    ))
+
+    # Maintainer roles
+    d.add_maintainer_role(MaintainerRole(
+        id="MR-ALPHA-REPO",
+        developer_account_id="ACC-GH-ALPHA",
+        subject_type="REPOSITORY",
+        subject_id="REPO-GH-PAYMENTS",
+        role_state=MaintainerState.SUPPORTED_MAINTAINER,
+        valid_from="2024-01-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-GOVERNANCE", "SRC-GITHUB-API"],
+        evidence_ids=["EV-GOVERNANCE", "EV-GH-ALPHA"],
+        confidence=0.90,
+    ))
+    d.add_maintainer_role(MaintainerRole(
+        id="MR-BETA-REPO",
+        developer_account_id="ACC-GH-BETA",
+        subject_type="REPOSITORY",
+        subject_id="REPO-GH-PAYMENTS",
+        role_state=MaintainerState.SUPPORTED_MAINTAINER,
+        valid_from="2024-06-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-GOVERNANCE", "SRC-GITHUB-API"],
+        evidence_ids=["EV-GOVERNANCE", "EV-GH-BETA"],
+        confidence=0.88,
+    ))
+    d.add_maintainer_role(MaintainerRole(
+        id="MR-ALPHA-PACKAGE",
+        developer_account_id="ACC-PYPI-ALPHA",
+        subject_type="PACKAGE",
+        subject_id="PKG-PYPI-PAYMENTS",
+        role_state=MaintainerState.VERIFIED_MAINTAINER,
+        valid_from="2024-06-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-PYPI"],
+        evidence_ids=["EV-PYPI-MAINTAINERS"],
+        confidence=0.90,
+        limitations=["Registry maintainer is separate from repository maintainer."],
+    ))
+    d.add_maintainer_role(MaintainerRole(
+        id="MR-LEGACY-PACKAGE",
+        developer_account_id="ACC-PYPI-LEGACY",
+        subject_type="PACKAGE",
+        subject_id="PKG-PYPI-PAYMENTS",
+        role_state=MaintainerState.PAST_MAINTAINER,
+        valid_from="2022-06-01T00:00:00Z",
+        valid_to="2024-05-31T00:00:00Z",
+        source_ids=["SRC-PYPI"],
+        evidence_ids=["EV-PYPI-MAINTAINERS"],
+        confidence=0.75,
+    ))
+    d.add_maintainer_role(MaintainerRole(
+        id="MR-GAMMA-REPO",
+        developer_account_id="ACC-GH-GAMMA",
+        subject_type="REPOSITORY",
+        subject_id="REPO-GH-PAYMENTS",
+        role_state=MaintainerState.CONTRIBUTOR,
+        valid_from="2025-01-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-GH-GAMMA"],
+        confidence=0.85,
+    ))
+
+    # Memberships
+    d.add_membership(OrganizationMembership(
+        id="MEM-ALPHA-FOUNDATION",
+        developer_account_id="ACC-GH-ALPHA",
+        organization_id="ORG-PAYMENTS-FOUNDATION",
+        membership_type="MEMBER_OF",
+        relationship_state=AffiliationState.SUPPORTED,
+        valid_from="2024-01-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-GITHUB-API", "SRC-ORG-WEB"],
+        evidence_ids=["EV-MEMBERSHIPS"],
+        confidence=0.88,
+    ))
+    d.add_membership(OrganizationMembership(
+        id="MEM-ALPHA-COMPANY-X",
+        developer_account_id="ACC-GH-ALPHA",
+        organization_id="ORG-COMPANY-X",
+        membership_type="MEMBER_OF",
+        relationship_state=AffiliationState.HISTORICAL,
+        valid_from="2022-01-01T00:00:00Z",
+        valid_to="2023-12-31T00:00:00Z",
+        source_ids=["SRC-GITHUB-API", "SRC-CONF-BIO"],
+        evidence_ids=["EV-MEMBERSHIPS", "EV-CONF-BIO"],
+        confidence=0.80,
+    ))
+    d.add_membership(OrganizationMembership(
+        id="MEM-BETA-FOUNDATION",
+        developer_account_id="ACC-GH-BETA",
+        organization_id="ORG-PAYMENTS-FOUNDATION",
+        membership_type="MEMBER_OF",
+        relationship_state=AffiliationState.SUPPORTED,
+        valid_from="2024-06-01T00:00:00Z",
+        valid_to=None,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-MEMBERSHIPS"],
+        confidence=0.85,
+    ))
+
+    # Releases
+    d.add_release(Release(
+        id="REL-2.4.0",
+        repository_id="REPO-GH-PAYMENTS",
+        package_id="PKG-PYPI-PAYMENTS",
+        version="2.4.0",
+        tag="v2.4.0",
+        publisher_account_id="ACC-GH-BOT",
+        approver_account_ids=["ACC-GH-ALPHA", "ACC-GH-BETA"],
+        published_at="2026-09-01T00:00:00Z",
+        commit_reference="COMMIT-RELEASE-240",
+        artifact_references=["sha256:release-2.4.0-placeholder"],
+        signing_state=SigningState.SIGNED_VERIFIED,
+        provenance_state=ProvenanceState.CANDIDATE,
+        source_ids=["SRC-GITHUB-API", "SRC-SBOM"],
+        evidence_ids=["EV-RELEASE-240"],
+        confidence=0.90,
+    ))
+    d.add_release(Release(
+        id="REL-2.3.0",
+        repository_id="REPO-GH-PAYMENTS",
+        package_id="PKG-PYPI-PAYMENTS",
+        version="2.3.0",
+        tag="v2.3.0",
+        publisher_account_id="ACC-GH-ALPHA",
+        approver_account_ids=[],
+        published_at="2026-03-01T00:00:00Z",
+        commit_reference="COMMIT-RELEASE-230",
+        artifact_references=["sha256:release-2.3.0-placeholder"],
+        signing_state=SigningState.UNSIGNED,
+        provenance_state=ProvenanceState.MISSING,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-RELEASE-230"],
+        confidence=0.85,
+    ))
+    d.add_release(Release(
+        id="REL-2.2.0",
+        repository_id="REPO-GH-PAYMENTS",
+        package_id="PKG-PYPI-PAYMENTS",
+        version="2.2.0",
+        tag="v2.2.0",
+        publisher_account_id="ACC-GH-BOT",
+        approver_account_ids=["ACC-GH-ALPHA"],
+        published_at="2025-09-01T00:00:00Z",
+        commit_reference="COMMIT-RELEASE-220",
+        artifact_references=["sha256:release-2.2.0-placeholder"],
+        signing_state=SigningState.SIGNED_UNVERIFIED,
+        provenance_state=ProvenanceState.CLAIMED,
+        source_ids=["SRC-GITHUB-API"],
+        evidence_ids=["EV-RELEASE-240"],
+        confidence=0.80,
+    ))
+
+    # Commits
+    d.add_commit(Commit(
+        id="COMMIT-ALPHA-2026",
+        repository_id="REPO-GH-PAYMENTS",
+        hash="abc123",
+        author_account_id="ACC-GH-ALPHA",
+        committer_account_id="ACC-GH-ALPHA",
+        pushed_by_account_id="ACC-GH-ALPHA",
+        timestamp="2026-08-15T00:00:00Z",
+        message="Update authorization docs",
+        signature_state=SigningState.SIGNED_VERIFIED,
+        automated=False,
+        source_ids=["SRC-GIT-HISTORY"],
+        evidence_ids=["EV-GH-ALPHA"],
+    ))
+    d.add_commit(Commit(
+        id="COMMIT-GAMMA-2026",
+        repository_id="REPO-GH-PAYMENTS",
+        hash="def456",
+        author_account_id="ACC-GH-GAMMA",
+        committer_account_id="ACC-GH-BOT",
+        pushed_by_account_id="ACC-GH-BOT",
+        timestamp="2026-08-20T00:00:00Z",
+        message="External patch merged by automation",
+        signature_state=SigningState.UNKNOWN,
+        automated=False,
+        source_ids=["SRC-GIT-HISTORY"],
+        evidence_ids=["EV-GH-GAMMA"],
+    ))
+    d.add_commit(Commit(
+        id="COMMIT-BOT-2026",
+        repository_id="REPO-GH-PAYMENTS",
+        hash="ghi789",
+        author_account_id="ACC-GH-BOT",
+        committer_account_id="ACC-GH-BOT",
+        pushed_by_account_id="ACC-GH-BOT",
+        timestamp="2026-08-25T00:00:00Z",
+        message="Automated dependency bump",
+        signature_state=SigningState.UNKNOWN,
+        automated=True,
+        source_ids=["SRC-GIT-HISTORY"],
+        evidence_ids=["EV-GH-BOT"],
+    ))
+
+    # Advisory
+    d.add_advisory(SecurityAdvisory(
+        id="ADV-2026-001",
+        package_id="PKG-PYPI-PAYMENTS",
+        repository_id="REPO-GH-PAYMENTS",
+        cve="CVE-2026-0001-SYNTHETIC",
+        summary="Synthetic advisory affecting payments-lib before 2.4.0.",
+        affected_versions="<2.4.0",
+        fixed_versions="2.4.0",
+        published_at="2026-08-20T00:00:00Z",
+        source_ids=["SRC-ADVISORY"],
+        evidence_ids=["EV-ADVISORY"],
+        limitations=["Exploitability and applicability require VULNINT."],
+    ))
+
+    # Technology
+    d.add_technology_profile(TechnologyProfile(
+        id="TECH-REPO-PAYMENTS",
+        repository_id="REPO-GH-PAYMENTS",
+        package_id="PKG-PYPI-PAYMENTS",
+        languages=["Python"],
+        frameworks=["setuptools"],
+        build_systems=["poetry"],
+        ci_systems=["GitHub Actions"],
+        source_ids=["SRC-GITHUB-API", "SRC-PYPI"],
+        evidence_ids=["EV-REPO-GH", "EV-PYPI-MAINTAINERS"],
+        limitations=["Technology use is not developer expertise."],
+    ))
+
+    d.prepare()
+    return d
+
+
+# =====================================================================
+# RESULT BUILDER
+# =====================================================================
+
+def graph_version_hash(d: DevInt) -> str:
+    seed_obj = {
+        "accounts": sorted((aid, a.platform, a.username, a.verified_identity_state.value) for aid, a in d.accounts.items()),
+        "repos": sorted((rid, r.platform, r.owner_namespace, r.name, r.fork_state.value, r.archived) for rid, r in d.repositories.items()),
+        "packages": sorted((pid, p.ecosystem, p.name, p.latest_version or "") for pid, p in d.packages.items()),
+        "findings": sorted((fid, f.finding_type.value, f.subject_id, f.verification_state.value, round(float(f.confidence), 3)) for fid, f in d.findings.items()),
+    }
+    return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+
+
+def build_source_graph(d: DevInt) -> Dict[str, Any]:
+    edges = []
+    for src in d.sources.values():
+        if src.derived_from:
+            edges.append({
+                "source": src.derived_from,
+                "target": src.id,
+                "relationship_type": "DERIVED_FROM",
+            })
+    return {
+        "nodes": [s.id for s in d.sources.values()],
+        "edges": edges,
+    }
+
+
+def build_source_dependency_graph(d: DevInt) -> Dict[str, List[str]]:
+    families: Dict[str, List[str]] = defaultdict(list)
+    for sid in d.sources:
+        fam = d.get_source_family(sid) or "UNKNOWN"
+        families[fam].append(sid)
+    return {k: sorted(v) for k, v in families.items()}
+
+
+def build_developer_candidates(d: DevInt) -> List[Dict[str, Any]]:
+    seen: Set[Tuple[str, ...]] = set()
+    out: List[Dict[str, Any]] = []
+    for acc in d.accounts.values():
+        if acc.verified_identity_state != IdentityState.PERSON_CANDIDATE:
+            continue
+        ids = tuple(sorted([acc.id] + [x for x in acc.linked_accounts if x in d.accounts]))
+        if ids in seen:
+            continue
+        seen.add(ids)
+        out.append({
+            "candidate_id": new_id("PERSONCAND-", "|".join(ids)),
+            "account_ids": list(ids),
+            "state": "PERSON_CANDIDATE",
+            "confidence": max((d.accounts[i].confidence for i in ids), default=0.0),
+            "limitations": [
+                "Real-person identity is not verified.",
+                "No doxxing or private personal data collection.",
+                "Consequential attribution requires human review and authoritative evidence.",
+            ],
+        })
+    return out
+
+
+def build_ecosystem_graph(d: DevInt) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+    for acc in d.accounts.values():
+        nodes.append({
+            "id": acc.id,
+            "type": "DeveloperAccount",
+            "platform": acc.platform,
+            "username": acc.username,
+            "identity_state": acc.verified_identity_state.value,
+            "account_type": acc.account_type.value,
+        })
+    for org in d.organizations.values():
+        nodes.append({"id": org.id, "type": "Organization", "name": org.name, "org_type": org.org_type})
+    for repo in d.repositories.values():
+        nodes.append({
+            "id": repo.id,
+            "type": "Repository",
+            "platform": repo.platform,
+            "name": repo.name,
+            "fork_state": repo.fork_state.value,
+            "archived": repo.archived,
+        })
+    for pkg in d.packages.values():
+        nodes.append({"id": pkg.id, "type": "Package", "ecosystem": pkg.ecosystem, "name": pkg.name, "purl": pkg.purl})
+    for rel in d.releases.values():
+        nodes.append({"id": rel.id, "type": "Release", "version": rel.version, "published_at": rel.published_at})
+    for adv in d.advisories.values():
+        nodes.append({"id": adv.id, "type": "SecurityAdvisory", "cve": adv.cve, "published_at": adv.published_at})
+
+    for contrib in d.contributions.values():
+        edges.append({
+            "source": contrib.developer_account_id,
+            "target": contrib.repository_id,
+            "relationship_type": "CONTRIBUTES_TO",
+            "valid_from": contrib.first_contribution,
+            "valid_to": contrib.last_contribution,
+            "is_mirror_derived": contrib.is_mirror_derived,
+        })
+    for role in d.maintainer_roles.values():
+        edges.append({
+            "source": role.developer_account_id,
+            "target": role.subject_id,
+            "relationship_type": "MAINTAINS" if role.role_state in {MaintainerState.VERIFIED_MAINTAINER, MaintainerState.SUPPORTED_MAINTAINER} else role.role_state.value,
+            "subject_type": role.subject_type,
+            "valid_from": role.valid_from,
+            "valid_to": role.valid_to,
+        })
+    for mem in d.memberships.values():
+        edges.append({
+            "source": mem.developer_account_id,
+            "target": mem.organization_id,
+            "relationship_type": mem.membership_type,
+            "relationship_state": mem.relationship_state.value,
+            "valid_from": mem.valid_from,
+            "valid_to": mem.valid_to,
+        })
+    for repo in d.repositories.values():
+        if repo.source_repository:
+            edges.append({
+                "source": repo.id,
+                "target": repo.source_repository,
+                "relationship_type": repo.fork_state.value,
+            })
+        for pkg_id in repo.packages:
+            edges.append({
+                "source": repo.id,
+                "target": pkg_id,
+                "relationship_type": "PUBLISHES_PACKAGE",
+            })
+    for rel in d.releases.values():
+        if rel.publisher_account_id:
+            edges.append({
+                "source": rel.id,
+                "target": rel.publisher_account_id,
+                "relationship_type": "PUBLISHED_BY",
+            })
+        for appr in rel.approver_account_ids:
+            edges.append({
+                "source": rel.id,
+                "target": appr,
+                "relationship_type": "APPROVED_BY",
+            })
+        if rel.repository_id:
+            edges.append({
+                "source": rel.id,
+                "target": rel.repository_id,
+                "relationship_type": "BELONGS_TO_REPOSITORY",
+            })
+        if rel.package_id:
+            edges.append({
+                "source": rel.id,
+                "target": rel.package_id,
+                "relationship_type": "BELONGS_TO_PACKAGE",
+            })
+    for adv in d.advisories.values():
+        if adv.package_id:
+            edges.append({
+                "source": adv.id,
+                "target": adv.package_id,
+                "relationship_type": "AFFECTS_PACKAGE",
+            })
+        if adv.repository_id:
+            edges.append({
+                "source": adv.id,
+                "target": adv.repository_id,
+                "relationship_type": "AFFECTS_REPOSITORY",
+            })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def build_timeline(d: DevInt) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = []
+
+    for c in d.commits.values():
+        events.append({
+            "time": c.timestamp,
+            "type": "COMMIT",
+            "subject_id": c.id,
+            "description": f"Commit {c.hash} in {c.repository_id} author={c.author_account_id} committer={c.committer_account_id} automated={c.automated}.",
+            "source_ids": c.source_ids,
+            "evidence_ids": c.evidence_ids,
+        })
+    for r in d.releases.values():
+        events.append({
+            "time": r.published_at,
+            "type": "RELEASE",
+            "subject_id": r.id,
+            "description": f"Release {r.version} published by {r.publisher_account_id}; approvers={r.approver_account_ids}; signing={r.signing_state.value}.",
+            "source_ids": r.source_ids,
+            "evidence_ids": r.evidence_ids,
+        })
+    for m in d.memberships.values():
+        if m.valid_from:
+            events.append({
+                "time": m.valid_from,
+                "type": "MEMBERSHIP_START",
+                "subject_id": m.id,
+                "description": f"{m.developer_account_id} membership in {m.organization_id} begins.",
+                "source_ids": m.source_ids,
+                "evidence_ids": m.evidence_ids,
+            })
+        if m.valid_to:
+            events.append({
+                "time": m.valid_to,
+                "type": "MEMBERSHIP_END",
+                "subject_id": m.id,
+                "description": f"{m.developer_account_id} membership in {m.organization_id} ends.",
+                "source_ids": m.source_ids,
+                "evidence_ids": m.evidence_ids,
+            })
+    for a in d.advisories.values():
+        events.append({
+            "time": a.published_at,
+            "type": "SECURITY_ADVISORY",
+            "subject_id": a.id,
+            "description": f"Advisory {a.id} published; affected={a.affected_versions}; fixed={a.fixed_versions}.",
+            "source_ids": a.source_ids,
+            "evidence_ids": a.evidence_ids,
+        })
+
+    return sorted(events, key=lambda e: dt_or_min(e.get("time")))
+
+
+def build_facts_by_state(d: DevInt) -> Dict[str, List[Finding]]:
+    out: Dict[str, List[Finding]] = defaultdict(list)
+    for f in d.findings.values():
+        out[f.verification_state.value].append(f)
+    return {k: v for k, v in out.items()}
+
+
+def build_privacy_flags(d: DevInt) -> List[str]:
+    flags = [
+        PrivacyFlag.CASE_SCOPED.value,
+        PrivacyFlag.PUBLIC_OR_AUTHORIZED_ONLY.value,
+        PrivacyFlag.NO_DOXXING.value,
+        PrivacyFlag.NO_CREDENTIAL_USE.value,
+        PrivacyFlag.NO_SUPPLY_CHAIN_ATTACK_ENABLEMENT.value,
+        PrivacyFlag.NO_SENSITIVE_TRAIT_INFERENCE.value,
+        PrivacyFlag.NO_HOME_LOCATION_INFERENCE.value,
+        PrivacyFlag.NO_REAL_PERSON_ATTRIBUTION_WITHOUT_EVIDENCE.value,
+        PrivacyFlag.NO_PERSONAL_TRUSTWORTHINESS_SCORE.value,
+        PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+    ]
+    return flags
+
+
+def build_policy_flags(d: DevInt, dual: Dict[str, Any]) -> List[str]:
+    flags = [PolicyFlag.NONE.value, PolicyFlag.DEFENSIVE_ONLY.value, PolicyFlag.PRIVACY_AWARE.value]
+    if d.contradictions or dual.get("verdict") in {"PARTIAL_AGREEMENT", "INSUFFICIENT_EVIDENCE"}:
+        flags.append(PolicyFlag.HUMAN_REVIEW_REQUIRED.value)
+    return flags
+
+
+def build_result(d: DevInt, status: Status) -> Dict[str, Any]:
+    dual = d.dual_ai_review()
+    summary = d.analyst_summary(dual)
+    source_families = build_source_dependency_graph(d)
+    facts_by_state = build_facts_by_state(d)
+
+    finding_independence = {
+        fid: d.independence_state(f.source_ids)
+        for fid, f in d.findings.items()
+    }
+
+    replay_manifest = {
+        "generated_at": now_iso(),
+        "pipeline_version": PIPELINE_VERSION,
+        "graph_version": graph_version_hash(d),
+        "core_principle": (
+            "DEVELOPER / PROJECT REFERENCE -> ACCOUNT RESOLUTION -> PLATFORM RESOLUTION -> "
+            "ORGANIZATION / REPOSITORY RESOLUTION -> CONTRIBUTION HISTORY -> ROLE RESOLUTION -> "
+            "PROJECT / PACKAGE RELATIONSHIPS -> TECHNOLOGY STACK -> RELEASE / MAINTENANCE ACTIVITY -> "
+            "GOVERNANCE / OWNERSHIP CONTEXT -> SECURITY / SUPPLY-CHAIN CONTEXT -> SOURCE RELIABILITY -> "
+            "SOURCE INDEPENDENCE -> TEMPORAL VALIDATION -> FACT GATE -> ECOSYSTEM ASSESSMENT"
+        ),
+        "as_of": d.as_of,
+        "temporal_rule": "Historical affiliations and maintainer roles are time-bound; current relationships must not contaminate old events.",
+        "identity_rule": "Account is not person. Username/display name/email/timezone/style are weak identity signals.",
+        "role_rule": "Contributor != maintainer != owner != release manager != package publisher != security contact.",
+        "repository_rule": "Repository != project != package. Mirror != independent development.",
+        "supply_chain_rule": "Centrality/concentration is defensive resilience context, not targeting.",
+        "policy_exclusions": [
+            "No credential use/testing/redeeming.",
+            "No doxxing or private personal data collection.",
+            "No home-location, nationality, religion, ethnicity, health, sexual orientation, or political-trait inference.",
+            "No malicious package submission, typosquatting, dependency confusion, dependency poisoning, or supply-chain attack enablement.",
+            "No phishing, impersonation, harassment, or unauthorized account access.",
+            "No conversion of centrality/maintainer concentration into targeting recommendations.",
+        ],
+    }
+
+    # -----------------------------------------------------------------
+    # Derived collections for DEVINTResult
+    # -----------------------------------------------------------------
+
+    account_aliases = {
+        acc.id: acc.linked_accounts
+        for acc in d.accounts.values()
+    }
+
+    platform_ids = {
+        acc.id: {
+            "platform": acc.platform,
+            "username": acc.username,
+            "profile_url": acc.profile_url,
+            "account_type": acc.account_type.value,
+        }
+        for acc in d.accounts.values()
+    }
+
+    identity_states = {
+        acc.id: acc.verified_identity_state.value
+        for acc in d.accounts.values()
+    }
+
+    public_affiliations = [
+        {
+            "account_id": acc.id,
+            **claim,
+        }
+        for acc in d.accounts.values()
+        for claim in acc.public_affiliation_claims
+    ]
+
+    forks = [
+        repo
+        for repo in d.repositories.values()
+        if repo.fork_state in {
+            ForkState.VERIFIED_FORK,
+            ForkState.SUPPORTED_FORK,
+            ForkState.PROBABLE_FORK,
+            ForkState.POSSIBLE_FORK,
+        }
+    ]
+
+    mirrors = [
+        repo
+        for repo in d.repositories.values()
+        if repo.fork_state == ForkState.MIRROR_OF
+    ]
+
+    repository_transfers = []
+
+    registries = sorted({pkg.registry for pkg in d.packages.values() if pkg.registry})
+
+    package_maintainers = [
+        {
+            "package_id": role.subject_id,
+            "account_id": role.developer_account_id,
+            "role_state": role.role_state.value,
+            "valid_from": role.valid_from,
+            "valid_to": role.valid_to,
+            "source_ids": role.source_ids,
+            "evidence_ids": role.evidence_ids,
+            "confidence": role.confidence,
+            "limitations": role.limitations,
+        }
+        for role in d.maintainer_roles.values()
+        if role.subject_type == "PACKAGE"
+    ]
+
+    package_publishers = [
+        {
+            "package_id": pkg.id,
+            "account_id": pub,
+            "source_ids": pkg.source_ids,
+            "evidence_ids": pkg.evidence_ids,
+            "limitations": pkg.limitations,
+        }
+        for pkg in d.packages.values()
+        for pub in pkg.publishers
+    ]
+
+    repository_package_relationships = [
+        {
+            "repository_id": repo.id,
+            "package_id": pid,
+            "relationship_type": "PUBLISHES_PACKAGE",
+            "source_ids": repo.source_ids,
+            "evidence_ids": repo.evidence_ids,
+            "limitations": repo.limitations,
+        }
+        for repo in d.repositories.values()
+        for pid in repo.packages
+    ]
+
+    contributor_ids = sorted({
+        c.developer_account_id
+        for c in d.contributions.values()
+        if not c.is_mirror_derived
+        and (c.commit_count > 0 or c.role_state == MaintainerState.CONTRIBUTOR)
+    })
+
+    reviewer_ids = sorted({
+        c.developer_account_id
+        for c in d.contributions.values()
+        if not c.is_mirror_derived
+        and c.reviews > 0
+    })
+
+    release_manager_ids = sorted({
+        role.developer_account_id
+        for role in d.maintainer_roles.values()
+        if role.role_state == MaintainerState.RELEASE_MANAGER
+    } | {
+        rel.publisher_account_id
+        for rel in d.releases.values()
+        if rel.publisher_account_id
+        and d.accounts.get(rel.publisher_account_id)
+        and d.accounts[rel.publisher_account_id].account_type == AccountType.BOT
+    })
+
+    governance_roles = list(d.maintainer_roles.values())
+
+    contribution_history = list(d.contributions.values())
+    maintainer_history = list(d.maintainer_roles.values())
+    release_history = list(d.releases.values())
+
+    ownership_history = [
+        {
+            "subject_type": "ORGANIZATION_MEMBERSHIP",
+            "subject_id": mem.id,
+            "account_id": mem.developer_account_id,
+            "organization_id": mem.organization_id,
+            "membership_type": mem.membership_type,
+            "relationship_state": mem.relationship_state.value,
+            "valid_from": mem.valid_from,
+            "valid_to": mem.valid_to,
+            "source_ids": mem.source_ids,
+            "evidence_ids": mem.evidence_ids,
+            "confidence": mem.confidence,
+            "limitations": mem.limitations,
+        }
+        for mem in d.memberships.values()
+    ] + [
+        {
+            "subject_type": "REPOSITORY_NAMESPACE",
+            "subject_id": repo.id,
+            "repository_id": repo.id,
+            "owner_namespace": repo.owner_namespace,
+            "platform": repo.platform,
+            "limitations": [
+                "Repository namespace ownership is not automatically intellectual-property ownership."
+            ],
+        }
+        for repo in d.repositories.values()
+    ]
+
+    languages = sorted({
+        lang
+        for repo in d.repositories.values()
+        for lang in repo.languages
+    } | {
+        lang
+        for tech in d.technology_profiles.values()
+        for lang in tech.languages
+    })
+
+    frameworks = sorted({
+        fw
+        for tech in d.technology_profiles.values()
+        for fw in tech.frameworks
+    })
+
+    technologies = list(d.technology_profiles.values())
+
+    build_systems = sorted({
+        bs
+        for tech in d.technology_profiles.values()
+        for bs in tech.build_systems
+    })
+
+    ci_cd_context = sorted({
+        ci
+        for tech in d.technology_profiles.values()
+        for ci in tech.ci_systems
+    })
+
+    release_cadence = {
+        "as_of": d.as_of,
+        "release_count": d.health.get("release_count", 0),
+        "release_intervals_days": d.health.get("release_intervals_days", []),
+        "median_release_interval_days": d.health.get("median_release_interval_days"),
+        "latest_release_age_days": d.health.get("latest_release_age_days"),
+        "guardrails": [
+            "Release cadence is ecosystem activity context, not developer productivity scoring.",
+            "Low release frequency does not automatically mean abandonment.",
+        ],
+    }
+
+    commit_cadence = {
+        "as_of": d.as_of,
+        "commit_count_90d": d.health.get("commit_count_90d", 0),
+        "commit_count_365d": d.health.get("commit_count_365d", 0),
+        "guardrails": [
+            "Commit counts are not developer competence scores.",
+            "Bot and mirror activity must be separated from human independent development.",
+        ],
+    }
+
+    maintainer_concentration = {
+        "as_of": d.as_of,
+        "active_maintainer_ids": d.health.get("active_maintainer_ids", []),
+        "active_maintainer_count": d.health.get("active_maintainer_count", 0),
+        "release_share_by_active_maintainers": d.health.get("release_share_by_active_maintainers"),
+        "guardrails": [
+            "Maintainer concentration is continuity/resilience context.",
+            "It is not a targeting metric.",
+            "Single maintainer does not automatically mean insecure or malicious.",
+        ],
+    }
+
+    contributor_concentration = {
+        "as_of": d.as_of,
+        "top_contributor": d.health.get("top_contributor"),
+        "top_contributor_commit_share": d.health.get("top_contributor_commit_share"),
+        "guardrails": [
+            "Contribution concentration is governance/maintainability context.",
+            "It is not a personal performance judgment.",
+        ],
+    }
+
+    bus_factor_context = {
+        "as_of": d.as_of,
+        "bus_factor_candidate": d.health.get("bus_factor_candidate"),
+        "method_note": "Candidate only; explicit methodology required for exact bus-factor numbers.",
+        "guardrails": [
+            "Bus-factor candidate is resilience context, not personal worth.",
+            "Do not convert into maintainer targeting or supply-chain attack planning.",
+        ],
+    }
+
+    sbom_context = [
+        {
+            "source_id": s.id,
+            "title": s.title,
+            "url": s.url,
+            "retrieved_at": s.retrieved_at,
+            "limitations": [s.notes] if s.notes else [],
+        }
+        for s in d.sources.values()
+        if s.source_type == SourceType.SBOM
+    ]
+
+    dependency_context = []
+
+    supply_chain_context = [
+        f
+        for f in d.findings.values()
+        if f.finding_type in {
+            FindingType.BUS_FACTOR_CANDIDATE,
+            FindingType.MAINTAINER_CONCENTRATION_OBSERVED,
+            FindingType.SECURITY_FIX_RELEASE_SUPPORTED,
+            FindingType.PROVENANCE_OBSERVED,
+        }
+    ]
+
+    release_provenance = [
+        {
+            "release_id": rel.id,
+            "repository_id": rel.repository_id,
+            "package_id": rel.package_id,
+            "version": rel.version,
+            "tag": rel.tag,
+            "publisher_account_id": rel.publisher_account_id,
+            "approver_account_ids": rel.approver_account_ids,
+            "published_at": rel.published_at,
+            "commit_reference": rel.commit_reference,
+            "artifact_references": rel.artifact_references,
+            "signing_state": rel.signing_state.value,
+            "provenance_state": rel.provenance_state.value,
+            "source_ids": rel.source_ids,
+            "evidence_ids": rel.evidence_ids,
+            "confidence": rel.confidence,
+            "limitations": rel.limitations,
+        }
+        for rel in d.releases.values()
+    ]
+
+    signing_context = [
+        {
+            "release_id": rel.id,
+            "signing_state": rel.signing_state.value,
+            "published_at": rel.published_at,
+            "limitations": rel.limitations + [
+                "Signed release supports provenance/integrity metadata, not absence of vulnerabilities."
+            ],
+        }
+        for rel in d.releases.values()
+    ]
+
+    vulnerability_context = list(d.advisories.values())
+
+    security_response_context = [
+        f
+        for f in d.findings.values()
+        if f.finding_type == FindingType.SECURITY_FIX_RELEASE_SUPPORTED
+    ]
+
+    ecosystem_graph = build_ecosystem_graph(d)
+    ecosystem_health = d.health
+    central_dependencies = []
+
+    timeline_updates = build_timeline(d)
+
+    observations = list(d.evidence.values())
+    candidate_facts = list(d.findings.values())
+
+    supported_facts = facts_by_state.get(VerificationState.SUPPORTED.value, [])
+    partial_facts = facts_by_state.get(VerificationState.PARTIALLY_SUPPORTED.value, [])
+    disputed_facts = facts_by_state.get(VerificationState.DISPUTED.value, [])
+
+    source_reliability = {sid: s.reliability for sid, s in d.sources.items()}
+    source_bias = {sid: s.notes for sid, s in d.sources.items()}
+    source_limitations = {
+        sid: [s.notes]
+        for sid, s in d.sources.items()
+        if s.notes
+    }
+    source_pedigree = {
+        sid: d.get_source_family(sid)
+        for sid in d.sources
+    }
+
+    source_independence = {
+        "source_families": source_families,
+        "finding_independence": finding_independence,
+    }
+
+    falsification_results = [
+        {
+            "hypothesis_id": h.id,
+            "statement": h.statement,
+            "kind": h.kind,
+            "status": h.status.value,
+            "confidence": h.confidence,
+            "assumptions": h.assumptions,
+            "predictions": h.predictions,
+            "falsification_conditions": h.falsification_conditions,
+            "limitations": h.limitations,
+        }
+        for h in d.hypotheses
+    ]
+
+    privacy_flags = build_privacy_flags(d)
+    policy_flags = build_policy_flags(d, dual)
+
+    legal_flags = [
+        "License/IP interpretation requires LEGALINT or human legal review.",
+        "Employment allegations, malicious-maintainer allegations, or public accusations require human review and authoritative evidence.",
+        "Regulatory or law-enforcement action requires separate legal authorization.",
+    ]
+
+    unknowns = sorted(set(
+        [g.description for g in d.gaps]
+        + [
+            h.statement
+            for h in d.hypotheses
+            if h.status in {
+                HypothesisStatus.UNRESOLVED,
+                HypothesisStatus.DISPUTED,
+            }
+        ]
+    ))
+
+    limitations = [
+        "Local synthetic demo; no live platform or registry access.",
+        "Lawful public-or-authorized developer/ecosystem intelligence only.",
+        "Platform account is not automatically a real person.",
+        "Username/display-name/email/timezone/style are weak identity signals.",
+        "Contributor is not maintainer, owner, release manager, or security contact.",
+        "Repository is not project, and repository is not package.",
+        "Package publisher is not automatically repository maintainer.",
+        "Mirror repositories are not independent development activity.",
+        "Bot activity is not human workload.",
+        "Historical affiliation must not be treated as current employment.",
+        "Maintainer concentration is resilience context, not targeting.",
+        "Security advisory applicability requires VULNINT handoff.",
+        "Secret/token exposure handling requires CREDINT handoff; DEVINT does not use credentials.",
+    ] + d.validation_errors
+
+    return {
+        "case_id": d.case.case_id,
+        "task_id": d.case.task_id,
+        "objective": d.case.objective,
+        "questions": d.case.questions,
+        "scope": d.case.scope,
+        "authorization": d.case.authorization,
+        "status": status.value,
+
+        "source_ids": sorted(d.sources.keys()),
+        "evidence_ids": sorted(d.evidence.keys()),
+
+        "developer_accounts": list(d.accounts.values()),
+        "developer_candidates": build_developer_candidates(d),
+        "account_aliases": account_aliases,
+        "platform_ids": platform_ids,
+        "identity_states": identity_states,
+        "public_affiliations": public_affiliations,
+
+        "organizations": list(d.organizations.values()),
+        "organization_memberships": list(d.memberships.values()),
+
+        "projects": [],
+        "project_note": "Project-level abstraction is not separately modeled in this demo; repository/package relationships are returned instead.",
+
+        "repositories": list(d.repositories.values()),
+        "forks": forks,
+        "mirrors": mirrors,
+        "repository_transfers": repository_transfers,
+
+        "packages": list(d.packages.values()),
+        "registries": registries,
+        "package_maintainers": package_maintainers,
+        "package_publishers": package_publishers,
+        "repository_package_relationships": repository_package_relationships,
+
+        "contributors": sorted(contributor_ids),
+        "maintainers": sorted(d.active_maintainer_ids),
+        "reviewers": sorted(reviewer_ids),
+        "release_managers": sorted(release_manager_ids),
+        "governance_roles": governance_roles,
+
+        "commits": list(d.commits.values()),
+        "pull_requests": [],
+        "merge_requests": [],
+        "issues": [],
+        "reviews": [],
+        "releases": list(d.releases.values()),
+        "tags": [
+            {
+                "repository_id": rel.repository_id,
+                "package_id": rel.package_id,
+                "tag": rel.tag,
+                "release_id": rel.id,
+                "published_at": rel.published_at,
+            }
+            for rel in d.releases.values()
+            if rel.tag
+        ],
+        "artifacts": [
+            {
+                "release_id": rel.id,
+                "artifact_references": rel.artifact_references,
+                "signing_state": rel.signing_state.value,
+                "provenance_state": rel.provenance_state.value,
+            }
+            for rel in d.releases.values()
+        ],
+
+        "contribution_history": contribution_history,
+        "maintainer_history": maintainer_history,
+        "ownership_history": ownership_history,
+        "release_history": release_history,
+
+        "languages": languages,
+        "frameworks": frameworks,
+        "technologies": technologies,
+        "build_systems": build_systems,
+        "ci_cd_context": ci_cd_context,
+
+        "project_health": ecosystem_health,
+        "release_cadence": release_cadence,
+        "commit_cadence": commit_cadence,
+        "maintainer_concentration": maintainer_concentration,
+        "contributor_concentration": contributor_concentration,
+        "bus_factor_context": bus_factor_context,
+
+        "sbom_context": sbom_context,
+        "dependency_context": dependency_context,
+        "supply_chain_context": supply_chain_context,
+        "release_provenance": release_provenance,
+        "signing_context": signing_context,
+
+        "security_advisories": list(d.advisories.values()),
+        "vulnerability_context": vulnerability_context,
+        "security_response_context": security_response_context,
+
+        "ecosystem_graph": ecosystem_graph,
+        "ecosystem_health": ecosystem_health,
+        "central_dependencies": central_dependencies,
+
+        "timeline_updates": timeline_updates,
+
+        "observations": observations,
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+
+        "source_reliability": source_reliability,
+        "source_bias": source_bias,
+        "source_limitations": source_limitations,
+        "source_pedigree": source_pedigree,
+        "source_independence": source_independence,
+
+        "contradictions": d.contradictions,
+        "hypotheses": d.hypotheses,
+        "falsification_results": falsification_results,
+
+        "privacy_flags": privacy_flags,
+        "policy_flags": policy_flags,
+        "legal_flags": legal_flags,
+
+        "unknowns": unknowns,
+        "knowledge_gaps": d.gaps,
+        "recommended_next_actions": d.actions,
+        "specialist_handoffs": d.handoffs,
+
+        "limitations": limitations,
+        "analyst_summary": summary,
+        "dual_ai_review": dual,
+        "replay_manifest": replay_manifest,
+    }
+
+
+# =====================================================================
+# PIPELINES
+# =====================================================================
+
+def run_sample_pipeline() -> Dict[str, Any]:
+    d = build_sample_devint()
+    return build_result(d, Status.PARTIAL)
+
+
+def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+    d = DevInt(case)
+
+    d.gaps.append(KnowledgeGap(
+        id="GAP-NO-ECOSYSTEM-EVIDENCE",
+        gap_type=GapType.PERSON_IDENTITY_UNRESOLVED,
+        description=(
+            "No configured public/authorized developer-ecosystem corpus is available. "
+            "No accounts, repositories, packages, maintainers, releases, or affiliations can be resolved."
+        ),
+        importance="HIGH",
+        recommended_source=(
+            "Provide authorized public/developer-platform metadata, registry metadata, governance docs, "
+            "release metadata, or a sanitized local DEVINT evidence corpus."
+        ),
+        specialist="DEVINT / REPOINT / PACKAGEINT",
+        expected_information_value=0.95,
+    ))
+
+    d.actions = [
+        NextAction(
+            id="ACT-CONFIGURE-ECOSYSTEM-EVIDENCE",
+            description=(
+                "Configure lawful public/authorized developer-ecosystem sources or supply sanitized local evidence. "
+                "Do not use credentials, bypass private repositories, dox developers, or enable supply-chain attacks."
+            ),
+            priority=1,
+            privacy_impact="LOW",
+            expected_gain=0.95,
+            specialist=None,
+            requires_human_approval=False,
+        )
+    ]
+
+    d.handoffs = []
+    d.hypotheses = []
+    d.health = {
+        "as_of": d.as_of,
+        "project_health_state": ProjectHealthState.UNKNOWN.value,
+        "active_maintainer_ids": [],
+        "active_maintainer_count": 0,
+        "release_count": 0,
+        "release_intervals_days": [],
+        "median_release_interval_days": None,
+        "latest_release_age_days": None,
+        "commit_count_90d": 0,
+        "commit_count_365d": 0,
+        "release_share_by_active_maintainers": None,
+        "bus_factor_candidate": None,
+        "top_contributor": None,
+        "top_contributor_commit_share": None,
+        "guardrails": [
+            "No ecosystem evidence configured.",
+            "No developer identity, maintainer role, package ownership, or supply-chain risk can be asserted.",
+        ],
+    }
+
+    dual = {
+        "primary_developer_ecosystem_analyst": "No evidence available.",
+        "independent_developer_ecosystem_skeptic_issues": [
+            "No sources configured.",
+            "No developer accounts resolved.",
+            "No repositories or packages resolved.",
+            "No maintainer or release authority can be established.",
+            "No real-person identity can be inferred.",
+        ],
+        "verdict": "INSUFFICIENT_EVIDENCE",
+        "note": "AI agreement is not independent source corroboration.",
+    }
+
+    summary = (
+        "DEVINT UNRESOLVED: No configured public/authorized ecosystem corpus. "
+        "No developers, real persons, employers, maintainers, packages, releases, or supply-chain risks were fabricated. "
+        "Provide lawful evidence or run sample mode."
+    )
+
+    result = build_result(d, Status.BLOCKED_CONFIGURATION)
+    result["analyst_summary"] = summary
+    result["dual_ai_review"] = dual
+    return result
+
+
+def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "task_id": case.task_id,
+        "objective": case.objective,
+        "status": Status.BLOCKED_POLICY.value,
+        "policy_violations": violations,
+        "message": (
+            "Prohibited developer-ecosystem intelligence request detected. "
+            "DEVINT supports lawful, public-or-authorized, privacy-aware developer/ecosystem intelligence only. "
+            "It does not dox developers, use credentials, bypass private repositories, infer private personal traits, "
+            "phish maintainers, submit malicious contributions, typosquat, dependency-confuse, poison dependencies, "
+            "compromise releases, or convert ecosystem centrality into targeting."
+        ),
+        "lawful_alternatives": [
+            "Resolve public/authorized platform accounts and stable IDs.",
+            "Separate contributor, maintainer, owner, release manager, and package publisher roles.",
+            "Time-bound affiliations and maintainer roles.",
+            "Assess maintainer concentration only for defensive resilience.",
+            "Hand off credential exposure to CREDINT and vulnerability applicability to VULNINT.",
+            "Require human review for real-person attribution, employment allegations, or public disclosure.",
+        ],
+        "privacy_flags": [
+            PrivacyFlag.NO_DOXXING.value,
+            PrivacyFlag.NO_CREDENTIAL_USE.value,
+            PrivacyFlag.NO_SUPPLY_CHAIN_ATTACK_ENABLEMENT.value,
+            PrivacyFlag.NO_SENSITIVE_TRAIT_INFERENCE.value,
+            PrivacyFlag.NO_HOME_LOCATION_INFERENCE.value,
+            PrivacyFlag.NO_REAL_PERSON_ATTRIBUTION_WITHOUT_EVIDENCE.value,
+            PrivacyFlag.NO_PERSONAL_TRUSTWORTHINESS_SCORE.value,
+        ],
+        "limitations": [
+            "No developer-ecosystem analysis performed.",
+            "No accounts, people, employers, maintainers, packages, or releases fabricated.",
+            "No private data accessed.",
+        ],
+    }
+
+
+def run_pipeline(case: Case) -> Dict[str, Any]:
+    text = " ".join(
+        [
+            case.objective,
+            *case.questions,
+            *case.developer_accounts,
+            *case.organizations,
+            *case.repositories,
+            *case.packages,
+            case.authorization or "",
+            " ".join(case.scope),
+        ]
+    )
+
+    violations = policy_guard(text)
+    if violations:
+        return blocked_policy_result(case, violations)
+
+    if case.sample:
+        return run_sample_pipeline()
+
+    return run_unconfigured_pipeline(case)
+
+
+# =====================================================================
+# CLI
+# =====================================================================
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS DEVINT local lawful developer & software ecosystem intelligence pipeline. "
+            "Sample mode uses synthetic public/authorized-style ecosystem data."
+        )
+    )
+    parser.add_argument("--sample", action="store_true", help="Run built-in synthetic DEVINT sample.")
+    parser.add_argument("--objective", help="Lawful developer/ecosystem intelligence objective.")
+    parser.add_argument("--question", action="append", default=[], help="Analytic question. Repeatable.")
+    parser.add_argument("--account", action="append", default=[], help="Developer account ID/username. Repeatable.")
+    parser.add_argument("--organization", action="append", default=[], help="Organization ID/name. Repeatable.")
+    parser.add_argument("--repository", action="append", default=[], help="Repository ID. Repeatable.")
+    parser.add_argument("--package", action="append", default=[], help="Package ID/name. Repeatable.")
+    parser.add_argument("--time-range", help="Time range hint.")
+    parser.add_argument("--as-of", default=DEFAULT_AS_OF, help="Analysis as-of timestamp.")
+
+    args = parser.parse_args()
+
+    if args.sample or not args.objective:
+        case = sample_case()
+    else:
+        case = Case(
+            case_id=new_id("CASE-", args.objective),
+            task_id=new_id("TASK-", args.objective),
+            objective=args.objective,
+            questions=args.question,
+            developer_accounts=args.account,
+            organizations=args.organization,
+            repositories=args.repository,
+            packages=args.package,
+            time_range=args.time_range,
+            as_of=args.as_of,
+            sample=False,
+        )
+
+    result = run_pipeline(case)
+    print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

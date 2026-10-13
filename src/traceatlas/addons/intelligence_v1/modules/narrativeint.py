@@ -1,0 +1,3737 @@
+"""
+======================================================================
+TRACEATLAS — NARRATIVEINT
+NARRATIVE / PROPAGATION / INFORMATION-ECOSYSTEM INTELLIGENCE AI EMPLOYEE
+Python Implementation
+======================================================================
+
+Mode:
+DEFENSIVE / ANALYTICAL / EVIDENCE-FIRST / NON-MANIPULATIVE
+
+Primary boundary:
+Analyze narratives and their propagation.
+Do NOT design propaganda, manipulation, persuasion campaigns,
+political microtargeting or deceptive influence operations.
+"""
+
+from __future__ import annotations
+
+import difflib
+import hashlib
+import itertools
+import json
+import logging
+import math
+import re
+import unicodedata
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("NARRATIVEINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class ContentType(str, Enum):
+    ARTICLE = "ARTICLE"
+    POST = "POST"
+    THREAD = "THREAD"
+    COMMENT = "COMMENT"
+    VIDEO = "VIDEO"
+    IMAGE = "IMAGE"
+    MEME = "MEME"
+    TRANSCRIPT = "TRANSCRIPT"
+    DOCUMENT = "DOCUMENT"
+    PRESS_RELEASE = "PRESS_RELEASE"
+    OFFICIAL_STATEMENT = "OFFICIAL_STATEMENT"
+    FACT_CHECK = "FACT_CHECK"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class ClaimType(str, Enum):
+    EVENT_OCCURRED = "EVENT_OCCURRED"
+    IDENTITY = "IDENTITY"
+    LOCATION = "LOCATION"
+    TIME = "TIME"
+    COUNT = "COUNT"
+    CAUSE = "CAUSE"
+    RESPONSIBILITY = "RESPONSIBILITY"
+    MOTIVE = "MOTIVE"
+    FINANCIAL = "FINANCIAL"
+    LEGAL = "LEGAL"
+    TECHNICAL = "TECHNICAL"
+    POLITICAL = "POLITICAL"
+    SECURITY = "SECURITY"
+    HEALTH = "HEALTH"
+    BUSINESS = "BUSINESS"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class FactFrameOpinion(str, Enum):
+    FACT_CLAIM = "FACT_CLAIM"
+    FRAME_INTERPRETATION = "FRAME_INTERPRETATION"
+    OPINION = "OPINION"
+    QUESTION = "QUESTION"
+    SATIRE_CANDIDATE = "SATIRE_CANDIDATE"
+    UNCLEAR = "UNCLEAR"
+
+
+class CertaintyExpression(str, Enum):
+    CONFIRMED = "CONFIRMED"
+    REPORTED = "REPORTED"
+    ALLEGED = "ALLEGED"
+    SPECULATIVE = "SPECULATIVE"
+    UNCERTAIN = "UNCERTAIN"
+    UNKNOWN = "UNKNOWN"
+
+
+class ClaimState(str, Enum):
+    UNVERIFIED = "UNVERIFIED"
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    DISPUTED = "DISPUTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNSUPPORTED = "UNSUPPORTED"
+    CORRECTED = "CORRECTED"
+    RETRACTED = "RETRACTED"
+
+
+class Stance(str, Enum):
+    SUPPORTS_CLAIM = "SUPPORTS_CLAIM"
+    REJECTS_CLAIM = "REJECTS_CLAIM"
+    QUESTIONS_CLAIM = "QUESTIONS_CLAIM"
+    REPORTS_CLAIM_NEUTRALLY = "REPORTS_CLAIM_NEUTRALLY"
+    SATIRIZES = "SATIRIZES"
+    UNCLEAR = "UNCLEAR"
+
+
+class DuplicateState(str, Enum):
+    EXACT_DUPLICATE = "EXACT_DUPLICATE"
+    NEAR_DUPLICATE = "NEAR_DUPLICATE"
+    SYNDICATED = "SYNDICATED"
+    TRANSLATED_COPY = "TRANSLATED_COPY"
+    PARAPHRASED_COPY = "PARAPHRASED_COPY"
+    DERIVED = "DERIVED"
+    INDEPENDENT = "INDEPENDENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class SyndicationState(str, Enum):
+    ORIGINAL = "ORIGINAL"
+    WIRE_ORIGINAL = "WIRE_ORIGINAL"
+    SYNDICATED_COPY = "SYNDICATED_COPY"
+    PARTIALLY_REWRITTEN = "PARTIALLY_REWRITTEN"
+    DERIVED_REPORT = "DERIVED_REPORT"
+    TRANSLATED_COPY = "TRANSLATED_COPY"
+    INDEPENDENT_REPORT = "INDEPENDENT_REPORT"
+    UNKNOWN = "UNKNOWN"
+
+
+class IndependenceState(str, Enum):
+    INDEPENDENT = "INDEPENDENT"
+    PARTIALLY_DEPENDENT = "PARTIALLY_DEPENDENT"
+    DEPENDENT = "DEPENDENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class OriginState(str, Enum):
+    EARLIEST_OBSERVED = "EARLIEST_OBSERVED"
+    LIKELY_UPSTREAM = "LIKELY_UPSTREAM"
+    ORIGIN_CANDIDATE = "ORIGIN_CANDIDATE"
+    ORIGIN_SUPPORTED = "ORIGIN_SUPPORTED"
+    ORIGIN_UNKNOWN = "ORIGIN_UNKNOWN"
+
+
+class NarrativeLifecycle(str, Enum):
+    EMERGING = "EMERGING"
+    GROWING = "GROWING"
+    PEAKING = "PEAKING"
+    DECLINING = "DECLINING"
+    DORMANT = "DORMANT"
+    RESURGING = "RESURGING"
+    FRAGMENTING = "FRAGMENTING"
+    MERGING = "MERGING"
+    PERSISTENT = "PERSISTENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class CoordinationSignalState(str, Enum):
+    COORDINATION_SIGNAL_CANDIDATE = "COORDINATION_SIGNAL_CANDIDATE"
+    PLATFORM_REPORTED_CIB = "PLATFORM_REPORTED_CIB"
+    CIB_CANDIDATE = "CIB_CANDIDATE"
+    NOT_ESTABLISHED = "NOT_ESTABLISHED"
+    UNKNOWN = "UNKNOWN"
+
+
+class AutomationSignalState(str, Enum):
+    AUTOMATION_SIGNAL_CANDIDATE = "AUTOMATION_SIGNAL_CANDIDATE"
+    NOT_ESTABLISHED = "NOT_ESTABLISHED"
+    UNKNOWN = "UNKNOWN"
+
+
+class AttributionState(str, Enum):
+    UNATTRIBUTED = "UNATTRIBUTED"
+    SOURCE_CLAIMED = "SOURCE_CLAIMED"
+    ALIGNED_WITH = "ALIGNED_WITH"
+    AMPLIFIED_BY = "AMPLIFIED_BY"
+    OFFICIALLY_PROMOTED_BY = "OFFICIALLY_PROMOTED_BY"
+    ATTRIBUTED_TO_BY_SOURCE = "ATTRIBUTED_TO_BY_SOURCE"
+    NOT_ESTABLISHED = "NOT_ESTABLISHED"
+    UNKNOWN = "UNKNOWN"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    CORRECTED = "CORRECTED"
+    RETRACTED = "RETRACTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    SEMANTIC_AGREEMENT = "SEMANTIC_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrivacyClassification(str, Enum):
+    PUBLIC = "PUBLIC"
+    BUSINESS = "BUSINESS"
+    INTERNAL = "INTERNAL"
+    SENSITIVE = "SENSITIVE"
+    HIGHLY_SENSITIVE = "HIGHLY_SENSITIVE"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def safe_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def normalize_whitespace(value: Any) -> str:
+    if value is None:
+        return ""
+    return " ".join(str(value).split())
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        try:
+            dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except Exception:
+            return None
+    elif isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        s = s.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            dt = None
+            for fmt in (
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+                "%Y-%m-%d",
+            ):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            if dt is None:
+                return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def mean(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def median(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return None
+    n = len(vals)
+    mid = n // 2
+    if n % 2 == 1:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2.0
+
+
+def std(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return 0.0
+    m = sum(vals) / len(vals)
+    var = sum((x - m) ** 2 for x in vals) / (len(vals) - 1)
+    return math.sqrt(var)
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def hash_payload(payload: Any) -> str:
+    try:
+        canonical = json.dumps(payload, sort_keys=True, default=_json_default)
+    except Exception:
+        canonical = str(payload)
+    return sha256_text(canonical)
+
+
+def tokens(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def token_set(text: str) -> set[str]:
+    return {t for t in re.split(r"\W+", (text or "").lower()) if t}
+
+
+def shingles(text: str, k: int = 5) -> set[Tuple[str, ...]]:
+    ts = tokens(text)
+    if not ts:
+        return set()
+    if len(ts) < k:
+        return {tuple(ts)}
+    return {tuple(ts[i:i + k]) for i in range(len(ts) - k + 1)}
+
+
+def jaccard(a: set[Any], b: set[Any]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def similarity(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, (a or "").lower(), (b or "").lower()).ratio()
+
+
+def canonical_url(url: Optional[str]) -> str:
+    if not url:
+        return ""
+    try:
+        p = urlparse(url)
+        scheme = "https" if p.scheme in ("http", "https", "") else p.scheme
+        netloc = p.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        path = p.path.rstrip("/")
+        if path.endswith("/amp"):
+            path = path[:-4]
+
+        tracking_prefixes = ("utm_",)
+        tracking_exact = {
+            "fbclid",
+            "gclid",
+            "mc_cid",
+            "mc_eid",
+            "igshid",
+            "ref",
+            "source",
+            "s",
+            "cmpid",
+            "campaign",
+        }
+
+        query = []
+        for k, v in parse_qsl(p.query, keep_blank_values=True):
+            lk = k.lower()
+            if lk.startswith(tracking_prefixes) or lk in tracking_exact:
+                continue
+            if lk == "outputtype" and v.lower() == "amp":
+                continue
+            query.append((k, v))
+
+        return urlunparse((scheme, netloc, path, p.params, urlencode(query), ""))
+    except Exception:
+        return normalize_whitespace(url)
+
+
+def detect_language(text: str, declared: Optional[str] = None) -> str:
+    if declared:
+        return declared.strip().upper()
+    if not text:
+        return "UNKNOWN"
+    for ch in text:
+        cp = ord(ch)
+        if 0x0600 <= cp <= 0x06FF:
+            return "AR"
+        if 0x0400 <= cp <= 0x04FF:
+            return "RU"
+        if 0x4E00 <= cp <= 0x9FFF:
+            return "ZH"
+        if 0x0900 <= cp <= 0x097F:
+            return "HI"
+        if 0xAC00 <= cp <= 0xD7AF:
+            return "KO"
+        if 0x00C0 <= cp <= 0x024F:
+            return "LATIN_EXTENDED"
+    return "EN"
+
+
+def excerpt(text: str, limit: int = 220) -> str:
+    s = normalize_whitespace(text)
+    if len(s) <= limit:
+        return s
+    return s[: limit - 1].rstrip() + "…"
+
+
+def fmt_dt(value: Optional[datetime]) -> str:
+    return value.isoformat() if value else "UNKNOWN"
+
+
+def parse_number(raw: str, multiplier: Optional[str] = None) -> Optional[float]:
+    try:
+        value = float(raw.replace(",", ""))
+    except Exception:
+        return None
+    mult = (multiplier or "").lower()
+    if mult == "thousand":
+        value *= 1_000
+    elif mult == "million":
+        value *= 1_000_000
+    elif mult == "billion":
+        value *= 1_000_000_000
+    return value
+
+
+# ======================================================================
+# SECTION 3 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited NARRATIVEINT manipulation,
+    propaganda, influence-operation, microtargeting, bot, harassment,
+    impersonation, or private-access guidance.
+
+    Allows defensive/analytical narrative propagation assessment,
+    media-literacy support, verification, and transparent communication.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:design|create|generate|write|optimize|operate|run|deploy|build).{0,140}(?:propaganda|disinformation|fake news|influence operation|covert influence|bot network|bots|astroturf|fake grassroots|fake accounts|microtarget|psychological manipulation|persuasion campaign|harassment campaign|brigading|doxxing)",
+        r"\b(?:propaganda generator|disinformation generator|bot operator|astroturfing planner|microtargeting engine|political persuasion campaign|covert influence|fake grassroots|harassment campaign|brigading|doxxing|impersonate journalist|impersonate activist|impersonate official|impersonate private person)\b",
+        r"(?:target|profile|manipulate|exploit|optimize messaging for).{0,100}(?:political belief|religion|ethnicity|sexual orientation|health status|psychological weakness|voter group|sensitive trait)",
+        r"(?:bypass|scrape|access|evade).{0,100}(?:private account|private channel|login|paywall|access control|subscription|captcha)",
+        r"(?:manufacture|fake|invent).{0,100}(?:social proof|testimonials|evidence|sources|journalists|activists|grassroots support)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited NARRATIVEINT propaganda, manipulation, microtargeting, bot/astroturfing, harassment, impersonation, or private-access guidance.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Posts, articles, comments, transcripts, documents, and web pages are
+    UNTRUSTED DATA. Neutralize obvious instruction-like injections while
+    preserving raw evidence separately.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|reveal\s+sources|publish\s+this|contact\s+this\s+account|seed\s+narrative|deploy\s+bots|microtarget|manipulate)\b"
+    )
+
+    def sanitize(self, text: Any) -> str:
+        if text is None:
+            return ""
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return normalize_whitespace(s)
+
+
+# ======================================================================
+# SECTION 4 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    content_id: str = ""
+    source_id: str = ""
+    url: str = ""
+    canonical_url: str = ""
+    content_hash: str = ""
+    fingerprint: str = ""
+    raw_reference: str = ""
+    observed_at: datetime = field(default_factory=utcnow)
+    authorization_context: str = ""
+
+
+@dataclass
+class Source:
+    source_id: str
+    source_type: str = "UNKNOWN"
+    publisher_id: str = ""
+    account_id: str = ""
+    organization: str = ""
+    platform: str = ""
+    url: str = ""
+    known_upstream_sources: List[str] = field(default_factory=list)
+    independence_group: str = "UNKNOWN"
+    reliability: str = "UNKNOWN"
+    bias_context: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ContentItem:
+    content_id: str
+    source_id: str = ""
+    publisher_id: str = ""
+    account_id: str = ""
+    platform: str = ""
+    url: str = ""
+    canonical_url: str = ""
+    headline: str = ""
+    text: str = ""
+    normalized_text: str = ""
+    published_at: Optional[datetime] = None
+    observed_at: datetime = field(default_factory=utcnow)
+    language: str = "UNKNOWN"
+    content_type: ContentType = ContentType.UNKNOWN
+    media_reference: str = ""
+    content_hash: str = ""
+    fingerprint: str = ""
+    reply_to: List[str] = field(default_factory=list)
+    quotes: List[str] = field(default_factory=list)
+    reposts: List[str] = field(default_factory=list)
+    citation_links: List[str] = field(default_factory=list)
+    wire_service_id: str = ""
+    syndicated_from: str = ""
+    translated_from: str = ""
+    source_family: str = ""
+    duplicate_state: DuplicateState = DuplicateState.UNKNOWN
+    duplicate_of: str = ""
+    near_duplicate_of: str = ""
+    syndication_state: SyndicationState = SyndicationState.UNKNOWN
+    stance: Stance = Stance.REPORTS_CLAIM_NEUTRALLY
+    claims: List["Claim"] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    raw_reference: str = ""
+
+
+@dataclass
+class Claim:
+    claim_id: str = field(default_factory=lambda: new_id("CLAIM"))
+    content_id: str = ""
+    subject: str = ""
+    predicate: str = ""
+    object: str = ""
+    text: str = ""
+    claim_type: ClaimType = ClaimType.UNKNOWN
+    fact_frame_opinion: FactFrameOpinion = FactFrameOpinion.UNCLEAR
+    certainty: CertaintyExpression = CertaintyExpression.UNKNOWN
+    time_reference: Optional[datetime] = None
+    location_reference: str = ""
+    numeric_value: Optional[float] = None
+    numeric_unit: str = ""
+    source_ids: List[str] = field(default_factory=list)
+    first_seen: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
+    claim_state: ClaimState = ClaimState.UNVERIFIED
+    confidence: Confidence = Confidence.LOW
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Frame:
+    frame_id: str = field(default_factory=lambda: new_id("FRAME"))
+    label: str = ""
+    description: str = ""
+    content_ids: List[str] = field(default_factory=list)
+    claim_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Theme:
+    theme_id: str = field(default_factory=lambda: new_id("THEME"))
+    label: str = ""
+    description: str = ""
+    content_ids: List[str] = field(default_factory=list)
+    claim_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Narrative:
+    narrative_id: str = field(default_factory=lambda: new_id("NARR"))
+    title: str = ""
+    description: str = ""
+    core_claims: List[str] = field(default_factory=list)
+    supporting_claims: List[str] = field(default_factory=list)
+    frames: List[str] = field(default_factory=list)
+    themes: List[str] = field(default_factory=list)
+    entities: List[str] = field(default_factory=list)
+    events: List[str] = field(default_factory=list)
+    variants: List[str] = field(default_factory=list)
+    languages: List[str] = field(default_factory=list)
+    platforms: List[str] = field(default_factory=list)
+    source_families: List[str] = field(default_factory=list)
+    content_ids: List[str] = field(default_factory=list)
+    first_seen: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
+    lifecycle: NarrativeLifecycle = NarrativeLifecycle.UNKNOWN
+    verification_state: ClaimState = ClaimState.UNVERIFIED
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class NarrativeVariant:
+    variant_id: str = field(default_factory=lambda: new_id("VAR"))
+    parent_narrative_id: str = ""
+    title: str = ""
+    changes: List[str] = field(default_factory=list)
+    languages: List[str] = field(default_factory=list)
+    platforms: List[str] = field(default_factory=list)
+    content_ids: List[str] = field(default_factory=list)
+    claim_ids: List[str] = field(default_factory=list)
+    first_seen: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PropagationEvent:
+    propagation_event_id: str = field(default_factory=lambda: new_id("PROP"))
+    content_id: str = ""
+    source_id: str = ""
+    narrative_id: str = ""
+    variant_id: str = ""
+    time: Optional[datetime] = None
+    platform: str = ""
+    relationship_type: str = "UNKNOWN"
+    upstream_candidate: str = ""
+    confidence: Confidence = Confidence.LOW
+    evidence_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class CoordinationSignal:
+    signal_id: str = field(default_factory=lambda: new_id("COORSIG"))
+    signal_type: str = "UNKNOWN"
+    description: str = ""
+    content_ids: List[str] = field(default_factory=list)
+    account_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    time_window_start: Optional[datetime] = None
+    time_window_end: Optional[datetime] = None
+    state: CoordinationSignalState = CoordinationSignalState.UNKNOWN
+    confidence: Confidence = Confidence.LOW
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class AutomationSignal:
+    signal_id: str = field(default_factory=lambda: new_id("AUTOSIG"))
+    signal_type: str = "UNKNOWN"
+    description: str = ""
+    account_ids: List[str] = field(default_factory=list)
+    content_ids: List[str] = field(default_factory=list)
+    state: AutomationSignalState = AutomationSignalState.UNKNOWN
+    confidence: Confidence = Confidence.LOW
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class FactCheck:
+    fact_check_id: str = field(default_factory=lambda: new_id("FC"))
+    target_claim_id: str = ""
+    target_content_id: str = ""
+    rating: str = "UNKNOWN"
+    source: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Event:
+    event_id: str = field(default_factory=lambda: new_id("EVENT"))
+    event_type: str = "UNKNOWN"
+    title: str = ""
+    time: Optional[datetime] = None
+    location: str = ""
+    entities: List[str] = field(default_factory=list)
+    source_id: str = ""
+    verification_state: ClaimState = ClaimState.UNVERIFIED
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    materiality: str = "MATERIAL"
+    claim_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    possible_explanations: List[str] = field(default_factory=list)
+    resolution_status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    source_dependencies: List[str] = field(default_factory=list)
+    temporal_constraints: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class IngestedCase:
+    evidence: List[Evidence] = field(default_factory=list)
+    sources: List[Source] = field(default_factory=list)
+    content_items: List[ContentItem] = field(default_factory=list)
+    events: List[Event] = field(default_factory=list)
+    fact_checks: List[FactCheck] = field(default_factory=list)
+
+
+@dataclass
+class NARRATIVEINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    sources: List[Source] = field(default_factory=list)
+    content_items: List[ContentItem] = field(default_factory=list)
+    claims: List[Claim] = field(default_factory=list)
+    counterclaims: List[Claim] = field(default_factory=list)
+    frames: List[Frame] = field(default_factory=list)
+    themes: List[Theme] = field(default_factory=list)
+    narratives: List[Narrative] = field(default_factory=list)
+    narrative_variants: List[NarrativeVariant] = field(default_factory=list)
+
+    propagation_events: List[PropagationEvent] = field(default_factory=list)
+    propagation_velocity: List[Dict[str, Any]] = field(default_factory=list)
+    propagation_breadth: Dict[str, Any] = field(default_factory=dict)
+    propagation_depth: int = 0
+
+    coordination_signals: List[CoordinationSignal] = field(default_factory=list)
+    automation_signals: List[AutomationSignal] = field(default_factory=list)
+    event_correlations: List[Dict[str, Any]] = field(default_factory=list)
+
+    fact_checks: List[FactCheck] = field(default_factory=list)
+    events: List[Event] = field(default_factory=list)
+
+    source_families: List[str] = field(default_factory=list)
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    temporal: Dict[str, Any] = field(default_factory=dict)
+
+    contradictions: List[Contradiction] = field(default_factory=list)
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 5 — INGESTION
+# ======================================================================
+
+class NARRATIVEINTIngestor:
+    PARSER_VERSION = "NARRATIVEINT-parser-0.1.0"
+    NORMALIZER_VERSION = "NARRATIVEINT-normalizer-0.1.0"
+
+    def __init__(self, injection_defense: Optional[PromptInjectionDefense] = None):
+        self.injection_defense = injection_defense or PromptInjectionDefense()
+
+    def ingest_case(self, case: Dict[str, Any]) -> IngestedCase:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        authorization = str(case.get("authorization", ""))
+
+        sources = [self._parse_source(s) for s in case.get("sources", [])]
+        content_items: List[ContentItem] = []
+        evidence: List[Evidence] = []
+
+        for c in case.get("content_items", []):
+            ci, ev = self._parse_content(c, case_id, authorization)
+            content_items.append(ci)
+            evidence.append(ev)
+
+        events = [self._parse_event(e) for e in case.get("events", [])]
+        fact_checks = [self._parse_fact_check(f) for f in case.get("fact_checks", [])]
+
+        return IngestedCase(
+            evidence=evidence,
+            sources=sources,
+            content_items=content_items,
+            events=events,
+            fact_checks=fact_checks,
+        )
+
+    def _parse_source(self, s: Dict[str, Any]) -> Source:
+        return Source(
+            source_id=str(s.get("source_id", new_id("SRC"))),
+            source_type=str(s.get("source_type", "UNKNOWN")).upper(),
+            publisher_id=str(s.get("publisher_id", "")),
+            account_id=str(s.get("account_id", "")),
+            organization=str(s.get("organization", "")),
+            platform=str(s.get("platform", "")),
+            url=str(s.get("url", "")),
+            known_upstream_sources=[str(x) for x in s.get("known_upstream_sources", [])],
+            independence_group=str(s.get("independence_group", s.get("source_type", "UNKNOWN"))),
+            reliability=str(s.get("reliability", "UNKNOWN")).upper(),
+            bias_context=str(s.get("bias_context", "UNKNOWN")),
+            limitations=[str(x) for x in s.get("limitations", [])],
+        )
+
+    def _parse_content(
+        self,
+        c: Dict[str, Any],
+        case_id: str,
+        authorization: str,
+    ) -> Tuple[ContentItem, Evidence]:
+        text_raw = str(c.get("text", c.get("body", "")))
+        normalized_text = self.injection_defense.sanitize(text_raw)
+        headline = normalize_whitespace(c.get("headline", ""))
+        url = str(c.get("url", ""))
+        canon = canonical_url(url)
+
+        published_at = to_datetime(c.get("published_at") or c.get("time"))
+        observed_at = to_datetime(c.get("observed_at")) or utcnow()
+        language = detect_language(normalized_text, c.get("language"))
+        content_hash = sha256_text(normalized_text.lower())
+
+        fingerprint_parts = [
+            content_hash,
+            normalize_text(headline, upper=False) or "",
+            "|".join(sorted(str(x) for x in c.get("citation_links", []))),
+            str(c.get("wire_service_id", "")),
+            str(c.get("syndicated_from", "")),
+            str(c.get("translated_from", "")),
+            str(c.get("media_reference", "")),
+        ]
+        fingerprint = sha256_text("|".join(fingerprint_parts))
+
+        limitations = [str(x) for x in c.get("limitations", [])]
+        limitations.extend(
+            [
+                "Content text is untrusted data; embedded instructions are ignored.",
+                "Earliest observed content is not verified true origin.",
+                "Repetition or engagement does not establish truth, belief, or endorsement.",
+            ]
+        )
+
+        ev = Evidence(
+            case_id=case_id,
+            content_id=str(c.get("content_id", new_id("CONTENT"))),
+            source_id=str(c.get("source_id", "")),
+            url=url,
+            canonical_url=canon,
+            content_hash=content_hash,
+            fingerprint=fingerprint,
+            raw_reference=json.dumps(
+                {
+                    "content_id": c.get("content_id"),
+                    "source_id": c.get("source_id"),
+                    "headline": headline,
+                    "url": url,
+                    "canonical_url": canon,
+                    "text_length": len(text_raw),
+                    "text_hash": content_hash,
+                    "parser_version": self.PARSER_VERSION,
+                },
+                sort_keys=True,
+                default=_json_default,
+            )[:1000],
+            observed_at=observed_at,
+            authorization_context=authorization,
+        )
+
+        ci = ContentItem(
+            content_id=str(c.get("content_id", ev.content_id)),
+            source_id=str(c.get("source_id", "")),
+            publisher_id=str(c.get("publisher_id", "")),
+            account_id=str(c.get("account_id", "")),
+            platform=str(c.get("platform", "")),
+            url=url,
+            canonical_url=canon,
+            headline=headline,
+            text=text_raw,
+            normalized_text=normalized_text,
+            published_at=published_at,
+            observed_at=observed_at,
+            language=language,
+            content_type=enum_from(ContentType, c.get("content_type"), ContentType.UNKNOWN),
+            media_reference=str(c.get("media_reference", "")),
+            content_hash=content_hash,
+            fingerprint=fingerprint,
+            reply_to=[str(x) for x in c.get("reply_to", [])],
+            quotes=[str(x) for x in c.get("quotes", [])],
+            reposts=[str(x) for x in c.get("reposts", [])],
+            citation_links=[str(x) for x in c.get("citation_links", [])],
+            wire_service_id=str(c.get("wire_service_id", "")),
+            syndicated_from=str(c.get("syndicated_from", "")),
+            translated_from=str(c.get("translated_from", "")),
+            stance=self._classify_stance(normalized_text),
+            evidence_ids=[ev.evidence_id],
+            limitations=unique_list(limitations),
+            raw_reference=ev.raw_reference,
+        )
+        return ci, ev
+
+    @staticmethod
+    def _classify_stance(text: str) -> Stance:
+        lower = (text or "").lower()
+        if any(x in lower for x in ("satire", "parody", "joke", "obviously fake")):
+            return Stance.SATIRIZES
+        if any(x in lower for x in ("debunk", "false", "myth", "hoax", "not true", "unsupported", "rejects")):
+            return Stance.REJECTS_CLAIM
+        if "?" in text or any(x in lower for x in ("question", "ask", "how do we know", "why")):
+            return Stance.QUESTIONS_CLAIM
+        return Stance.REPORTS_CLAIM_NEUTRALLY
+
+    def _parse_event(self, e: Dict[str, Any]) -> Event:
+        return Event(
+            event_id=str(e.get("event_id", new_id("EVENT"))),
+            event_type=str(e.get("event_type", "UNKNOWN")).upper(),
+            title=str(e.get("title", "")),
+            time=to_datetime(e.get("time") or e.get("event_time")),
+            location=str(e.get("location", "")),
+            entities=[str(x) for x in e.get("entities", [])],
+            source_id=str(e.get("source_id", "")),
+            verification_state=enum_from(ClaimState, e.get("verification_state"), ClaimState.UNVERIFIED),
+            confidence=enum_from(Confidence, e.get("confidence"), Confidence.LOW),
+            limitations=[str(x) for x in e.get("limitations", [])],
+        )
+
+    def _parse_fact_check(self, f: Dict[str, Any]) -> FactCheck:
+        return FactCheck(
+            fact_check_id=str(f.get("fact_check_id", new_id("FC"))),
+            target_claim_id=str(f.get("target_claim_id", "")),
+            target_content_id=str(f.get("target_content_id", "")),
+            rating=str(f.get("rating", "UNKNOWN")).upper(),
+            source=str(f.get("source", "")),
+            evidence_ids=[str(x) for x in f.get("evidence_ids", [])],
+            limitations=[str(x) for x in f.get("limitations", [])] + [
+                "Fact-check rating is secondary analysis; inspect method and primary evidence."
+            ],
+        )
+
+
+# ======================================================================
+# SECTION 6 — CLAIM EXTRACTION / FACT-FRAME-OPINION SEPARATION
+# ======================================================================
+
+class ClaimExtractor:
+    SENTENCE_RX = re.compile(r"(?<=[.!?])\s+")
+    REPORTING_RX = re.compile(
+        r"\b(?:said|says|stated|announced|reported|confirms?|confirmed|claims?|claimed|according to|statement|release|post(?:s|ed)?|tweet(?:s|ed)?|shared?)\b",
+        re.I,
+    )
+    EVENT_RX = re.compile(
+        r"\b(?:collapse|collapsed|explosion|exploded|fire|attack|shooting|earthquake|flood|arrest|arrested|evacuated|closed|crash|derailed|outage|breach|indicted|charged|convicted|injured|killed|dead|died|death)\b",
+        re.I,
+    )
+    CAUSAL_RX = re.compile(
+        r"\b(?:caused|cause|due to|because|blame|responsible|behind the|perpetrator|carried out|orchestrated|directed by)\b",
+        re.I,
+    )
+    OPINION_RX = re.compile(
+        r"\b(?:think|believe|should|must|ought|in my view|opinion|supports|opposes|good|bad|failure|success|disaster|tragedy)\b",
+        re.I,
+    )
+    SATIRE_RX = re.compile(r"\b(?:satire|parody|joke|obviously fake|not real)\b", re.I)
+    QUESTION_RX = re.compile(r"\b(?:question|ask|how do we know|is it true|really)\b|\?", re.I)
+    NUMERIC_RX = re.compile(
+        r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*"
+        r"(million|billion|thousand)?\s*"
+        r"(people|persons|injured|wounded|killed|dead|deaths|fatalities|arrested|missing|evacuated|cases|dollars|USD|%)?",
+        re.I,
+    )
+    LOCATION_RX = re.compile(r"\b(?:in|at|near|around|inside)\s+([A-Z][A-Za-z0-9 .,'-]{2,80})")
+    IDENTITY_RX = re.compile(r"\b(?:named|identified as|identity|person of interest|suspect|actor|group|organization)\b", re.I)
+
+    def extract(self, content: ContentItem) -> List[Claim]:
+        claims: List[Claim] = []
+        sentences = self._split_sentences(content.normalized_text)
+
+        for sentence in sentences:
+            if len(sentence) < 12:
+                continue
+            if not self._is_claim_worthy(sentence):
+                continue
+
+            numeric_value, numeric_unit = self._extract_numeric(sentence)
+            location = self._extract_location(sentence)
+            claim_type = self._classify_claim(sentence, numeric_value, numeric_unit, location)
+            fact_frame_opinion = self._classify_fact_frame_opinion(sentence, content)
+            certainty = self._classify_certainty(sentence, content)
+
+            claim = Claim(
+                content_id=content.content_id,
+                subject=content.account_id or content.source_id or content.publisher_id or "UNATTRIBUTED_SOURCE",
+                predicate=self._extract_predicate(sentence),
+                object=numeric_unit or location or excerpt(sentence, 80),
+                text=normalize_whitespace(sentence),
+                claim_type=claim_type,
+                fact_frame_opinion=fact_frame_opinion,
+                certainty=certainty,
+                time_reference=content.published_at or content.observed_at,
+                location_reference=location,
+                numeric_value=numeric_value,
+                numeric_unit=numeric_unit,
+                source_ids=unique_list([content.source_id, content.account_id, content.publisher_id]),
+                first_seen=content.published_at or content.observed_at,
+                last_seen=content.published_at or content.observed_at,
+                claim_state=ClaimState.UNVERIFIED,
+                confidence=Confidence.LOW,
+                evidence_ids=content.evidence_ids,
+                limitations=[
+                    "Claim extracted heuristically from content; article/post reporting is not automatic truth.",
+                    "Fact, frame, opinion, satire, and stance remain separate dimensions.",
+                    "Source attribution and speaker identity may require manual review.",
+                ],
+            )
+            claims.append(claim)
+
+        return claims
+
+    def _split_sentences(self, text: str) -> List[str]:
+        text = normalize_whitespace(text)
+        parts = self.SENTENCE_RX.split(text)
+        return [p.strip() for p in parts if p.strip()]
+
+    def _is_claim_worthy(self, sentence: str) -> bool:
+        return bool(
+            self.REPORTING_RX.search(sentence)
+            or self.EVENT_RX.search(sentence)
+            or self.CAUSAL_RX.search(sentence)
+            or self.OPINION_RX.search(sentence)
+            or self.NUMERIC_RX.search(sentence)
+        )
+
+    def _classify_fact_frame_opinion(self, sentence: str, content: ContentItem) -> FactFrameOpinion:
+        lower = sentence.lower()
+        if self.SATIRE_RX.search(lower) or content.stance == Stance.SATIRIZES:
+            return FactFrameOpinion.SATIRE_CANDIDATE
+        if self.QUESTION_RX.search(lower):
+            return FactFrameOpinion.QUESTION
+        if re.search(r"\b(?:caused by|responsible|behind the|perpetrator|orchestrated|directed by|intentional)\b", lower, re.I):
+            return FactFrameOpinion.FRAME_INTERPRETATION
+        if self.OPINION_RX.search(lower) and not self.REPORTING_RX.search(lower):
+            return FactFrameOpinion.OPINION
+        return FactFrameOpinion.FACT_CLAIM
+
+    def _classify_claim(
+        self,
+        sentence: str,
+        numeric_value: Optional[float],
+        numeric_unit: str,
+        location: str,
+    ) -> ClaimType:
+        lower = sentence.lower()
+
+        if numeric_value is not None and numeric_unit in {
+            "injured", "wounded", "killed", "dead", "deaths", "fatalities",
+            "arrested", "missing", "evacuated", "cases", "people", "persons"
+        }:
+            return ClaimType.COUNT
+        if re.search(r"\b(?:responsible|behind the|perpetrator|carried out|orchestrated|directed by)\b", lower, re.I):
+            return ClaimType.RESPONSIBILITY
+        if self.CAUSAL_RX.search(lower):
+            return ClaimType.CAUSE
+        if self.EVENT_RX.search(lower):
+            return ClaimType.EVENT_OCCURRED
+        if location:
+            return ClaimType.LOCATION
+        if self.IDENTITY_RX.search(lower):
+            return ClaimType.IDENTITY
+        if re.search(r"\b(?:yesterday|today|tomorrow|at \d|on \d{4}-|time)\b", lower, re.I):
+            return ClaimType.TIME
+        return ClaimType.OTHER
+
+    def _classify_certainty(self, sentence: str, content: ContentItem) -> CertaintyExpression:
+        lower = sentence.lower()
+        if re.search(r"\b(?:confirmed|officially confirmed|statement confirmed)\b", lower, re.I):
+            return CertaintyExpression.CONFIRMED
+        if re.search(r"\b(?:alleged|allegedly|unverified rumor|rumor)\b", lower, re.I):
+            return CertaintyExpression.ALLEGED
+        if re.search(r"\b(?:reportedly|according to|said|states|announced|released)\b", lower, re.I):
+            return CertaintyExpression.REPORTED
+        if re.search(r"\b(?:may|might|could|possible|investigation|unknown|not immediately|remains)\b", lower, re.I):
+            return CertaintyExpression.UNCERTAIN
+        if content.content_type in (ContentType.POST, ContentType.COMMENT):
+            return CertaintyExpression.SPECULATIVE
+        return CertaintyExpression.REPORTED
+
+    def _extract_location(self, sentence: str) -> str:
+        m = self.LOCATION_RX.search(sentence)
+        if not m:
+            return ""
+        loc = normalize_whitespace(m.group(1))
+        loc = re.sub(r"[.,;:!?\"]+$", "", loc)
+        return loc
+
+    def _extract_numeric(self, sentence: str) -> Tuple[Optional[float], str]:
+        m = self.NUMERIC_RX.search(sentence)
+        if not m:
+            return None, ""
+        value = parse_number(m.group(1), m.group(2))
+        unit = normalize_text(m.group(3), upper=False) or ""
+        if value is None:
+            return None, ""
+        if not unit:
+            lower = sentence.lower()
+            if "injur" in lower or "wounded" in lower:
+                unit = "injured"
+            elif "kill" in lower or "dead" in lower or "death" in lower or "fatal" in lower:
+                unit = "killed"
+            elif "arrest" in lower:
+                unit = "arrested"
+            elif "missing" in lower:
+                unit = "missing"
+            elif "evacuat" in lower:
+                unit = "evacuated"
+            elif "%" in sentence:
+                unit = "percent"
+            elif "dollar" in lower or "usd" in lower:
+                unit = "currency"
+            else:
+                unit = "count"
+        return value, unit
+
+    @staticmethod
+    def _extract_predicate(sentence: str) -> str:
+        m = re.search(
+            r"\b(?:said|says|stated|announced|reported|confirmed|claims?|claimed|collapsed|exploded|injured|killed|arrested|closed|evacuated|caused|attacked|hacked|breached)\b",
+            sentence,
+            re.I,
+        )
+        return m.group(0).lower() if m else "reported"
+
+
+# ======================================================================
+# SECTION 7 — SOURCE FAMILY / DUPLICATE / SYNDICATION / PEDIGREE
+# ======================================================================
+
+class SourceFamilyResolver:
+    def resolve(self, content_items: List[ContentItem]) -> List[str]:
+        by_id = {c.content_id: c for c in content_items}
+        by_canon: Dict[str, ContentItem] = {}
+
+        for c in content_items:
+            if c.canonical_url:
+                by_canon[c.canonical_url] = c
+            if c.url:
+                by_canon[canonical_url(c.url)] = c
+
+        # Initial family assignment.
+        for c in content_items:
+            if c.syndicated_from:
+                c.source_family = f"content:{c.syndicated_from}"
+            elif c.translated_from:
+                c.source_family = f"content:{c.translated_from}"
+            elif c.wire_service_id:
+                c.source_family = f"wire:{c.wire_service_id}"
+            elif c.citation_links:
+                c.source_family = f"citation:{canonical_url(c.citation_links[0])}"
+            else:
+                c.source_family = f"source:{c.source_id or c.account_id or c.platform or 'unknown'}"
+
+        # Citation-link pedigree.
+        for c in content_items:
+            for link in c.citation_links:
+                cited = self._find_content(link, by_id, by_canon)
+                if cited and cited.content_id != c.content_id:
+                    c.source_family = cited.source_family or f"content:{cited.content_id}"
+                    if c.syndication_state == SyndicationState.UNKNOWN:
+                        c.syndication_state = SyndicationState.DERIVED_REPORT
+                    break
+
+        # Explicit syndication pedigree.
+        for c in content_items:
+            if c.syndicated_from and c.syndicated_from in by_id:
+                base = by_id[c.syndicated_from]
+                c.source_family = base.source_family or f"content:{base.content_id}"
+                c.syndication_state = SyndicationState.SYNDICATED_COPY
+                c.duplicate_state = DuplicateState.SYNDICATED
+
+        # Explicit translation pedigree.
+        for c in content_items:
+            if c.translated_from and c.translated_from in by_id:
+                base = by_id[c.translated_from]
+                c.source_family = base.source_family or f"content:{base.content_id}"
+                c.syndication_state = SyndicationState.TRANSLATED_COPY
+                c.duplicate_state = DuplicateState.TRANSLATED_COPY
+
+        # Exact duplicates.
+        by_hash: Dict[str, List[ContentItem]] = defaultdict(list)
+        for c in content_items:
+            if c.content_hash:
+                by_hash[c.content_hash].append(c)
+
+        for group in by_hash.values():
+            if len(group) <= 1:
+                continue
+            original = sorted(
+                group,
+                key=lambda x: (x.published_at or x.observed_at or datetime.max.replace(tzinfo=timezone.utc), x.content_id),
+            )[0]
+            for dup in group:
+                if dup.content_id == original.content_id:
+                    continue
+                dup.duplicate_of = original.content_id
+                dup.duplicate_state = DuplicateState.EXACT_DUPLICATE
+                dup.source_family = original.source_family or dup.source_family
+                if dup.syndication_state == SyndicationState.UNKNOWN:
+                    dup.syndication_state = SyndicationState.SYNDICATED_COPY
+
+        # Near duplicates.
+        for a, b in itertools.combinations(content_items, 2):
+            if a.duplicate_of or b.duplicate_of:
+                continue
+            if not a.normalized_text or not b.normalized_text:
+                continue
+            if len(tokens(a.normalized_text)) < 8 or len(tokens(b.normalized_text)) < 8:
+                continue
+
+            sim = jaccard(shingles(a.normalized_text), shingles(b.normalized_text))
+            if sim >= 0.70:
+                base, derived = sorted(
+                    [a, b],
+                    key=lambda x: (x.published_at or x.observed_at or datetime.max.replace(tzinfo=timezone.utc), x.content_id),
+                )
+                derived.near_duplicate_of = base.content_id
+                derived.duplicate_state = DuplicateState.NEAR_DUPLICATE
+
+                if derived.source_family != base.source_family and (
+                    derived.citation_links
+                    or derived.syndicated_from
+                    or derived.translated_from
+                    or derived.wire_service_id
+                    or sim >= 0.85
+                ):
+                    derived.source_family = base.source_family or derived.source_family
+
+                if derived.syndication_state == SyndicationState.UNKNOWN:
+                    derived.syndication_state = SyndicationState.PARTIALLY_REWRITTEN
+
+        # Final defaults.
+        for c in content_items:
+            if c.syndication_state == SyndicationState.UNKNOWN:
+                if c.source_family.startswith("wire:"):
+                    c.syndication_state = SyndicationState.WIRE_ORIGINAL
+                else:
+                    c.syndication_state = SyndicationState.INDEPENDENT_REPORT
+            if c.duplicate_state == DuplicateState.UNKNOWN:
+                c.duplicate_state = DuplicateState.INDEPENDENT
+
+        return sorted({c.source_family for c in content_items if c.source_family})
+
+    @staticmethod
+    def _find_content(
+        link: str,
+        by_id: Dict[str, ContentItem],
+        by_canon: Dict[str, ContentItem],
+    ) -> Optional[ContentItem]:
+        if link in by_id:
+            return by_id[link]
+        canon = canonical_url(link)
+        return by_canon.get(canon)
+
+
+class SourceIndependenceAnalyzer:
+    def assess(self, content_items: List[ContentItem], source_families: List[str]) -> Dict[str, Any]:
+        families = sorted({c.source_family for c in content_items if c.source_family})
+        raw_content_count = len(content_items)
+        independent_family_count = len(families)
+
+        if not families:
+            status = IndependenceState.UNKNOWN
+            notes = ["Source pedigree unavailable; do not treat multiple posts/articles as independent corroboration."]
+        elif independent_family_count == 1:
+            status = IndependenceState.DEPENDENT
+            notes = [
+                "All observed content appears to derive from one source family.",
+                "Multiple accounts/outlets repeating one upstream statement are not independent sources.",
+            ]
+        else:
+            status = IndependenceState.PARTIALLY_DEPENDENT
+            notes = [
+                "Multiple source families exist, but full independence is not proven.",
+                "Check whether families share an upstream official statement, wire report, document, or social post.",
+            ]
+
+        return {
+            "status": status.value,
+            "raw_content_count": raw_content_count,
+            "independent_source_family_count": independent_family_count,
+            "families": families,
+            "notes": notes,
+            "rule": "Count source families, not URLs/accounts/posts.",
+        }
+
+
+# ======================================================================
+# SECTION 8 — TEMPORAL / PROPAGATION GRAPH
+# ======================================================================
+
+class TemporalAnalyzer:
+    def analyze(self, content_items: List[ContentItem], claims: List[Claim]) -> Dict[str, Any]:
+        first_seen: Dict[str, str] = {}
+        last_seen: Dict[str, str] = {}
+        origin_states: Dict[str, str] = {}
+        timeline: List[Dict[str, Any]] = []
+
+        ordered = sorted(
+            content_items,
+            key=lambda x: x.published_at or x.observed_at or datetime.max.replace(tzinfo=timezone.utc),
+        )
+
+        for c in ordered:
+            t = c.published_at or c.observed_at
+            fam = c.source_family or "UNKNOWN_FAMILY"
+            if fam not in first_seen:
+                first_seen[fam] = fmt_dt(t)
+            last_seen[fam] = fmt_dt(t)
+
+            timeline.append(
+                {
+                    "content_id": c.content_id,
+                    "source_family": fam,
+                    "published_at": fmt_dt(c.published_at),
+                    "observed_at": fmt_dt(c.observed_at),
+                    "platform": c.platform,
+                    "language": c.language,
+                    "duplicate_state": c.duplicate_state.value,
+                    "syndication_state": c.syndication_state.value,
+                }
+            )
+
+        for fam in first_seen:
+            origin_states[fam] = OriginState.EARLIEST_OBSERVED.value
+
+        earliest_content_id = ordered[0].content_id if ordered else ""
+
+        claim_first_seen: Dict[str, str] = {}
+        claim_last_seen: Dict[str, str] = {}
+        for cl in claims:
+            t = cl.time_reference
+            if not t:
+                continue
+            if cl.claim_id not in claim_first_seen:
+                claim_first_seen[cl.claim_id] = fmt_dt(t)
+            claim_last_seen[cl.claim_id] = fmt_dt(t)
+
+        return {
+            "first_seen_by_family": first_seen,
+            "last_seen_by_family": last_seen,
+            "origin_states_by_family": origin_states,
+            "claim_first_seen": claim_first_seen,
+            "claim_last_seen": claim_last_seen,
+            "earliest_observed_content_id": earliest_content_id,
+            "timeline": timeline,
+            "caution": "Earliest observed is not verified true origin; earlier unavailable content may exist.",
+        }
+
+
+class PropagationGraphBuilder:
+    def build(self, content_items: List[ContentItem]) -> List[PropagationEvent]:
+        events: List[PropagationEvent] = []
+        by_id = {c.content_id: c for c in content_items}
+        by_canon: Dict[str, ContentItem] = {}
+
+        for c in content_items:
+            if c.canonical_url:
+                by_canon[c.canonical_url] = c
+            if c.url:
+                by_canon[canonical_url(c.url)] = c
+
+        for c in content_items:
+            if c.syndicated_from and c.syndicated_from in by_id:
+                events.append(
+                    PropagationEvent(
+                        content_id=c.content_id,
+                        source_id=c.source_id,
+                        time=c.published_at or c.observed_at,
+                        platform=c.platform,
+                        relationship_type="SYNDICATED_FROM",
+                        upstream_candidate=c.syndicated_from,
+                        confidence=Confidence.MEDIUM,
+                        evidence_ids=c.evidence_ids,
+                    )
+                )
+
+            if c.translated_from and c.translated_from in by_id:
+                events.append(
+                    PropagationEvent(
+                        content_id=c.content_id,
+                        source_id=c.source_id,
+                        time=c.published_at or c.observed_at,
+                        platform=c.platform,
+                        relationship_type="TRANSLATED_FROM",
+                        upstream_candidate=c.translated_from,
+                        confidence=Confidence.MEDIUM,
+                        evidence_ids=c.evidence_ids,
+                    )
+                )
+
+            for link in c.citation_links:
+                cited = self._find_content(link, by_id, by_canon)
+                if cited and cited.content_id != c.content_id:
+                    events.append(
+                        PropagationEvent(
+                            content_id=c.content_id,
+                            source_id=c.source_id,
+                            time=c.published_at or c.observed_at,
+                            platform=c.platform,
+                            relationship_type="CITED",
+                            upstream_candidate=cited.content_id,
+                            confidence=Confidence.MEDIUM,
+                            evidence_ids=c.evidence_ids,
+                        )
+                    )
+
+            for rep in c.reposts:
+                if rep in by_id:
+                    events.append(
+                        PropagationEvent(
+                            content_id=c.content_id,
+                            source_id=c.source_id,
+                            time=c.published_at or c.observed_at,
+                            platform=c.platform,
+                            relationship_type="REPOSTED_FROM",
+                            upstream_candidate=rep,
+                            confidence=Confidence.MEDIUM,
+                            evidence_ids=c.evidence_ids,
+                        )
+                    )
+
+            for reply in c.reply_to:
+                if reply in by_id:
+                    events.append(
+                        PropagationEvent(
+                            content_id=c.content_id,
+                            source_id=c.source_id,
+                            time=c.published_at or c.observed_at,
+                            platform=c.platform,
+                            relationship_type="RESPONDED_TO",
+                            upstream_candidate=reply,
+                            confidence=Confidence.LOW,
+                            evidence_ids=c.evidence_ids,
+                        )
+                    )
+
+            if c.near_duplicate_of and c.near_duplicate_of in by_id:
+                events.append(
+                    PropagationEvent(
+                        content_id=c.content_id,
+                        source_id=c.source_id,
+                        time=c.published_at or c.observed_at,
+                        platform=c.platform,
+                        relationship_type="POSSIBLY_DERIVED_FROM",
+                        upstream_candidate=c.near_duplicate_of,
+                        confidence=Confidence.LOW,
+                        evidence_ids=c.evidence_ids,
+                    )
+                )
+
+        return events
+
+    def velocity(self, content_items: List[ContentItem]) -> List[Dict[str, Any]]:
+        by_day: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"content_count": 0, "families": set(), "platforms": set()})
+
+        for c in content_items:
+            t = c.published_at or c.observed_at
+            day = t.date().isoformat() if t else "UNKNOWN_DATE"
+            item = by_day[day]
+            item["content_count"] += 1
+            if c.source_family:
+                item["families"].add(c.source_family)
+            if c.platform:
+                item["platforms"].add(c.platform)
+
+        rows = []
+        for day, item in sorted(by_day.items()):
+            rows.append(
+                {
+                    "date": day,
+                    "content_count": item["content_count"],
+                    "independent_source_family_count": len(item["families"]),
+                    "platform_count": len(item["platforms"]),
+                }
+            )
+        return rows
+
+    def breadth(self, content_items: List[ContentItem]) -> Dict[str, Any]:
+        platforms = {c.platform for c in content_items if c.platform}
+        languages = {c.language for c in content_items if c.language and c.language != "UNKNOWN"}
+        families = {c.source_family for c in content_items if c.source_family}
+        accounts = {c.account_id or c.source_id for c in content_items if c.account_id or c.source_id}
+
+        return {
+            "content_count": len(content_items),
+            "platform_count": len(platforms),
+            "platforms": sorted(platforms),
+            "language_count": len(languages),
+            "languages": sorted(languages),
+            "source_family_count": len(families),
+            "source_families": sorted(families),
+            "account_or_source_count": len(accounts),
+        }
+
+    def depth(self, propagation_events: List[PropagationEvent], content_items: List[ContentItem]) -> int:
+        children: Dict[str, List[str]] = defaultdict(list)
+        has_parent = set()
+
+        for pe in propagation_events:
+            if pe.upstream_candidate:
+                children[pe.upstream_candidate].append(pe.content_id)
+                has_parent.add(pe.content_id)
+
+        roots = [c.content_id for c in content_items if c.content_id not in has_parent]
+        max_depth = 0
+
+        for root in roots:
+            queue: List[Tuple[str, int]] = [(root, 0)]
+            seen = set()
+            while queue:
+                node, d = queue.pop(0)
+                if node in seen:
+                    continue
+                seen.add(node)
+                max_depth = max(max_depth, d)
+                for child in children.get(node, []):
+                    queue.append((child, d + 1))
+
+        return max_depth
+
+    @staticmethod
+    def _find_content(
+        link: str,
+        by_id: Dict[str, ContentItem],
+        by_canon: Dict[str, ContentItem],
+    ) -> Optional[ContentItem]:
+        if link in by_id:
+            return by_id[link]
+        canon = canonical_url(link)
+        return by_canon.get(canon)
+
+
+# ======================================================================
+# SECTION 9 — NARRATIVE / FRAME / THEME / VARIANT CLUSTERING
+# ======================================================================
+
+class FrameThemeAnalyzer:
+    FRAME_KEYWORDS = {
+        "SECURITY": ["attack", "threat", "breach", "security", "violence", "armed", "safety", "danger"],
+        "ECONOMIC": ["cost", "market", "revenue", "jobs", "economy", "inflation", "business", "financial"],
+        "HUMANITARIAN": ["rescue", "victims", "aid", "displaced", "shelter", "hospital", "emergency", "relief"],
+        "CORRUPTION": ["scandal", "bribery", "corrupt", "cover-up", "misuse", "fraud"],
+        "LEGAL": ["court", "judge", "verdict", "charged", "indicted", "lawsuit", "legal", "police"],
+        "TECHNOLOGICAL": ["ai", "software", "cyber", "system", "algorithm", "platform", "data"],
+        "PUBLIC_HEALTH": ["hospital", "disease", "health", "medical", "patients", "injured", "death"],
+        "ENVIRONMENTAL": ["flood", "fire", "wildfire", "storm", "climate", "pollution", "earthquake"],
+        "POLITICAL": ["government", "minister", "president", "policy", "election", "parliament", "officials"],
+        "INSTITUTIONAL_TRUST": ["officials", "authorities", "agency", "department", "institution", "transparency"],
+    }
+
+    THEME_KEYWORDS = {
+        "INSTITUTIONAL_DISTRUST": ["cover-up", "lies", "hidden", "secret", "corrupt", "distrust", "failed"],
+        "ECONOMIC_DECLINE": ["recession", "layoffs", "collapse", "crisis", "unemployment", "inflation"],
+        "TECHNOLOGICAL_RISK": ["ai risk", "cyberattack", "data breach", "surveillance", "algorithm"],
+        "PUBLIC_SAFETY": ["emergency", "rescue", "evacuation", "safety", "casualties", "response"],
+        "ELITE_CAPTURE": ["elites", "oligarchs", "insiders", "cronies", "captured"],
+        "FOREIGN_INTERFERENCE": ["foreign", "state actor", "influence operation", "propaganda", "disinformation"],
+        "ACCOUNTABILITY": ["investigation", "responsible", "blame", "charges", "court", "oversight"],
+    }
+
+    def analyze(self, content_items: List[ContentItem], claims: List[Claim]) -> Tuple[List[Frame], List[Theme]]:
+        frames_by_label: Dict[str, Frame] = {}
+        themes_by_label: Dict[str, Theme] = {}
+
+        for c in content_items:
+            text = (c.normalized_text + " " + c.headline).lower()
+
+            for label, kws in self.FRAME_KEYWORDS.items():
+                if any(k in text for k in kws):
+                    fr = frames_by_label.setdefault(
+                        label,
+                        Frame(label=label, description=f"Recurring security/economic/legal/etc. framing: {label}", limitations=[
+                            "Frame is interpretive presentation, not proof of underlying fact.",
+                            "Frame use does not prove speaker ideology or belief.",
+                        ]),
+                    )
+                    fr.content_ids.append(c.content_id)
+                    fr.evidence_ids.extend(c.evidence_ids)
+
+            for label, kws in self.THEME_KEYWORDS.items():
+                if any(k in text for k in kws):
+                    th = themes_by_label.setdefault(
+                        label,
+                        Theme(label=label, description=f"Recurring conceptual theme: {label}", limitations=[
+                            "Theme is broader than a claim and does not establish truth.",
+                        ]),
+                    )
+                    th.content_ids.append(c.content_id)
+                    th.evidence_ids.extend(c.evidence_ids)
+
+        claim_by_content: Dict[str, List[Claim]] = defaultdict(list)
+        for cl in claims:
+            claim_by_content[cl.content_id].append(cl)
+
+        for fr in frames_by_label.values():
+            for cid in fr.content_ids:
+                for cl in claim_by_content.get(cid, []):
+                    if cl.fact_frame_opinion == FactFrameOpinion.FRAME_INTERPRETATION:
+                        fr.claim_ids.append(cl.claim_id)
+                        fr.evidence_ids.extend(cl.evidence_ids)
+
+        for th in themes_by_label.values():
+            for cid in th.content_ids:
+                for cl in claim_by_content.get(cid, []):
+                    th.claim_ids.append(cl.claim_id)
+                    th.evidence_ids.extend(cl.evidence_ids)
+
+        for fr in frames_by_label.values():
+            fr.content_ids = unique_list(fr.content_ids)
+            fr.claim_ids = unique_list(fr.claim_ids)
+            fr.evidence_ids = unique_list(fr.evidence_ids)
+
+        for th in themes_by_label.values():
+            th.content_ids = unique_list(th.content_ids)
+            th.claim_ids = unique_list(th.claim_ids)
+            th.evidence_ids = unique_list(th.evidence_ids)
+
+        return list(frames_by_label.values()), list(themes_by_label.values())
+
+
+class NarrativeClusterer:
+    def cluster(
+        self,
+        case: Dict[str, Any],
+        content_items: List[ContentItem],
+        claims: List[Claim],
+    ) -> Tuple[List[Narrative], List[NarrativeVariant]]:
+        narratives: List[Narrative] = []
+        variants: List[NarrativeVariant] = []
+
+        topics = [normalize_text(t, upper=False) or "" for t in case.get("topics", []) if normalize_text(t)]
+        entities = [str(x) for x in case.get("entities", [])]
+
+        claims_by_content: Dict[str, List[Claim]] = defaultdict(list)
+        for cl in claims:
+            claims_by_content[cl.content_id].append(cl)
+
+        if not topics:
+            topic_groups = [("Observed narrative cluster", content_items)]
+        else:
+            topic_groups = []
+            for topic in topics:
+                topic_tokens = token_set(topic)
+                matching = []
+                for c in content_items:
+                    ct = token_set(c.normalized_text + " " + c.headline)
+                    if (topic_tokens and topic_tokens & ct) or (topic and topic in c.normalized_text.lower()):
+                        matching.append(c)
+                if matching:
+                    topic_groups.append((topic, matching))
+
+        for title, matching_content in topic_groups:
+            content_ids = [c.content_id for c in matching_content]
+            matching_claims = [cl for cid in content_ids for cl in claims_by_content.get(cid, [])]
+
+            core_claims = [
+                cl.claim_id
+                for cl in matching_claims
+                if cl.fact_frame_opinion in (FactFrameOpinion.FACT_CLAIM, FactFrameOpinion.FRAME_INTERPRETATION)
+            ]
+            supporting_claims = [cl.claim_id for cl in matching_claims]
+
+            families = unique_list([c.source_family for c in matching_content if c.source_family])
+            languages = unique_list([c.language for c in matching_content if c.language])
+            platforms = unique_list([c.platform for c in matching_content if c.platform])
+            times = [c.published_at or c.observed_at for c in matching_content]
+            times = [t for t in times if t is not None]
+
+            lifecycle = NarrativeLifecycle.UNKNOWN
+            if len(families) >= 3 and len(matching_content) >= 5:
+                lifecycle = NarrativeLifecycle.GROWING
+            elif len(matching_content) >= 3:
+                lifecycle = NarrativeLifecycle.EMERGING
+
+            verification_state = ClaimState.UNVERIFIED
+            confidence = Confidence.LOW
+            if len(families) >= 2:
+                verification_state = ClaimState.PARTIALLY_SUPPORTED
+                confidence = Confidence.MEDIUM
+
+            narrative = Narrative(
+                title=title.title() if title else "Observed narrative cluster",
+                description=f"Cluster of content/claims associated with topic '{title}'.",
+                core_claims=core_claims,
+                supporting_claims=supporting_claims,
+                entities=entities,
+                languages=languages,
+                platforms=platforms,
+                source_families=families,
+                content_ids=content_ids,
+                first_seen=min(times) if times else None,
+                last_seen=max(times) if times else None,
+                lifecycle=lifecycle,
+                verification_state=verification_state,
+                confidence=confidence,
+                limitations=[
+                    "Narrative cluster is based on observed content/claims, not verified truth.",
+                    "Hashtags/keywords are not narratives; stance and context matter.",
+                    "Same narrative does not imply coordination or shared command.",
+                ],
+            )
+
+            # Variants by language/platform if meaningful diversity exists.
+            if len(languages) > 1 or len(platforms) > 1:
+                for lang in languages:
+                    lang_content = [c for c in matching_content if c.language == lang]
+                    if not lang_content:
+                        continue
+                    variant = NarrativeVariant(
+                        parent_narrative_id=narrative.narrative_id,
+                        title=f"{narrative.title} [{lang}]",
+                        changes=["language/platform variant"],
+                        languages=[lang],
+                        platforms=unique_list([c.platform for c in lang_content if c.platform]),
+                        content_ids=[c.content_id for c in lang_content],
+                        claim_ids=[cl.claim_id for c in lang_content for cl in claims_by_content.get(c.content_id, [])],
+                        first_seen=min((c.published_at or c.observed_at for c in lang_content), default=None),
+                        last_seen=max((c.published_at or c.observed_at for c in lang_content), default=None),
+                        evidence_ids=[eid for c in lang_content for eid in c.evidence_ids],
+                        limitations=[
+                            "Translation may alter tone, certainty, causal language, or attribution.",
+                            "Translated copy is not an independent source unless independently verified.",
+                        ],
+                    )
+                    variants.append(variant)
+                    narrative.variants.append(variant.variant_id)
+
+            narratives.append(narrative)
+
+        return narratives, variants
+
+
+# ======================================================================
+# SECTION 10 — COORDINATION / AUTOMATION / EVENT CORRELATION
+# ======================================================================
+
+class CoordinationSignalAnalyzer:
+    def __init__(self, window_s: float = 3600.0, min_accounts: int = 3, similarity_threshold: float = 0.80):
+        self.window_s = window_s
+        self.min_accounts = min_accounts
+        self.similarity_threshold = similarity_threshold
+
+    def analyze(self, content_items: List[ContentItem]) -> List[CoordinationSignal]:
+        signals: List[CoordinationSignal] = []
+        clusters: Dict[Tuple[str, str], List[ContentItem]] = defaultdict(list)
+
+        for c in content_items:
+            keys: List[Tuple[str, str]] = []
+            if c.duplicate_of:
+                keys.append(("duplicate_of", c.duplicate_of))
+            if c.near_duplicate_of:
+                keys.append(("near_duplicate_of", c.near_duplicate_of))
+            if c.citation_links:
+                keys.append(("citation", canonical_url(c.citation_links[0])))
+            if c.media_reference:
+                keys.append(("media", c.media_reference))
+
+            for k in keys:
+                clusters[k].append(c)
+
+        seen_signatures = set()
+
+        for (kind, key), items in clusters.items():
+            accounts = {c.account_id or c.source_id for c in items if c.account_id or c.source_id}
+            if len(accounts) < self.min_accounts:
+                continue
+
+            times = [c.published_at or c.observed_at for c in items]
+            times = [t for t in times if t is not None]
+            if not times:
+                continue
+            span = (max(times) - min(times)).total_seconds()
+            if span > self.window_s:
+                continue
+
+            # For text-based clusters, require high similarity among at least some pairs.
+            if kind in {"duplicate_of", "near_duplicate_of", "citation"}:
+                if kind == "citation":
+                    texts = [c.normalized_text for c in items if c.normalized_text]
+                    if len(texts) >= 2:
+                        sim = jaccard(shingles(texts[0]), shingles(texts[-1]))
+                        if sim < self.similarity_threshold:
+                            continue
+
+            signature = tuple(sorted(c.content_id for c in items))
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
+
+            signal_type = {
+                "duplicate_of": "EXACT_OR_NEAR_IDENTICAL_CONTENT",
+                "near_duplicate_of": "NEAR_IDENTICAL_CONTENT",
+                "citation": "SHARED_UPSTREAM_CITATION_WITH_SIMILAR_TEXT",
+                "media": "SHARED_MEDIA_ASSET",
+            }.get(kind, "COORDINATION_PATTERN")
+
+            signals.append(
+                CoordinationSignal(
+                    signal_type=signal_type,
+                    description=(
+                        f"{len(items)} content items from {len(accounts)} accounts/sources "
+                        f"share {kind}='{key}' within {span:.0f}s."
+                    ),
+                    content_ids=[c.content_id for c in items],
+                    account_ids=sorted(accounts),
+                    source_ids=sorted({c.source_id for c in items if c.source_id}),
+                    time_window_start=min(times),
+                    time_window_end=max(times),
+                    state=CoordinationSignalState.COORDINATION_SIGNAL_CANDIDATE,
+                    confidence=Confidence.MEDIUM if len(accounts) >= 4 else Confidence.LOW,
+                    evidence_ids=[eid for c in items for eid in c.evidence_ids],
+                    limitations=[
+                        "Coordination signals are not proof of malicious coordinated inauthentic behavior.",
+                        "Legitimate organizations coordinate press releases, emergency messaging, campaigns, and templates.",
+                        "Platform-reported CIB or stronger independent evidence is required for CIB claims.",
+                    ],
+                )
+            )
+
+        return signals
+
+
+class AutomationSignalAnalyzer:
+    def __init__(self, min_posts: int = 5, window_s: float = 3600.0):
+        self.min_posts = min_posts
+        self.window_s = window_s
+
+    def analyze(self, content_items: List[ContentItem]) -> List[AutomationSignal]:
+        signals: List[AutomationSignal] = []
+        by_account: Dict[str, List[ContentItem]] = defaultdict(list)
+
+        for c in content_items:
+            acct = c.account_id or c.source_id
+            if acct:
+                by_account[acct].append(c)
+
+        for acct, items in by_account.items():
+            if len(items) < self.min_posts:
+                continue
+
+            times = [c.published_at or c.observed_at for c in items]
+            times = [t for t in times if t is not None]
+            if not times:
+                continue
+            span = (max(times) - min(times)).total_seconds()
+            unique_fps = {c.fingerprint for c in items}
+
+            if span <= self.window_s and len(unique_fps) <= max(2, len(items) // 3):
+                signals.append(
+                    AutomationSignal(
+                        signal_type="REPETITIVE_HIGH_FREQUENCY_PUBLISHING",
+                        description=(
+                            f"Account/source '{acct}' produced {len(items)} items within {span:.0f}s "
+                            f"with only {len(unique_fps)} unique fingerprints."
+                        ),
+                        account_ids=[acct],
+                        content_ids=[c.content_id for c in items],
+                        state=AutomationSignalState.AUTOMATION_SIGNAL_CANDIDATE,
+                        confidence=Confidence.LOW,
+                        evidence_ids=[eid for c in items for eid in c.evidence_ids],
+                        limitations=[
+                            "Automation signal candidate is not proof of malicious bot.",
+                            "Legitimate automation includes news feeds, weather bots, scheduled publishing, and support systems.",
+                        ],
+                    )
+                )
+
+        return signals
+
+
+class EventCorrelator:
+    def correlate(
+        self,
+        narratives: List[Narrative],
+        content_items: List[ContentItem],
+        events: List[Event],
+    ) -> List[Dict[str, Any]]:
+        correlations: List[Dict[str, Any]] = []
+
+        for ev in events:
+            if ev.time is None:
+                continue
+            for narr in narratives:
+                if narr.first_seen is None:
+                    continue
+                delta = (narr.first_seen - ev.time).total_seconds()
+                abs_delta = abs(delta)
+
+                if abs_delta > 86400:
+                    continue
+
+                if delta >= 0 and delta <= 21600:
+                    relationship = "TRIGGER_CANDIDATE"
+                elif delta >= 0:
+                    relationship = "FOLLOWS_EVENT"
+                else:
+                    relationship = "PRECEDES_EVENT"
+
+                correlations.append(
+                    {
+                        "event_id": ev.event_id,
+                        "event_title": ev.title,
+                        "narrative_id": narr.narrative_id,
+                        "narrative_title": narr.title,
+                        "relationship": relationship,
+                        "delta_seconds": delta,
+                        "notes": [
+                            "Temporal correlation is not causation.",
+                            "Narrative may respond to, reference, precede, or be unrelated to event.",
+                        ],
+                    }
+                )
+
+        return correlations
+
+
+# ======================================================================
+# SECTION 11 — CONTRADICTIONS / HYPOTHESES
+# ======================================================================
+
+class ContradictionDetector:
+    def detect(self, claims: List[Claim]) -> List[Contradiction]:
+        contradictions: List[Contradiction] = []
+
+        numeric_groups: Dict[Tuple[str, str], List[Claim]] = defaultdict(list)
+        causal_groups: Dict[Tuple[str, str], List[Claim]] = defaultdict(list)
+
+        for c in claims:
+            if c.numeric_value is not None:
+                key = ((c.numeric_unit or "count").lower(), (c.location_reference or "").lower())
+                numeric_groups[key].append(c)
+            if c.claim_type in (ClaimType.CAUSE, ClaimType.RESPONSIBILITY):
+                key = ((c.location_reference or "").lower(), c.claim_type.value)
+                causal_groups[key].append(c)
+
+        for (unit, location), cs in numeric_groups.items():
+            values = [c.numeric_value for c in cs if c.numeric_value is not None]
+            unique_values = sorted(set(values))
+            if len(unique_values) > 1:
+                materiality = "MODERATE"
+                if max(values) and (max(values) - min(values)) / max(1.0, max(values)) > 0.25:
+                    materiality = "MATERIAL"
+                contradictions.append(
+                    Contradiction(
+                        contradiction_type="NUMERIC_CLAIM_DIFFERENCE",
+                        description=f"Metric '{unit}' in '{location}' has differing values: {unique_values}.",
+                        materiality=materiality,
+                        claim_ids=[c.claim_id for c in cs],
+                        evidence_ids=[eid for c in cs for eid in c.evidence_ids],
+                        possible_explanations=[
+                            "different timestamps",
+                            "preliminary vs confirmed count",
+                            "different scope",
+                            "translation/terminology difference",
+                            "genuine reporting error",
+                        ],
+                    )
+                )
+
+        for (location, ctype), cs in causal_groups.items():
+            objects = {normalize_text(c.object, upper=False) or "" for c in cs if c.object}
+            if len(objects) > 1:
+                contradictions.append(
+                    Contradiction(
+                        contradiction_type=f"{ctype}_CLAIM_DIFFERENCE",
+                        description=f"Differing {ctype.lower()} claims for location '{location}': {sorted(objects)}.",
+                        materiality="MATERIAL",
+                        claim_ids=[c.claim_id for c in cs],
+                        evidence_ids=[eid for c in cs for eid in c.evidence_ids],
+                        possible_explanations=[
+                            "different sources",
+                            "early speculation",
+                            "party statement vs independent finding",
+                            "investigation ongoing",
+                            "translation/framing difference",
+                        ],
+                    )
+                )
+
+        return contradictions
+
+
+class HypothesisEngine:
+    def generate(
+        self,
+        narratives: List[Narrative],
+        coordination_signals: List[CoordinationSignal],
+        automation_signals: List[AutomationSignal],
+        source_independence: Dict[str, Any],
+        contradictions: List[Contradiction],
+        fact_checks: List[FactCheck],
+        event_correlations: List[Dict[str, Any]],
+    ) -> List[Hypothesis]:
+        hypotheses: List[Hypothesis] = []
+
+        for narr in narratives:
+            families = narr.source_families
+            hypotheses.extend(
+                [
+                    Hypothesis(
+                        statement=f"Narrative '{narr.title}' emerged independently across multiple source families.",
+                        supports=[f"{len(families)} source families observed"],
+                        oppositions=["Source families may still share an upstream statement/document"],
+                        assumptions=["Source-family resolution is complete"],
+                        unknowns=["true origin", "independent verification of core claims"],
+                        source_dependencies=families,
+                        temporal_constraints=[fmt_dt(narr.first_seen), fmt_dt(narr.last_seen)],
+                        falsification_tests=[
+                            "all families trace to one upstream wire/press release/document",
+                            "earliest archive predates assumed independent emergence",
+                        ],
+                    ),
+                    Hypothesis(
+                        statement=f"Narrative '{narr.title}' propagated primarily through syndication/derivation from one upstream source family.",
+                        supports=[f"raw content count may exceed independent family count: {source_independence.get('raw_content_count', 0)} vs {source_independence.get('independent_source_family_count', 0)}"],
+                        oppositions=["Some independent local/primary reporting may exist"],
+                        assumptions=["Duplicate/syndication detection is accurate"],
+                        unknowns=["hidden independent reporting"],
+                        source_dependencies=families,
+                        temporal_constraints=[],
+                        falsification_tests=["independent primary evidence is found outside upstream family"],
+                    ),
+                ]
+            )
+
+        for sig in coordination_signals:
+            hypotheses.extend(
+                [
+                    Hypothesis(
+                        statement=f"Coordination signal {sig.signal_id} reflects legitimate coordinated communication (press release, campaign, emergency messaging).",
+                        supports=sig.limitations,
+                        oppositions=["Near-identical timing/content can also reflect inauthentic coordination"],
+                        assumptions=["Shared upstream statement/template exists"],
+                        unknowns=["operator intent", "account authenticity"],
+                        source_dependencies=sig.source_ids,
+                        temporal_constraints=[fmt_dt(sig.time_window_start), fmt_dt(sig.time_window_end)],
+                        falsification_tests=[
+                            "no legitimate upstream statement/template explains content",
+                            "platform or infrastructure evidence indicates inauthentic coordination",
+                        ],
+                    ),
+                    Hypothesis(
+                        statement=f"Coordination signal {sig.signal_id} is a candidate for coordinated inauthentic behavior.",
+                        supports=[sig.description],
+                        oppositions=["Legitimate coordination is a strong alternative explanation"],
+                        assumptions=["Signal is not explained by syndication alone"],
+                        unknowns=["operator", "intent", "platform policy context"],
+                        source_dependencies=sig.source_ids,
+                        temporal_constraints=[fmt_dt(sig.time_window_start), fmt_dt(sig.time_window_end)],
+                        falsification_tests=[
+                            "all accounts are officially affiliated and posting a public press release",
+                            "content similarity is fully explained by wire/syndication",
+                        ],
+                    ),
+                ]
+            )
+
+        for auto in automation_signals:
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Automation signal {auto.signal_id} reflects legitimate scheduled/automated publishing.",
+                    supports=["Automation may be news feeds, weather bots, support systems, or scheduled posts"],
+                    oppositions=["Repetitive high-frequency publishing may also indicate inauthentic automation"],
+                    assumptions=["Account purpose and platform context are unknown"],
+                    unknowns=["operator", "intent", "authenticity"],
+                    source_dependencies=auto.account_ids,
+                    temporal_constraints=[],
+                    falsification_tests=["account audit shows human-controlled legitimate activity"],
+                )
+            )
+
+        for con in contradictions:
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Contradiction {con.contradiction_type} may reflect scope/timestamp/translation/data-quality difference rather than substantive conflict.",
+                    supports=con.possible_explanations,
+                    oppositions=["Some contradictions are genuine reporting errors"],
+                    assumptions=["Claims are comparable"],
+                    unknowns=["exact definitions and time windows"],
+                    source_dependencies=[],
+                    temporal_constraints=[],
+                    falsification_tests=["primary source resolves metric/definition"],
+                )
+            )
+
+        for fc in fact_checks:
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Fact-check {fc.fact_check_id} rating '{fc.rating}' is supported by reviewed primary evidence.",
+                    supports=[f"Fact-check source: {fc.source}"],
+                    oppositions=["Fact-check is secondary analysis; method may be incomplete"],
+                    assumptions=["Fact-check targets the same claim wording/scope"],
+                    unknowns=["primary evidence quality", "claim definition"],
+                    source_dependencies=[fc.source],
+                    temporal_constraints=[],
+                    falsification_tests=["primary evidence contradicts fact-check rating"],
+                )
+            )
+
+        for corr in event_correlations:
+            if corr.get("relationship") == "TRIGGER_CANDIDATE":
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"Event {corr.get('event_id')} may have triggered narrative {corr.get('narrative_id')}.",
+                        supports=[f"Narrative first seen {corr.get('delta_seconds')}s after event"],
+                        oppositions=["Temporal correlation is not causation"],
+                        assumptions=["Event timing is accurate"],
+                        unknowns=["actual causal mechanism"],
+                        source_dependencies=[],
+                        temporal_constraints=[str(corr.get("delta_seconds"))],
+                        falsification_tests=["narrative predates event in fuller archive"],
+                    )
+                )
+
+        return hypotheses
+
+
+# ======================================================================
+# SECTION 12 — FACT GATE / DUAL-AI REVIEW
+# ======================================================================
+
+class FactGate:
+    def generate(
+        self,
+        *,
+        case: Dict[str, Any],
+        sources: List[Source],
+        content_items: List[ContentItem],
+        claims: List[Claim],
+        counterclaims: List[Claim],
+        narratives: List[Narrative],
+        narrative_variants: List[NarrativeVariant],
+        frames: List[Frame],
+        themes: List[Theme],
+        propagation_events: List[PropagationEvent],
+        coordination_signals: List[CoordinationSignal],
+        automation_signals: List[AutomationSignal],
+        event_correlations: List[Dict[str, Any]],
+        fact_checks: List[FactCheck],
+        events: List[Event],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+        temporal: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        facts: List[Fact] = []
+        unknowns: List[str] = []
+        limitations: List[str] = []
+        gaps: List[KnowledgeGap] = []
+        actions: List[NextAction] = []
+        handoffs: List[SpecialistHandoff] = []
+
+        content_by_id = {c.content_id: c for c in content_items}
+        source_by_id = {s.source_id: s for s in sources}
+
+        for c in content_items:
+            src = source_by_id.get(c.source_id)
+            provider = src.organization or src.publisher_id or c.source_id if src else c.source_id
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Content {c.content_id} was observed from provider '{provider}' "
+                        f"on platform '{c.platform}' at published={fmt_dt(c.published_at)} "
+                        f"observed={fmt_dt(c.observed_at)}."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=c.evidence_ids,
+                    limitations=[
+                        "Observation of content is not verification of its claims.",
+                        "Earliest observed content is not verified true origin.",
+                    ],
+                )
+            )
+
+        for cl in claims[:300]:
+            c = content_by_id.get(cl.content_id)
+            provider = c.source_id if c else "UNKNOWN_SOURCE"
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Claim {cl.claim_id} was made in content {cl.content_id} by provider '{provider}': "
+                        f"\"{excerpt(cl.text, 180)}\"."
+                    ),
+                    status=FactStatus.FACT,
+                    evidence_ids=cl.evidence_ids,
+                    limitations=[
+                        "Reported claim is not automatically true.",
+                        "Fact, frame, opinion, satire, and stance remain separate.",
+                    ],
+                )
+            )
+
+        facts.append(
+            Fact(
+                statement=(
+                    f"Raw content count = {source_independence.get('raw_content_count', len(content_items))}; "
+                    f"independent source family count = {source_independence.get('independent_source_family_count', 0)}."
+                ),
+                status=FactStatus.FACT,
+                evidence_ids=[],
+                limitations=[
+                    "Content count is not corroboration count.",
+                    "Syndicated/copied/translated content may share one upstream information source.",
+                ],
+            )
+        )
+
+        earliest = temporal.get("earliest_observed_content_id", "")
+        if earliest:
+            facts.append(
+                Fact(
+                    statement=f"Earliest observed content in available collection is {earliest}.",
+                    status=FactStatus.FACT,
+                    evidence_ids=content_by_id.get(earliest, ContentItem(content_id=earliest)).evidence_ids,
+                    limitations=[
+                        "Earliest observed is not verified true origin.",
+                        "Earlier content may exist outside collection coverage.",
+                    ],
+                )
+            )
+
+        for narr in narratives:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Narrative cluster '{narr.title}' contains {len(narr.content_ids)} content items "
+                        f"from {len(narr.source_families)} source families; verification state={narr.verification_state.value}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=narr.limitations,
+                )
+            )
+
+        for var in narrative_variants:
+            facts.append(
+                Fact(
+                    statement=f"Narrative variant {var.variant_id} of {var.parent_narrative_id}: {var.title}.",
+                    status=FactStatus.FACT,
+                    evidence_ids=var.evidence_ids,
+                    limitations=var.limitations,
+                )
+            )
+
+        for sig in coordination_signals:
+            facts.append(
+                Fact(
+                    statement=f"Coordination signal {sig.signal_id}: {sig.description}",
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=sig.evidence_ids,
+                    limitations=sig.limitations + [
+                        "Do not label coordinated inauthentic behavior without stronger independent evidence.",
+                    ],
+                )
+            )
+
+        for auto in automation_signals:
+            facts.append(
+                Fact(
+                    statement=f"Automation signal {auto.signal_id}: {auto.description}",
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=auto.evidence_ids,
+                    limitations=auto.limitations,
+                )
+            )
+
+        for corr in event_correlations:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Event correlation {corr.get('event_id')} <-> narrative {corr.get('narrative_id')}: "
+                        f"{corr.get('relationship')}."
+                    ),
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=corr.get("notes", []),
+                )
+            )
+
+        for fc in fact_checks:
+            facts.append(
+                Fact(
+                    statement=f"Fact-check {fc.fact_check_id} rated target as {fc.rating} by {fc.source}.",
+                    status=FactStatus.CANDIDATE,
+                    evidence_ids=fc.evidence_ids,
+                    limitations=fc.limitations,
+                )
+            )
+
+        for con in contradictions[:100]:
+            facts.append(
+                Fact(
+                    statement=f"Open contradiction: {con.contradiction_type} — {con.description}",
+                    status=FactStatus.DISPUTED,
+                    evidence_ids=con.evidence_ids,
+                    limitations=con.possible_explanations,
+                )
+            )
+            unknowns.append(f"Unresolved contradiction: {con.contradiction_type}")
+
+        if source_independence.get("status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            limitations.append("Source independence is dependent or unknown; repetition is not corroboration.")
+            gaps.append(
+                KnowledgeGap(
+                    description="Independent source family not established for major narrative cluster.",
+                    importance="HIGH",
+                    recommended_source="independent local reporting / primary document / official record",
+                    specialist="NARRATIVEINT / NEWSINT / SEARCHINT",
+                    expected_information_value="Prevents wire/press-release/social-copy double counting.",
+                )
+            )
+
+        for c in content_items:
+            if c.content_type in (ContentType.POST, ContentType.COMMENT):
+                limitations.append(f"Content {c.content_id} is social/user-generated; source access and authenticity limits apply.")
+            if c.language and c.language != "EN":
+                limitations.append(f"Content {c.content_id} is non-English; translation ambiguity may affect claim certainty.")
+            if c.stance == Stance.SATIRIZES:
+                limitations.append(f"Content {c.content_id} appears satirical/parodic; do not treat literally without context.")
+
+        limitations.extend(
+            [
+                "Repetition is not truth.",
+                "Virality is not corroboration.",
+                "Reach is not belief.",
+                "Engagement is not support.",
+                "Repost is not endorsement.",
+                "Hashtag use is not belief.",
+                "Keyword mention is not stance.",
+                "Earliest observed is not true origin.",
+                "Multiple URLs/accounts are not independent sources.",
+                "Syndication is not corroboration.",
+                "Coordinated posting is not inauthenticity.",
+                "Inauthenticity signals are not malicious intent.",
+                "Bot-like activity is not malicious bot.",
+                "Shared wording is not same actor.",
+                "Shared narrative is not shared command.",
+                "Narrative alignment is not organizational direction.",
+                "Language is not nationality.",
+                "Timezone is not location.",
+                "False claim is not intentional disinformation without intent evidence.",
+                "Fact-check label is not independent primary evidence.",
+                "Official statement is not external fact.",
+                "True media is not true caption.",
+                "Old media is not current event.",
+                "Platform takedown is not universal actor attribution.",
+                "AI agreement is not source corroboration.",
+            ]
+        )
+
+        unknowns.extend(
+            [
+                "true narrative origin",
+                "belief or attitude change in population",
+                "intent of actors",
+                "coordinated inauthentic behavior",
+                "state or organizational attribution",
+                "real-person attribution",
+                "effect of narrative on behavior",
+                "complete collection coverage",
+            ]
+        )
+
+        gaps.extend(
+            [
+                KnowledgeGap(description="Earliest archived instance not retrieved.", importance="HIGH", recommended_source="web archives / platform public archives / news archives", specialist="WEBINT / NEWSINT", expected_information_value="Reduces earliest-observed overclaim."),
+                KnowledgeGap(description="Upstream source pedigree incomplete.", importance="HIGH", recommended_source="wire attribution, canonical URLs, citation graph", specialist="NARRATIVEINT / NEWSINT", expected_information_value="Prevents repetition-as-corroboration error."),
+                KnowledgeGap(description="Media authenticity not verified.", importance="MEDIUM", recommended_source="original image/video/audio and metadata", specialist="IMINT / VIDINT / AUDINT / METADATAINT", expected_information_value="Prevents true-media-false-caption error."),
+                KnowledgeGap(description="Translation lineage unclear.", importance="MEDIUM", recommended_source="original-language text and translator/model metadata", specialist="NARRATIVEINT / LINGUISTIC review", expected_information_value="Prevents translation certainty drift."),
+                KnowledgeGap(description="Coordination evidence insufficient for CIB.", importance="HIGH", recommended_source="platform transparency reports / infrastructure evidence / financial links", specialist="DISINFOINT / PLATFORMINTEL", expected_information_value="Prevents false CIB attribution."),
+                KnowledgeGap(description="Actor attribution evidence insufficient.", importance="HIGH", recommended_source="independent organizational/technical/financial evidence", specialist="CORPINT / ORGINT / THREATACTORINT", expected_information_value="Prevents false actor/state attribution."),
+            ]
+        )
+
+        actions.extend(
+            [
+                NextAction(description="Retrieve earliest archived instances and compare source pedigrees.", rationale="Distinguishes earliest observed from likely upstream.", priority="HIGH"),
+                NextAction(description="Deduplicate content and count independent source families before assessing spread.", rationale="Prevents repetition-as-corroboration error.", priority="HIGH"),
+                NextAction(description="Verify core factual claims against primary documents/official records/independent local reporting.", rationale="Narrative propagation is not truth.", priority="HIGH"),
+                NextAction(description="Test benign explanations for coordination signals (press release, template, legitimate campaign).", rationale="Coordination is not automatically malicious.", priority="HIGH"),
+                NextAction(description="Hand off media authenticity questions to IMINT/VIDINT/AUDINT.", rationale="True media can have false caption/context.", priority="MEDIUM"),
+                NextAction(description="Require human review before state, organization, or real-person attribution.", rationale="Attribution is consequential and error-prone.", priority="HIGH"),
+                NextAction(description="Recommend only transparent, factual, non-deceptive response options if communication support is requested.", rationale="NARRATIVEINT must not manipulate.", priority="HIGH"),
+            ]
+        )
+
+        guard = PolicyGuard()
+        actions = [a for a in actions if guard.is_safe_action(a.description)]
+
+        handoffs.extend(
+            [
+                SpecialistHandoff(specialist="SOCMINT", reason="Public social content collection and account/platform context."),
+                SpecialistHandoff(specialist="NEWSINT", reason="News article verification, wire/syndication, corrections."),
+                SpecialistHandoff(specialist="SEARCHINT", reason="Discovery of additional independent sources and primary documents."),
+                SpecialistHandoff(specialist="WEBINT", reason="Lawful public web/archive preservation and page context."),
+                SpecialistHandoff(specialist="DISINFOINT", reason="Deceptive influence/coordination analysis with stronger evidence standards."),
+                SpecialistHandoff(specialist="IMINT", reason="Image authenticity and visual context."),
+                SpecialistHandoff(specialist="VIDINT", reason="Video authenticity, sequencing, and context."),
+                SpecialistHandoff(specialist="AUDINT", reason="Audio authenticity and speaker/context analysis where lawful."),
+                SpecialistHandoff(specialist="DOCINT", reason="Primary document retrieval and analysis."),
+                SpecialistHandoff(specialist="METADATAINT", reason="File/page metadata and provenance checks."),
+                SpecialistHandoff(specialist="CTI", reason="Cyber threat attribution claims requiring technical evidence."),
+                SpecialistHandoff(specialist="EVENTINT", reason="Cross-source event structure verification."),
+                SpecialistHandoff(specialist="GEOINT", reason="Geolocation verification for media/event claims."),
+                SpecialistHandoff(specialist="HUMINT", reason="Human-source claims require separate reliability/access context."),
+                SpecialistHandoff(specialist="CORPINT", reason="Organizational ownership/affiliate resolution."),
+                SpecialistHandoff(specialist="ORGINT", reason="Organizational structure and unit relationships."),
+            ]
+        )
+
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs,
+        }
+
+
+class DualAIReviewer:
+    def review(
+        self,
+        *,
+        content_items: List[ContentItem],
+        claims: List[Claim],
+        narratives: List[Narrative],
+        coordination_signals: List[CoordinationSignal],
+        automation_signals: List[AutomationSignal],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+        case: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        notes: List[str] = []
+        status = ReviewStatus.AGREE
+
+        if not content_items:
+            status = ReviewStatus.INSUFFICIENT_EVIDENCE
+            notes.append("No content items supplied.")
+
+        if source_independence.get("status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            notes.append("Source independence dependent/unknown; multiple posts/articles may share one upstream family.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if any(c.duplicate_state in (DuplicateState.EXACT_DUPLICATE, DuplicateState.NEAR_DUPLICATE, DuplicateState.SYNDICATED, DuplicateState.TRANSLATED_COPY) for c in content_items):
+            notes.append("Duplicates/syndication/translations present; do not count copies as independent corroboration.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if coordination_signals:
+            notes.append("Coordination signals are candidates only; legitimate coordinated communication is a strong alternative explanation.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if automation_signals:
+            notes.append("Automation signals are candidates only; legitimate automation is possible.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if contradictions:
+            notes.append("Open contradictions remain; final narrative/claim assessments should stay conservative.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if any(cl.claim_type in (ClaimType.CAUSE, ClaimType.RESPONSIBILITY, ClaimType.MOTIVE) for cl in claims):
+            notes.append("Causal/responsibility/motive claims present; these require stronger independent evidence than propagation volume.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        human_review_required = False
+        tags = [str(x).upper() for x in case.get("sensitivity_tags", [])]
+
+        if any(t in {"STATE_ATTRIBUTION", "REAL_PERSON_ATTRIBUTION", "ORGANIZATION_ATTRIBUTION", "CIB", "COORDINATED_INAUTHENTIC_BEHAVIOR", "PUBLIC_ACCUSATION", "POLITICAL_INFLUENCE", "CRISIS_NARRATIVE", "ELECTION", "MARKET_SENSITIVE", "PUBLIC_HEALTH"} for t in tags):
+            human_review_required = True
+            notes.append("Sensitive attribution/public-accusation/political/market/health context supplied; human governance required.")
+
+        if any(sig.state in (CoordinationSignalState.CIB_CANDIDATE.value, CoordinationSignalState.PLATFORM_REPORTED_CIB.value) for sig in coordination_signals):
+            human_review_required = True
+            notes.append("CIB/platform-reported signal present; do not publish attribution without authoritative evidence.")
+
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "AI agreement is not source corroboration.",
+            "human_review_required": human_review_required,
+        }
+
+
+# ======================================================================
+# SECTION 13 — GRAPHICAL MEMORY / REPORT GENERATOR
+# ======================================================================
+
+class GraphicalMemory:
+    def __init__(self) -> None:
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        self.edges: List[Dict[str, Any]] = []
+
+    def add_node(self, node_id: str, node_type: str, properties: Dict[str, Any]) -> None:
+        self.nodes[node_id] = {"type": node_type, "properties": properties}
+
+    def add_edge(self, source_id: str, relation: str, target_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append(
+            {
+                "source_id": source_id,
+                "relation": relation,
+                "target_id": target_id,
+                "properties": properties or {},
+            }
+        )
+
+    def write_result(self, result: NARRATIVEINTResult) -> Dict[str, Any]:
+        for s in result.sources:
+            self.add_node(s.source_id, "Source", {"type": s.source_type, "platform": s.platform, "group": s.independence_group})
+
+        for c in result.content_items:
+            self.add_node(
+                c.content_id,
+                "ContentItem",
+                {
+                    "source_id": c.source_id,
+                    "platform": c.platform,
+                    "language": c.language,
+                    "content_type": c.content_type.value,
+                    "published_at": fmt_dt(c.published_at),
+                    "observed_at": fmt_dt(c.observed_at),
+                    "source_family": c.source_family,
+                    "duplicate_state": c.duplicate_state.value,
+                    "syndication_state": c.syndication_state.value,
+                    "stance": c.stance.value,
+                },
+            )
+            if c.source_id:
+                self.add_edge(c.content_id, "PUBLISHED_BY", c.source_id)
+            if c.source_family:
+                self.add_node(c.source_family, "SourceFamily", {"members": []})
+                self.add_edge(c.content_id, "BELONGS_TO_FAMILY", c.source_family)
+
+        for cl in result.claims[:2000]:
+            self.add_node(cl.claim_id, "Claim", {"content_id": cl.content_id, "type": cl.claim_type.value, "state": cl.claim_state.value, "ffo": cl.fact_frame_opinion.value})
+            self.add_edge(cl.content_id, "CONTAINS_CLAIM", cl.claim_id)
+
+        for narr in result.narratives:
+            self.add_node(narr.narrative_id, "Narrative", {"title": narr.title, "state": narr.verification_state.value, "families": narr.source_families})
+            for cid in narr.content_ids[:200]:
+                self.add_edge(cid, "PART_OF_NARRATIVE", narr.narrative_id)
+            for clid in narr.core_claims[:200]:
+                self.add_edge(narr.narrative_id, "CONTAINS_CORE_CLAIM", clid)
+
+        for var in result.narrative_variants:
+            self.add_node(var.variant_id, "NarrativeVariant", {"parent": var.parent_narrative_id, "title": var.title})
+            self.add_edge(var.variant_id, "VARIANT_OF", var.parent_narrative_id)
+
+        for pe in result.propagation_events[:2000]:
+            self.add_node(pe.propagation_event_id, "PropagationEvent", {"type": pe.relationship_type, "upstream": pe.upstream_candidate})
+            if pe.upstream_candidate:
+                self.add_edge(pe.content_id, pe.relationship_type, pe.upstream_candidate, {"propagation_event_id": pe.propagation_event_id})
+
+        for sig in result.coordination_signals:
+            self.add_node(sig.signal_id, "CoordinationSignal", {"type": sig.signal_type, "state": sig.state.value})
+            for cid in sig.content_ids[:100]:
+                self.add_edge(sig.signal_id, "OBSERVED_IN", cid)
+
+        for auto in result.automation_signals:
+            self.add_node(auto.signal_id, "AutomationSignal", {"type": auto.signal_type, "state": auto.state.value})
+
+        for f in result.facts[:2000]:
+            self.add_node(f.fact_id, "Fact", {"statement": f.statement, "status": f.status.value})
+            for ev in f.evidence_ids[:20]:
+                self.add_edge(f.fact_id, "SUPPORTED_BY", ev)
+
+        for h in result.hypotheses[:1000]:
+            self.add_node(h.hypothesis_id, "Hypothesis", {"statement": h.statement})
+
+        return {
+            "node_count": len(self.nodes),
+            "edge_count": len(self.edges),
+            "sample_nodes": list(self.nodes.keys())[:20],
+        }
+
+
+class ReportGenerator:
+    def generate(self, result: NARRATIVEINTResult) -> str:
+        lines: List[str] = []
+
+        def section(title: str) -> None:
+            lines.append("")
+            lines.append(title.upper())
+            lines.append("-" * len(title))
+
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — NARRATIVEINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Task ID: {result.task_id}")
+        lines.append(f"Objective: {result.objective}")
+        lines.append(f"Status: {result.status}")
+        lines.append(f"Policy Decision: {result.policy_decision.value}")
+
+        section("Safety / Legal / Privacy Boundary")
+        lines.append("- Defensive/analytical narrative propagation assessment only.")
+        lines.append("- No propaganda design, disinformation generation, covert influence operations, bot/astroturfing, political microtargeting, psychological manipulation, harassment, impersonation, private-account scraping, or paywall/access bypass.")
+        lines.append("- Response support, if any, must be transparent, factual, non-deceptive, and audience-neutral.")
+        for flag in result.safety_flags:
+            lines.append(f"- Safety: {flag}")
+        for flag in result.privacy_flags:
+            lines.append(f"- Privacy: {flag}")
+
+        section("Collection Coverage / Bias")
+        lines.append(f"- Content items: {len(result.content_items)}")
+        lines.append(f"- Claims: {len(result.claims)}")
+        lines.append(f"- Narratives: {len(result.narratives)}")
+        lines.append(f"- Source families: {len(result.source_families)}")
+        lines.append(f"- Raw content count: {result.source_independence.get('raw_content_count', len(result.content_items))}")
+        lines.append(f"- Independent source family count: {result.source_independence.get('independent_source_family_count', 0)}")
+        lines.append("- Coverage limitations: API/tool limits, deleted content, private sources, language coverage, keyword/synonym gaps, visual-only narratives, platform bias.")
+
+        section("Sources")
+        for s in result.sources:
+            lines.append(f"- {s.source_id}: type={s.source_type}, org={s.organization}, platform={s.platform}, group={s.independence_group}, reliability={s.reliability}")
+            if s.limitations:
+                lines.append(f"  limitations={'; '.join(s.limitations)}")
+
+        section("Content Items / Deduplication / Syndication")
+        for c in result.content_items:
+            lines.append(
+                f"- {c.content_id}: source={c.source_id}, account={c.account_id}, platform={c.platform}, "
+                f"type={c.content_type.value}, lang={c.language}, published={fmt_dt(c.published_at)}, observed={fmt_dt(c.observed_at)}"
+            )
+            lines.append(f"  headline: {excerpt(c.headline, 160)}")
+            lines.append(f"  text_excerpt: {excerpt(c.normalized_text, 220)}")
+            lines.append(f"  url={c.url}")
+            lines.append(f"  canonical_url={c.canonical_url}")
+            lines.append(f"  content_hash={c.content_hash}")
+            lines.append(f"  fingerprint={c.fingerprint}")
+            lines.append(f"  source_family={c.source_family}")
+            lines.append(f"  duplicate_state={c.duplicate_state.value}, duplicate_of={c.duplicate_of or '-'}, near_duplicate_of={c.near_duplicate_of or '-'}")
+            lines.append(f"  syndication_state={c.syndication_state.value}, stance={c.stance.value}")
+            if c.citation_links:
+                lines.append(f"  citation_links={c.citation_links}")
+            if c.limitations:
+                lines.append(f"  limitations={'; '.join(c.limitations[:5])}")
+
+        section("Claims / Fact-Frame-Opinion Separation")
+        for cl in result.claims[:200]:
+            lines.append(
+                f"- {cl.claim_id}: content={cl.content_id}, type={cl.claim_type.value}, "
+                f"fact_frame_opinion={cl.fact_frame_opinion.value}, certainty={cl.certainty.value}, state={cl.claim_state.value}"
+            )
+            lines.append(f"  text: {excerpt(cl.text, 220)}")
+            lines.append(f"  subject={cl.subject}, predicate={cl.predicate}, object={cl.object}")
+            if cl.numeric_value is not None:
+                lines.append(f"  numeric={cl.numeric_value} {cl.numeric_unit}")
+            if cl.location_reference:
+                lines.append(f"  location={cl.location_reference}")
+            if cl.limitations:
+                lines.append(f"  limitations: {'; '.join(cl.limitations[:3])}")
+
+        section("Counterclaims / Rejections / Questions")
+        if not result.counterclaims:
+            lines.append("- None detected.")
+        for cl in result.counterclaims[:100]:
+            lines.append(f"- Counterclaim {cl.claim_id}: content={cl.content_id}, text={excerpt(cl.text, 200)}")
+
+        section("Frames / Themes")
+        for fr in result.frames:
+            lines.append(f"- Frame {fr.frame_id}: {fr.label}; content_ids={fr.content_ids[:20]}; claim_ids={fr.claim_ids[:20]}")
+            for lim in fr.limitations:
+                lines.append(f"  limitation: {lim}")
+        for th in result.themes:
+            lines.append(f"- Theme {th.theme_id}: {th.label}; content_ids={th.content_ids[:20]}; claim_ids={th.claim_ids[:20]}")
+            for lim in th.limitations:
+                lines.append(f"  limitation: {lim}")
+
+        section("Narratives / Variants / Lineage")
+        for narr in result.narratives:
+            lines.append(
+                f"- Narrative {narr.narrative_id}: title={narr.title}, lifecycle={narr.lifecycle.value}, "
+                f"verification={narr.verification_state.value}, confidence={narr.confidence.value}"
+            )
+            lines.append(f"  content_ids={narr.content_ids[:50]}")
+            lines.append(f"  source_families={narr.source_families}")
+            lines.append(f"  languages={narr.languages}, platforms={narr.platforms}")
+            lines.append(f"  first_seen={fmt_dt(narr.first_seen)}, last_seen={fmt_dt(narr.last_seen)}")
+            lines.append(f"  core_claims={narr.core_claims[:20]}")
+            lines.append(f"  frames={narr.frames}, themes={narr.themes}, events={narr.events}")
+            for lim in narr.limitations:
+                lines.append(f"  limitation: {lim}")
+        for var in result.narrative_variants:
+            lines.append(f"- Variant {var.variant_id}: parent={var.parent_narrative_id}, title={var.title}, languages={var.languages}, platforms={var.platforms}")
+            for lim in var.limitations:
+                lines.append(f"  limitation: {lim}")
+
+        section("Source Pedigree / Independence")
+        lines.append(f"- Status: {result.source_independence.get('status', 'UNKNOWN')}")
+        lines.append(f"- Families: {result.source_independence.get('families', [])}")
+        for note in result.source_independence.get("notes", []):
+            lines.append(f"  - {note}")
+
+        section("Temporal Model / Earliest Observed")
+        lines.append(f"- Earliest observed content: {result.temporal.get('earliest_observed_content_id', 'UNKNOWN')}")
+        lines.append("- Caution: earliest observed is not verified true origin.")
+        for fam, fs in result.temporal.get("first_seen_by_family", {}).items():
+            lines.append(f"- Family {fam}: first_seen={fs}, last_seen={result.temporal.get('last_seen_by_family', {}).get(fam, 'UNKNOWN')}, origin_state={result.temporal.get('origin_states_by_family', {}).get(fam, 'UNKNOWN')}")
+        for item in result.temporal.get("timeline", [])[:100]:
+            lines.append(f"- Timeline: {item}")
+
+        section("Propagation Graph / Velocity / Breadth / Depth")
+        for pe in result.propagation_events[:200]:
+            lines.append(
+                f"- Propagation {pe.propagation_event_id}: content={pe.content_id}, relationship={pe.relationship_type}, "
+                f"upstream={pe.upstream_candidate}, time={fmt_dt(pe.time)}, platform={pe.platform}"
+            )
+        lines.append(f"- Velocity: {result.propagation_velocity}")
+        lines.append(f"- Breadth: {result.propagation_breadth}")
+        lines.append(f"- Max derivation depth: {result.propagation_depth}")
+        lines.append("- Propagation is not causation; timing alone does not prove copying.")
+
+        section("Coordination Signals / Automation Signals")
+        if not result.coordination_signals:
+            lines.append("- Coordination signals: none detected.")
+        for sig in result.coordination_signals:
+            lines.append(
+                f"- Coordination {sig.signal_id}: type={sig.signal_type}, state={sig.state.value}, "
+                f"accounts={sig.account_ids}, content={sig.content_ids}, window={fmt_dt(sig.time_window_start)}..{fmt_dt(sig.time_window_end)}"
+            )
+            for lim in sig.limitations:
+                lines.append(f"  limitation: {lim}")
+        if not result.automation_signals:
+            lines.append("- Automation signals: none detected.")
+        for auto in result.automation_signals:
+            lines.append(f"- Automation {auto.signal_id}: type={auto.signal_type}, state={auto.state.value}, accounts={auto.account_ids}")
+            for lim in auto.limitations:
+                lines.append(f"  limitation: {lim}")
+
+        section("Event Correlation")
+        if not result.event_correlations:
+            lines.append("- None.")
+        for corr in result.event_correlations:
+            lines.append(f"- {corr}")
+        lines.append("- Temporal correlation is not causation.")
+
+        section("Fact Checks / Corrections / Retractions Context")
+        for fc in result.fact_checks:
+            lines.append(f"- FactCheck {fc.fact_check_id}: target_content={fc.target_content_id}, target_claim={fc.target_claim_id}, rating={fc.rating}, source={fc.source}")
+            for lim in fc.limitations:
+                lines.append(f"  limitation: {lim}")
+
+        section("Facts")
+        for f in result.facts[:250]:
+            lines.append(f"- [{f.status.value}] {f.statement}")
+            if f.limitations:
+                lines.append(f"  limitations: {'; '.join(f.limitations)}")
+
+        section("Contradictions")
+        if not result.contradictions:
+            lines.append("- None detected.")
+        for con in result.contradictions[:100]:
+            lines.append(f"- {con.contradiction_id}: {con.contradiction_type} | materiality={con.materiality} | status={con.resolution_status}")
+            lines.append(f"  description: {con.description}")
+            lines.append(f"  possible_explanations: {con.possible_explanations}")
+
+        section("Competing Hypotheses / ACH-lite")
+        for h in result.hypotheses[:150]:
+            lines.append(f"- {h.hypothesis_id}: {h.statement}")
+            lines.append(f"  supports: {h.supports}")
+            lines.append(f"  oppositions: {h.oppositions}")
+            lines.append(f"  assumptions: {h.assumptions}")
+            lines.append(f"  unknowns: {h.unknowns}")
+            lines.append(f"  source_dependencies: {h.source_dependencies}")
+            lines.append(f"  falsification: {h.falsification_tests}")
+
+        section("Unknowns / Knowledge Gaps")
+        for u in result.unknowns[:100]:
+            lines.append(f"- Unknown: {u}")
+        for g in result.knowledge_gaps[:100]:
+            lines.append(f"- Gap: {g.description} | importance={g.importance} | specialist={g.specialist}")
+
+        section("Next Actions")
+        if not result.next_actions:
+            lines.append("- None.")
+        for a in result.next_actions:
+            lines.append(f"- {a.description} ({a.priority}) — {a.rationale}")
+
+        section("Specialist Handoffs")
+        if not result.specialist_handoffs:
+            lines.append("- None.")
+        for h in result.specialist_handoffs:
+            lines.append(f"- {h.specialist}: {h.reason}")
+
+        section("Limitations")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+
+        section("Dual-AI Review")
+        lines.append(f"- Status: {result.review.get('status', 'N/A')}")
+        for n in result.review.get("skeptic_notes", []):
+            lines.append(f"  - {n}")
+        if result.review.get("human_review_required"):
+            lines.append("  - Human review required before attribution, public accusation, operational response, or consequential communication.")
+
+        section("Required Analyst Summary")
+        if result.narratives:
+            narr = result.narratives[0]
+            lines.append(f"CORE NARRATIVE: {narr.title}.")
+            lines.append(f"CORE CLAIMS: {narr.core_claims[:10]}.")
+            lines.append(f"EARLIEST OBSERVED: {result.temporal.get('earliest_observed_content_id', 'UNKNOWN')}.")
+            lines.append("CAUTION: Earliest observed is not verified true origin.")
+            lines.append(f"SOURCE INDEPENDENCE: raw_content_count={result.source_independence.get('raw_content_count', 0)}, independent_source_family_count={result.source_independence.get('independent_source_family_count', 0)}.")
+            lines.append(f"PROPAGATION: families={narr.source_families}, platforms={narr.platforms}, languages={narr.languages}.")
+            if result.coordination_signals:
+                sig = result.coordination_signals[0]
+                lines.append(f"COORDINATION: {sig.state.value}; {sig.description}.")
+                lines.append("CAUTION: Coordination signals are not CIB without stronger evidence; legitimate press coordination is possible.")
+            if result.event_correlations:
+                corr = result.event_correlations[0]
+                lines.append(f"EVENT CORRELATION: {corr.get('relationship')} between event {corr.get('event_id')} and narrative {corr.get('narrative_id')}.")
+            lines.append(f"ASSESSMENT: NARRATIVE_PROPAGATION = OBSERVED; CLAIM_TRUTH = {narr.verification_state.value}; ATTRIBUTION = NOT_ESTABLISHED unless independent primary evidence exists.")
+            lines.append("NEXT ACTION: Resolve upstream source families and retrieve primary evidence before strengthening truth/attribution claims.")
+        else:
+            lines.append("CORE NARRATIVE: No narrative cluster resolved.")
+            lines.append("NEXT ACTION: Improve content coverage, source pedigree, and claim extraction.")
+
+        lines.append("")
+        lines.append("=" * 72)
+        lines.append("END REPORT")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 14 — NARRATIVEINT AI EMPLOYEE
+# ======================================================================
+
+class NARRATIVEIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.injection_defense = PromptInjectionDefense()
+        self.ingestor = NARRATIVEINTIngestor(injection_defense=self.injection_defense)
+        self.claim_extractor = ClaimExtractor()
+        self.source_family_resolver = SourceFamilyResolver()
+        self.independence_analyzer = SourceIndependenceAnalyzer()
+        self.temporal_analyzer = TemporalAnalyzer()
+        self.propagation_builder = PropagationGraphBuilder()
+        self.frame_theme_analyzer = FrameThemeAnalyzer()
+        self.narrative_clusterer = NarrativeClusterer()
+        self.coordination_analyzer = CoordinationSignalAnalyzer()
+        self.automation_analyzer = AutomationSignalAnalyzer()
+        self.event_correlator = EventCorrelator()
+        self.contradiction_detector = ContradictionDetector()
+        self.hypothesis_engine = HypothesisEngine()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> NARRATIVEINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        task_id = str(case.get("task_id", new_id("TASK")))
+        objective = str(case.get("objective", ""))
+        questions = case.get("questions", [])
+
+        # Policy checks user intent, not untrusted content.
+        request_text = objective + "\n" + "\n".join(str(q) for q in questions)
+        request_text += "\n" + "\n".join(str(x) for x in case.get("topics", []))
+        request_text += "\n" + "\n".join(str(x) for x in case.get("keywords", []))
+
+        policy = self.policy.check_request(request_text)
+
+        if policy.decision == PolicyDecision.POLICY_BLOCKED:
+            return NARRATIVEINTResult(
+                case_id=case_id,
+                task_id=task_id,
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report=(
+                    "POLICY_BLOCKED\n\n"
+                    "This request seeks prohibited NARRATIVEINT propaganda, manipulation, microtargeting, "
+                    "bot/astroturfing, harassment, impersonation, or private-access guidance. "
+                    "Lawful alternative: defensive/analytical narrative propagation assessment, source-pedigree "
+                    "reconstruction, duplicate/syndication detection, claim verification, coordination-signal "
+                    "testing with benign alternatives, media-authenticity handoffs, and transparent, "
+                    "non-deceptive communication support."
+                ),
+                safety_flags=[
+                    "No propaganda or disinformation generation provided.",
+                    "No bot/astroturfing/covert influence operation support provided.",
+                    "No political microtargeting or psychological manipulation provided.",
+                    "No harassment, impersonation, private-account scraping, or access bypass provided.",
+                ],
+                limitations=[policy.reason],
+            )
+
+        ingested = self.ingestor.ingest_case(case)
+        content_items = ingested.content_items
+
+        claims: List[Claim] = []
+        for c in content_items:
+            c.claims = self.claim_extractor.extract(c)
+            claims.extend(c.claims)
+
+        source_families = self.source_family_resolver.resolve(content_items)
+        source_independence = self.independence_analyzer.assess(content_items, source_families)
+        temporal = self.temporal_analyzer.analyze(content_items, claims)
+
+        propagation_events = self.propagation_builder.build(content_items)
+        propagation_velocity = self.propagation_builder.velocity(content_items)
+        propagation_breadth = self.propagation_builder.breadth(content_items)
+        propagation_depth = self.propagation_builder.depth(propagation_events, content_items)
+
+        frames, themes = self.frame_theme_analyzer.analyze(content_items, claims)
+        narratives, narrative_variants = self.narrative_clusterer.cluster(case, content_items, claims)
+
+        # Attach frames/themes/events to narratives.
+        narr_by_id = {n.narrative_id: n for n in narratives}
+        for fr in frames:
+            for narr in narratives:
+                if set(fr.content_ids) & set(narr.content_ids):
+                    narr.frames = unique_list(narr.frames + [fr.frame_id])
+        for th in themes:
+            for narr in narratives:
+                if set(th.content_ids) & set(narr.content_ids):
+                    narr.themes = unique_list(narr.themes + [th.theme_id])
+
+        coordination_signals = self.coordination_analyzer.analyze(content_items)
+        automation_signals = self.automation_analyzer.analyze(content_items)
+        event_correlations = self.event_correlator.correlate(narratives, content_items, ingested.events)
+
+        for corr in event_correlations:
+            narr = narr_by_id.get(corr.get("narrative_id", ""))
+            if narr and corr.get("event_id") and corr["event_id"] not in narr.events:
+                narr.events.append(corr["event_id"])
+
+        contradictions = self.contradiction_detector.detect(claims)
+
+        content_by_id = {c.content_id: c for c in content_items}
+        counterclaims = [
+            cl for cl in claims
+            if content_by_id.get(cl.content_id) and content_by_id[cl.content_id].stance == Stance.REJECTS_CLAIM
+        ]
+
+        hypotheses = self.hypothesis_engine.generate(
+            narratives=narratives,
+            coordination_signals=coordination_signals,
+            automation_signals=automation_signals,
+            source_independence=source_independence,
+            contradictions=contradictions,
+            fact_checks=ingested.fact_checks,
+            event_correlations=event_correlations,
+        )
+
+        fact_out = self.fact_gate.generate(
+            case=case,
+            sources=ingested.sources,
+            content_items=content_items,
+            claims=claims,
+            counterclaims=counterclaims,
+            narratives=narratives,
+            narrative_variants=narrative_variants,
+            frames=frames,
+            themes=themes,
+            propagation_events=propagation_events,
+            coordination_signals=coordination_signals,
+            automation_signals=automation_signals,
+            event_correlations=event_correlations,
+            fact_checks=ingested.fact_checks,
+            events=ingested.events,
+            contradictions=contradictions,
+            source_independence=source_independence,
+            temporal=temporal,
+        )
+
+        review = self.reviewer.review(
+            content_items=content_items,
+            claims=claims,
+            narratives=narratives,
+            coordination_signals=coordination_signals,
+            automation_signals=automation_signals,
+            contradictions=contradictions,
+            source_independence=source_independence,
+            case=case,
+        )
+
+        status = "PARTIAL"
+        if not content_items:
+            status = "INSUFFICIENT_DATA"
+        elif not claims:
+            status = "CLAIM_UNRESOLVED"
+        elif contradictions:
+            status = "PARTIAL_DISPUTED_NARRATIVE"
+        elif review.get("human_review_required"):
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+        elif narratives and any(narr.verification_state in (ClaimState.SUPPORTED, ClaimState.PARTIALLY_SUPPORTED) for narr in narratives):
+            status = "SUCCEEDED"
+        elif source_independence.get("independent_source_family_count", 0) >= 2:
+            status = "SUPPORTED_BY_MULTIPLE_FAMILIES"
+
+        privacy_flags = []
+        if self.mode == ModelMode.LOCAL_ONLY:
+            privacy_flags.append("LOCAL_ONLY mode selected; sensitive internal narrative investigations should remain local.")
+        elif self.mode == ModelMode.CLOUD:
+            privacy_flags.append("CLOUD mode requires public/sanitized/redacted/aggregated/policy-approved content only.")
+        else:
+            privacy_flags.append("HYBRID mode requires routing controls, tenant isolation, and purpose limitation.")
+
+        privacy_flags.extend(
+            [
+                "No private-person location inference from narrative posting.",
+                "No sensitive-trait inference (political belief, religion, ethnicity, sexual orientation, health status) from engagement.",
+                "No individual profiling from narrative consumption; community-level analysis remains aggregate and purpose-limited.",
+                "No manipulative microtargeting or deceptive response generation.",
+            ]
+        )
+
+        result = NARRATIVEINTResult(
+            case_id=case_id,
+            task_id=task_id,
+            objective=objective,
+            status=status,
+            policy_decision=PolicyDecision.ALLOW,
+            evidence=ingested.evidence,
+            sources=ingested.sources,
+            content_items=content_items,
+            claims=claims,
+            counterclaims=counterclaims,
+            frames=frames,
+            themes=themes,
+            narratives=narratives,
+            narrative_variants=narrative_variants,
+            propagation_events=propagation_events,
+            propagation_velocity=propagation_velocity,
+            propagation_breadth=propagation_breadth,
+            propagation_depth=propagation_depth,
+            coordination_signals=coordination_signals,
+            automation_signals=automation_signals,
+            event_correlations=event_correlations,
+            fact_checks=ingested.fact_checks,
+            events=ingested.events,
+            source_families=source_families,
+            source_independence=source_independence,
+            temporal=temporal,
+            contradictions=contradictions,
+            facts=fact_out["facts"],
+            hypotheses=hypotheses,
+            knowledge_gaps=fact_out["knowledge_gaps"],
+            next_actions=fact_out["next_actions"],
+            specialist_handoffs=fact_out["specialist_handoffs"],
+            review=review,
+            unknowns=fact_out["unknowns"],
+            limitations=fact_out["limitations"],
+            safety_flags=[
+                "No propaganda, disinformation, covert influence, bot/astroturfing, or manipulation design.",
+                "No political microtargeting or sensitive-trait targeting.",
+                "No harassment, brigading, impersonation, doxxing, or private-account scraping.",
+                "Repetition is not truth; virality is not corroboration; reach is not belief.",
+                "Earliest observed is not true origin.",
+                "Coordination signals are candidates only; legitimate coordination is possible.",
+                "Attribution requires stronger independent evidence than narrative alignment.",
+                "Human review required for consequential attribution/public accusation/response.",
+            ],
+            privacy_flags=privacy_flags,
+        )
+
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 15 — SYNTHETIC DEMOS
+# ======================================================================
+
+def demo_lawful_narrative_propagation() -> None:
+    """
+    Synthetic lawful demo:
+    Fictional public information ecosystem around a Demo Bridge collapse.
+    Demonstrates:
+      - official statement -> wire -> news -> social propagation
+      - source-family counting vs raw content count
+      - earliest observed vs true origin caution
+      - translation variant
+      - coordination signal explained by press release
+      - unsupported attribution claim
+      - fact-check context
+      - event correlation without causation overclaim
+    """
+    employee = NARRATIVEIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    official_text = (
+        "Demo City Emergency Management confirmed that 18 people were injured after the Demo Bridge "
+        "collapsed in Demo City. The cause remains under investigation."
+    )
+
+    case = {
+        "case_id": "DEMO-NARRATIVEINT-001",
+        "task_id": "DEMO-TASK-001",
+        "objective": (
+            "Defensive narrative-intelligence analysis: assess propagation of a fictional Demo Bridge collapse "
+            "narrative, separate source families from repeated copies, test coordination-signal alternatives, "
+            "preserve fact/frame/opinion boundaries, and avoid attribution overclaims."
+        ),
+        "questions": [
+            "What claims are circulating?",
+            "How many independent source families exist?",
+            "Is the earliest observed content the true origin?",
+            "Are coordination signals explainable by legitimate press release syndication?",
+            "Is the attribution claim supported?",
+            "What remains unknown?",
+        ],
+        "authorization": "PUBLIC_OR_LICENSED_INFORMATION_ECOSYSTEM_MONITORING_LAWFUL_DEFENSIVE_RESEARCH",
+        "sensitivity_tags": ["SYNTHETIC_FICTIONAL_EVENT", "PUBLIC_SAFETY_CONTEXT", "BREAKING_NARRATIVE"],
+        "topics": ["Demo Bridge collapse"],
+        "keywords": ["Demo Bridge", "Demo City", "injured", "officials", "cause", "anonymous group"],
+        "entities": ["Demo City Emergency Management", "Demo Bridge", "Demo City Local", "Anonymous group"],
+        "sources": [
+            {
+                "source_id": "SRC_OFFICIAL",
+                "source_type": "OFFICIAL_STATEMENT",
+                "organization": "Demo City Emergency Management",
+                "platform": "official_website",
+                "url": "https://demo-emergency.example/releases/bridge-18",
+                "independence_group": "official_demo_city",
+                "reliability": "HIGH",
+                "bias_context": "Official institutional interest",
+                "limitations": ["Official statement is authoritative about what the agency says, not automatically about external reality."],
+            },
+            {
+                "source_id": "SRC_WIRE",
+                "source_type": "WIRE_SERVICE",
+                "organization": "Demo Wire",
+                "platform": "wire",
+                "url": "https://demo-wire.example/bridge-collapse",
+                "independence_group": "demo_wire",
+                "reliability": "MEDIUM",
+                "limitations": ["Wire copies may be republished by many outlets."],
+            },
+                        {
+                "source_id": "SRC_NATIONAL",
+                "source_type": "NEWS_WEBSITE",
+                "organization": "Demo National News",
+                "platform": "web",
+                "url": "https://demo-national.example/bridge-collapse",
+                "independence_group": "demo_national",
+                "reliability": "MEDIUM",
+                "limitations": [
+                    "May republish wire copy; check pedigree before counting as independent."
+                ],
+            },
+            {
+                "source_id": "SRC_LOCAL",
+                "source_type": "NEWS_WEBSITE",
+                "organization": "Demo City Local",
+                "platform": "web",
+                "url": "https://demo-local.example/bridge-scene",
+                "independence_group": "demo_local",
+                "reliability": "MEDIUM_HIGH",
+                "limitations": [
+                    "Local access may be strong, but verification resources can be limited."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_EARLY",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_EARLY_RUMOR",
+                "platform": "social",
+                "url": "https://social.example/early-rumor",
+                "independence_group": "social_early",
+                "reliability": "LOW",
+                "limitations": [
+                    "User-generated breaking rumor; low reliability and possible collection bias."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_A",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_A",
+                "platform": "social",
+                "url": "https://social.example/a",
+                "independence_group": "social_amplifier",
+                "reliability": "LOW",
+                "limitations": [
+                    "Amplification account; authenticity and operator unknown."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_B",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_B",
+                "platform": "social",
+                "url": "https://social.example/b",
+                "independence_group": "social_amplifier",
+                "reliability": "LOW",
+                "limitations": [
+                    "Amplification account; authenticity and operator unknown."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_C",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_C",
+                "platform": "social",
+                "url": "https://social.example/c",
+                "independence_group": "social_amplifier",
+                "reliability": "LOW",
+                "limitations": [
+                    "Amplification account; authenticity and operator unknown."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_D",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_D",
+                "platform": "social",
+                "url": "https://social.example/d",
+                "independence_group": "social_amplifier",
+                "reliability": "LOW",
+                "limitations": [
+                    "Amplification account; authenticity and operator unknown."
+                ],
+            },
+            {
+                "source_id": "SRC_SOCIAL_ATTRIBUTION",
+                "source_type": "SOCIAL_POST",
+                "account_id": "ACCT_ATTRIBUTION",
+                "platform": "social",
+                "url": "https://social.example/attribution",
+                "independence_group": "social_attribution",
+                "reliability": "LOW",
+                "limitations": [
+                    "Unverified attribution allegation; requires independent evidentiary support."
+                ],
+            },
+            {
+                "source_id": "SRC_TRANSLATED",
+                "source_type": "NEWS_WEBSITE",
+                "organization": "Demo Translated Desk",
+                "platform": "web",
+                "url": "https://demo-translated.example/bridge-es",
+                "independence_group": "demo_translated",
+                "reliability": "MEDIUM",
+                "limitations": [
+                    "Translation may alter tone, certainty, causal language, or attribution."
+                ],
+            },
+            {
+                "source_id": "SRC_FACTCHECK",
+                "source_type": "FACT_CHECK",
+                "organization": "Demo Synthetic Fact Check",
+                "platform": "web",
+                "url": "https://demo-factcheck.example/bridge-attribution",
+                "independence_group": "factcheck",
+                "reliability": "MEDIUM",
+                "limitations": [
+                    "Fact-check is secondary analysis; inspect method and primary evidence."
+                ],
+            },
+        ],
+        "content_items": [
+            {
+                "content_id": "C_OFFICIAL",
+                "source_id": "SRC_OFFICIAL",
+                "publisher_id": "PUB_DEMO_EMERGENCY",
+                "platform": "official_website",
+                "url": "https://demo-emergency.example/releases/bridge-18",
+                "headline": "Official statement: 18 confirmed injured after Demo Bridge collapse",
+                "text": official_text,
+                "published_at": "2026-10-08T09:00:00Z",
+                "observed_at": "2026-10-08T09:01:00Z",
+                "language": "EN",
+                "content_type": "OFFICIAL_STATEMENT",
+                "limitations": [
+                    "Official statement is authoritative about what the agency says, not automatically about external reality.",
+                    "Cause remains under investigation; do not infer intent from official injury confirmation."
+                ],
+            },
+            {
+                "content_id": "C_WIRE",
+                "source_id": "SRC_WIRE",
+                "publisher_id": "PUB_DEMO_WIRE",
+                "platform": "wire",
+                "url": "https://demo-wire.example/bridge-collapse",
+                "headline": "Demo Bridge collapse injures 18, officials confirm",
+                "text": (
+                    "Demo Wire reported that 18 people were injured after the Demo Bridge collapsed in Demo City, "
+                    "citing Demo City Emergency Management. The cause remains under investigation."
+                ),
+                "published_at": "2026-10-08T09:05:00Z",
+                "observed_at": "2026-10-08T09:06:00Z",
+                "language": "EN",
+                "content_type": "ARTICLE",
+                "citation_links": ["C_OFFICIAL"],
+                "limitations": [
+                    "Wire report cites official statement; not automatically independent corroboration of cause."
+                ],
+            },
+            {
+                "content_id": "C_NATIONAL",
+                "source_id": "SRC_NATIONAL",
+                "publisher_id": "PUB_DEMO_NATIONAL",
+                "platform": "web",
+                "url": "https://demo-national.example/bridge-collapse",
+                "headline": "Demo Bridge collapse injures 18, officials confirm",
+                "text": (
+                    "Demo Wire reported that 18 people were injured after the Demo Bridge collapsed in Demo City, "
+                    "citing Demo City Emergency Management. The cause remains under investigation."
+                ),
+                "published_at": "2026-10-08T09:15:00Z",
+                "observed_at": "2026-10-08T09:16:00Z",
+                "language": "EN",
+                "content_type": "ARTICLE",
+                "syndicated_from": "C_WIRE",
+                "limitations": [
+                    "Syndicated copy; do not count as independent source family unless independently supplemented."
+                ],
+            },
+            {
+                "content_id": "C_LOCAL",
+                "source_id": "SRC_LOCAL",
+                "publisher_id": "PUB_DEMO_LOCAL",
+                "platform": "web",
+                "url": "https://demo-local.example/bridge-scene",
+                "headline": "Local reporter sees Demo Bridge collapse; hospital says 12 treated",
+                "text": (
+                    "Demo City Local reporter at the scene said the Demo Bridge collapsed in Demo City. "
+                    "Hospital staff said 12 people were treated at the local hospital. "
+                    "Police said the earlier 25 figure was preliminary."
+                ),
+                "published_at": "2026-10-08T09:30:00Z",
+                "observed_at": "2026-10-08T09:31:00Z",
+                "language": "EN",
+                "content_type": "ARTICLE",
+                "limitations": [
+                    "Local reporting may provide scene access but may also reflect partial visibility and evolving counts."
+                ],
+            },
+            {
+                "content_id": "C_EARLY_RUMOR",
+                "source_id": "SRC_SOCIAL_EARLY",
+                "account_id": "ACCT_EARLY_RUMOR",
+                "platform": "social",
+                "url": "https://social.example/early-rumor",
+                "headline": "",
+                "text": (
+                    "Officials said 25 people were injured after the Demo Bridge collapsed in Demo City."
+                ),
+                "published_at": "2026-10-08T08:45:00Z",
+                "observed_at": "2026-10-08T08:46:00Z",
+                "language": "EN",
+                "content_type": "POST",
+                "limitations": [
+                    "Early user-generated rumor; low reliability; may be superseded by later official confirmation.",
+                    "Earliest observed in this collection is not verified true origin."
+                ],
+            },
+            {
+                "content_id": "C_SOCIAL_A",
+                "source_id": "SRC_SOCIAL_A",
+                "account_id": "ACCT_A",
+                "platform": "social",
+                "url": "https://social.example/a",
+                "headline": "",
+                "text": official_text,
+                "published_at": "2026-10-08T09:10:00Z",
+                "observed_at": "2026-10-08T09:10:10Z",
+                "language": "EN",
+                "content_type": "POST",
+                "citation_links": ["C_OFFICIAL"],
+                "limitations": [
+                    "Amplified copy of official statement; repetition is not corroboration."
+                ],
+            },
+            {
+                "content_id": "C_SOCIAL_B",
+                "source_id": "SRC_SOCIAL_B",
+                "account_id": "ACCT_B",
+                "platform": "social",
+                "url": "https://social.example/b",
+                "headline": "",
+                "text": official_text,
+                "published_at": "2026-10-08T09:10:20Z",
+                "observed_at": "2026-10-08T09:10:30Z",
+                "language": "EN",
+                "content_type": "POST",
+                "citation_links": ["C_OFFICIAL"],
+                "limitations": [
+                    "Amplified copy of official statement; repetition is not corroboration."
+                ],
+            },
+            {
+                "content_id": "C_SOCIAL_C",
+                "source_id": "SRC_SOCIAL_C",
+                "account_id": "ACCT_C",
+                "platform": "social",
+                "url": "https://social.example/c",
+                "headline": "",
+                "text": official_text,
+                "published_at": "2026-10-08T09:10:40Z",
+                "observed_at": "2026-10-08T09:10:50Z",
+                "language": "EN",
+                "content_type": "POST",
+                "citation_links": ["C_OFFICIAL"],
+                "limitations": [
+                    "Amplified copy of official statement; repetition is not corroboration."
+                ],
+            },
+            {
+                "content_id": "C_SOCIAL_D",
+                "source_id": "SRC_SOCIAL_D",
+                "account_id": "ACCT_D",
+                "platform": "social",
+                "url": "https://social.example/d",
+                "headline": "",
+                "text": official_text,
+                "published_at": "2026-10-08T09:11:00Z",
+                "observed_at": "2026-10-08T09:11:10Z",
+                "language": "EN",
+                "content_type": "POST",
+                "citation_links": ["C_OFFICIAL"],
+                "limitations": [
+                    "Amplified copy of official statement; repetition is not corroboration."
+                ],
+            },
+            {
+                "content_id": "C_ATTRIBUTION",
+                "source_id": "SRC_SOCIAL_ATTRIBUTION",
+                "account_id": "ACCT_ATTRIBUTION",
+                "platform": "social",
+                "url": "https://social.example/attribution",
+                "headline": "",
+                "text": (
+                    "An anonymous group deliberately caused the Demo Bridge collapse to destabilize Demo City."
+                ),
+                "published_at": "2026-10-08T09:20:00Z",
+                "observed_at": "2026-10-08T09:21:00Z",
+                "language": "EN",
+                "content_type": "POST",
+                "limitations": [
+                    "Unverified attribution allegation; causal/responsibility claims require independent evidence.",
+                    "Do not treat narrative alignment as organizational direction or real-person attribution."
+                ],
+            },
+            {
+                "content_id": "C_TRANSLATED",
+                "source_id": "SRC_TRANSLATED",
+                "publisher_id": "PUB_DEMO_TRANSLATED",
+                "platform": "web",
+                "url": "https://demo-translated.example/bridge-es",
+                "headline": "Declaración oficial: 18 heridos confirmados tras colapso del Demo Bridge",
+                "text": (
+                    "Demo City Emergency Management confirmó que 18 personas resultaron heridas tras el colapso "
+                    "del Demo Bridge en Demo City. La causa sigue bajo investigación."
+                ),
+                "published_at": "2026-10-08T09:40:00Z",
+                "observed_at": "2026-10-08T09:41:00Z",
+                "language": "ES",
+                "content_type": "ARTICLE",
+                "translated_from": "C_OFFICIAL",
+                "limitations": [
+                    "Translated copy; translation may alter certainty, attribution, or causal framing.",
+                    "Translated copy is not an independent source unless independently verified."
+                ],
+            },
+            {
+                "content_id": "C_FACTCHECK",
+                "source_id": "SRC_FACTCHECK",
+                "publisher_id": "PUB_DEMO_FACTCHECK",
+                "platform": "web",
+                "url": "https://demo-factcheck.example/bridge-attribution",
+                "headline": "Fact check: unsupported claims about deliberate Demo Bridge collapse",
+                "text": (
+                    "Fact check: claims that an anonymous group deliberately caused the Demo Bridge collapse are false or unsupported. "
+                    "Officials confirmed 18 injured; cause remains under investigation."
+                ),
+                "published_at": "2026-10-08T10:30:00Z",
+                "observed_at": "2026-10-08T10:31:00Z",
+                "language": "EN",
+                "content_type": "FACT_CHECK",
+                "limitations": [
+                    "Fact-check is secondary analysis; inspect method, primary evidence, and claim scope."
+                ],
+            },
+        ],
+        "events": [
+            {
+                "event_id": "E_BRIDGE_COLLAPSE",
+                "event_type": "INFRASTRUCTURE_FAILURE_CANDIDATE",
+                "title": "Demo Bridge collapse",
+                "time": "2026-10-08T08:30:00Z",
+                "location": "Demo City",
+                "entities": [
+                    "Demo Bridge",
+                    "Demo City"
+                ],
+                "source_id": "SRC_LOCAL",
+                "verification_state": "SUPPORTED",
+                "confidence": "MEDIUM",
+                "limitations": [
+                    "Event occurrence is supported by multiple reports in this synthetic collection.",
+                    "Cause, responsibility, and intent are not established by this event record alone."
+                ],
+            }
+        ],
+        "fact_checks": [
+            {
+                "fact_check_id": "FC_BRIDGE_ATTRIBUTION",
+                "target_claim_id": "",
+                "target_content_id": "C_ATTRIBUTION",
+                "rating": "FALSE_OR_UNSUPPORTED",
+                "source": "Demo Synthetic Fact Check",
+                "limitations": [
+                    "Fact-check rating is secondary analysis; inspect primary evidence and claim definition.",
+                    "Do not equate fact-check label with independent primary corroboration."
+                ],
+            }
+        ],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def demo_policy_blocked_manipulation() -> None:
+    """
+    Synthetic policy-block demonstration.
+    Shows that propaganda / bot / microtargeting / manipulation requests are refused.
+    """
+    employee = NARRATIVEIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-NARRATIVEINT-BLOCK-001",
+        "task_id": "DEMO-TASK-BLOCK-001",
+        "objective": (
+            "Design a covert influence campaign to microtarget voters, generate propaganda, "
+            "deploy bots, astroturf grassroots support, and harass journalists who question the narrative."
+        ),
+        "questions": [
+            "How do I make the narrative spread?",
+            "How do I target psychological weaknesses?",
+            "How do I operate fake accounts?",
+        ],
+        "authorization": "NONE",
+        "topics": ["synthetic manipulation request"],
+        "keywords": ["propaganda", "bots", "microtarget"],
+        "content_items": [],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def main() -> None:
+    print("\n" + "=" * 72)
+    print("LAWFUL DEFENSIVE NARRATIVE PROPAGATION DEMO")
+    print("=" * 72 + "\n")
+    demo_lawful_narrative_propagation()
+
+    print("\n" + "=" * 72)
+    print("POLICY-BLOCKED PROPAGANDA / BOT / MICROTARGETING DEMO")
+    print("=" * 72 + "\n")
+    demo_policy_blocked_manipulation()
+
+
+if __name__ == "__main__":
+    main()

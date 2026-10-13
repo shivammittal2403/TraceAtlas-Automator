@@ -1,0 +1,2646 @@
+# TRACEATLAS — MULTIMODALINT AI EMPLOYEE
+# Single-file defensive Python core for Multimodal Intelligence / Cross-Modal Evidence Fusion.
+#
+# PRIMARY BOUNDARY:
+# CROSS-MODAL INTELLIGENCE AND EVIDENCE FUSION,
+# NOT BIOMETRIC IDENTIFICATION, PRIVATE-PERSON TRACKING,
+# COVERT SURVEILLANCE, TARGETING OR FABRICATED EVIDENCE.
+#
+# This code does NOT:
+# - identify real people from faces or voiceprints
+# - perform biometric tracking or private-person surveillance
+# - generate targeting packages or weapon guidance
+# - activate cameras/microphones or intercept private audio
+# - fabricate evidence, transcripts, OCR, locations, timestamps, or identities
+# - treat captions/metadata/OCR/ASR as automatic truth
+# - count derivative/reposted modalities as independent corroboration
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import math
+import re
+import unicodedata
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Optional
+
+
+TOOL_VERSION = "MULTIMODALINT-PY-0.1"
+
+
+# ======================================================================
+# Enums / constants
+# ======================================================================
+
+class Mode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    BLOCK = "BLOCK"
+
+
+class Status(str, Enum):
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    BLOCKED_POLICY = "BLOCKED_POLICY"
+    BLOCKED_AUTHORIZATION = "BLOCKED_AUTHORIZATION"
+    BLOCKED_PERMISSION = "BLOCKED_PERMISSION"
+    BLOCKED_PRIVACY = "BLOCKED_PRIVACY"
+
+
+class VerificationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    DISPUTED = "DISPUTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class ContradictionType(str, Enum):
+    CONTENT = "CONTENT"
+    TEMPORAL = "TEMPORAL"
+    GEO = "GEO"
+    IDENTITY = "IDENTITY"
+    SOURCE = "SOURCE"
+    METADATA = "METADATA"
+    EVENT = "EVENT"
+    TECHNICAL = "TECHNICAL"
+
+
+class GeoPrecision(str, Enum):
+    COUNTRY = "COUNTRY"
+    REGION = "REGION"
+    CITY = "CITY"
+    NEIGHBORHOOD = "NEIGHBORHOOD"
+    SITE = "SITE"
+    EXACT = "EXACT"
+    UNKNOWN = "UNKNOWN"
+
+
+class HypothesisStatus(str, Enum):
+    CANDIDATE = "CANDIDATE"
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    SUPPORTED = "SUPPORTED"
+    WEAKENED = "WEAKENED"
+    DISPUTED = "DISPUTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    FALSIFIED = "FALSIFIED"
+
+
+OFFICIAL_PRIMARY_TYPES = {
+    "OFFICIAL_RECORD",
+    "GOVERNMENT_SOURCE",
+    "REGULATORY_SOURCE",
+    "COURT_SOURCE",
+    "COMPANY_FILING",
+    "PUBLIC_SENSOR",
+}
+
+TIME_PREDICATES = {
+    "OCCURRED_ON",
+    "OCCURRED_AT",
+    "EVENT_TIME",
+    "HAPPENED_ON",
+    "DATED",
+    "OCCURRED_AT_TIME",
+}
+
+INDEPENDENCE_PREDICATES = {
+    "INDEPENDENTLY_CORROBORATES",
+    "INDEPENDENT_SOURCE",
+    "NOT_DERIVED_FROM",
+    "INDEPENDENT_OF",
+}
+
+DIRECT_TIME_PROPERTIES = {
+    "time_claim",
+    "event_record",
+    "caption_claim",
+    "spoken_content",
+    "document_date",
+    "timestamp_claim",
+}
+
+INDIRECT_TIME_PROPERTIES = {
+    "environmental_context",
+    "metadata_timestamp",
+    "file_created_time",
+    "file_modified_time",
+    "upload_time",
+    "publication_time",
+    "retrieval_time",
+    "first_seen",
+}
+
+PROHIBITED_PROPERTIES = {
+    "face_identification",
+    "voice_identification",
+    "biometric_match",
+    "person_identity_from_face",
+    "person_identity_from_voice",
+    "private_tracking",
+    "targeting_solution",
+    "weapon_targeting",
+    "surveillance_target_package",
+}
+
+BIOMETRIC_METADATA_KEYS = {
+    "face_embedding",
+    "face_template",
+    "facial_embedding",
+    "voiceprint",
+    "voice_embedding",
+    "speaker_embedding",
+    "biometric_id",
+    "gait_embedding",
+    "iris_template",
+}
+
+SENSITIVE_METADATA_KEYS = {
+    "home_address",
+    "private_address",
+    "personal_phone",
+    "private_email",
+    "ssn",
+    "passport",
+    "national_id",
+    "private_coordinates",
+}
+
+BLOCK_PHRASES = [
+    "face recognition",
+    "facial recognition",
+    "face-to-name",
+    "identify person from face",
+    "identify real person from face",
+    "voiceprint",
+    "voiceprint identification",
+    "identify person from voice",
+    "biometric identification",
+    "biometric tracking",
+    "private-person tracking",
+    "track private person",
+    "covert surveillance",
+    "surveillance target package",
+    "targeting solution",
+    "weapon target",
+    "activate microphone",
+    "activate camera",
+    "intercept private audio",
+    "access private cctv",
+    "fabricate evidence",
+    "forge media",
+    "fake evidence",
+    "infer ethnicity from appearance",
+    "infer religion from appearance",
+    "infer medical condition from appearance",
+    "infer political ideology from appearance",
+    "lie detection from face",
+    "lie detection from voice",
+    "reveal precise private location",
+    "home address",
+    "dox",
+]
+
+
+# ======================================================================
+# Utilities
+# ======================================================================
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, float(x)))
+
+
+def mean(values: list[float], default: float = 0.0) -> float:
+    if not values:
+        return default
+    return sum(values) / len(values)
+
+
+def to_bytes(content: Any) -> Optional[bytes]:
+    if content is None:
+        return None
+    if isinstance(content, bytes):
+        return content
+    if isinstance(content, str):
+        return content.encode("utf-8", errors="ignore")
+    if isinstance(content, (dict, list)):
+        return json.dumps(content, default=str, sort_keys=True).encode("utf-8")
+    return str(content).encode("utf-8", errors="ignore")
+
+
+def hash_content(content: Any) -> str:
+    b = to_bytes(content)
+    if not b:
+        return ""
+    return hashlib.sha256(b).hexdigest()
+
+
+def norm_text(value: Any) -> str:
+    value = unicodedata.normalize("NFKC", str(value or ""))
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9\s]", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def excerpt(text: Any, limit: int = 180) -> str:
+    text = norm_text(text)
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "..."
+
+
+def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        dt = None
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %d, %Y", "%d-%m-%Y"):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+        if dt is None:
+            m = re.fullmatch(r"(\d{4})", s)
+            if m:
+                dt = datetime(int(m.group(1)), 1, 1, tzinfo=timezone.utc)
+            else:
+                return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def interval_for_value(value: Optional[str]) -> tuple[Optional[datetime], Optional[datetime]]:
+    dt = parse_dt(value)
+    if not dt:
+        return None, None
+
+    s = str(value or "").strip()
+    if re.fullmatch(r"\d{4}", s):
+        start = dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = dt.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)
+        return start, end
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        return (
+            dt.replace(hour=0, minute=0, second=0, microsecond=0),
+            dt.replace(hour=23, minute=59, second=59, microsecond=999999),
+        )
+
+    return dt, dt
+
+
+def intervals_overlap(
+    a_start: Optional[datetime],
+    a_end: Optional[datetime],
+    b_start: Optional[datetime],
+    b_end: Optional[datetime],
+) -> bool:
+    if a_end and b_start and a_end < b_start:
+        return False
+    if b_end and a_start and b_end < a_start:
+        return False
+    return True
+
+
+def haversine_km(lat1: Optional[float], lon1: Optional[float], lat2: Optional[float], lon2: Optional[float]) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def detect_magic(b: Optional[bytes]) -> str:
+    if not b:
+        return ""
+    if b.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if b.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if b.startswith(b"GIF87a") or b.startswith(b"GIF89a"):
+        return "image/gif"
+    if b.startswith(b"%PDF-"):
+        return "application/pdf"
+    if b.startswith(b"PK\x03\x04"):
+        return "application/zip"
+    if len(b) >= 12 and b[4:8] == b"ftyp":
+        return "video/mp4"
+    if b.startswith(b"\x1a\x45\xdf\xa3"):
+        return "video/x-matroska"
+    if b.startswith(b"RIFF") and len(b) >= 12 and b[8:12] == b"WAVE":
+        return "audio/wav"
+    if b.startswith(b"ID3") or b.startswith(b"\xff\xfb"):
+        return "audio/mpeg"
+    return ""
+
+
+def modality_from_mime(mime: str, content: Any) -> str:
+    m = (mime or "").lower()
+    if m.startswith("image/"):
+        return "IMAGE"
+    if m.startswith("video/"):
+        return "VIDEO"
+    if m.startswith("audio/"):
+        return "AUDIO"
+    if m in {"application/pdf"} or "msword" in m or "spreadsheet" in m or "presentation" in m:
+        return "DOCUMENT"
+    if m.startswith("text/") or m in {"application/json", "application/xml", "text/csv"}:
+        return "TEXT"
+    if isinstance(content, str):
+        return "TEXT"
+    return "UNKNOWN"
+
+
+def sanitize_metadata(metadata: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str]]:
+    if not isinstance(metadata, dict):
+        return {}, [], []
+
+    sanitized: dict[str, Any] = {}
+    removed: list[str] = []
+    flags: list[str] = []
+
+    for k, v in metadata.items():
+        lk = str(k).lower()
+        if lk in BIOMETRIC_METADATA_KEYS or "biometric" in lk or lk.startswith("face_") or "voiceprint" in lk:
+            removed.append(k)
+            continue
+        if lk in SENSITIVE_METADATA_KEYS:
+            sanitized[k] = "REDACTED"
+            removed.append(f"{k} (redacted)")
+            continue
+        sanitized[k] = v
+
+    if removed:
+        flags.append("Biometric/sensitive metadata fields were sanitized or redacted.")
+
+    return sanitized, removed, flags
+
+
+class UnionFind:
+    def __init__(self) -> None:
+        self.parent: dict[str, str] = {}
+
+    def add(self, x: str) -> None:
+        self.parent.setdefault(x, x)
+
+    def find(self, x: str) -> str:
+        self.add(x)
+        root = x
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[x] != root:
+            nxt = self.parent[x]
+            self.parent[x] = root
+            x = nxt
+        return root
+
+    def union(self, a: str, b: str) -> str:
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return ra
+        if ra < rb:
+            self.parent[rb] = ra
+            return ra
+        self.parent[ra] = rb
+        return rb
+
+
+# ======================================================================
+# Data models
+# ======================================================================
+
+@dataclass
+class PermissionContext:
+    tenant_id: str = "default"
+    case_id: str = ""
+    classification: str = "INTERNAL"
+    allowed_classifications: list[str] = field(default_factory=lambda: ["PUBLIC", "INTERNAL"])
+    authorized: bool = False
+    local_only_required: bool = False
+    can_use_cloud: bool = False
+    purpose: str = ""
+
+
+@dataclass
+class Source:
+    source_id: str
+    source_type: str = "UNKNOWN"
+    publisher: str = ""
+    upstream_source: str = ""
+    independence_group: str = ""
+    reliability: float = 0.5
+    bias: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+    classification: str = "PUBLIC"
+    tenant_id: str = "default"
+    case_id: str = ""
+    local_only: bool = False
+
+
+@dataclass
+class Artifact:
+    artifact_id: str
+    case_id: str = ""
+    source_id: str = ""
+    modality: str = "UNKNOWN"
+    artifact_type: str = "UNKNOWN"
+    filename: str = ""
+    content: Any = None
+    mime_type: str = ""
+    declared_mime: str = ""
+    size: int = 0
+    hashes: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    derived_from: list[str] = field(default_factory=list)
+    duplicate_of: list[str] = field(default_factory=list)
+    first_seen: str = ""
+    publication_time: str = ""
+    event_time_claimed: str = ""
+    captured_time_claimed: str = ""
+    retrieved_at: str = ""
+    created_at: str = ""
+    modified_at: str = ""
+    uploaded_at: str = ""
+    local_only: bool = False
+    classification: str = "PUBLIC"
+    sensitivity: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    tenant_id: str = "default"
+
+
+@dataclass
+class Observation:
+    observation_id: str
+    artifact_id: str = ""
+    source_id: str = ""
+    modality: str = "UNKNOWN"
+    observer: str = "ANALYST"
+    property_name: str = ""
+    value: Any = None
+    locator: str = ""
+    time_start: str = ""
+    time_end: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    geo_precision: str = GeoPrecision.UNKNOWN.value
+    confidence: float = 0.5
+    limitations: list[str] = field(default_factory=list)
+    provenance: list[str] = field(default_factory=list)
+    classification: str = "PUBLIC"
+    tenant_id: str = "default"
+    case_id: str = ""
+
+
+@dataclass
+class Claim:
+    claim_id: str
+    statement: str = ""
+    subject: str = ""
+    predicate: str = ""
+    object_value: str = ""
+    time_start: str = ""
+    time_end: str = ""
+    location: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    entity_ids: list[str] = field(default_factory=list)
+    artifact_ids: list[str] = field(default_factory=list)
+    observation_ids: list[str] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+    claim_type: str = "FACTUAL"
+    confidence: float = 0.5
+    limitations: list[str] = field(default_factory=list)
+    classification: str = "PUBLIC"
+    tenant_id: str = "default"
+    case_id: str = ""
+
+
+@dataclass
+class Entity:
+    entity_id: str
+    entity_type: str = "UNKNOWN"
+    display_name: str = ""
+    aliases: list[str] = field(default_factory=list)
+    identifiers: dict[str, str] = field(default_factory=dict)
+    person_candidate: bool = False
+    sensitive: bool = False
+    classification: str = "PUBLIC"
+    tenant_id: str = "default"
+    case_id: str = ""
+
+
+@dataclass
+class LocationCandidate:
+    candidate_id: str
+    name: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    precision: str = GeoPrecision.UNKNOWN.value
+    confidence: float = 0.5
+    evidence_ids: list[str] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+
+@dataclass
+class TimeCandidate:
+    candidate_id: str
+    label: str = ""
+    start: str = ""
+    end: str = ""
+    precision: str = "UNKNOWN"
+    confidence: float = 0.5
+    evidence_ids: list[str] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+
+@dataclass
+class EventCandidate:
+    event_id: str
+    description: str = ""
+    participants: list[str] = field(default_factory=list)
+    location_candidates: list[str] = field(default_factory=list)
+    time_candidates: list[str] = field(default_factory=list)
+    artifact_ids: list[str] = field(default_factory=list)
+    observation_ids: list[str] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+    status: str = "CLAIMED"
+    confidence: float = 0.5
+    contradictions: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str
+    contradiction_type: str = ContradictionType.CONTENT.value
+    objects: list[str] = field(default_factory=list)
+    values: list[str] = field(default_factory=list)
+    materiality: str = "MODERATE"
+    temporal_context: str = ""
+    explanation_candidates: list[str] = field(default_factory=list)
+    status: str = "OPEN"
+    evidence_ids: list[str] = field(default_factory=list)
+    classification: str = "PUBLIC"
+    tenant_id: str = "default"
+    case_id: str = ""
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str
+    statement: str
+    status: str = HypothesisStatus.PROPOSED.value
+    support: list[str] = field(default_factory=list)
+    opposition: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
+    falsification_tests: list[str] = field(default_factory=list)
+    confidence: float = 0.5
+
+
+@dataclass
+class Gap:
+    gap_id: str
+    question: str
+    missing_evidence: str = ""
+    importance: str = "MEDIUM"
+    expected_information_value: str = "MEDIUM"
+    suggested_specialist: str = ""
+    suggested_source: str = ""
+    status: str = "OPEN"
+
+
+@dataclass
+class MultimodalRequest:
+    case_id: str
+    objective: str
+    task_id: str = ""
+    authorization: dict[str, Any] = field(default_factory=dict)
+    permission: PermissionContext = field(default_factory=PermissionContext)
+    scope: dict[str, Any] = field(default_factory=dict)
+    time_range: dict[str, str] = field(default_factory=dict)
+    sources: list[Source] = field(default_factory=list)
+    artifacts: list[Artifact] = field(default_factory=list)
+    observations: list[Observation] = field(default_factory=list)
+    claims: list[Claim] = field(default_factory=list)
+    entities: list[Entity] = field(default_factory=list)
+    contradictions: list[Contradiction] = field(default_factory=list)
+
+
+@dataclass
+class MultimodalResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: str
+    summary: str
+
+    artifact_ids: list[str] = field(default_factory=list)
+    source_ids: list[str] = field(default_factory=list)
+    observation_ids: list[str] = field(default_factory=list)
+    claim_ids: list[str] = field(default_factory=list)
+
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
+    observations: list[dict[str, Any]] = field(default_factory=list)
+    claims: list[dict[str, Any]] = field(default_factory=list)
+    entities: list[dict[str, Any]] = field(default_factory=list)
+
+    artifact_families: dict[str, list[str]] = field(default_factory=dict)
+    duplicate_groups: list[dict[str, Any]] = field(default_factory=list)
+    derivative_relationships: list[dict[str, Any]] = field(default_factory=list)
+
+    source_families: dict[str, list[str]] = field(default_factory=dict)
+    source_independence: dict[str, Any] = field(default_factory=dict)
+
+    location_candidates: list[dict[str, Any]] = field(default_factory=list)
+    time_candidates: list[dict[str, Any]] = field(default_factory=list)
+    event_candidates: list[dict[str, Any]] = field(default_factory=list)
+
+    cross_modal_consistency: list[dict[str, Any]] = field(default_factory=list)
+    contradictions: list[dict[str, Any]] = field(default_factory=list)
+    fact_gate_results: list[dict[str, Any]] = field(default_factory=list)
+    hypotheses: list[dict[str, Any]] = field(default_factory=list)
+    dual_ai_review: list[dict[str, Any]] = field(default_factory=list)
+
+    unknowns: list[str] = field(default_factory=list)
+    knowledge_gaps: list[dict[str, Any]] = field(default_factory=list)
+    recommended_next_actions: list[str] = field(default_factory=list)
+    specialist_handoffs: list[str] = field(default_factory=list)
+
+    privacy_flags: list[str] = field(default_factory=list)
+    safety_flags: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+    replay_manifest: dict[str, Any] = field(default_factory=dict)
+    created_at: str = field(default_factory=now_iso)
+
+
+# ======================================================================
+# MULTIMODALINT agent
+# ======================================================================
+
+class MultimodalIntAgent:
+    """
+    Defensive MULTIMODALINT core.
+
+    Coordinates supplied modality observations and fuses them into a
+    temporal, geographic, provenance-aware evidence graph.
+
+    It does not run actual CV/ASR/OCR engines in this skeleton. It consumes
+    structured specialist observations and prevents overclaiming.
+    """
+
+    def __init__(self, mode: Mode = Mode.LOCAL_ONLY) -> None:
+        self.mode = mode
+        self.memory: list[dict[str, Any]] = []
+
+    # ------------------------------------------------------------------
+    # Policy / authorization
+    # ------------------------------------------------------------------
+
+    def policy_check(self, req: MultimodalRequest) -> tuple[PolicyDecision, str, str]:
+        blob = " ".join(
+            [
+                req.objective,
+                req.task_id,
+                json.dumps(req.scope, default=str),
+                json.dumps(req.authorization, default=str),
+                json.dumps(asdict(req.permission), default=str),
+            ]
+        ).lower()
+
+        if not req.permission.authorized:
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_AUTHORIZATION.value,
+                "MULTIMODALINT requires explicit authorized permission context.",
+            )
+
+        if req.authorization.get("authorized") is False:
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_AUTHORIZATION.value,
+                "Authorization explicitly denied.",
+            )
+
+        if req.scope.get("biometric_identification"):
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_POLICY.value,
+                "Biometric identification is prohibited.",
+            )
+
+        if req.scope.get("private_tracking") or req.scope.get("surveillance_targeting"):
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_POLICY.value,
+                "Private-person tracking or surveillance targeting is prohibited.",
+            )
+
+        if req.scope.get("targeting") or req.scope.get("weapon_targeting"):
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_POLICY.value,
+                "Targeting or weapon-target generation is prohibited.",
+            )
+
+        if req.scope.get("fabricate_evidence"):
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_POLICY.value,
+                "Evidence fabrication is prohibited.",
+            )
+
+        for phrase in BLOCK_PHRASES:
+            if phrase in blob:
+                return (
+                    PolicyDecision.BLOCK,
+                    Status.BLOCKED_POLICY.value,
+                    f"Prohibited multimodal-intelligence action requested: {phrase}",
+                )
+
+        if req.scope.get("send_to_cloud") and (
+            req.permission.local_only_required
+            or any(a.local_only for a in req.artifacts)
+            or any(s.local_only for s in req.sources)
+        ):
+            return (
+                PolicyDecision.BLOCK,
+                Status.BLOCKED_PRIVACY.value,
+                "LOCAL_ONLY evidence must not be sent to cloud models.",
+            )
+
+        return PolicyDecision.ALLOW, "", ""
+
+    def blocked_result(self, req: MultimodalRequest, code: str, reason: str) -> MultimodalResult:
+        return MultimodalResult(
+            case_id=req.case_id,
+            task_id=req.task_id,
+            objective=req.objective,
+            status=code,
+            policy_decision=PolicyDecision.BLOCK.value,
+            summary=f"POLICY_BLOCKED: {reason}",
+            unknowns=["Request outside defensive MULTIMODALINT boundary."],
+            recommended_next_actions=[
+                "Reframe request as authorized, privacy-aware, non-biometric multimodal evidence fusion."
+            ],
+            privacy_flags=[reason],
+            safety_flags=[reason],
+            limitations=[reason],
+            replay_manifest={},
+            created_at=now_iso(),
+        )
+
+    # ------------------------------------------------------------------
+    # Access control
+    # ------------------------------------------------------------------
+
+    def _accessible(self, obj: Any, perm: PermissionContext) -> bool:
+        tenant = getattr(obj, "tenant_id", "default")
+        if perm.tenant_id != "*" and tenant != perm.tenant_id:
+            return False
+
+        case = getattr(obj, "case_id", "")
+        cls = getattr(obj, "classification", "PUBLIC")
+
+        if case and perm.case_id and case != perm.case_id and cls != "PUBLIC":
+            return False
+
+        if cls not in perm.allowed_classifications:
+            return False
+
+        return True
+
+    # ------------------------------------------------------------------
+    # Artifact preparation / preservation / duplicate detection
+    # ------------------------------------------------------------------
+
+    def _prepare_artifacts(
+        self,
+        artifacts: list[Artifact],
+        perm: PermissionContext,
+    ) -> tuple[list[Artifact], dict[str, str], list[dict[str, Any]], list[dict[str, Any]]]:
+        prepared: list[Artifact] = []
+
+        for orig in artifacts:
+            if not self._accessible(orig, perm):
+                continue
+
+            a = copy.deepcopy(orig)
+
+            if not isinstance(a.metadata, dict):
+                a.metadata = {}
+
+            b = to_bytes(a.content)
+            if b:
+                h = hashlib.sha256(b).hexdigest()
+                a.hashes.setdefault("sha256", h)
+                if not a.size:
+                    a.size = len(b)
+
+                mime = detect_magic(b)
+                if mime and not a.mime_type:
+                    a.mime_type = mime
+
+            if not a.modality or a.modality == "UNKNOWN":
+                a.modality = modality_from_mime(a.mime_type, a.content)
+
+            if not a.artifact_type or a.artifact_type == "UNKNOWN":
+                a.artifact_type = a.modality
+
+            sanitized, removed, flags = sanitize_metadata(a.metadata)
+            a.metadata = sanitized
+            if removed:
+                a.limitations.append("Sanitized metadata keys: " + ", ".join(sorted(set(removed))))
+
+            prepared.append(a)
+
+        amap = {a.artifact_id: a for a in prepared}
+
+        # Validate derivative references.
+        for a in prepared:
+            for d in list(a.derived_from):
+                if d not in amap:
+                    a.limitations.append(f"derived_from unresolved: {d}")
+
+        # Exact duplicate detection by cryptographic hash.
+        duplicate_groups: list[dict[str, Any]] = []
+        by_hash: dict[str, list[str]] = defaultdict(list)
+        for a in prepared:
+            h = a.hashes.get("sha256")
+            if h:
+                by_hash[h].append(a.artifact_id)
+
+        for h, ids in by_hash.items():
+            if len(ids) > 1:
+                ids_sorted = sorted(ids)
+                duplicate_groups.append(
+                    {
+                        "basis": "identical_sha256",
+                        "hash": h,
+                        "artifact_ids": ids_sorted,
+                        "note": "Exact byte duplicates are one evidence family, not independent corroboration.",
+                    }
+                )
+                for aid in ids_sorted[1:]:
+                    art = amap[aid]
+                    if ids_sorted[0] not in art.duplicate_of:
+                        art.duplicate_of.append(ids_sorted[0])
+
+        # Artifact root union-find over derivatives and exact duplicates.
+        uf = UnionFind()
+        for a in prepared:
+            uf.add(a.artifact_id)
+
+        derivative_relationships: list[dict[str, Any]] = []
+
+        for a in prepared:
+            for d in a.derived_from:
+                if d in amap:
+                    uf.union(a.artifact_id, d)
+                    derivative_relationships.append(
+                        {
+                            "from": a.artifact_id,
+                            "to": d,
+                            "relation": "DERIVED_FROM",
+                            "note": "Derivative artifact must not be counted as independent original evidence.",
+                        }
+                    )
+
+            for d in a.duplicate_of:
+                if d in amap:
+                    uf.union(a.artifact_id, d)
+                    derivative_relationships.append(
+                        {
+                            "from": a.artifact_id,
+                            "to": d,
+                            "relation": "EXACT_DUPLICATE_OF",
+                            "note": "Exact duplicate is one evidence family.",
+                        }
+                    )
+
+        roots = {aid: uf.find(aid) for aid in amap}
+        artifact_families: dict[str, list[str]] = defaultdict(list)
+        for aid, root in roots.items():
+            artifact_families[root].append(aid)
+
+        return prepared, roots, duplicate_groups, derivative_relationships
+
+    # ------------------------------------------------------------------
+    # Source families
+    # ------------------------------------------------------------------
+
+    def _source_families(self, source_map: dict[str, Source]) -> dict[str, str]:
+        families: dict[str, str] = {}
+        for sid, source in source_map.items():
+            families[sid] = source.upstream_source or source.independence_group or sid
+        return families
+
+    # ------------------------------------------------------------------
+    # Location / time candidates
+    # ------------------------------------------------------------------
+
+    def _build_location_candidates(
+        self,
+        observations: list[Observation],
+        artifact_map: dict[str, Artifact],
+        source_map: dict[str, Source],
+    ) -> list[LocationCandidate]:
+        candidates: dict[str, LocationCandidate] = {}
+
+        geo_properties = {
+            "geolocation_candidate",
+            "location_claim",
+            "visible_landmark",
+            "map_feature",
+            "gps_metadata",
+            "address_claim",
+        }
+
+        for obs in observations:
+            prop = (obs.property_name or "").lower()
+            if prop not in geo_properties and obs.lat is None:
+                continue
+
+            name = str(obs.value or "")
+            if obs.lat is not None and obs.lon is not None:
+                key = f"coord:{round(float(obs.lat), 3)},{round(float(obs.lon), 3)}"
+            else:
+                key = f"name:{norm_text(name)}"
+
+            if not key or key == "name:":
+                continue
+
+            source_id = obs.source_id or (artifact_map.get(obs.artifact_id).source_id if artifact_map.get(obs.artifact_id) else "")
+            confidence = clamp(obs.confidence)
+
+            cand = candidates.get(key)
+            if not cand:
+                cand = LocationCandidate(
+                    candidate_id=f"GEO-{hashlib.sha256(key.encode()).hexdigest()[:10]}",
+                    name=name,
+                    lat=obs.lat,
+                    lon=obs.lon,
+                    precision=obs.geo_precision or GeoPrecision.UNKNOWN.value,
+                    confidence=confidence,
+                    evidence_ids=[obs.observation_id],
+                    source_ids=[source_id] if source_id else [],
+                    limitations=list(obs.limitations),
+                )
+                candidates[key] = cand
+            else:
+                cand.confidence = max(cand.confidence, confidence)
+                if obs.observation_id not in cand.evidence_ids:
+                    cand.evidence_ids.append(obs.observation_id)
+                if source_id and source_id not in cand.source_ids:
+                    cand.source_ids.append(source_id)
+                for lim in obs.limitations:
+                    if lim not in cand.limitations:
+                        cand.limitations.append(lim)
+                if cand.precision == GeoPrecision.UNKNOWN.value and obs.geo_precision:
+                    cand.precision = obs.geo_precision
+
+        return list(candidates.values())
+
+    def _build_time_candidates(
+        self,
+        artifacts: list[Artifact],
+        observations: list[Observation],
+    ) -> list[TimeCandidate]:
+        candidates: dict[str, TimeCandidate] = {}
+
+        field_labels = {
+            "event_time_claimed": "EVENT_TIME_CLAIMED",
+            "captured_time_claimed": "CAPTURED_TIME_CLAIMED",
+            "created_at": "FILE_CREATED_TIME",
+            "modified_at": "FILE_MODIFIED_TIME",
+            "uploaded_at": "UPLOAD_TIME",
+            "publication_time": "PUBLICATION_TIME",
+            "first_seen": "FIRST_SEEN",
+            "retrieved_at": "RETRIEVAL_TIME",
+        }
+
+        def add_candidate(
+            candidate_id: str,
+            label: str,
+            value: Optional[str],
+            confidence: float,
+            evidence_id: str,
+            source_id: str,
+            limitations: list[str],
+        ) -> None:
+            if not value:
+                return
+            start, end = interval_for_value(value)
+            if not start and not end:
+                return
+
+            cand = candidates.get(candidate_id)
+            if not cand:
+                candidates[candidate_id] = TimeCandidate(
+                    candidate_id=candidate_id,
+                    label=label,
+                    start=start.isoformat() if start else "",
+                    end=end.isoformat() if end else "",
+                    precision="DATE" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value)) else "UNKNOWN",
+                    confidence=clamp(confidence),
+                    evidence_ids=[evidence_id] if evidence_id else [],
+                    source_ids=[source_id] if source_id else [],
+                    limitations=list(limitations),
+                )
+            else:
+                cand.confidence = max(cand.confidence, clamp(confidence))
+                if evidence_id and evidence_id not in cand.evidence_ids:
+                    cand.evidence_ids.append(evidence_id)
+                if source_id and source_id not in cand.source_ids:
+                    cand.source_ids.append(source_id)
+                for lim in limitations:
+                    if lim not in cand.limitations:
+                        cand.limitations.append(lim)
+
+        for a in artifacts:
+            for field_name, label in field_labels.items():
+                value = getattr(a, field_name, "")
+                add_candidate(
+                    candidate_id=f"TIME-{a.artifact_id}-{label}",
+                    label=label,
+                    value=value,
+                    confidence=0.75,
+                    evidence_id=a.artifact_id,
+                    source_id=a.source_id,
+                    limitations=[f"{label} is a timestamp semantic, not automatically event time."],
+                )
+
+        time_properties = {
+            "time_claim",
+            "event_record",
+            "metadata_timestamp",
+            "file_created_time",
+            "upload_time",
+            "publication_time",
+            "captured_time",
+        }
+
+        for obs in observations:
+            prop = (obs.property_name or "").lower()
+            if prop not in time_properties:
+                continue
+            value = str(obs.value or "")
+            add_candidate(
+                candidate_id=f"TIME-{obs.observation_id}",
+                label=prop.upper(),
+                value=value,
+                confidence=obs.confidence,
+                evidence_id=obs.observation_id,
+                source_id=obs.source_id,
+                limitations=list(obs.limitations),
+            )
+
+        return list(candidates.values())
+
+    # ------------------------------------------------------------------
+    # Contradiction detection
+    # ------------------------------------------------------------------
+
+    def _detect_contradictions(
+        self,
+        claims: list[Claim],
+        observations: list[Observation],
+        location_candidates: list[LocationCandidate],
+        artifact_map: dict[str, Artifact],
+    ) -> list[Contradiction]:
+        contradictions: list[Contradiction] = []
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+
+        def add_contradiction(c: Contradiction) -> None:
+            key = (c.contradiction_type, tuple(sorted(c.objects)))
+            if key in seen:
+                return
+            seen.add(key)
+            contradictions.append(c)
+
+        # Claim-level contradictions: same subject/predicate, different object, overlapping time.
+        by_subject_predicate: dict[tuple[str, str], list[Claim]] = defaultdict(list)
+        for claim in claims:
+            by_subject_predicate[(norm_text(claim.subject), claim.predicate.upper())].append(claim)
+
+        for group in by_subject_predicate.values():
+            for i in range(len(group)):
+                for j in range(i + 1, len(group)):
+                    a, b = group[i], group[j]
+                    if norm_text(a.object_value) == norm_text(b.object_value):
+                        continue
+
+                    a_s, a_e = interval_for_value(a.time_start or a.time_end)
+                    b_s, b_e = interval_for_value(b.time_start or b.time_end)
+
+                    has_time = bool(a_s or a_e or b_s or b_e)
+                    if has_time and not intervals_overlap(a_s, a_e, b_s, b_e):
+                        continue
+
+                    materiality = "MATERIAL" if has_time else "MODERATE"
+                    add_contradiction(
+                        Contradiction(
+                            contradiction_id=f"CONTRA-CLAIM-{hashlib.sha256((a.claim_id + b.claim_id).encode()).hexdigest()[:10]}",
+                            contradiction_type=ContradictionType.CONTENT.value,
+                            objects=[a.claim_id, b.claim_id],
+                            values=[a.object_value, b.object_value],
+                            materiality=materiality,
+                            temporal_context=f"{a.time_start or a.time_end} / {b.time_start or b.time_end}",
+                            explanation_candidates=[
+                                "different_time_periods",
+                                "different_entity_resolution",
+                                "different_scope_or_definition",
+                                "source_error",
+                                "version_or_update_lag",
+                            ],
+                            evidence_ids=sorted(set(a.observation_ids + b.observation_ids)),
+                        )
+                    )
+
+        # Observation-level contradictions: same artifact + same property, different high-confidence values.
+        by_artifact_property: dict[tuple[str, str], list[Observation]] = defaultdict(list)
+        for obs in observations:
+            if obs.property_name:
+                by_artifact_property[(obs.artifact_id, obs.property_name.upper())].append(obs)
+
+        for (artifact_id, prop), group in by_artifact_property.items():
+            vals = {norm_text(str(o.value)) for o in group if o.confidence >= 0.55 and o.value is not None}
+            if len(vals) > 1:
+                ids = [o.observation_id for o in group if o.confidence >= 0.55]
+                ctype = ContradictionType.GEO.value if "geo" in prop.lower() or "location" in prop.lower() else ContradictionType.CONTENT.value
+                add_contradiction(
+                    Contradiction(
+                        contradiction_id=f"CONTRA-OBS-{hashlib.sha256((artifact_id + prop).encode()).hexdigest()[:10]}",
+                        contradiction_type=ctype,
+                        objects=ids,
+                        values=sorted(vals),
+                        materiality="MODERATE",
+                        temporal_context="same artifact/property",
+                        explanation_candidates=[
+                            "parser_error",
+                            "ocr_asr_uncertainty",
+                            "different_frame_or_segment",
+                            "metadata_conflict",
+                            "analyst_disagreement",
+                        ],
+                        evidence_ids=ids,
+                    )
+                )
+
+        # Geographic candidate contradictions by distance.
+        for i in range(len(location_candidates)):
+            for j in range(i + 1, len(location_candidates)):
+                a, b = location_candidates[i], location_candidates[j]
+                if a.lat is None or a.lon is None or b.lat is None or b.lon is None:
+                    continue
+                if a.confidence < 0.55 or b.confidence < 0.55:
+                    continue
+                if a.precision in {GeoPrecision.COUNTRY.value, GeoPrecision.REGION.value, GeoPrecision.UNKNOWN.value}:
+                    continue
+                if b.precision in {GeoPrecision.COUNTRY.value, GeoPrecision.REGION.value, GeoPrecision.UNKNOWN.value}:
+                    continue
+
+                dist = haversine_km(a.lat, a.lon, b.lat, b.lon)
+                if dist is not None and dist > 50.0:
+                    add_contradiction(
+                        Contradiction(
+                            contradiction_id=f"CONTRA-GEO-{hashlib.sha256((a.candidate_id + b.candidate_id).encode()).hexdigest()[:10]}",
+                            contradiction_type=ContradictionType.GEO.value,
+                            objects=[a.candidate_id, b.candidate_id],
+                            values=[a.name, b.name],
+                            materiality="MATERIAL",
+                            temporal_context=f"distance_km={dist:.1f}",
+                            explanation_candidates=[
+                                "wrong_gps_metadata",
+                                "reposted_media",
+                                "similar_locations",
+                                "map_provider_error",
+                                "different_event_phase",
+                            ],
+                            evidence_ids=sorted(set(a.evidence_ids + b.evidence_ids)),
+                        )
+                    )
+
+        return contradictions
+
+    def _merge_contradictions(
+        self,
+        supplied: list[Contradiction],
+        detected: list[Contradiction],
+    ) -> list[Contradiction]:
+        out: dict[Any, Contradiction] = {}
+        for c in supplied + detected:
+            key = c.contradiction_id or (c.contradiction_type, tuple(sorted(c.objects)))
+            if key not in out:
+                out[key] = c
+        return list(out.values())
+
+    # ------------------------------------------------------------------
+    # Fact gate
+    # ------------------------------------------------------------------
+
+    def _temporal_fit(
+        self,
+        claim: Claim,
+        observations: list[Observation],
+        artifact_map: dict[str, Artifact],
+    ) -> float:
+        c_s, c_e = interval_for_value(claim.time_start or claim.time_end)
+        if not c_s and not c_e:
+            return 0.7
+
+        best = 0.0
+        for obs in observations:
+            o_s, o_e = interval_for_value(obs.time_start or obs.time_end)
+
+            # Fall back to artifact claimed event time if observation has no time.
+            if not o_s and not o_e and obs.artifact_id in artifact_map:
+                art = artifact_map[obs.artifact_id]
+                o_s, o_e = interval_for_value(art.event_time_claimed or art.captured_time_claimed)
+
+            if not o_s and not o_e:
+                best = max(best, 0.5)
+                continue
+
+            if intervals_overlap(c_s, c_e, o_s, o_e):
+                best = max(best, 1.0)
+            else:
+                best = max(best, 0.1)
+
+        return best
+
+    def _geo_fit(
+        self,
+        claim: Claim,
+        observations: list[Observation],
+    ) -> float:
+        best = 0.0
+        claim_loc = norm_text(claim.location)
+
+        for obs in observations:
+            if claim.lat is not None and claim.lon is not None and obs.lat is not None and obs.lon is not None:
+                dist = haversine_km(claim.lat, claim.lon, obs.lat, obs.lon)
+                if dist is None:
+                    continue
+                if dist <= 1.0:
+                    score = 1.0
+                elif dist <= 10.0:
+                    score = 0.8
+                elif dist <= 50.0:
+                    score = 0.6
+                else:
+                    score = 0.1
+                best = max(best, score)
+                continue
+
+            obs_val = norm_text(str(obs.value or ""))
+            if claim_loc and obs_val:
+                if claim_loc in obs_val or obs_val in claim_loc:
+                    best = max(best, 0.9)
+                else:
+                    best = max(best, 0.3)
+            else:
+                best = max(best, 0.6)
+
+        return best or 0.6
+
+    def _fact_gate_claim(
+        self,
+        claim: Claim,
+        obs_map: dict[str, Observation],
+        artifact_map: dict[str, Artifact],
+        source_map: dict[str, Source],
+        source_families: dict[str, str],
+        artifact_roots: dict[str, str],
+        contradictions: list[Contradiction],
+        privacy_flags: set[str],
+    ) -> dict[str, Any]:
+        limitations: list[str] = []
+        claim_privacy_flags: list[str] = []
+
+        supporting: list[Observation] = []
+        for oid in claim.observation_ids:
+            obs = obs_map.get(oid)
+            if not obs:
+                limitations.append(f"missing observation {oid}")
+                continue
+            supporting.append(obs)
+
+        if not supporting:
+            return {
+                "claim_id": claim.claim_id,
+                "state": VerificationState.UNSUPPORTED.value,
+                "confidence": 0.0,
+                "components": {},
+                "supporting_observation_ids": [],
+                "source_ids": [],
+                "source_families": [],
+                "artifact_roots": [],
+                "independent_evidence_paths": 0,
+                "modality_count": 0,
+                "modalities": [],
+                "dependent_modality_warning": False,
+                "average_confidence": 0.0,
+                "temporal_fit": 0.0,
+                "geo_fit": 0.0,
+                "official_primary": False,
+                "low_confidence_derived_text": False,
+                "metadata_only_temporal": False,
+                "material_contradiction": False,
+                "relevant_contradiction_ids": [],
+                "limitations": ["No linked evidence."],
+                "privacy_flags": [],
+            }
+
+        prohibited = False
+        source_ids: set[str] = set()
+        family_set: set[str] = set()
+        root_set: set[str] = set()
+        modalities: set[str] = set()
+        confs: list[float] = []
+        official_primary = False
+
+        for obs in supporting:
+            if (obs.property_name or "").lower() in PROHIBITED_PROPERTIES:
+                prohibited = True
+                claim_privacy_flags.append(
+                    f"{claim.claim_id}: prohibited biometric/identity inference observation excluded from support."
+                )
+                continue
+
+            art = artifact_map.get(obs.artifact_id)
+            sid = obs.source_id or (art.source_id if art else "")
+            if sid:
+                source_ids.add(sid)
+                family_set.add(source_families.get(sid, sid))
+                source = source_map.get(sid)
+                if source and source.source_type.upper() in OFFICIAL_PRIMARY_TYPES and source.reliability >= 0.90:
+                    official_primary = True
+
+            root_set.add(artifact_roots.get(obs.artifact_id, obs.artifact_id or obs.observation_id))
+            modalities.add((obs.modality or (art.modality if art else "UNKNOWN")).upper())
+            confs.append(clamp(obs.confidence))
+
+        if prohibited and not confs:
+            return {
+                "claim_id": claim.claim_id,
+                "state": VerificationState.UNSUPPORTED.value,
+                "confidence": 0.0,
+                "components": {"prohibited_inference": 1.0},
+                "supporting_observation_ids": [o.observation_id for o in supporting],
+                "source_ids": sorted(source_ids),
+                "source_families": sorted(family_set),
+                "artifact_roots": sorted(root_set),
+                "independent_evidence_paths": 0,
+                "modality_count": 0,
+                "modalities": [],
+                "dependent_modality_warning": False,
+                "average_confidence": 0.0,
+                "temporal_fit": 0.0,
+                "geo_fit": 0.0,
+                "official_primary": False,
+                "low_confidence_derived_text": False,
+                "metadata_only_temporal": False,
+                "material_contradiction": False,
+                "relevant_contradiction_ids": [],
+                "limitations": ["Prohibited biometric/identity inference is not usable as evidence."],
+                "privacy_flags": claim_privacy_flags,
+            }
+
+        avg_conf = mean(confs, 0.0)
+        independent_paths = len(family_set)
+        modality_count = len(modalities)
+        dependent_modality_warning = modality_count > 1 and (independent_paths <= 1 or len(root_set) <= 1)
+
+        low_confidence_derived_text = any(
+            (obs.observer or "").upper() in {"OCR", "ASR", "TRANSLATION"} and obs.confidence < 0.65
+            for obs in supporting
+        )
+
+        temporal_fit = self._temporal_fit(claim, supporting, artifact_map)
+        geo_fit = self._geo_fit(claim, supporting)
+
+        predicate = claim.predicate.upper()
+        time_predicate = predicate in TIME_PREDICATES or bool(claim.time_start or claim.time_end)
+
+        metadata_only_temporal = False
+        if time_predicate:
+            metadata_only_temporal = all(
+                (obs.observer or "").upper() == "METADATAINT"
+                or (obs.property_name or "").lower() in INDIRECT_TIME_PROPERTIES
+                for obs in supporting
+            )
+
+        direct_time_families: set[str] = set()
+        if time_predicate:
+            c_s, c_e = interval_for_value(claim.time_start or claim.time_end)
+            for obs in supporting:
+                prop = (obs.property_name or "").lower()
+                if prop not in DIRECT_TIME_PROPERTIES:
+                    continue
+                o_s, o_e = interval_for_value(obs.time_start or obs.time_end)
+                if not o_s and not o_e and obs.artifact_id in artifact_map:
+                    art = artifact_map[obs.artifact_id]
+                    o_s, o_e = interval_for_value(art.event_time_claimed or art.captured_time_claimed)
+                if (o_s or o_e) and c_s and c_e and not intervals_overlap(c_s, c_e, o_s, o_e):
+                    continue
+                sid = obs.source_id or (artifact_map.get(obs.artifact_id).source_id if artifact_map.get(obs.artifact_id) else "")
+                fam = source_families.get(sid, sid or "UNKNOWN")
+                direct_time_families.add(fam)
+
+        relevant_contras = [
+            c
+            for c in contradictions
+            if c.status.upper() != "RESOLVED"
+            and (
+                claim.claim_id in c.objects
+                or set(c.objects) & set(claim.observation_ids)
+                or set(c.evidence_ids) & set(claim.observation_ids)
+            )
+        ]
+        material_contradiction = any(
+            c.materiality.upper() in {"MATERIAL", "HIGH", "CRITICAL"} for c in relevant_contras
+        )
+
+        if material_contradiction:
+            limitations.append("Open material contradiction affects this claim.")
+
+        if low_confidence_derived_text:
+            limitations.append("Low-confidence OCR/ASR/translation contributes to support; validate material values.")
+
+        if dependent_modality_warning:
+            limitations.append("Cross-modal agreement may derive from one artifact/source family, not independent corroboration.")
+
+        if metadata_only_temporal:
+            limitations.append("Metadata/upload/publication timestamps do not establish event time.")
+
+        if time_predicate and not direct_time_families:
+            limitations.append("No direct event-time evidence found; only indirect/contextual time signals.")
+
+        if predicate in INDEPENDENCE_PREDICATES:
+            if independent_paths < 2 or len(root_set) < 2:
+                limitations.append("Claimed independence is not supported; evidence paths are dependent or derivative.")
+
+        # Initial state.
+        if prohibited:
+            state = VerificationState.UNSUPPORTED
+        elif not supporting:
+            state = VerificationState.UNSUPPORTED
+        elif material_contradiction:
+            state = VerificationState.DISPUTED
+        elif predicate in INDEPENDENCE_PREDICATES and (independent_paths < 2 or len(root_set) < 2):
+            state = VerificationState.INCONCLUSIVE
+        elif metadata_only_temporal:
+            state = VerificationState.INCONCLUSIVE
+        elif low_confidence_derived_text and independent_paths < 2:
+            state = VerificationState.INCONCLUSIVE
+        elif independent_paths >= 2 and avg_conf >= 0.65 and temporal_fit >= 0.5 and geo_fit >= 0.5:
+            state = VerificationState.SUPPORTED
+        elif official_primary and avg_conf >= 0.70 and not material_contradiction:
+            state = VerificationState.SUPPORTED
+        elif independent_paths >= 1 and avg_conf >= 0.55:
+            state = VerificationState.PARTIALLY_SUPPORTED
+        else:
+            state = VerificationState.INCONCLUSIVE
+
+        # Conservative caps for time claims.
+        if time_predicate and state == VerificationState.SUPPORTED:
+            if not direct_time_families:
+                state = VerificationState.PARTIALLY_SUPPORTED
+            elif len(direct_time_families) < 2 and not official_primary:
+                state = VerificationState.PARTIALLY_SUPPORTED
+
+        penalty = 0.0
+        if material_contradiction:
+            penalty += 0.35
+        if low_confidence_derived_text:
+            penalty += 0.08
+        if metadata_only_temporal:
+            penalty += 0.15
+        if dependent_modality_warning:
+            penalty += 0.05
+
+        confidence = clamp(
+            0.15
+            + 0.25 * avg_conf
+            + 0.20 * min(1.0, independent_paths / 2.0)
+            + 0.10 * temporal_fit
+            + 0.10 * geo_fit
+            + (0.10 if official_primary else 0.0)
+            - penalty
+        )
+
+        return {
+            "claim_id": claim.claim_id,
+            "state": state.value,
+            "confidence": round(confidence, 3),
+            "components": {
+                "average_observation_confidence": round(avg_conf, 3),
+                "independent_source_families": independent_paths,
+                "artifact_roots": len(root_set),
+                "modality_count": modality_count,
+                "temporal_fit": round(temporal_fit, 3),
+                "geo_fit": round(geo_fit, 3),
+                "official_primary": official_primary,
+                "penalty": round(penalty, 3),
+            },
+            "supporting_observation_ids": [o.observation_id for o in supporting],
+            "source_ids": sorted(source_ids),
+            "source_families": sorted(family_set),
+            "artifact_roots": sorted(root_set),
+            "independent_evidence_paths": independent_paths,
+            "modality_count": modality_count,
+            "modalities": sorted(modalities),
+            "dependent_modality_warning": dependent_modality_warning,
+            "average_confidence": round(avg_conf, 3),
+            "temporal_fit": round(temporal_fit, 3),
+            "geo_fit": round(geo_fit, 3),
+            "official_primary": official_primary,
+            "low_confidence_derived_text": low_confidence_derived_text,
+            "metadata_only_temporal": metadata_only_temporal,
+            "material_contradiction": material_contradiction,
+            "relevant_contradiction_ids": [c.contradiction_id for c in relevant_contras],
+            "limitations": sorted(set(limitations)),
+            "privacy_flags": claim_privacy_flags,
+        }
+
+    # ------------------------------------------------------------------
+    # Hypotheses
+    # ------------------------------------------------------------------
+
+    def _generate_hypotheses(
+        self,
+        claims: list[Claim],
+        fact_results: list[dict[str, Any]],
+        contradictions: list[Contradiction],
+        observations: list[Observation],
+    ) -> list[Hypothesis]:
+        fact_by_id = {fr["claim_id"]: fr for fr in fact_results}
+        obs_by_id = {o.observation_id: o for o in observations}
+        hypotheses: list[Hypothesis] = []
+
+        for claim in claims:
+            fr = fact_by_id.get(claim.claim_id, {})
+            state = fr.get("state", VerificationState.INCONCLUSIVE.value)
+            base = f"H-{claim.claim_id}"
+
+            support_h1 = []
+            if state == VerificationState.SUPPORTED.value:
+                support_h1.append("Fact gate: SUPPORTED with independent evidence paths.")
+            elif state == VerificationState.PARTIALLY_SUPPORTED.value:
+                support_h1.append("Fact gate: PARTIALLY_SUPPORTED.")
+            elif state == VerificationState.DISPUTED.value:
+                support_h1.append("Claim exists but is disputed by contradiction evidence.")
+
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-TRUE",
+                    statement=claim.statement or f"Claim {claim.claim_id} is true as stated.",
+                    status=(
+                        HypothesisStatus.SUPPORTED.value
+                        if state == VerificationState.SUPPORTED.value
+                        else HypothesisStatus.ACTIVE.value
+                        if state == VerificationState.PARTIALLY_SUPPORTED.value
+                        else HypothesisStatus.DISPUTED.value
+                        if state == VerificationState.DISPUTED.value
+                        else HypothesisStatus.INCONCLUSIVE.value
+                    ),
+                    support=support_h1,
+                    opposition=["Falsehood/error remains possible; fact gate is evidentiary, not legal truth."],
+                    assumptions=["Current evidence is sufficient for the exact proposition."],
+                    unknowns=["Whether later primary evidence supersedes current assessment."],
+                    falsification_tests=[
+                        "Retrieve authoritative primary record contradicting the claim.",
+                        "Identify independent source showing different time/location/entity.",
+                    ],
+                    confidence=fr.get("confidence", 0.5),
+                )
+            )
+
+            caption_obs = [obs_by_id[oid] for oid in claim.observation_ids if oid in obs_by_id and (obs_by_id[oid].property_name or "").lower() == "caption_claim"]
+            visual_obs = [obs_by_id[oid] for oid in claim.observation_ids if oid in obs_by_id and (obs_by_id[oid].modality or "").upper() in {"IMAGE", "VIDEO"}]
+
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-AUTHENTIC_BUT_MISCAPTIONED",
+                    statement="Artifact/media may be authentic while caption/context is false or misleading.",
+                    status=HypothesisStatus.CANDIDATE.value if caption_obs else HypothesisStatus.PROPOSED.value,
+                    support=["Caption/source claim present alongside visual/media observations."] if caption_obs and visual_obs else [],
+                    opposition=["No explicit caption/media mismatch detected in supplied observations."] if not caption_obs or not visual_obs else [],
+                    assumptions=["Media authenticity and contextual truth are separate dimensions."],
+                    unknowns=["Who originated the caption? Was it copied from an upstream source?"],
+                    falsification_tests=[
+                        "Retrieve earliest known caption/source.",
+                        "Compare archive snapshots and independent contemporaneous reports.",
+                    ],
+                    confidence=0.45,
+                )
+            )
+
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-OLD_OR_REUSED",
+                    statement="Content may be old, recycled, or reused out of context.",
+                    status=(
+                        HypothesisStatus.ACTIVE.value
+                        if fr.get("metadata_only_temporal") or fr.get("independent_evidence_paths", 0) < 2
+                        else HypothesisStatus.CANDIDATE.value
+                    ),
+                    support=[
+                        "No independent contemporaneous event-time evidence."
+                        if fr.get("independent_evidence_paths", 0) < 2
+                        else "",
+                        "Metadata timestamps may reflect upload/creation, not event time."
+                        if fr.get("metadata_only_temporal")
+                        else "",
+                    ],
+                    opposition=["Independent date/location evidence may reduce reuse risk."],
+                    assumptions=["Earlier archive or independent record would reveal reuse."],
+                    unknowns=["Earliest known publication date is unresolved."],
+                    falsification_tests=[
+                        "Search public archives for earlier appearance.",
+                        "Obtain independent contemporaneous primary record.",
+                    ],
+                    confidence=0.45,
+                )
+            )
+
+            geo_contras = [c for c in contradictions if c.contradiction_type == ContradictionType.GEO.value and set(c.objects) & set(claim.observation_ids)]
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-DIFFERENT_LOCATION",
+                    statement="Content may depict a different location than claimed.",
+                    status=HypothesisStatus.ACTIVE.value if geo_contras or fr.get("geo_fit", 1.0) < 0.5 else HypothesisStatus.CANDIDATE.value,
+                    support=["Geographic contradiction present."] if geo_contras else [],
+                    opposition=["Visual/geographic evidence supports claimed location."] if fr.get("geo_fit", 0.0) >= 0.7 else [],
+                    assumptions=["Landmarks/signage/map features are correctly interpreted."],
+                    unknowns=["Whether signage is current, relocated, or displayed on another screen."],
+                    falsification_tests=[
+                        "Verify unique landmarks with independent public imagery.",
+                        "Check road geometry, transit signage, and sun/shadow context via GEOINT.",
+                    ],
+                    confidence=0.40,
+                )
+            )
+
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-DEPENDENT_SOURCES",
+                    statement="Apparent corroboration may derive from one upstream source/artifact family.",
+                    status=(
+                        HypothesisStatus.ACTIVE.value
+                        if fr.get("dependent_modality_warning") or fr.get("independent_evidence_paths", 0) < 2
+                        else HypothesisStatus.CANDIDATE.value
+                    ),
+                    support=[
+                        "Cross-modal agreement may come from same artifact family."
+                        if fr.get("dependent_modality_warning")
+                        else "",
+                        "Fewer than two independent source families support the claim."
+                        if fr.get("independent_evidence_paths", 0) < 2
+                        else "",
+                    ],
+                    opposition=["Multiple independent source families were identified."] if fr.get("independent_evidence_paths", 0) >= 2 else [],
+                    assumptions=["Source pedigree and derivative relationships are correctly tracked."],
+                    unknowns=["Whether all supporting posts/reports trace to one original upload."],
+                    falsification_tests=[
+                        "Trace upstream source pedigree.",
+                        "Deduplicate reposts/syndication before counting corroboration.",
+                    ],
+                    confidence=0.45,
+                )
+            )
+
+            hypotheses.append(
+                Hypothesis(
+                    hypothesis_id=f"{base}-INSUFFICIENT",
+                    statement="Current evidence is insufficient to resolve the claim confidently.",
+                    status=HypothesisStatus.INCONCLUSIVE.value,
+                    support=fr.get("limitations", []),
+                    opposition=[],
+                    assumptions=["Additional primary/independent evidence may be available but not collected."],
+                    unknowns=["Missing native original, independent source, or authoritative record."],
+                    falsification_tests=[
+                        "Obtain native artifact and independent primary evidence.",
+                        "Run specialist verification where authorized.",
+                    ],
+                    confidence=0.35,
+                )
+            )
+
+        return hypotheses
+
+    # ------------------------------------------------------------------
+    # Dual-AI skeptic review
+    # ------------------------------------------------------------------
+
+    def _dual_ai_review(
+        self,
+        fact_results: list[dict[str, Any]],
+        claims: list[Claim],
+        observations: list[Observation],
+        contradictions: list[Contradiction],
+    ) -> list[dict[str, Any]]:
+        claim_by_id = {c.claim_id: c for c in claims}
+        obs_by_id = {o.observation_id: o for o in observations}
+        results: list[dict[str, Any]] = []
+
+        for fr in fact_results:
+            issues: list[str] = []
+            claim = claim_by_id.get(fr["claim_id"])
+            if not claim:
+                continue
+
+            if fr["state"] == VerificationState.SUPPORTED.value:
+                if fr["independent_evidence_paths"] < 2 and not fr["official_primary"]:
+                    issues.append("Supported claim lacks two independent source families or authoritative primary record.")
+                if fr["dependent_modality_warning"]:
+                    issues.append("Cross-modal agreement may be one artifact/source family.")
+                if fr["low_confidence_derived_text"]:
+                    issues.append("Low-confidence OCR/ASR/translation contributed to support.")
+                if fr["metadata_only_temporal"]:
+                    issues.append("Metadata timestamp cannot establish event time.")
+                if fr["material_contradiction"]:
+                    issues.append("Open material contradiction exists.")
+
+            elif fr["state"] == VerificationState.PARTIALLY_SUPPORTED.value:
+                if fr["independent_evidence_paths"] < 2:
+                    issues.append("Partial support comes from one evidence family.")
+                if fr["low_confidence_derived_text"]:
+                    issues.append("Derived-text confidence is low.")
+
+            elif fr["state"] == VerificationState.INCONCLUSIVE.value:
+                issues.extend(fr.get("limitations", [])[:3])
+
+            if not issues:
+                outcome = "AGREE"
+            elif fr["state"] == VerificationState.SUPPORTED.value:
+                outcome = "DISAGREE"
+            elif fr["state"] == VerificationState.INCONCLUSIVE.value:
+                outcome = "INSUFFICIENT_EVIDENCE"
+            else:
+                outcome = "PARTIAL_AGREEMENT"
+
+            results.append(
+                {
+                    "claim_id": fr["claim_id"],
+                    "primary_state": fr["state"],
+                    "skeptic_outcome": outcome,
+                    "skeptic_issues": sorted(set(issues)),
+                    "note": "AI agreement is not independent source corroboration.",
+                }
+            )
+
+        return results
+
+    # ------------------------------------------------------------------
+    # Event candidates
+    # ------------------------------------------------------------------
+
+    def _build_event_candidates(
+        self,
+        claims: list[Claim],
+        fact_results: list[dict[str, Any]],
+        location_candidates: list[LocationCandidate],
+        time_candidates: list[TimeCandidate],
+        contradictions: list[Contradiction],
+    ) -> list[EventCandidate]:
+        fact_by_id = {fr["claim_id"]: fr for fr in fact_results}
+        events: list[EventCandidate] = []
+
+        for claim in claims:
+            fr = fact_by_id.get(claim.claim_id)
+            if not fr or fr["state"] == VerificationState.UNSUPPORTED.value:
+                continue
+
+            loc_ids = [
+                lc.candidate_id
+                for lc in location_candidates
+                if norm_text(lc.name) and norm_text(claim.location) and norm_text(claim.location) in norm_text(lc.name)
+            ]
+            time_ids = [
+                tc.candidate_id
+                for tc in time_candidates
+                if tc.label in {"EVENT_TIME_CLAIMED", "TIME_CLAIM", "EVENT_RECORD", "CAPTION_CLAIM"}
+                and (not claim.time_start or intervals_overlap(*interval_for_value(claim.time_start or claim.time_end), *interval_for_value(tc.start or tc.end)))
+            ]
+
+            contra_ids = [
+                c.contradiction_id
+                for c in contradictions
+                if claim.claim_id in c.objects or set(c.objects) & set(claim.observation_ids)
+            ]
+
+            events.append(
+                EventCandidate(
+                    event_id=f"EVT-{claim.claim_id}",
+                    description=claim.statement,
+                    participants=claim.entity_ids,
+                    location_candidates=loc_ids,
+                    time_candidates=time_ids,
+                    artifact_ids=claim.artifact_ids,
+                    observation_ids=claim.observation_ids,
+                    source_ids=fr["source_ids"],
+                    status=fr["state"],
+                    confidence=fr["confidence"],
+                    contradictions=contra_ids,
+                    limitations=fr["limitations"],
+                )
+            )
+
+        return events
+
+    # ------------------------------------------------------------------
+    # Main analysis
+    # ------------------------------------------------------------------
+
+    def analyze(self, req: MultimodalRequest) -> MultimodalResult:
+        decision, code, reason = self.policy_check(req)
+        if decision == PolicyDecision.BLOCK:
+            result = self.blocked_result(req, code, reason)
+            self.memory.append(asdict(result))
+            return result
+
+        perm = req.permission
+        as_of = parse_dt(req.scope.get("as_of")) or datetime.now(timezone.utc)
+
+        source_map = {s.source_id: s for s in req.sources if self._accessible(s, perm)}
+        artifacts, artifact_roots, duplicate_groups, derivative_relationships = self._prepare_artifacts(req.artifacts, perm)
+        artifact_map = {a.artifact_id: a for a in artifacts}
+
+        observations: list[Observation] = []
+        for obs in req.observations:
+            if not self._accessible(obs, perm):
+                continue
+            if obs.artifact_id and obs.artifact_id not in artifact_map:
+                continue
+            if not obs.source_id and obs.artifact_id in artifact_map:
+                obs.source_id = artifact_map[obs.artifact_id].source_id
+            observations.append(obs)
+
+        obs_map = {o.observation_id: o for o in observations}
+        claims = [c for c in req.claims if self._accessible(c, perm)]
+        entities = [e for e in req.entities if self._accessible(e, perm)]
+        supplied_contras = [c for c in req.contradictions if self._accessible(c, perm)]
+
+        source_families = self._source_families(source_map)
+        location_candidates = self._build_location_candidates(observations, artifact_map, source_map)
+        time_candidates = self._build_time_candidates(artifacts, observations)
+
+        detected_contras = self._detect_contradictions(claims, observations, location_candidates, artifact_map)
+        contradictions = self._merge_contradictions(supplied_contras, detected_contras)
+
+        fact_results: list[dict[str, Any]] = []
+        cross_modal_consistency: list[dict[str, Any]] = []
+        unknowns: list[str] = []
+        gaps: list[Gap] = []
+        next_actions: set[str] = set()
+        handoffs: set[str] = set()
+        privacy_flags: set[str] = {
+            "Person references are kept as non-biometric candidates; no face/voice identification was performed.",
+            "Biometric metadata fields are sanitized and not used for identity.",
+            "Exact coordinates are avoided when evidence precision is weak or privacy risk exists.",
+            "No private-person tracking, covert surveillance, or targeting output is generated.",
+        }
+        safety_flags: set[str] = {
+            "No weapon targeting, operational targeting, or surveillance target package generated.",
+            "Weapon-like objects, if present, are only described conservatively from supplied observations.",
+        }
+
+        for claim in claims:
+            fr = self._fact_gate_claim(
+                claim=claim,
+                obs_map=obs_map,
+                artifact_map=artifact_map,
+                source_map=source_map,
+                source_families=source_families,
+                artifact_roots=artifact_roots,
+                contradictions=contradictions,
+                privacy_flags=privacy_flags,
+            )
+            fact_results.append(fr)
+            privacy_flags.update(fr.get("privacy_flags", []))
+
+            cross_modal_consistency.append(
+                {
+                    "claim_id": claim.claim_id,
+                    "modalities": fr["modalities"],
+                    "modality_count": fr["modality_count"],
+                    "independent_source_families": fr["independent_evidence_paths"],
+                    "artifact_roots": fr["artifact_roots"],
+                    "dependent_modality_warning": fr["dependent_modality_warning"],
+                    "average_confidence": fr["average_confidence"],
+                    "temporal_fit": fr["temporal_fit"],
+                    "geo_fit": fr["geo_fit"],
+                    "state": fr["state"],
+                }
+            )
+
+            if fr["state"] != VerificationState.SUPPORTED.value:
+                unknowns.append(f"{claim.claim_id}: {fr['state']} — {'; '.join(fr['limitations']) or 'insufficient grounding'}.")
+
+            if fr["state"] in {
+                VerificationState.PARTIALLY_SUPPORTED.value,
+                VerificationState.INCONCLUSIVE.value,
+                VerificationState.DISPUTED.value,
+            }:
+                gaps.append(
+                    Gap(
+                        gap_id=f"GAP-{claim.claim_id}-INDEPENDENT",
+                        question=f"Obtain independent primary evidence for {claim.claim_id}.",
+                        missing_evidence="independent_primary_source",
+                        importance="HIGH",
+                        expected_information_value="HIGH",
+                        suggested_specialist="WEBINT/ARCHIVEINT/CORPINT/GEOINT as appropriate",
+                        suggested_source="native original, official record, independent contemporaneous report",
+                    )
+                )
+                next_actions.add(f"Seek an independent evidence family for {claim.claim_id}; do not count reposts/derivatives.")
+
+            if fr["low_confidence_derived_text"]:
+                gaps.append(
+                    Gap(
+                        gap_id=f"GAP-{claim.claim_id}-DERIVED-TEXT",
+                        question=f"Validate low-confidence OCR/ASR/translation values for {claim.claim_id}.",
+                        missing_evidence="verified_native_text_or_audio",
+                        importance="MATERIAL",
+                        expected_information_value="MEDIUM",
+                        suggested_specialist="DOCINT/AUDINT/IMINT/HUMAN_REVIEW",
+                        suggested_source="native artifact, higher-quality media, manual transcription",
+                    )
+                )
+                next_actions.add(f"Validate material OCR/ASR values for {claim.claim_id} against native source.")
+
+            if fr["metadata_only_temporal"]:
+                gaps.append(
+                    Gap(
+                        gap_id=f"GAP-{claim.claim_id}-EVENT-TIME",
+                        question=f"Retrieve independent event-time evidence for {claim.claim_id}.",
+                        missing_evidence="contemporaneous_event_record",
+                        importance="HIGH",
+                        expected_information_value="HIGH",
+                        suggested_specialist="WEBINT/ARCHIVEINT/LOGINT/GEOINT",
+                        suggested_source="archive snapshot, official log, independent report",
+                    )
+                )
+                next_actions.add(f"Do not use file/upload/publication time as event time for {claim.claim_id}.")
+
+            if fr["dependent_modality_warning"]:
+                next_actions.add(f"Treat multi-modality agreement for {claim.claim_id} as one evidence family unless independent sources are found.")
+
+            if fr["material_contradiction"]:
+                next_actions.add(f"Adjudicate material contradictions affecting {claim.claim_id} using primary independent evidence.")
+
+        # Global artifact/source actions.
+        if any(a.derived_from for a in artifacts):
+            next_actions.add("Obtain native original artifacts for derivative media before strengthening conclusions.")
+            handoffs.add("PROVENANCEINT")
+
+        if any((o.observer or "").upper() in {"OCR", "ASR", "TRANSLATION"} for o in observations):
+            handoffs.update({"DOCINT", "AUDINT", "IMINT"})
+
+        modalities_present = {a.modality.upper() for a in artifacts} | {o.modality.upper() for o in observations}
+        if "IMAGE" in modalities_present:
+            handoffs.add("IMINT")
+        if "VIDEO" in modalities_present:
+            handoffs.add("VIDINT")
+        if "AUDIO" in modalities_present:
+            handoffs.add("AUDINT")
+        if "GEO" in modalities_present or location_candidates:
+            handoffs.add("GEOINT")
+        if "METADATA" in modalities_present or any((o.observer or "").upper() == "METADATAINT" for o in observations):
+            handoffs.add("METADATAINT")
+        if "DOCUMENT" in modalities_present or "TEXT" in modalities_present:
+            handoffs.add("DOCINT")
+
+        if any(c.contradiction_type == ContradictionType.CONTENT.value for c in contradictions):
+            handoffs.add("DECEPTIONINT")
+
+        if any(e.person_candidate for e in entities):
+            handoffs.add("HUMINT")
+            privacy_flags.add("Person identity questions require authorized non-biometric evidence and human review.")
+
+        if perm.local_only_required or any(a.local_only for a in artifacts) or any(s.local_only for s in source_map.values()):
+            privacy_flags.add("LOCAL_ONLY evidence retained locally; no cloud routing performed.")
+
+        hypotheses = self._generate_hypotheses(claims, fact_results, contradictions, observations)
+        dual_ai = self._dual_ai_review(fact_results, claims, observations, contradictions)
+        event_candidates = self._build_event_candidates(claims, fact_results, location_candidates, time_candidates, contradictions)
+
+        next_actions.update(
+            {
+                "Preserve original artifacts and hashes; analyze working copies only.",
+                "Never present AI-generated enhancement, OCR, ASR, translation, or summary as original evidence.",
+                "Count independent source families, not modalities, URLs, reposts, or AI agreements.",
+                "Match geographic/temporal precision to evidence strength.",
+                "Do not infer identity, intent, guilt, ethnicity, religion, medical status, or political ideology from appearance/voice.",
+            }
+        )
+
+        handoffs.update({"PROVENANCEINT", "EVIDENCEINT", "DECEPTIONINT"})
+
+        limitations = [
+            "Rule-based local MULTIMODALINT skeleton; it does not run actual CV/ASR/OCR/geolocation engines in this file.",
+            "It consumes supplied specialist observations and fuses them conservatively.",
+            "It does not identify real persons from faces/voiceprints, track private persons, or generate targeting outputs.",
+            "Cross-modal agreement is not independent corroboration if artifacts/sources derive from one family.",
+            "Metadata timestamps, captions, OCR, ASR, and translations are evidence layers, not automatic truth.",
+        ]
+
+        if not artifacts and not observations:
+            status = Status.INCONCLUSIVE.value
+        elif fact_results and all(fr["state"] == VerificationState.SUPPORTED.value for fr in fact_results) and not any(c.materiality.upper() in {"MATERIAL", "HIGH", "CRITICAL"} for c in contradictions):
+            status = Status.SUCCEEDED.value
+        elif fact_results and any(fr["state"] in {VerificationState.SUPPORTED.value, VerificationState.PARTIALLY_SUPPORTED.value} for fr in fact_results):
+            status = Status.PARTIAL.value
+        else:
+            status = Status.INCONCLUSIVE.value
+
+        supported_count = sum(1 for fr in fact_results if fr["state"] == VerificationState.SUPPORTED.value)
+        partial_count = sum(1 for fr in fact_results if fr["state"] == VerificationState.PARTIALLY_SUPPORTED.value)
+        disputed_count = sum(1 for fr in fact_results if fr["state"] == VerificationState.DISPUTED.value)
+        inconclusive_count = sum(1 for fr in fact_results if fr["state"] == VerificationState.INCONCLUSIVE.value)
+        unsupported_count = sum(1 for fr in fact_results if fr["state"] == VerificationState.UNSUPPORTED.value)
+
+        summary = (
+            f"Defensive multimodal fusion for {len(artifacts)} artifact(s), {len(observations)} observation(s), "
+            f"and {len(claims)} claim(s). Fact states: supported={supported_count}, partial={partial_count}, "
+            f"disputed={disputed_count}, inconclusive={inconclusive_count}, unsupported={unsupported_count}. "
+            "No biometric identification, private tracking, targeting, or evidence fabrication performed."
+        )
+
+        artifact_outputs: list[dict[str, Any]] = []
+        for a in artifacts:
+            d = asdict(a)
+            d.pop("content", None)
+            d["content_preview"] = excerpt(a.content) if isinstance(a.content, str) else ""
+            artifact_outputs.append(d)
+
+        source_family_map: dict[str, list[str]] = defaultdict(list)
+        for sid, fam in source_families.items():
+            source_family_map[fam].append(sid)
+
+        source_independence = {
+            "unique_source_count": len(source_map),
+            "independent_source_families": len(source_family_map),
+            "families": {k: sorted(v) for k, v in source_family_map.items()},
+            "warning": "Multiple sources/modalities may derive from one upstream evidence family.",
+        }
+
+        replay_manifest = {
+            "tool_version": TOOL_VERSION,
+            "case_id": req.case_id,
+            "task_id": req.task_id,
+            "as_of": as_of.isoformat(),
+            "artifact_hashes": {a.artifact_id: a.hashes.get("sha256", "") for a in artifacts},
+            "artifact_roots": artifact_roots,
+            "source_families": source_families,
+            "claim_states": {fr["claim_id"]: fr["state"] for fr in fact_results},
+            "contradiction_ids": [c.contradiction_id for c in contradictions],
+            "hypothesis_ids": [h.hypothesis_id for h in hypotheses],
+            "dual_ai_outcomes": {d["claim_id"]: d["skeptic_outcome"] for d in dual_ai},
+        }
+
+        result = MultimodalResult(
+            case_id=req.case_id,
+            task_id=req.task_id,
+            objective=req.objective,
+            status=status,
+            policy_decision=PolicyDecision.ALLOW.value,
+            summary=summary,
+            artifact_ids=sorted(artifact_map),
+            source_ids=sorted(source_map),
+            observation_ids=sorted(obs_map),
+            claim_ids=[c.claim_id for c in claims],
+            artifacts=artifact_outputs,
+            observations=[asdict(o) for o in observations],
+            claims=[asdict(c) for c in claims],
+            entities=[asdict(e) for e in entities],
+            artifact_families={k: sorted(v) for k, v in defaultdict(list, {r: [] for r in artifact_roots.values()}).items()} if False else self._group_by_root(artifact_roots),
+            duplicate_groups=duplicate_groups,
+            derivative_relationships=derivative_relationships,
+            source_families={k: sorted(v) for k, v in source_family_map.items()},
+            source_independence=source_independence,
+            location_candidates=[asdict(lc) for lc in location_candidates],
+            time_candidates=[asdict(tc) for tc in time_candidates],
+            event_candidates=[asdict(ec) for ec in event_candidates],
+            cross_modal_consistency=cross_modal_consistency,
+            contradictions=[asdict(c) for c in contradictions],
+            fact_gate_results=fact_results,
+            hypotheses=[asdict(h) for h in hypotheses],
+            dual_ai_review=dual_ai,
+            unknowns=sorted(set(unknowns)),
+            knowledge_gaps=[asdict(g) for g in gaps],
+            recommended_next_actions=sorted(next_actions),
+            specialist_handoffs=sorted(handoffs),
+            privacy_flags=sorted(privacy_flags),
+            safety_flags=sorted(safety_flags),
+            limitations=limitations,
+            replay_manifest=replay_manifest,
+            created_at=now_iso(),
+        )
+
+        self.memory.append(asdict(result))
+        return result
+
+    @staticmethod
+    def _group_by_root(roots: dict[str, str]) -> dict[str, list[str]]:
+        out: dict[str, list[str]] = defaultdict(list)
+        for aid, root in roots.items():
+            out[root].append(aid)
+        return {k: sorted(v) for k, v in out.items()}
+
+
+# ======================================================================
+# Demo
+# ======================================================================
+
+def demo() -> None:
+    agent = MultimodalIntAgent(mode=Mode.LOCAL_ONLY)
+
+    perm = PermissionContext(
+        tenant_id="TENANT-1",
+        case_id="MM-001",
+        classification="INTERNAL",
+        allowed_classifications=["PUBLIC", "INTERNAL"],
+        authorized=True,
+        local_only_required=False,
+        can_use_cloud=False,
+        purpose="defensive_multimodal_fusion",
+    )
+
+    sources = [
+        Source(
+            source_id="SRC-SOCIAL",
+            source_type="SOCIAL_MEDIA",
+            publisher="Social Platform",
+            independence_group="SOCIAL-1",
+            reliability=0.45,
+            limitations=["Unknown uploader; metadata may be platform-altered."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Source(
+            source_id="SRC-NEWS",
+            source_type="NEWS_SOURCE",
+            publisher="News Outlet",
+            upstream_source="SRC-SOCIAL",
+            reliability=0.60,
+            limitations=["Report appears to reuse the same social video; not independent for media content."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Source(
+            source_id="SRC-TRANSIT",
+            source_type="GOVERNMENT_SOURCE",
+            publisher="Public Transit Authority",
+            independence_group="TRANSIT-1",
+            reliability=0.85,
+            limitations=["Public map data may lag physical changes."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Source(
+            source_id="SRC-WEATHER",
+            source_type="PUBLIC_SENSOR",
+            publisher="National Weather Archive",
+            independence_group="WEATHER-1",
+            reliability=0.80,
+            limitations=["Weather is contextual and not uniquely diagnostic."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+    ]
+
+    artifacts = [
+        Artifact(
+            artifact_id="VID-1",
+            case_id="MM-001",
+            source_id="SRC-SOCIAL",
+            modality="VIDEO",
+            artifact_type="VIDEO",
+            filename="incident.mp4",
+            content=b"synthetic-video-bytes-for-demo",
+            metadata={
+                "platform": "social",
+                "uploader": "anon",
+                "claimed_location": "City C",
+            },
+            event_time_claimed="2026-10-08",
+            created_at="2026-10-09T00:00:00Z",
+            uploaded_at="2026-10-09T01:00:00Z",
+            first_seen="2026-10-09T01:10:00Z",
+            classification="PUBLIC",
+            tenant_id="TENANT-1",
+            limitations=["Caption is a source claim, not verified event description."],
+        ),
+        Artifact(
+            artifact_id="IMG-1",
+            case_id="MM-001",
+            source_id="SRC-SOCIAL",
+            modality="IMAGE",
+            artifact_type="IMAGE",
+            filename="frame_000112.jpg",
+            content=b"synthetic-image-bytes-for-demo",
+            derived_from=["VID-1"],
+            metadata={"frame_number": 112, "timestamp": "00:01:12"},
+            classification="PUBLIC",
+            tenant_id="TENANT-1",
+            limitations=["Frame extracted from VID-1; not independent original evidence."],
+        ),
+        Artifact(
+            artifact_id="NEWS-1",
+            case_id="MM-001",
+            source_id="SRC-NEWS",
+            modality="TEXT",
+            artifact_type="DOCUMENT",
+            filename="news_clip.txt",
+            content="News outlet repeats social video claim: explosion in City C on 2026-10-08.",
+            classification="PUBLIC",
+            tenant_id="TENANT-1",
+        ),
+        Artifact(
+            artifact_id="MAP-1",
+            case_id="MM-001",
+            source_id="SRC-TRANSIT",
+            modality="GEO",
+            artifact_type="DOCUMENT",
+            filename="transit_map.txt",
+            content="Public transit map shows Central Station in City C with road geometry matching visible overhead sign.",
+            classification="PUBLIC",
+            tenant_id="TENANT-1",
+        ),
+        Artifact(
+            artifact_id="WX-1",
+            case_id="MM-001",
+            source_id="SRC-WEATHER",
+            modality="TEXT",
+            artifact_type="DATASET",
+            filename="weather_archive.txt",
+            content="Weather archive records rain in City C on 2026-10-08.",
+            classification="PUBLIC",
+            tenant_id="TENANT-1",
+        ),
+    ]
+
+    observations = [
+        Observation(
+            observation_id="OBS-CAPTION",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="TEXT",
+            observer="ANALYST",
+            property_name="caption_claim",
+            value="Explosion in City C on 2026-10-08",
+            time_start="2026-10-08",
+            confidence=0.45,
+            limitations=["Caption is source claim; not verified visual fact."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-SIGN",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="IMAGE",
+            observer="IMINT",
+            property_name="visible_text",
+            value="City C Central Station",
+            locator="00:01:12",
+            confidence=0.75,
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-ROAD",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="IMAGE",
+            observer="IMINT",
+            property_name="visible_object",
+            value="multi-lane road with distinctive overhead sign",
+            locator="00:01:10-00:01:20",
+            confidence=0.65,
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-GEO",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="GEO",
+            observer="GEOINT",
+            property_name="geolocation_candidate",
+            value="City C",
+            lat=28.630,
+            lon=77.220,
+            geo_precision=GeoPrecision.CITY.value,
+            confidence=0.70,
+            limitations=["Candidate from visual clues; requires independent map/landmark verification."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-AUDIO",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="AUDIO",
+            observer="ASR",
+            property_name="spoken_content",
+            value="Next station Central Station",
+            locator="00:01:15",
+            confidence=0.55,
+            limitations=["ASR confidence medium; proper noun may be misrecognized."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-META",
+            artifact_id="VID-1",
+            source_id="SRC-SOCIAL",
+            modality="METADATA",
+            observer="METADATAINT",
+            property_name="file_created_time",
+            value="2026-10-09T00:00:00Z",
+            time_start="2026-10-09",
+            confidence=0.95,
+            limitations=["File creation time is not event time and may reflect copy/upload/export."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-IMG-SAME",
+            artifact_id="IMG-1",
+            source_id="SRC-SOCIAL",
+            modality="IMAGE",
+            observer="IMINT",
+            property_name="visible_text",
+            value="City C Central Station",
+            locator="frame_000112",
+            confidence=0.72,
+            limitations=["Derived from VID-1; not independent corroboration."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-NEWS",
+            artifact_id="NEWS-1",
+            source_id="SRC-NEWS",
+            modality="TEXT",
+            observer="TEXT",
+            property_name="caption_claim",
+            value="City C explosion on 2026-10-08",
+            time_start="2026-10-08",
+            confidence=0.50,
+            limitations=["Derivative reporting; upstream source appears to be same social video."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-MAP",
+            artifact_id="MAP-1",
+            source_id="SRC-TRANSIT",
+            modality="GEO",
+            observer="GEOINT",
+            property_name="map_feature",
+            value="Central Station, City C; road geometry matches visible sign",
+            lat=28.630,
+            lon=77.220,
+            geo_precision=GeoPrecision.CITY.value,
+            confidence=0.78,
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Observation(
+            observation_id="OBS-WX",
+            artifact_id="WX-1",
+            source_id="SRC-WEATHER",
+            modality="TEXT",
+            observer="TEXT",
+            property_name="environmental_context",
+            value="Rain recorded in City C on 2026-10-08",
+            time_start="2026-10-08",
+            confidence=0.60,
+            limitations=["Weather is compatible with claimed date but not uniquely diagnostic."],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+    ]
+
+    claims = [
+        Claim(
+            claim_id="CLM-LOCATION",
+            statement="VID-1 depicts an event in City C.",
+            subject="VID-1",
+            predicate="LOCATED_IN",
+            object_value="City C",
+            time_start="2026-10-08",
+            location="City C",
+            artifact_ids=["VID-1"],
+            observation_ids=["OBS-SIGN", "OBS-GEO", "OBS-AUDIO", "OBS-MAP"],
+            claim_type="GEOGRAPHIC",
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Claim(
+            claim_id="CLM-DATE",
+            statement="The event in VID-1 occurred on 2026-10-08.",
+            subject="VID-1",
+            predicate="OCCURRED_ON",
+            object_value="2026-10-08",
+            time_start="2026-10-08",
+            artifact_ids=["VID-1"],
+            observation_ids=["OBS-CAPTION", "OBS-NEWS", "OBS-WX", "OBS-META"],
+            claim_type="TEMPORAL",
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+        Claim(
+            claim_id="CLM-IMG-INDEP",
+            statement="IMG-1 independently corroborates the location shown in VID-1.",
+            subject="IMG-1",
+            predicate="INDEPENDENTLY_CORROBORATES",
+            object_value="VID-1",
+            artifact_ids=["IMG-1", "VID-1"],
+            observation_ids=["OBS-IMG-SAME", "OBS-SIGN"],
+            claim_type="PROVENANCE",
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        ),
+    ]
+
+    entities = [
+        Entity(
+            entity_id="ENT-PERSON-01",
+            entity_type="PersonCandidate",
+            display_name="PERSON_01",
+            person_candidate=True,
+            sensitive=True,
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        )
+    ]
+
+    supplied_contradictions = [
+        Contradiction(
+            contradiction_id="CONTRA-META-TIME",
+            contradiction_type=ContradictionType.TEMPORAL.value,
+            objects=["CLM-DATE", "OBS-META"],
+            values=["2026-10-08", "2026-10-09"],
+            materiality="MODERATE",
+            temporal_context="claimed event date vs file creation date",
+            explanation_candidates=[
+                "file creation time is not event time",
+                "upload/re-encoding may alter timestamps",
+                "device clock/timezone issue",
+            ],
+            evidence_ids=["OBS-META"],
+            tenant_id="TENANT-1",
+            case_id="MM-001",
+        )
+    ]
+
+    req = MultimodalRequest(
+        case_id="MM-001",
+        task_id="TASK-001",
+        objective=(
+            "Fuse authorized multimodal evidence to assess location/date of a public incident "
+            "using non-biometric, privacy-aware methods."
+        ),
+        authorization={"authorized": True, "purpose": "defensive_multimodal_fusion"},
+        permission=perm,
+        scope={"as_of": "2026-10-09T12:00:00Z", "top_k": 10},
+        time_range={"start": "2026-10-08", "end": "2026-10-09"},
+        sources=sources,
+        artifacts=artifacts,
+        observations=observations,
+        claims=claims,
+        entities=entities,
+        contradictions=supplied_contradictions,
+    )
+
+    res = agent.analyze(req)
+
+    print("=== MULTIMODALINT SUMMARY ===")
+    print(res.summary)
+    print()
+
+    print("Fact gate results:")
+    for fr in res.fact_gate_results:
+        print(
+            f"  {fr['claim_id']}: state={fr['state']}, confidence={fr['confidence']}, "
+            f"independent_families={fr['independent_evidence_paths']}, "
+            f"modalities={fr['modalities']}, dependent_warning={fr['dependent_modality_warning']}"
+        )
+        if fr["limitations"]:
+            for lim in fr["limitations"]:
+                print("    -", lim)
+    print()
+
+    print("Duplicate groups:")
+    for dg in res.duplicate_groups:
+        print(f"  {dg['basis']}: {dg['artifact_ids']}")
+    print()
+
+    print("Derivative relationships:")
+    for dr in res.derivative_relationships:
+        print(f"  {dr['from']} {dr['relation']} {dr['to']}")
+    print()
+
+    print("Source independence:")
+    print(f"  unique_sources={res.source_independence['unique_source_count']}")
+    print(f"  independent_families={res.source_independence['independent_source_families']}")
+    print(f"  families={res.source_independence['families']}")
+    print()
+
+    print("Contradictions:")
+    for c in res.contradictions:
+        print(f"  {c['contradiction_id']}: {c['contradiction_type']} ({c['materiality']}) objects={c['objects']}")
+    print()
+
+    print("Hypotheses (first 6):")
+    for h in res.hypotheses[:6]:
+        print(f"  {h['hypothesis_id']}: {h['status']} — {h['statement'][:120]}")
+    print()
+
+    print("Dual-AI skeptic review:")
+    for d in res.dual_ai_review:
+        print(f"  {d['claim_id']}: {d['skeptic_outcome']} issues={d['skeptic_issues']}")
+    print()
+
+    print("Privacy flags:")
+    for p in res.privacy_flags:
+        print("  -", p)
+    print()
+
+    print("Safety flags:")
+    for s in res.safety_flags:
+        print("  -", s)
+    print()
+
+    print("Recommended next actions (first 8):")
+    for a in res.recommended_next_actions[:8]:
+        print("  -", a)
+    print()
+
+    # Blocked example: prohibited biometric/private-tracking request.
+    blocked_req = MultimodalRequest(
+        case_id="MM-002",
+        task_id="TASK-002",
+        objective="Identify the person in the video using face recognition and track their home address.",
+        authorization={"authorized": True},
+        permission=PermissionContext(authorized=True),
+        sources=[],
+        artifacts=[],
+        observations=[],
+        claims=[],
+    )
+
+    blocked = agent.analyze(blocked_req)
+
+    print("=== BLOCKED EXAMPLE ===")
+    print("Status:", blocked.status)
+    print("Summary:", blocked.summary)
+    print("Privacy flags:", blocked.privacy_flags)
+    print("Safety flags:", blocked.safety_flags)
+
+
+if __name__ == "__main__":
+    demo()

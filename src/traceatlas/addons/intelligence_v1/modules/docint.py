@@ -1,0 +1,3262 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS DOCINT — Safe Python Starter Implementation
+
+Purpose:
+  Evidence-first document intelligence pipeline.
+
+Hard boundaries enforced in code:
+  - Does NOT execute macros, JavaScript, OLE objects, embedded files, or attachments.
+  - Does NOT forge documents, signatures, certificates, IDs, invoices, or evidence.
+  - Does NOT fabricate metadata or alter original artifacts.
+  - Does NOT recover intentionally redacted sensitive data.
+  - Does NOT auto-fetch remote content from documents.
+  - Treats document statements as DOCUMENT_REPORTED until verified.
+  - Treats metadata author as METADATA_AUTHOR_CLAIM, not verified real author.
+  - Treats visual signature and digital signature as different categories.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import email
+import email.policy
+import hashlib
+import html
+import io
+import json
+import math
+import mimetypes
+import os
+import re
+import sys
+import tarfile
+import unicodedata
+import zipfile
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from html.parser import HTMLParser
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+VERSION = "0.1.0-docint-safe-starter"
+
+# --------------------------------------------------------------------
+# Limits / defaults
+# --------------------------------------------------------------------
+
+DEFAULT_MAX_FILE_BYTES = 100 * 1024 * 1024
+DEFAULT_MAX_ZIP_MEMBER_BYTES = 25 * 1024 * 1024
+DEFAULT_MAX_TEXT_CHARS = 2_000_000
+DEFAULT_MAX_PAGES = 200
+DEFAULT_MAX_ROWS_PER_SHEET = 300
+DEFAULT_MAX_COLS_PER_SHEET = 60
+DEFAULT_MAX_CLAIMS = 300
+DEFAULT_MAX_ENTITIES = 200
+DEFAULT_MINHASH_PERM = 64
+DEFAULT_MINHASH_SHINGLE = 5
+DEFAULT_MINHASH_MAX_SHINGLES = 8000
+
+IMAGE_FORMATS = {"jpeg", "jpg", "png", "gif", "bmp", "tiff", "tif", "webp"}
+TEXT_LIKE_FORMATS = {"txt", "md", "log", "csv", "json", "xml", "html", "htm", "eml", "yaml", "yml"}
+
+# --------------------------------------------------------------------
+# Optional dependencies — all guarded, no network, no execution
+# --------------------------------------------------------------------
+
+HAS_PYPDF = False
+try:
+    from pypdf import PdfReader  # type: ignore
+    HAS_PYPDF = True
+except Exception:
+    try:
+        from PyPDF2 import PdfReader  # type: ignore
+        HAS_PYPDF = True
+    except Exception:
+        HAS_PYPDF = False
+
+HAS_PDFPLUMBER = False
+try:
+    import pdfplumber  # type: ignore
+    HAS_PDFPLUMBER = True
+except Exception:
+    HAS_PDFPLUMBER = False
+
+HAS_DOCX = False
+try:
+    import docx  # type: ignore
+    HAS_DOCX = True
+except Exception:
+    HAS_DOCX = False
+
+HAS_OPENPYXL = False
+try:
+    import openpyxl  # type: ignore
+    HAS_OPENPYXL = True
+except Exception:
+    HAS_OPENPYXL = False
+
+HAS_PPTX = False
+try:
+    from pptx import Presentation  # type: ignore
+    HAS_PPTX = True
+except Exception:
+    HAS_PPTX = False
+
+HAS_PIL = False
+try:
+    from PIL import Image  # type: ignore
+    HAS_PIL = True
+except Exception:
+    HAS_PIL = False
+
+HAS_TESSERACT = False
+try:
+    import pytesseract  # type: ignore
+    HAS_TESSERACT = True
+except Exception:
+    HAS_TESSERACT = False
+
+HAS_MAGIC = False
+try:
+    import magic  # type: ignore
+    HAS_MAGIC = True
+except Exception:
+    HAS_MAGIC = False
+
+
+# --------------------------------------------------------------------
+# Generic helpers
+# --------------------------------------------------------------------
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def stable_id(prefix: str, *parts: Any) -> str:
+    raw = "|".join(str(p) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()
+
+
+def normalize_text(text: Any) -> str:
+    if text is None:
+        return ""
+    t = unicodedata.normalize("NFC", str(text))
+    t = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", t)
+    t = t.replace("\r\n", "\n").replace("\r", "\n")
+    return t
+
+
+def analysis_text(text: Any) -> str:
+    return re.sub(r"\s+", " ", normalize_text(text)).strip()
+
+
+def truncate_text(text: Any, limit: int = 5000) -> str:
+    s = normalize_text(text)
+    if len(s) <= limit:
+        return s
+    return s[:limit] + f"... [truncated {len(s)-limit} chars]"
+
+
+def limit_list(items: Iterable[Any], n: int) -> List[Any]:
+    out = []
+    for i, item in enumerate(items):
+        if i >= n:
+            break
+        out.append(item)
+    return out
+
+
+def json_safe(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [json_safe(x) for x in obj]
+    if isinstance(obj, bytes):
+        return obj.hex()
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    return str(obj)
+
+
+def printable_ratio(data: bytes, sample: int = 8192) -> float:
+    chunk = data[:sample]
+    if not chunk:
+        return 0.0
+    try:
+        text = chunk.decode("utf-8", errors="strict")
+    except Exception:
+        text = chunk.decode("latin-1", errors="replace")
+    if not text:
+        return 0.0
+    printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\r\t")
+    return printable / len(text)
+
+
+def looks_text(data: bytes) -> bool:
+    return printable_ratio(data) > 0.75
+
+
+def safe_get_nested(d: Dict[str, Any], path: str, default: Any = None) -> Any:
+    cur: Any = d
+    for part in path.split("."):
+        if isinstance(cur, dict) and part in cur:
+            cur = cur[part]
+        else:
+            return default
+    return cur
+
+
+# --------------------------------------------------------------------
+# Redaction / privacy helpers
+# --------------------------------------------------------------------
+
+PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+    re.S | re.I,
+)
+
+SECRET_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(?i)\b(password|passwd|pwd)\b\s*[:=]\s*[^\s,;]+"), "[REDACTED_PASSWORD]"),
+    (re.compile(r"(?i)\b(api[_-]?key|apikey|access[_-]?token|auth[_-]?token|secret)\b\s*[:=]\s*[^\s,;]+"), "[REDACTED_SECRET]"),
+    (re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}"), "[REDACTED_BEARER_TOKEN]"),
+    (re.compile(r"(?i)\b(AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b"), "[REDACTED_CREDENTIAL]"),
+]
+
+PII_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[REDACTED_EMAIL]"),
+    (re.compile(r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}(?!\d)"), "[REDACTED_PHONE]"),
+    (re.compile(r"\b(?:IBAN\s*)?[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b"), "[REDACTED_IBAN]"),
+]
+
+
+def redact_secrets(text: str) -> str:
+    if not text:
+        return text
+    out = PRIVATE_KEY_RE.sub("[REDACTED_PRIVATE_KEY]", text)
+    for pat, repl in SECRET_PATTERNS:
+        out = pat.sub(repl, out)
+    return out
+
+
+def redact_pii(text: str, enabled: bool = True) -> str:
+    if not text or not enabled:
+        return text
+    out = text
+    for pat, repl in PII_PATTERNS:
+        out = pat.sub(repl, out)
+    return out
+
+
+def redact_for_output(text: str, privacy_cfg: Dict[str, Any]) -> str:
+    t = redact_secrets(text)
+    t = redact_pii(t, bool(privacy_cfg.get("minimize_pii", True)))
+    return t
+
+
+def count_pattern_hits(text: str, patterns: Iterable[re.Pattern[str]]) -> int:
+    return sum(len(p.findall(text or "")) for p in patterns)
+
+
+# --------------------------------------------------------------------
+# Policy / authorization screens
+# --------------------------------------------------------------------
+
+PROHIBITED_DOCINT_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(?i)\b(forge|forgery|counterfeit|fabricate)\b"), "DOCUMENT_FRAUD_OR_FABRICATION"),
+    (re.compile(r"(?i)\b(create|generate|make)\b[^.]{0,60}\b(fake|fraudulent|counterfeit)\b"), "FAKE_DOCUMENT_GENERATION"),
+    (re.compile(r"(?i)\brecover\s+redacted\b"), "REDACTION_RECOVERY_REQUEST"),
+    (re.compile(r"(?i)\b(execute|run)\s+(macro|javascript|js|script|ole|attachment)\b"), "ACTIVE_CONTENT_EXECUTION_REQUEST"),
+    (re.compile(r"(?i)\bbypass\s+(password|encryption|protection)\b"), "PROTECTION_BYPASS_REQUEST"),
+    (re.compile(r"(?i)\balter\s+(metadata|date|timestamp|signature)\b"), "EVIDENCE_MUTATION_REQUEST"),
+    (re.compile(r"(?i)\bremove\s+watermark\b"), "PROVENANCE_CONCEALMENT_REQUEST"),
+]
+
+
+def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+    blob = " ".join([
+        str(manifest.get("objective", "")),
+        " ".join(str(q) for q in manifest.get("questions", []) or []),
+    ])
+    blocked = []
+    for pat, label in PROHIBITED_DOCINT_PATTERNS:
+        if pat.search(blob):
+            blocked.append(label)
+    return list(dict.fromkeys(blocked))
+
+
+def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    auth = manifest.get("authorization") or {}
+    reasons: List[str] = []
+
+    if not auth.get("approved"):
+        reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+
+    scope = auth.get("scope", "provided_files_only")
+    allowed_scopes = {
+        "provided_files_only",
+        "authorized_documents",
+        "lawful_incident_records",
+        "public_documents",
+    }
+    if scope not in allowed_scopes:
+        reasons.append("UNSUPPORTED_SCOPE")
+
+    model_mode = auth.get("model_mode", "LOCAL_ONLY")
+    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+        reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+
+    if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+        reasons.append("UNKNOWN_MODEL_MODE")
+
+    return (len(reasons) == 0), reasons
+
+
+# --------------------------------------------------------------------
+# Format / MIME detection
+# --------------------------------------------------------------------
+
+EXT_FORMAT = {
+    ".pdf": "pdf",
+    ".doc": "doc",
+    ".docx": "docx",
+    ".dotx": "docx",
+    ".docm": "docm",
+    ".odt": "odt",
+    ".rtf": "rtf",
+    ".txt": "txt",
+    ".md": "md",
+    ".log": "log",
+    ".csv": "csv",
+    ".tsv": "csv",
+    ".xls": "xls",
+    ".xlsx": "xlsx",
+    ".xlsm": "xlsm",
+    ".ods": "ods",
+    ".ppt": "ppt",
+    ".pptx": "pptx",
+    ".pptm": "pptm",
+    ".odp": "odp",
+    ".html": "html",
+    ".htm": "html",
+    ".xml": "xml",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".epub": "epub",
+    ".eml": "eml",
+    ".msg": "msg",
+    ".mbox": "mbox",
+    ".zip": "zip",
+    ".tar": "tar",
+    ".gz": "archive",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".png": "png",
+    ".gif": "gif",
+    ".bmp": "bmp",
+    ".tif": "tiff",
+    ".tiff": "tiff",
+    ".webp": "webp",
+}
+
+FMT_MIME = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "docm": "application/vnd.ms-word.document.macroEnabled.12",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "pptm": "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "odp": "application/vnd.oasis.opendocument.presentation",
+    "ole": "application/x-ole-storage",
+    "zip": "application/zip",
+    "tar": "application/x-tar",
+    "txt": "text/plain",
+    "csv": "text/csv",
+    "json": "application/json",
+    "xml": "application/xml",
+    "html": "text/html",
+    "eml": "message/rfc822",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "tiff": "image/tiff",
+    "webp": "image/webp",
+}
+
+COMPATIBLE_FORMATS = {
+    "docx": {"docx", "ooxml", "zip"},
+    "xlsx": {"xlsx", "ooxml", "zip"},
+    "pptx": {"pptx", "ooxml", "zip"},
+    "odt": {"odt", "odf", "zip"},
+    "ods": {"ods", "odf", "zip"},
+    "odp": {"odp", "odf", "zip"},
+    "zip": {"zip", "docx", "xlsx", "pptx", "odt", "ods", "odp", "epub"},
+}
+
+
+def zip_read_limited(zf: zipfile.ZipFile, name: str, max_bytes: int) -> Optional[bytes]:
+    try:
+        info = zf.getinfo(name)
+    except KeyError:
+        return None
+    if info.file_size > max_bytes:
+        return None
+    try:
+        return zf.read(name)
+    except Exception:
+        return None
+
+
+def classify_zip_bytes(data: bytes, max_member_bytes: int) -> Tuple[str, bool, List[str]]:
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            names = zf.namelist()
+            active = any(n.lower().endswith("vbaproject.bin") for n in names)
+
+            if "[Content_Types].xml" in names:
+                ct_bytes = zip_read_limited(zf, "[Content_Types].xml", max_member_bytes)
+                ct = (ct_bytes or b"").decode("utf-8", errors="replace").lower()
+                if "wordprocessingml" in ct:
+                    return ("docm" if active else "docx"), active, names[:500]
+                if "spreadsheetml" in ct:
+                    return ("xlsm" if active else "xlsx"), active, names[:500]
+                if "presentationml" in ct:
+                    return ("pptm" if active else "pptx"), active, names[:500]
+                return "ooxml", active, names[:500]
+
+            if "mimetype" in names:
+                mt_bytes = zip_read_limited(zf, "mimetype", 256)
+                mt = (mt_bytes or b"").decode("utf-8", errors="replace").strip()
+                if mt.startswith("application/vnd.oasis.opendocument.text"):
+                    return "odt", False, names[:500]
+                if mt.startswith("application/vnd.oasis.opendocument.spreadsheet"):
+                    return "ods", False, names[:500]
+                if mt.startswith("application/vnd.oasis.opendocument.presentation"):
+                    return "odp", False, names[:500]
+                return "odf", False, names[:500]
+
+            if "mimetype" not in names and any(n.startswith("OEBPS/") or n == "META-INF/container.xml" for n in names):
+                return "epub", False, names[:500]
+
+            return "zip", active, names[:500]
+    except Exception:
+        return "zip", False, []
+
+
+def sniff_magic(data: bytes) -> Optional[Tuple[str, str]]:
+    header = data[:16]
+    if header.startswith(b"%PDF"):
+        return "pdf", "application/pdf"
+    if header.startswith(b"PK\x03\x04"):
+        return None, "application/zip"  # refined later
+    if header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return "ole", "application/x-ole-storage"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpeg", "image/jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png", "image/png"
+    if header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):
+        return "gif", "image/gif"
+    if header.startswith(b"BM"):
+        return "bmp", "image/bmp"
+    if header.startswith(b"II*\x00") or header.startswith(b"MM\x00*"):
+        return "tiff", "image/tiff"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp", "image/webp"
+    return None, None
+
+
+def detect_format(data: bytes, filename: str, max_zip_member_bytes: int) -> Dict[str, Any]:
+    ext = Path(filename).suffix.lower()
+    expected = EXT_FORMAT.get(ext)
+
+    mime_guess = mimetypes.guess_type(filename)[0]
+    if HAS_MAGIC:
+        try:
+            mime_guess = magic.from_buffer(data, mime=True) or mime_guess
+        except Exception:
+            pass
+
+    fmt = "unknown"
+    mime = mime_guess or "application/octet-stream"
+    active_content_possible = False
+    archive_members: List[str] = []
+
+    magic_fmt, magic_mime = sniff_magic(data)
+    if magic_fmt:
+        fmt = magic_fmt
+        mime = magic_mime or mime
+    elif magic_mime:
+        mime = magic_mime
+
+    if fmt == "unknown" and data[:2] == b"PK":
+        fmt, active_content_possible, archive_members = classify_zip_bytes(data, max_zip_member_bytes)
+        mime = FMT_MIME.get(fmt, "application/zip")
+
+    if fmt == "unknown":
+        sample = data[:4096].decode("utf-8", errors="replace").lower().strip()
+        if sample.startswith("<!doctype html") or sample.startswith("<html"):
+            fmt = "html"
+            mime = "text/html"
+        elif sample.startswith("<?xml"):
+            fmt = "xml"
+            mime = "application/xml"
+        elif sample.startswith("{") or sample.startswith("["):
+            fmt = "json"
+            mime = "application/json"
+        elif expected in {"txt", "md", "log", "csv", "yaml", "yml"} and looks_text(data):
+            fmt = expected
+            mime = FMT_MIME.get(fmt, "text/plain")
+        elif looks_text(data):
+            fmt = "txt"
+            mime = "text/plain"
+
+    if expected in {"doc", "xls", "ppt", "msg"} and fmt == "ole":
+        active_content_possible = True
+
+    if expected in {"docm", "xlsm", "pptm"}:
+        active_content_possible = True
+
+    if fmt in {"docm", "xlsm", "pptm"}:
+        active_content_possible = True
+
+    ext_match = True
+    if expected:
+        if fmt == expected:
+            ext_match = True
+        elif fmt in COMPATIBLE_FORMATS.get(expected, set()):
+            ext_match = True
+        elif expected == "zip" and fmt in {"docx", "xlsx", "pptx", "odt", "ods", "odp", "epub"}:
+            ext_match = False  # extension hides real document type
+        else:
+            ext_match = False
+
+    return {
+        "format": fmt,
+        "mime_type": mime,
+        "expected_format_from_extension": expected,
+        "extension_matches_format": ext_match,
+        "active_content_possible": active_content_possible,
+        "archive_members_preview": archive_members[:100],
+    }
+
+
+# --------------------------------------------------------------------
+# Language / script lightweight helpers
+# --------------------------------------------------------------------
+
+SCRIPT_RANGES: List[Tuple[str, List[Tuple[int, int]]]] = [
+    ("Latin", [(0x0041, 0x005A), (0x0061, 0x007A), (0x00C0, 0x024F), (0x1E00, 0x1EFF)]),
+    ("Cyrillic", [(0x0400, 0x04FF), (0x0500, 0x052F)]),
+    ("Arabic", [(0x0600, 0x06FF), (0x0750, 0x077F), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]),
+    ("Devanagari", [(0x0900, 0x097F)]),
+    ("Greek", [(0x0370, 0x03FF), (0x1F00, 0x1FFF)]),
+    ("Hebrew", [(0x0590, 0x05FF), (0xFB1D, 0xFB4F)]),
+    ("Han", [(0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xF900, 0xFAFF)]),
+    ("Hangul", [(0x1100, 0x11FF), (0x3130, 0x318F), (0xAC00, 0xD7AF)]),
+    ("Hiragana", [(0x3040, 0x309F)]),
+    ("Katakana", [(0x30A0, 0x30FF), (0xFF66, 0xFF9F)]),
+    ("Thai", [(0x0E00, 0x0E7F)]),
+]
+
+STOPWORDS: Dict[str, Set[str]] = {
+    "en": {"the", "and", "is", "are", "of", "in", "to", "a", "an", "that", "for", "with", "on", "at", "by", "from", "as", "be", "has", "have", "had", "not", "but", "or"},
+    "es": {"de", "la", "que", "el", "en", "y", "a", "los", "se", "del", "las", "por", "un", "con", "no", "una", "su", "para", "es", "al"},
+    "fr": {"le", "des", "pour", "ce", "dans", "qui", "ne", "pas", "sur", "du", "de", "au", "si", "comme", "mais", "avec", "en", "il", "que", "la"},
+    "de": {"der", "die", "und", "in", "den", "von", "zu", "das", "mit", "sich", "fur", "ist", "im", "dem", "nicht", "ein", "eine", "als", "auch", "es"},
+    "pt": {"de", "que", "do", "da", "em", "um", "para", "com", "nao", "uma", "os", "no", "se", "na", "por", "mais", "as", "dos", "como", "mas"},
+    "it": {"di", "che", "per", "con", "non", "una", "si", "e", "il", "del", "le", "la", "a", "i", "della", "in", "un", "ma", "come", "nella"},
+    "nl": {"de", "het", "een", "van", "en", "ik", "te", "dat", "die", "in", "naar", "zijn", "hij", "ze", "zij", "we", "wij", "met", "op", "aan"},
+    "ru": {"и", "в", "не", "на", "я", "что", "он", "с", "а", "то", "все", "она", "так", "его", "но", "да", "ты", "к", "у", "же", "вы", "за"},
+    "ar": {"من", "في", "على", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "الذي", "التي", "كان", "كانت", "قد", "سوف", "لا", "نعم", "ما"},
+    "hi": {"और", "का", "के", "की", "है", "हैं", "में", "से", "पर", "को", "यह", "वह", "जो", "कि", "तो", "भी", "नहीं", "हो"},
+}
+
+SCRIPT_LANGUAGE_HINTS = {
+    "Cyrillic": ["ru"],
+    "Arabic": ["ar"],
+    "Devanagari": ["hi"],
+    "Greek": ["el"],
+    "Hebrew": ["he"],
+    "Han": ["zh", "ja"],
+    "Hangul": ["ko"],
+    "Hiragana": ["ja"],
+    "Katakana": ["ja"],
+    "Thai": ["th"],
+}
+
+
+def char_script(ch: str) -> Optional[str]:
+    if not ch.isalpha():
+        return None
+    cp = ord(ch)
+    for name, ranges in SCRIPT_RANGES:
+        for start, end in ranges:
+            if start <= cp <= end:
+                return name
+    return "Other"
+
+
+def detect_scripts(text: str) -> Dict[str, Any]:
+    counts: Counter = Counter()
+    for ch in text or "":
+        s = char_script(ch)
+        if s:
+            counts[s] += 1
+    total = sum(counts.values())
+    if total == 0:
+        return {"dominant": "NONE", "counts": {}, "mixed": False, "confidence": "UNKNOWN"}
+    ratios = {k: v / total for k, v in counts.items()}
+    dominant, dom_ratio = max(ratios.items(), key=lambda x: x[1])
+    significant = [k for k, r in ratios.items() if r >= 0.10]
+    confidence = "HIGH_CONFIDENCE" if dom_ratio >= 0.85 else "PROBABLE" if dom_ratio >= 0.60 else "POSSIBLE"
+    return {
+        "dominant": dominant,
+        "counts": dict(counts),
+        "mixed": len(significant) > 1,
+        "confidence": confidence,
+        "limitations": ["Script does not determine language or nationality."],
+    }
+
+
+def tokenize_words(text: str) -> List[str]:
+    return re.findall(r"\b[\w']+\b", (text or "").lower(), re.UNICODE)
+
+
+def detect_language(text: str) -> List[Dict[str, Any]]:
+    analysis = analysis_text(text)
+    if len(analysis) < 20:
+        return [{"language": "UNKNOWN", "probability": 0.0, "confidence": "INSUFFICIENT_TEXT", "limitations": ["Too short."]}]
+
+    candidates: List[Dict[str, Any]] = []
+    script_info = detect_scripts(analysis)
+    for lang in SCRIPT_LANGUAGE_HINTS.get(script_info["dominant"], []):
+        candidates.append({"language": lang, "probability": 0.35, "source": "script_hint"})
+
+    tokens = tokenize_words(analysis)
+    if tokens:
+        for lang, sw in STOPWORDS.items():
+            hits = sum(1 for t in tokens if t in sw)
+            if hits >= 2:
+                candidates.append({"language": lang, "probability": min(0.75, hits / max(1, len(tokens)) * 4), "source": "stopword"})
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for c in candidates:
+        lang = c["language"]
+        p = float(c["probability"])
+        if lang not in merged or p > merged[lang]["probability"]:
+            merged[lang] = {"language": lang, "probability": p, "evidence": [c["source"]]}
+        else:
+            merged[lang]["evidence"].append(c["source"])
+
+    out = []
+    for m in merged.values():
+        prob = min(m["probability"], 0.75 if "script_hint" in m["evidence"] else 0.85)
+        conf = "HIGH_CONFIDENCE" if prob >= 0.80 else "PROBABLE" if prob >= 0.55 else "POSSIBLE"
+        out.append({
+            "language": m["language"],
+            "probability": round(prob, 4),
+            "confidence": conf,
+            "evidence": m["evidence"],
+            "limitations": ["Lightweight DOCINT language heuristic; use LANGINT for deep linguistic analysis."],
+        })
+    out.sort(key=lambda x: x["probability"], reverse=True)
+    return out[:5] or [{"language": "UNKNOWN", "probability": 0.0, "confidence": "UNKNOWN", "limitations": ["No heuristic match."]}]
+
+
+# --------------------------------------------------------------------
+# Regex utilities
+# --------------------------------------------------------------------
+
+URL_RE = re.compile(r"https?://[^\s<>'\"\)\]]+")
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+DOI_RE = re.compile(r"\b10\.\d{4,9}/[-._;()/:A-Za-z0-9]+\b")
+ISBN_RE = re.compile(r"\bISBN[:\s-]*(?:97[89])?[-\s]?\d{1,5}[-\s]?\d{1,7}[-\s]?\d{1,7}[-\s]?[\dXx]\b", re.I)
+ARXIV_RE = re.compile(r"\barXiv:\d{4}\.\d{4,5}(v\d+)?\b", re.I)
+CASE_RE = re.compile(r"\b(?:Case No\.?|Docket No\.?|File No\.?|No\.)\s*[A-Za-z0-9/\-_.:]+\b", re.I)
+STATUTE_RE = re.compile(r"(?:§\s*\d+[\w\-\.\(\)]*|Title\s+\d+|Section\s+\d+[\w\-\.\(\)]*)", re.I)
+MONEY_RE = re.compile(
+    r"(?:USD|EUR|GBP|INR|JPY|\$|€|£|₹)?\s*\d{1,3}(?:[,\s]\d{3})*(?:\.\d+)?\s*(?:million|billion|crore|lakh|thousand|k|m|bn|%)?",
+    re.I,
+)
+DATE_RE = re.compile(
+    r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\.?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?,?\s+\d{4})\b",
+    re.I,
+)
+REL_TIME_RE = re.compile(
+    r"\b(?:today|yesterday|tomorrow|last week|this week|next week|last month|this month|next month|recently|shortly|last night|this morning|this evening|in coming months|before launch|after attack|ago|since|until|during)\b",
+    re.I,
+)
+ACRONYM_RE = re.compile(r"\b[A-Z]{2,}\b")
+PROPER_RE = re.compile(r"\b[A-ZÀ-Þ][a-zà-þ]+(?:\s+[A-ZÀ-Þ][a-zà-þ]+){0,3}\b")
+SENT_SPLIT_RE = re.compile(r"(?<=[.!?।۔؟])\s+|\n+")
+NEG_WORDS = {"not", "no", "never", "none", "nothing", "nobody", "neither", "nor", "without", "deny", "denied", "lacks", "absence"}
+
+
+def extract_urls(text: str) -> List[str]:
+    urls = []
+    for m in URL_RE.finditer(text or ""):
+        u = m.group().rstrip(".,;:!?)]}\"'")
+        urls.append(u)
+    return list(dict.fromkeys(urls))
+
+
+def decode_pdf_string(s: str) -> str:
+    # Very light PDF string unescape.
+    s = re.sub(r"\\([0-7]{1,3})", lambda m: chr(int(m.group(1), 8)), s)
+    s = s.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\b", "\b").replace("\\f", "\f")
+    s = s.replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\")
+    return s
+
+
+def pdf_date_to_iso(raw: str) -> Optional[str]:
+    m = re.match(r"D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?", raw or "")
+    if not m:
+        return None
+    year = int(m.group(1))
+    month = int(m.group(2) or 1)
+    day = int(m.group(3) or 1)
+    hour = int(m.group(4) or 0)
+    minute = int(m.group(5) or 0)
+    second = int(m.group(6) or 0)
+    try:
+        dt = datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+        if m.group(2) and m.group(3):
+            return dt.date().isoformat() if not (m.group(4) or m.group(5) or m.group(6)) else dt.isoformat()
+        return dt.date().isoformat()
+    except Exception:
+        return None
+
+
+def xml_tag_value(xml_text: str, tag: str) -> Optional[str]:
+    m = re.search(rf"<{re.escape(tag)}[^>]*>(.*?)</{re.escape(tag)}>", xml_text or "", re.S)
+    if not m:
+        return None
+    return html.unescape(re.sub(r"<[^>]+>", "", m.group(1))).strip()
+
+
+# --------------------------------------------------------------------
+# Default parsed document result
+# --------------------------------------------------------------------
+
+def default_parse_result(fmt: str) -> Dict[str, Any]:
+    return {
+        "format": fmt,
+        "pages": [],
+        "text": "",
+        "metadata": {},
+        "author_claims": [],
+        "created_times": [],
+        "modified_times": [],
+        "document_dates": [],
+        "publication_dates": [],
+        "signatures": [],
+        "embedded_objects": [],
+        "attachments": [],
+        "hyperlinks": [],
+        "qr_codes": [],
+        "barcodes": [],
+        "tables": [],
+        "forms": [],
+        "figures": [],
+        "images": [],
+        "tracked_changes": [],
+        "comments": [],
+        "redaction_context": [],
+        "tampering_indicators": [],
+        "security_flags": [],
+        "ocr_outputs": [],
+        "ocr_confidence": None,
+        "languages": [],
+        "structure": {},
+        "status": "SUCCEEDED",
+        "limitations": [],
+    }
+
+
+def add_page(res: Dict[str, Any], page_number: Optional[int], text: str, source: str = "native", confidence: str = "PROBABLE") -> Dict[str, Any]:
+    page = {
+        "page_id": stable_id("PAGE", res.get("format", "doc"), page_number, sha256_text(text)[:12]),
+        "page_number": page_number,
+        "page_label": str(page_number) if page_number is not None else None,
+        "text": text,
+        "ocr_text": text if source == "ocr" else None,
+        "source": source,
+        "confidence": confidence,
+        "tables": [],
+        "figures": [],
+        "headers": [],
+        "footers": [],
+        "annotations": [],
+        "limitations": [],
+    }
+    res["pages"].append(page)
+    if text:
+        res["text"] = (res.get("text", "") + "\n" + text).strip()
+    return page
+
+
+def add_security_flag(res: Dict[str, Any], flag_type: str, severity: str, detail: str) -> None:
+    res["security_flags"].append({
+        "type": flag_type,
+        "severity": severity,
+        "detail": detail,
+        "action": "STATIC_ANALYSIS_ONLY_NO_EXECUTION_NO_FETCH",
+    })
+
+
+def add_tampering_indicator(res: Dict[str, Any], indicator_type: str, severity: str, detail: str) -> None:
+    res["tampering_indicators"].append({
+        "type": indicator_type,
+        "severity": severity,
+        "detail": detail,
+        "interpretation": "Indicator only; not proof of forgery or malicious tampering.",
+    })
+
+
+# --------------------------------------------------------------------
+# PDF parser
+# --------------------------------------------------------------------
+
+PDF_SECURITY_PATTERNS = [
+    ("PDF_JAVASCRIPT_PRESENT", "HIGH", r"/JavaScript|/JS\b"),
+    ("PDF_OPEN_ACTION_PRESENT", "MEDIUM", r"/OpenAction"),
+    ("PDF_AUTO_ACTION_PRESENT", "MEDIUM", r"/AA\b"),
+    ("PDF_LAUNCH_ACTION_PRESENT", "HIGH", r"/Launch"),
+    ("PDF_EMBEDDED_FILE_PRESENT", "MEDIUM", r"/EmbeddedFile"),
+    ("PDF_RICH_MEDIA_PRESENT", "MEDIUM", r"/RichMedia"),
+    ("PDF_XFA_PRESENT", "MEDIUM", r"/XFA"),
+    ("PDF_ENCRYPTED_DICT_PRESENT", "MEDIUM", r"/Encrypt"),
+]
+
+
+def parse_pdf(data: bytes, doc_id: str, limits: Dict[str, Any], privacy_cfg: Dict[str, Any], ocr_enabled: bool) -> Dict[str, Any]:
+    res = default_parse_result("pdf")
+    raw = data.decode("latin-1", errors="replace")
+
+    for flag_type, severity, pat in PDF_SECURITY_PATTERNS:
+        if re.search(pat, raw):
+            add_security_flag(res, flag_type, severity, "Static PDF keyword detected. Content was not executed.")
+
+    eof_count = raw.count("%%EOF")
+    prev_count = len(re.findall(r"/Prev\s+\d+", raw))
+    if eof_count > 1 or prev_count > 0:
+        add_tampering_indicator(res, "PDF_INCREMENTAL_UPDATE_CANDIDATE", "LOW", f"%%EOF_count={eof_count}, /Prev_count={prev_count}. Incremental updates can be normal.")
+
+    if "/Sig" in raw or "/ByteRange" in raw:
+        res["signatures"].append({
+            "signature_id": stable_id("SIG", doc_id, "pdf-digital"),
+            "type": "DIGITAL_SIGNATURE_CANDIDATE",
+            "state": "NOT_VERIFIED",
+            "detail": "PDF signature dictionary markers detected. Cryptographic validation not performed in starter.",
+            "limitations": ["Signature presence is not validity. Valid signature is not factual truth."],
+        })
+
+    if re.search(r"/AcroForm", raw):
+        field_counts = Counter(m.group(1) for m in re.finditer(r"/FT\s*/(Tx|Btn|Ch|Sig)", raw))
+        res["forms"].append({
+            "form_id": stable_id("FORM", doc_id, "acroform"),
+            "type": "PDF_ACROFORM",
+            "field_counts": dict(field_counts),
+            "state": "STATIC_FIELD_METADATA_ONLY",
+            "limitations": ["Form fields were not submitted or executed."],
+        })
+
+    if re.search(r"/Subtype\s*/Redact|/Redact", raw):
+        res["redaction_context"].append({
+            "state": "REDACTION_MARKERS_PRESENT",
+            "action": "DO_NOT_RECOVER_WITHOUT_EXPLICIT_AUTHORIZATION",
+            "limitations": ["Redaction markers detected. Starter does not attempt reconstruction."],
+        })
+
+    # Hyperlinks from raw URI objects
+    for m in re.finditer(r"/URI\s*\(((?:\\.|[^\\)])*)\)", raw):
+        uri = decode_pdf_string(m.group(1)).strip()
+        if uri:
+            res["hyperlinks"].append({
+                "display_text": None,
+                "target": uri,
+                "source": "pdf_uri_object",
+                "action": "NOT_FETCHED",
+            })
+
+    # Metadata / text via pypdf or pdfplumber
+    page_count_known = False
+    text_chars = 0
+
+    if HAS_PYPDF:
+        try:
+            reader = PdfReader(io.BytesIO(data))
+            if getattr(reader, "is_encrypted", False):
+                res["status"] = "ENCRYPTED"
+                res["limitations"].append("Encrypted PDF detected. Password not attempted.")
+                add_security_flag(res, "PDF_ENCRYPTED", "MEDIUM", "Encrypted PDF not decrypted.")
+                return res
+
+            meta = reader.metadata or {}
+            res["metadata"].update({
+                "title": meta.get("/Title"),
+                "author": meta.get("/Author"),
+                "subject": meta.get("/Subject"),
+                "keywords": meta.get("/Keywords"),
+                "creator": meta.get("/Creator"),
+                "producer": meta.get("/Producer"),
+                "creation_date_raw": meta.get("/CreationDate"),
+                "modification_date_raw": meta.get("/ModDate"),
+            })
+            if res["metadata"].get("author"):
+                res["author_claims"].append({
+                    "claim_type": "METADATA_AUTHOR_CLAIM",
+                    "value": res["metadata"]["author"],
+                    "confidence": "POSSIBLE",
+                    "limitations": ["Metadata author may be default username, template creator, previous editor, or spoofed value."],
+                })
+            cd = pdf_date_to_iso(str(meta.get("/CreationDate") or ""))
+            md = pdf_date_to_iso(str(meta.get("/ModDate") or ""))
+            if cd:
+                res["created_times"].append({"type": "PDF_METADATA_CREATED", "iso": cd, "confidence": "POSSIBLE"})
+            if md:
+                res["modified_times"].append({"type": "PDF_METADATA_MODIFIED", "iso": md, "confidence": "POSSIBLE"})
+
+            max_pages = int(limits.get("max_pages", DEFAULT_MAX_PAGES))
+            pages = reader.pages
+            page_count_known = True
+            res["structure"]["page_count"] = len(pages)
+            for i, page in enumerate(pages[:max_pages]):
+                try:
+                    txt = page.extract_text() or ""
+                except Exception:
+                    txt = ""
+                txt = normalize_text(txt)
+                text_chars += len(txt)
+                add_page(res, i + 1, txt, source="pypdf_text_layer", confidence="PROBABLE" if txt else "LOW_CONFIDENCE")
+            if len(pages) > max_pages:
+                res["status"] = "PARTIAL"
+                res["limitations"].append(f"Only first {max_pages} pages parsed.")
+        except Exception as exc:
+            res["limitations"].append(f"pypdf parse error: {exc}")
+
+    if HAS_PDFPLUMBER and (not page_count_known or text_chars < 50):
+        try:
+            with pdfplumber.open(io.BytesIO(data)) as pdf:
+                page_count_known = True
+                res["structure"]["page_count"] = len(pdf.pages)
+                max_pages = int(limits.get("max_pages", DEFAULT_MAX_PAGES))
+                for i, page in enumerate(pdf.pages[:max_pages]):
+                    txt = normalize_text(page.extract_text() or "")
+                    if txt and (i >= len(res["pages"]) or not res["pages"][i].get("text")):
+                        if i < len(res["pages"]):
+                            res["pages"][i]["text"] = txt
+                            res["pages"][i]["source"] = "pdfplumber_text_layer"
+                        else:
+                            add_page(res, i + 1, txt, source="pdfplumber_text_layer", confidence="PROBABLE")
+                    text_chars += len(txt)
+                    try:
+                        tables = page.extract_tables() or []
+                    except Exception:
+                        tables = []
+                    for t_idx, table in enumerate(tables):
+                        table_obj = {
+                            "table_id": stable_id("TBL", doc_id, i + 1, t_idx),
+                            "page_number": i + 1,
+                            "rows": table,
+                            "row_count": len(table),
+                            "confidence": "PROBABLE",
+                            "limitations": ["Table extraction may misalign merged cells or multi-column layouts."],
+                        }
+                        res["tables"].append(table_obj)
+                        if i < len(res["pages"]):
+                            res["pages"][i]["tables"].append(table_obj["table_id"])
+        except Exception as exc:
+            res["limitations"].append(f"pdfplumber parse error: {exc}")
+
+    # Raw metadata fallback
+    for key, field in [("Title", "title"), ("Author", "author"), ("Creator", "creator"), ("Producer", "producer"), ("CreationDate", "creation_date_raw"), ("ModDate", "modification_date_raw")]:
+        m = re.search(rf"/{key}\s*\(((?:\\.|[^\\)])*)\)", raw)
+        if m and not res["metadata"].get(field):
+            val = decode_pdf_string(m.group(1)).strip()
+            if val:
+                res["metadata"][field] = val
+                if field == "author":
+                    res["author_claims"].append({
+                        "claim_type": "METADATA_AUTHOR_CLAIM",
+                        "value": val,
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Raw PDF metadata author claim; not verified real author."],
+                    })
+
+    if not page_count_known:
+        res["status"] = "PARTIAL" if res["text"] else "UNSUPPORTED_PARSER"
+        res["limitations"].append("Install pypdf or pdfplumber for full PDF text/page extraction.")
+
+    # OCR candidate for scanned PDFs is not attempted without page rasterizer.
+    if text_chars < 100:
+        res["ocr_confidence"] = "LOW_CONFIDENCE"
+        res["limitations"].append("PDF has little machine-readable text. Scanned PDF OCR requires page rasterization and authorized OCR engine.")
+        add_security_flag(res, "PDF_LOW_TEXT_LAYER", "LOW", "Possible scanned/image PDF. No OCR executed by default.")
+
+    # URLs from extracted text
+    for u in extract_urls(res["text"]):
+        res["hyperlinks"].append({"display_text": None, "target": u, "source": "pdf_text_url", "action": "NOT_FETCHED"})
+
+    res["hyperlinks"] = [dict(t) for t in {tuple(sorted(h.items())) for h in res["hyperlinks"]}]
+    return res
+
+
+# --------------------------------------------------------------------
+# OOXML / ODF helpers
+# --------------------------------------------------------------------
+
+def parse_ooxml_generic(data: bytes, doc_id: str, fmt: str, limits: Dict[str, Any]) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            names = zf.namelist()
+            max_member = int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES))
+
+            if any(n.lower().endswith("vbaproject.bin") for n in names):
+                add_security_flag(res, "OFFICE_MACRO_PROJECT_PRESENT", "HIGH", "VBA project detected. Macro code was not executed.")
+                add_tampering_indicator(res, "ACTIVE_CONTENT_PRESENT", "MEDIUM", "Office macro container present. This is not automatically malicious.")
+
+            core = zip_read_limited(zf, "docProps/core.xml", max_member)
+            app = zip_read_limited(zf, "docProps/app.xml", max_member)
+            core_txt = (core or b"").decode("utf-8", errors="replace")
+            app_txt = (app or b"").decode("utf-8", errors="replace")
+
+            creator = xml_tag_value(core_txt, "dc:creator")
+            last_mod = xml_tag_value(core_txt, "cp:lastModifiedBy")
+            created = xml_tag_value(core_txt, "dcterms:created")
+            modified = xml_tag_value(core_txt, "dcterms:modified")
+            revision = xml_tag_value(core_txt, "cp:revision")
+            title = xml_tag_value(core_txt, "dc:title")
+            subject = xml_tag_value(core_txt, "dc:subject")
+            keywords = xml_tag_value(core_txt, "cp:keywords")
+            category = xml_tag_value(core_txt, "cp:category")
+
+            application = xml_tag_value(app_txt, "Application")
+            app_version = xml_tag_value(app_txt, "AppVersion")
+            company = xml_tag_value(app_txt, "Company")
+            template = xml_tag_value(app_txt, "Template")
+
+            res["metadata"].update({
+                "title": title,
+                "creator": creator,
+                "last_modified_by": last_mod,
+                "created": created,
+                "modified": modified,
+                "revision": revision,
+                "subject": subject,
+                "keywords": keywords,
+                "category": category,
+                "application": application,
+                "application_version": app_version,
+                "company": company,
+                "template": template,
+            })
+
+            if creator:
+                res["author_claims"].append({
+                    "claim_type": "METADATA_AUTHOR_CLAIM",
+                    "value": creator,
+                    "confidence": "POSSIBLE",
+                    "limitations": ["OOXML core creator may not be real author."],
+                })
+            if created:
+                res["created_times"].append({"type": "OOXML_CORE_CREATED", "iso": created, "confidence": "POSSIBLE"})
+            if modified:
+                res["modified_times"].append({"type": "OOXML_CORE_MODIFIED", "iso": modified, "confidence": "POSSIBLE"})
+
+            if created and modified:
+                try:
+                    c_dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                    m_dt = datetime.fromisoformat(modified.replace("Z", "+00:00"))
+                    if c_dt > m_dt:
+                        add_tampering_indicator(res, "METADATA_TIMESTAMP_INCONSISTENCY", "LOW", "Created timestamp is later than modified timestamp; may be clock/timezone/template artifact.")
+                except Exception:
+                    pass
+
+            comment_count = len(re.findall(r"<w:comment\b", core_txt + app_txt, re.I))
+            # Word comments are in word/comments.xml, handled in docx parser.
+
+            res["structure"]["zip_entry_count"] = len(names)
+            res["structure"]["zip_entries_preview"] = names[:200]
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"OOXML container error: {exc}")
+    return res
+
+
+def parse_docx(data: bytes, doc_id: str, limits: Dict[str, Any], privacy_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    res = parse_ooxml_generic(data, doc_id, "docx", limits)
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            max_member = int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES))
+            doc_xml_bytes = zip_read_limited(zf, "word/document.xml", max_member)
+            doc_xml = (doc_xml_bytes or b"").decode("utf-8", errors="replace")
+
+            paras: List[str] = []
+            for p in re.split(r"</w:p>", doc_xml):
+                texts = re.findall(r"<w:t[^>]*>(.*?)</w:t>", p, re.S)
+                para = html.unescape(" ".join(texts)).strip()
+                if para:
+                    paras.append(para)
+
+            page = add_page(res, None, "\n".join(paras), source="docx_paragraph_text", confidence="PROBABLE")
+            page["page_label"] = "document-body"
+            res["structure"]["paragraph_count"] = len(paras)
+            res["structure"]["page_count"] = "UNKNOWN_DOCX_NO_FIXED_PAGINATION"
+
+            # Tables
+            table_count = len(re.findall(r"<w:tbl\b", doc_xml))
+            res["structure"]["table_count_approx"] = table_count
+            if HAS_DOCX:
+                try:
+                    d = docx.Document(io.BytesIO(data))
+                    table_rows = []
+                    for ti, tbl in enumerate(d.tables[:50]):
+                        rows = []
+                        for r in tbl.rows[:200]:
+                            rows.append([c.text for c in r.cells[:100]])
+                        table_rows.append({
+                            "table_id": stable_id("TBL", doc_id, ti),
+                            "page_number": None,
+                            "rows": rows,
+                            "row_count": len(rows),
+                            "confidence": "PROBABLE",
+                            "limitations": ["DOCX table extraction may flatten merged cells."],
+                        })
+                    res["tables"].extend(table_rows)
+                except Exception as exc:
+                    res["limitations"].append(f"python-docx table parse error: {exc}")
+
+            # Comments / tracked changes
+            comments_xml = zip_read_limited(zf, "word/comments.xml", max_member)
+            if comments_xml:
+                ctext = comments_xml.decode("utf-8", errors="replace")
+                comments = re.findall(r"<w:comment\b.*?>(.*?)</w:comment>", ctext, re.S)
+                res["comments"] = [{"comment_id": stable_id("CMT", doc_id, i), "raw_excerpt": truncate_text(re.sub(r"<[^>]+>", " ", c), 500)} for i, c in enumerate(comments[:100])]
+                if comments:
+                    add_tampering_indicator(res, "COMMENTS_PRESENT", "LOW", "Document comments present. Comments are editorial context, not verified fact.")
+
+            ins_count = len(re.findall(r"<w:ins\b", doc_xml))
+            del_count = len(re.findall(r"<w:del\b", doc_xml))
+            if ins_count or del_count:
+                res["tracked_changes"].append({
+                    "insertions_approx": ins_count,
+                    "deletions_approx": del_count,
+                    "state": "TRACKED_CHANGES_PRESENT",
+                    "limitations": ["Tracked-change author metadata is not verified real identity."],
+                })
+                add_tampering_indicator(res, "TRACKED_CHANGES_PRESENT", "LOW", "Tracked changes present; normal editing workflow possible.")
+
+            # Hyperlinks from relationships
+            rels = zip_read_limited(zf, "word/_rels/document.xml.rels", max_member)
+            if rels:
+                rtext = rels.decode("utf-8", errors="replace")
+                for m in re.finditer(r'Target="(https?://[^"]+)"', rtext):
+                    res["hyperlinks"].append({"display_text": None, "target": html.unescape(m.group(1)), "source": "docx_relationship", "action": "NOT_FETCHED"})
+
+            # Embedded objects
+            for n in zf.namelist():
+                if "embeddings/" in n or "oleObject" in n.lower():
+                    res["embedded_objects"].append({
+                        "object_id": stable_id("EMB", doc_id, n),
+                        "entry": n,
+                        "type": "OOXML_EMBEDDED_OBJECT_CANDIDATE",
+                        "action": "LISTED_ONLY_NOT_EXECUTED",
+                    })
+                    add_security_flag(res, "OOXML_EMBEDDED_OBJECT_PRESENT", "MEDIUM", f"Embedded object entry: {n}")
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"DOCX parse error: {exc}")
+    return res
+
+
+def parse_xlsx(data: bytes, doc_id: str, limits: Dict[str, Any], privacy_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    res = parse_ooxml_generic(data, doc_id, "xlsx", limits)
+    max_rows = int(limits.get("max_rows_per_sheet", DEFAULT_MAX_ROWS_PER_SHEET))
+    max_cols = int(limits.get("max_cols_per_sheet", DEFAULT_MAX_COLS_PER_SHEET))
+
+    if HAS_OPENPYXL:
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(data), data_only=False, read_only=True)
+            all_text = []
+            for sheet in wb.worksheets:
+                sheet_name = sheet.title
+                hidden = getattr(sheet, "sheet_state", "visible") != "visible"
+                if hidden:
+                    add_tampering_indicator(res, "HIDDEN_SHEET_PRESENT", "LOW", f"Hidden sheet '{sheet_name}'. Hidden is not automatically malicious.")
+                rows_out = []
+                for r_idx, row in enumerate(sheet.iter_rows(min_row=1, max_row=max_rows, max_col=max_cols, values_only=False), start=1):
+                    row_vals = []
+                    for c in row:
+                        v = c.value
+                        if v is None:
+                            row_vals.append("")
+                        else:
+                            sv = str(v)
+                            if sv.startswith("="):
+                                res["structure"]["formula_cells_detected"] = res["structure"].get("formula_cells_detected", 0) + 1
+                            row_vals.append(sv)
+                    rows_out.append(row_vals)
+                    all_text.append(" | ".join([x for x in row_vals if x]))
+                table_obj = {
+                    "table_id": stable_id("TBL", doc_id, sheet_name),
+                    "sheet": sheet_name,
+                    "rows": rows_out,
+                    "row_count": len(rows_out),
+                    "confidence": "PROBABLE",
+                    "limitations": ["Formula cached values may be stale. No recalculation performed."],
+                }
+                res["tables"].append(table_obj)
+                add_page(res, None, "\n".join([f"Sheet: {sheet_name}"] + [" | ".join(r) for r in rows_out]), source="xlsx_sheet_text", confidence="PROBABLE")
+            wb.close()
+            res["structure"]["sheet_count"] = len(res["tables"])
+        except Exception as exc:
+            res["limitations"].append(f"openpyxl parse error: {exc}")
+    else:
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                max_member = int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES))
+                ss = zip_read_limited(zf, "xl/sharedStrings.xml", max_member)
+                if ss:
+                    text = ss.decode("utf-8", errors="replace")
+                    strings = [html.unescape(x) for x in re.findall(r"<t[^>]*>(.*?)</t>", text, re.S)]
+                    joined = "\n".join(strings)
+                    add_page(res, None, joined, source="xlsx_shared_strings_fallback", confidence="POSSIBLE")
+                wb_xml = zip_read_limited(zf, "xl/workbook.xml", max_member)
+                if wb_xml:
+                    wtext = wb_xml.decode("utf-8", errors="replace")
+                    sheets = re.findall(r"<sheet[^>]*name=\"([^\"]+)\"[^>]*(?:state=\"([^\"]+)\")?", wtext)
+                    res["structure"]["sheets"] = [{"name": html.unescape(s[0]), "state": s[1] or "visible"} for s in sheets]
+                    for s in sheets:
+                        if s[1] == "hidden":
+                            add_tampering_indicator(res, "HIDDEN_SHEET_PRESENT", "LOW", f"Hidden sheet '{html.unescape(s[0])}' detected via XML.")
+        except Exception as exc:
+            res["status"] = "PARTIAL"
+            res["limitations"].append(f"XLSX fallback parse error: {exc}")
+
+    # External links
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            for n in zf.namelist():
+                if "externalLink" in n or "externalLinks/" in n:
+                    res["hyperlinks"].append({"display_text": None, "target": n, "source": "xlsx_external_link_part", "action": "NOT_FETCHED"})
+                    add_security_flag(res, "XLSX_EXTERNAL_LINK_PART_PRESENT", "MEDIUM", f"External link part: {n}")
+    except Exception:
+        pass
+
+    res["structure"]["formula_caution"] = "Formula != displayed/cached value. No recalculation performed."
+    return res
+
+
+def parse_pptx(data: bytes, doc_id: str, limits: Dict[str, Any], privacy_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    res = parse_ooxml_generic(data, doc_id, "pptx", limits)
+    if HAS_PPTX:
+        try:
+            prs = Presentation(io.BytesIO(data))
+            for i, slide in enumerate(prs.slides, start=1):
+                texts = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text:
+                        texts.append(shape.text)
+                notes = ""
+                try:
+                    if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                        notes = slide.notes_slide.notes_text_frame.text
+                except Exception:
+                    notes = ""
+                page_text = "\n".join(texts + ([f"Notes: {notes}"] if notes else []))
+                add_page(res, i, page_text, source="pptx_slide_text", confidence="PROBABLE")
+            res["structure"]["slide_count"] = len(prs.slides)
+        except Exception as exc:
+            res["limitations"].append(f"python-pptx parse error: {exc}")
+    else:
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                max_member = int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES))
+                slide_names = sorted([n for n in zf.namelist() if re.match(r"ppt/slides/slide\d+\.xml$", n)])
+                for i, sn in enumerate(slide_names, start=1):
+                    xml = zip_read_limited(zf, sn, max_member)
+                    if not xml:
+                        continue
+                    text = xml.decode("utf-8", errors="replace")
+                    runs = [html.unescape(x) for x in re.findall(r"<a:t>(.*?)</a:t>", text, re.S)]
+                    add_page(res, i, " ".join(runs), source="pptx_xml_fallback", confidence="POSSIBLE")
+                res["structure"]["slide_count_approx"] = len(slide_names)
+        except Exception as exc:
+            res["status"] = "PARTIAL"
+            res["limitations"].append(f"PPTX fallback parse error: {exc}")
+    return res
+
+
+def parse_odf(data: bytes, doc_id: str, limits: Dict[str, Any], fmt: str) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            max_member = int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES))
+            content = zip_read_limited(zf, "content.xml", max_member)
+            meta = zip_read_limited(zf, "meta.xml", max_member)
+            if content:
+                text = content.decode("utf-8", errors="replace")
+                plain = re.sub(r"<[^>]+>", " ", text)
+                plain = html.unescape(re.sub(r"\s+", " ", plain)).strip()
+                add_page(res, None, plain, source="odf_content_xml", confidence="POSSIBLE")
+            if meta:
+                mtext = meta.decode("utf-8", errors="replace")
+                res["metadata"]["initial_creator"] = xml_tag_value(mtext, "meta:initial-creator")
+                res["metadata"]["creation_date"] = xml_tag_value(mtext, "meta:creation-date")
+                res["metadata"]["generator"] = xml_tag_value(mtext, "meta:generator")
+                if res["metadata"].get("initial_creator"):
+                    res["author_claims"].append({
+                        "claim_type": "METADATA_AUTHOR_CLAIM",
+                        "value": res["metadata"]["initial_creator"],
+                        "confidence": "POSSIBLE",
+                        "limitations": ["ODF metadata creator is not verified real author."],
+                    })
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"ODF parse error: {exc}")
+    return res
+
+
+# --------------------------------------------------------------------
+# Plain text / structured text parsers
+# --------------------------------------------------------------------
+
+def parse_text(data: bytes, doc_id: str, fmt: str) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    text = data.decode("utf-8", errors="replace")
+    text = normalize_text(text)
+    add_page(res, 1, text, source="plain_text", confidence="HIGH_CONFIDENCE")
+    res["structure"]["line_count"] = len(text.splitlines())
+    return res
+
+
+def parse_csv(data: bytes, doc_id: str) -> Dict[str, Any]:
+    res = default_parse_result("csv")
+    text = data.decode("utf-8", errors="replace")
+    try:
+        sample = text[:4096]
+        delim = ","
+        if sample.count("\t") > sample.count(","):
+            delim = "\t"
+        elif sample.count(";") > sample.count(","):
+            delim = ";"
+        reader = csv.reader(io.StringIO(text), delimiter=delim)
+        rows = []
+        lines = []
+        for i, row in enumerate(reader):
+            if i >= 5000:
+                res["status"] = "PARTIAL"
+                res["limitations"].append("CSV row limit reached.")
+                break
+            rows.append(row)
+            lines.append(" | ".join(row))
+        add_page(res, 1, "\n".join(lines), source="csv_text", confidence="HIGH_CONFIDENCE")
+        res["tables"].append({
+            "table_id": stable_id("TBL", doc_id, "csv"),
+            "rows": rows,
+            "row_count": len(rows),
+            "delimiter": delim,
+            "confidence": "PROBABLE",
+            "limitations": ["Delimiter inferred heuristically. Quoting/escapes may require domain parser."],
+        })
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"CSV parse error: {exc}")
+    return res
+
+
+def collect_json_strings(obj: Any, out: List[str], depth: int = 0, max_items: int = 5000) -> None:
+    if len(out) >= max_items or depth > 20:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.append(str(k))
+            collect_json_strings(v, out, depth + 1, max_items)
+    elif isinstance(obj, list):
+        for v in obj:
+            collect_json_strings(v, out, depth + 1, max_items)
+    elif obj is not None:
+        out.append(str(obj))
+
+
+def parse_json(data: bytes, doc_id: str) -> Dict[str, Any]:
+    res = default_parse_result("json")
+    try:
+        obj = json.loads(data.decode("utf-8", errors="replace"))
+        strings: List[str] = []
+        collect_json_strings(obj, strings)
+        text = "\n".join(strings)
+        add_page(res, 1, text, source="json_string_values", confidence="PROBABLE")
+        res["structure"]["top_level_type"] = type(obj).__name__
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"JSON parse error: {exc}")
+    return res
+
+
+class _TextHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: List[str] = []
+        self.skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: Any) -> None:
+        if tag in {"script", "style", "noscript"}:
+            self.skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "noscript"} and self.skip_depth > 0:
+            self.skip_depth -= 1
+        self.parts.append(" ")
+
+    def handle_data(self, data: str) -> None:
+        if self.skip_depth == 0:
+            self.parts.append(data)
+
+
+def parse_html(data: bytes, doc_id: str) -> Dict[str, Any]:
+    res = default_parse_result("html")
+    text = data.decode("utf-8", errors="replace")
+    parser = _TextHTMLParser()
+    try:
+        parser.feed(text)
+        plain = html.unescape("".join(parser.parts))
+        plain = re.sub(r"\s+", " ", plain).strip()
+    except Exception as exc:
+        plain = re.sub(r"<[^>]+>", " ", text)
+        res["limitations"].append(f"HTML parser fallback used: {exc}")
+    add_page(res, 1, plain, source="html_text_extraction", confidence="PROBABLE")
+    for u in extract_urls(text):
+        res["hyperlinks"].append({"display_text": None, "target": u, "source": "html_raw_url", "action": "NOT_FETCHED"})
+    add_security_flag(res, "HTML_REMOTE_RESOURCES_MAY_EXIST", "LOW", "Remote resources were not fetched.")
+    return res
+
+
+def parse_xml(data: bytes, doc_id: str) -> Dict[str, Any]:
+    res = default_parse_result("xml")
+    text = data.decode("utf-8", errors="replace")
+    plain = re.sub(r"<[^>]+>", " ", text)
+    plain = html.unescape(re.sub(r"\s+", " ", plain)).strip()
+    add_page(res, 1, plain, source="xml_tag_strip", confidence="POSSIBLE")
+    for u in extract_urls(text):
+        res["hyperlinks"].append({"display_text": None, "target": u, "source": "xml_raw_url", "action": "NOT_FETCHED"})
+    return res
+
+
+def parse_eml(data: bytes, doc_id: str, limits: Dict[str, Any]) -> Dict[str, Any]:
+    res = default_parse_result("eml")
+    try:
+        msg = email.message_from_bytes(data, policy=email.policy.default)
+        headers = {}
+        for k in ["From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID", "In-Reply-To", "References"]:
+            v = msg.get(k)
+            if v:
+                headers[k] = str(v)
+        res["metadata"]["email_headers"] = headers
+        if headers.get("From"):
+            res["author_claims"].append({
+                "claim_type": "EMAIL_HEADER_FROM_CLAIM",
+                "value": headers["From"],
+                "confidence": "POSSIBLE",
+                "limitations": ["Email From header can be spoofed unless authenticated. Authentication metadata not validated here."],
+            })
+        if headers.get("Date"):
+            res["document_dates"].append({"type": "EMAIL_HEADER_DATE", "value": headers["Date"], "confidence": "POSSIBLE"})
+
+        body_parts = []
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            disp = part.get_content_disposition()
+            filename = part.get_filename()
+            if ctype in {"text/plain", "text/html"} and disp != "attachment":
+                try:
+                    payload = part.get_payload(decode=True) or b""
+                    txt = payload.decode("utf-8", errors="replace")
+                    if ctype == "text/html":
+                        txt = re.sub(r"<[^>]+>", " ", txt)
+                    body_parts.append(txt)
+                except Exception:
+                    pass
+            elif filename:
+                payload = b""
+                try:
+                    payload = part.get_payload(decode=True) or b""
+                except Exception:
+                    payload = b""
+                res["attachments"].append({
+                    "attachment_id": stable_id("ATT", doc_id, filename, sha256_bytes(payload)[:12]),
+                    "parent_document_id": doc_id,
+                    "filename": filename,
+                    "content_type": ctype,
+                    "size": len(payload),
+                    "sha256": sha256_bytes(payload),
+                    "action": "LISTED_ONLY_NOT_EXECUTED",
+                    "limitations": ["Attachment was not opened, executed, or saved by this parser."],
+                })
+                add_security_flag(res, "EMAIL_ATTACHMENT_PRESENT", "MEDIUM", f"Attachment listed: {filename}")
+
+        add_page(res, 1, "\n\n".join(body_parts), source="eml_body_text", confidence="PROBABLE")
+        for u in extract_urls("\n".join(body_parts)):
+            res["hyperlinks"].append({"display_text": None, "target": u, "source": "eml_body_url", "action": "NOT_FETCHED"})
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"EML parse error: {exc}")
+    return res
+
+
+def parse_image(data: bytes, doc_id: str, fmt: str, ocr_enabled: bool, privacy_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    if not HAS_PIL:
+        res["status"] = "UNSUPPORTED_PARSER"
+        res["limitations"].append("Pillow not installed. Image metadata/OCR unavailable.")
+        return res
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+        res["metadata"].update({
+            "image_format": img.format,
+            "width": img.width,
+            "height": img.height,
+            "mode": img.mode,
+        })
+        res["images"].append({
+            "image_id": stable_id("IMG", doc_id, "primary"),
+            "format": img.format,
+            "width": img.width,
+            "height": img.height,
+            "handoff": "IMINT for deep visual analysis",
+        })
+        if ocr_enabled and HAS_TESSERACT:
+            try:
+                txt = pytesseract.image_to_string(img)
+                txt = normalize_text(txt)
+                add_page(res, 1, txt, source="ocr", confidence="LOW_CONFIDENCE")
+                res["ocr_outputs"].append({"engine": "pytesseract", "text": txt, "confidence": "LOW_CONFIDENCE"})
+                res["ocr_confidence"] = "LOW_CONFIDENCE"
+                res["limitations"].append("OCR output is derived interpretation. Material amounts/dates/IDs require human review.")
+            except Exception as exc:
+                res["limitations"].append(f"OCR failed: {exc}")
+        else:
+            res["status"] = "PARTIAL"
+            res["limitations"].append("OCR disabled or unavailable. No text extracted from image.")
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"Image parse error: {exc}")
+    return res
+
+
+def parse_archive(data: bytes, doc_id: str, fmt: str, limits: Dict[str, Any]) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    res["status"] = "PARTIAL"
+    res["limitations"].append("Archive contents listed only. No extraction, no execution, no recursive unpacking by default.")
+    add_security_flag(res, "ARCHIVE_PRESENT", "MEDIUM", "Archive requires authorized extraction pipeline with zip-bomb/path-traversal controls.")
+
+    try:
+        if fmt == "zip" or data[:2] == b"PK":
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                names = zf.namelist()
+                res["structure"]["member_count"] = len(names)
+                res["structure"]["members_preview"] = names[:200]
+                for n in names[:200]:
+                    ext = Path(n).suffix.lower()
+                    if ext in EXT_FORMAT:
+                        res["embedded_objects"].append({
+                            "object_id": stable_id("ARCH", doc_id, n),
+                            "entry": n,
+                            "candidate_format": EXT_FORMAT[ext],
+                            "action": "LISTED_ONLY_NOT_EXTRACTED",
+                        })
+        elif fmt in {"tar", "archive"}:
+            try:
+                tf = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+            except TypeError:
+                tf = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+            members = tf.getmembers()[:200]
+            res["structure"]["member_count_approx"] = len(tf.getmembers())
+            res["structure"]["members_preview"] = [m.name for m in members]
+            for m in members:
+                if m.issym() or m.islnk():
+                    add_security_flag(res, "ARCHIVE_LINK_MEMBER_PRESENT", "MEDIUM", f"Symlink/hardlink member: {m.name}")
+                ext = Path(m.name).suffix.lower()
+                if ext in EXT_FORMAT:
+                    res["embedded_objects"].append({
+                        "object_id": stable_id("ARCH", doc_id, m.name),
+                        "entry": m.name,
+                        "candidate_format": EXT_FORMAT[ext],
+                        "action": "LISTED_ONLY_NOT_EXTRACTED",
+                    })
+    except Exception as exc:
+        res["status"] = "FAILED"
+        res["limitations"].append(f"Archive listing error: {exc}")
+    return res
+
+
+def parse_ole_stub(data: bytes, doc_id: str, fmt: str) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    res["status"] = "UNSUPPORTED_FORMAT"
+    res["limitations"].append("Legacy OLE compound file detected. Deep static OLE parsing requires authorized olefile/oletools pipeline. No active content executed.")
+    add_security_flag(res, "OLE_CONTAINER_PRESENT", "MEDIUM", "Legacy Office/OLE container. Macro/Embedded object risk possible.")
+    add_tampering_indicator(res, "LEGACY_CONTAINER", "LOW", "Legacy container may have limited metadata visibility.")
+    return res
+
+
+def parse_unknown(data: bytes, doc_id: str, fmt: str) -> Dict[str, Any]:
+    res = default_parse_result(fmt)
+    if looks_text(data):
+        text = data.decode("utf-8", errors="replace")
+        add_page(res, 1, normalize_text(text), source="unknown_text_fallback", confidence="POSSIBLE")
+        res["status"] = "PARTIAL"
+        res["limitations"].append("Unknown format treated as text fallback.")
+    else:
+        res["status"] = "UNSUPPORTED_FORMAT"
+        res["limitations"].append("Unknown binary format preserved by hash only. No parser selected.")
+        add_security_flag(res, "UNKNOWN_BINARY_FORMAT", "MEDIUM", "Unknown binary format quarantined by policy. Not executed.")
+    return res
+
+
+# --------------------------------------------------------------------
+# Ingestion
+# --------------------------------------------------------------------
+
+def ingest_document(doc_cfg: Dict[str, Any], limits: Dict[str, Any], privacy_cfg: Dict[str, Any], ocr_enabled: bool) -> Dict[str, Any]:
+    doc_id = str(doc_cfg.get("document_id") or stable_id("DOC", doc_cfg.get("path", "unknown")))
+    path = Path(str(doc_cfg.get("path", "")))
+    source_id = str(doc_cfg.get("source_id", "UNKNOWN_SOURCE"))
+    source_type = str(doc_cfg.get("source_type", "unknown"))
+    provenance = doc_cfg.get("provenance", {}) or {}
+
+    base = {
+        "document_id": doc_id,
+        "case_id": doc_cfg.get("case_id"),
+        "artifact_id": str(doc_cfg.get("artifact_id") or stable_id("ART", doc_id, str(path))),
+        "filename": path.name if str(path) else None,
+        "original_filename": doc_cfg.get("original_filename") or (path.name if str(path) else None),
+        "path": str(path),
+        "source_id": source_id,
+        "source_type": source_type,
+        "provenance": provenance,
+        "classification": doc_cfg.get("classification", "UNCLASSIFIED"),
+        "retrieved_at": doc_cfg.get("retrieved_at") or utc_now(),
+        "status": "PENDING",
+        "limitations": [],
+    }
+
+    if not path or not path.exists() or not path.is_file():
+        base["status"] = "FAILED"
+        base["limitations"].append("File not found or not a regular file.")
+        return base
+
+    try:
+        size = path.stat().st_size
+    except Exception as exc:
+        base["status"] = "FAILED"
+        base["limitations"].append(f"Stat error: {exc}")
+        return base
+
+    max_bytes = int(limits.get("max_file_bytes", DEFAULT_MAX_FILE_BYTES))
+    if size > max_bytes:
+        base["status"] = "FAILED"
+        base["size"] = size
+        base["limitations"].append(f"File exceeds max_bytes={max_bytes}. Original not read.")
+        return base
+
+    try:
+        data = path.read_bytes()
+    except Exception as exc:
+        base["status"] = "FAILED"
+        base["limitations"].append(f"Read error: {exc}")
+        return base
+
+    fmt_info = detect_format(data, str(path), int(limits.get("max_zip_member_bytes", DEFAULT_MAX_ZIP_MEMBER_BYTES)))
+    base.update({
+        "size": size,
+        "sha256": sha256_bytes(data),
+        "format": fmt_info["format"],
+        "mime_type": fmt_info["mime_type"],
+        "expected_format_from_extension": fmt_info["expected_format_from_extension"],
+        "extension_matches_format": fmt_info["extension_matches_format"],
+        "active_content_possible": fmt_info["active_content_possible"],
+        "archive_members_preview": fmt_info["archive_members_preview"],
+    })
+
+    if not fmt_info["extension_matches_format"]:
+        base["limitations"].append("File extension does not match detected format.")
+        add_security_flag_in_base(base, "FILE_EXTENSION_MISMATCH", "MEDIUM", f"extension={fmt_info['expected_format_from_extension']}, detected={fmt_info['format']}")
+
+    if fmt_info["active_content_possible"]:
+        add_security_flag_in_base(base, "ACTIVE_CONTENT_POSSIBLE", "HIGH", "Document may contain macros/scripts/embedded active content. Static analysis only.")
+
+    fmt = fmt_info["format"]
+    try:
+        if fmt == "pdf":
+            parsed = parse_pdf(data, doc_id, limits, privacy_cfg, ocr_enabled)
+        elif fmt in {"docx", "docm"}:
+            parsed = parse_docx(data, doc_id, limits, privacy_cfg)
+            parsed["format"] = fmt
+        elif fmt in {"xlsx", "xlsm"}:
+            parsed = parse_xlsx(data, doc_id, limits, privacy_cfg)
+            parsed["format"] = fmt
+        elif fmt in {"pptx", "pptm"}:
+            parsed = parse_pptx(data, doc_id, limits, privacy_cfg)
+            parsed["format"] = fmt
+        elif fmt in {"odt", "ods", "odp", "odf"}:
+            parsed = parse_odf(data, doc_id, limits, fmt)
+        elif fmt in {"txt", "md", "log", "yaml", "yml"}:
+            parsed = parse_text(data, doc_id, fmt)
+        elif fmt == "csv":
+            parsed = parse_csv(data, doc_id)
+        elif fmt == "json":
+            parsed = parse_json(data, doc_id)
+        elif fmt == "xml":
+            parsed = parse_xml(data, doc_id)
+        elif fmt in {"html", "htm"}:
+            parsed = parse_html(data, doc_id)
+        elif fmt == "eml":
+            parsed = parse_eml(data, doc_id, limits)
+        elif fmt in IMAGE_FORMATS:
+            parsed = parse_image(data, doc_id, fmt, ocr_enabled, privacy_cfg)
+        elif fmt in {"zip", "tar", "archive", "epub"}:
+            parsed = parse_archive(data, doc_id, fmt, limits)
+        elif fmt == "ole":
+            parsed = parse_ole_stub(data, doc_id, fmt)
+        else:
+            parsed = parse_unknown(data, doc_id, fmt)
+    except Exception as exc:
+        parsed = default_parse_result(fmt)
+        parsed["status"] = "FAILED"
+        parsed["limitations"].append(f"Parser exception: {exc}")
+
+    # Merge base security flags into parsed
+    parsed["security_flags"] = base.get("security_flags", []) + parsed.get("security_flags", [])
+    parsed["limitations"] = base.get("limitations", []) + parsed.get("limitations", [])
+    parsed["status"] = parsed.get("status") or base.get("status")
+    base.update(parsed)
+    base["status"] = parsed.get("status", "PARTIAL")
+    return base
+
+
+def add_security_flag_in_base(base: Dict[str, Any], flag_type: str, severity: str, detail: str) -> None:
+    base.setdefault("security_flags", []).append({
+        "type": flag_type,
+        "severity": severity,
+        "detail": detail,
+        "action": "STATIC_ANALYSIS_ONLY_NO_EXECUTION_NO_FETCH",
+    })
+
+
+# --------------------------------------------------------------------
+# Claim / entity / relationship / citation extraction
+# --------------------------------------------------------------------
+
+def split_sentences(text: str) -> List[str]:
+    text = normalize_text(text)
+    parts = [p.strip() for p in SENT_SPLIT_RE.split(text) if p and p.strip()]
+    return parts
+
+
+def detect_negation(text: str) -> bool:
+    tokens = set(tokenize_words(text))
+    return bool(tokens & NEG_WORDS)
+
+
+def detect_claim_type(text: str) -> str:
+    t = text.lower()
+    if any(w in t for w in ["alleged", "alleges", "accusation", "accused"]):
+        return "ALLEGATION"
+    if any(w in t for w in ["believe", "think", "opinion", "view"]):
+        return "OPINION"
+    if any(w in t for w in ["forecast", "expected to", "will likely", "projected"]):
+        return "FORECAST"
+    if any(w in t for w in ["shall", "must", "policy", "pursuant", "required"]):
+        return "POLICY"
+    if any(w in t for w in ["article", "section", "clause", "according to law"]):
+        return "LEGAL_ARGUMENT"
+    if any(w in t for w in ["found", "concludes", "holding", "judgment"]):
+        return "FINDING"
+    if any(w in t for w in ["should", "recommend", "recommendation"]):
+        return "RECOMMENDATION"
+    if any(w in t for w in ["declare", "certify", "affirm"]):
+        return "DECLARATION"
+    return "FACTUAL_ASSERTION"
+
+
+def detect_certainty(text: str) -> str:
+    t = text.lower()
+    if any(w in t for w in ["confirmed", "verified", "certain", "definitely"]):
+        return "HIGH"
+    if any(w in t for w in ["may", "might", "could", "possibly", "likely", "reported", "alleged"]):
+        return "UNCERTAIN"
+    return "MEDIUM"
+
+
+def extract_entities_from_text(text: str) -> List[Dict[str, Any]]:
+    ents: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str]] = set()
+
+    def add(txt: str, label: str, conf: str, lims: List[str]) -> None:
+        txt = txt.strip()
+        if not txt:
+            return
+        key = (txt.lower(), label)
+        if key in seen:
+            return
+        seen.add(key)
+        ents.append({
+            "text": txt,
+            "label": label,
+            "confidence": conf,
+            "limitations": lims,
+        })
+
+    for m in EMAIL_RE.finditer(text):
+        add(m.group(), "EMAIL", "HIGH_CONFIDENCE", ["Email may be personal data; redaction policy applies."])
+    for m in URL_RE.finditer(text):
+        add(m.group().rstrip(".,;:!?)]}\"'"), "URL", "HIGH_CONFIDENCE", ["URL target not fetched."])
+    for m in MONEY_RE.finditer(text):
+        add(m.group(), "AMOUNT_CANDIDATE", "POSSIBLE", ["Currency/scale/period may be missing."])
+    for m in DATE_RE.finditer(text):
+        add(m.group(), "DATE", "POSSIBLE", ["Date mention requires context."])
+    for m in ACRONYM_RE.finditer(text):
+        add(m.group(), "ACRONYM_ORG_CANDIDATE", "POSSIBLE", ["Acronym may be ambiguous."])
+    for m in PROPER_RE.finditer(text):
+        add(m.group(), "PERSON_ORG_PLACE_UNKNOWN", "POSSIBLE", ["Proper-noun regex heuristic; mention is not identity."])
+
+    return ents[:DEFAULT_MAX_ENTITIES]
+
+
+RELATIONSHIP_PATTERNS = [
+    (re.compile(r"\b([A-Z][\w\s&.,'-]{1,70}?)\s+(owns|controls|acquired|operates)\s+([A-Z][\w\s&.,'-]{1,70}?)\b", re.I), "OWNS/CONTROLS"),
+    (re.compile(r"\b([A-Z][\w\s&.,'-]{1,70}?)\s+(is employed by|works for|employed by)\s+([A-Z][\w\s&.,'-]{1,70}?)\b", re.I), "EMPLOYED_BY"),
+    (re.compile(r"\b([A-Z][\w\s&.,'-]{1,70}?)\s+(signed|executed)\s+(?:the )?([A-Z][\w\s&.,'-]{1,70}?)\b", re.I), "SIGNED/EXECUTED"),
+    (re.compile(r"\b([A-Z][\w\s&.,'-]{1,70}?)\s+(paid|transferred)\s+([A-Z0-9$€£₹,. ]{1,40}?)\s+to\s+([A-Z][\w\s&.,'-]{1,70}?)\b", re.I), "PAID_TO"),
+    (re.compile(r"\b([A-Z][\w\s&.,'-]{1,70}?)\s+(is located at|located in)\s+([A-Z][\w\s&.,'-]{1,70}?)\b", re.I), "LOCATED_AT"),
+]
+
+
+def extract_relationships(text: str) -> List[Dict[str, Any]]:
+    rels = []
+    for pat, rel_type in RELATIONSHIP_PATTERNS:
+        for m in pat.finditer(text or ""):
+            groups = m.groups()
+            if rel_type == "PAID_TO" and len(groups) >= 3:
+                subj, amount, obj = groups[0], groups[1], groups[2]
+            elif len(groups) >= 2:
+                subj, obj = groups[0], groups[-1]
+                amount = None
+            else:
+                continue
+            rels.append({
+                "type": rel_type,
+                "subject": subj.strip(),
+                "object": obj.strip(),
+                "amount": amount.strip() if amount else None,
+                "state": "DOCUMENT_ASSERTS_RELATIONSHIP",
+                "confidence": "POSSIBLE",
+                "limitations": ["Regex relationship extraction is noisy. Not a verified graph edge."],
+            })
+    return rels[:100]
+
+
+def extract_citations(text: str) -> List[Dict[str, Any]]:
+    cites = []
+    seen = set()
+
+    def add(ctype: str, value: str) -> None:
+        value = value.strip().rstrip(".,;:!?)]}\"'")
+        key = (ctype, value.lower())
+        if key in seen or not value:
+            return
+        seen.add(key)
+        cites.append({
+            "type": ctype,
+            "value": value,
+            "state": "CITED_SOURCE_NOT_VERIFIED",
+            "confidence": "POSSIBLE",
+            "limitations": ["Citation presence does not prove source exists or supports claim."],
+        })
+
+    for u in extract_urls(text):
+        add("URL", u)
+    for m in DOI_RE.finditer(text):
+        add("DOI", m.group())
+    for m in ISBN_RE.finditer(text):
+        add("ISBN", m.group())
+    for m in ARXIV_RE.finditer(text):
+        add("ARXIV", m.group())
+    for m in CASE_RE.finditer(text):
+        add("CASE_NUMBER", m.group())
+    for m in STATUTE_RE.finditer(text):
+        add("STATUTE_OR_SECTION", m.group())
+    return cites[:100]
+
+
+def extract_claims_for_document(doc: Dict[str, Any], privacy_cfg: Dict[str, Any], max_claims: int = DEFAULT_MAX_CLAIMS) -> List[Dict[str, Any]]:
+    claims: List[Dict[str, Any]] = []
+    pages = doc.get("pages") or []
+    if not pages and doc.get("text"):
+        pages = [{"page_number": 1, "page_label": "1", "text": doc["text"]}]
+
+    count = 0
+    for page in pages:
+        page_no = page.get("page_number")
+        page_label = page.get("page_label")
+        text = page.get("text") or ""
+        paragraphs = [p.strip() for p in re.split(r"\n{2,}", normalize_text(text)) if p.strip()]
+        if not paragraphs:
+            paragraphs = [text] if text else []
+        for p_idx, para in enumerate(paragraphs):
+            for s_idx, sent in enumerate(split_sentences(para)):
+                if count >= max_claims:
+                    return claims
+                clean = redact_for_output(sent, privacy_cfg)
+                clean = truncate_text(clean, 700)
+                ents = extract_entities_from_text(clean)
+                claims.append({
+                    "claim_id": stable_id("CLM", doc.get("document_id", "DOC"), page_no, p_idx, s_idx, sha256_text(clean)[:10]),
+                    "document_id": doc.get("document_id"),
+                    "text": clean,
+                    "claim_type": detect_claim_type(clean),
+                    "negated": detect_negation(clean),
+                    "certainty": detect_certainty(clean),
+                    "entities": [e["text"] for e in ents[:20]],
+                    "amounts": [m.group() for m in MONEY_RE.finditer(clean)][:10],
+                    "dates": [m.group() for m in DATE_RE.finditer(clean)][:10],
+                    "relative_time": [m.group() for m in REL_TIME_RE.finditer(clean)][:10],
+                    "locator": {
+                        "document_id": doc.get("document_id"),
+                        "page_number": page_no,
+                        "page_label": page_label,
+                        "paragraph_index": p_idx,
+                        "sentence_index": s_idx,
+                    },
+                    "state": "DOCUMENT_REPORTED",
+                    "confidence": "POSSIBLE",
+                    "limitations": [
+                        "Document statement is not automatically fact.",
+                        "Quoted/alleged content may not be author assertion.",
+                        "OCR-derived text may contain character errors.",
+                    ],
+                })
+                count += 1
+    return claims
+
+
+def detect_internal_contradictions(claims: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    contr = []
+    subset = claims[:120]
+    for i, a in enumerate(subset):
+        for b in subset[i + 1:]:
+            ta = set(tokenize_words(a["text"]))
+            tb = set(tokenize_words(b["text"]))
+            if not ta or not tb:
+                continue
+            jac = len(ta & tb) / len(ta | tb)
+            if jac >= 0.55:
+                if a.get("negated") != b.get("negated"):
+                    contr.append({
+                        "type": "NEGATION_CONFLICT_CANDIDATE",
+                        "severity": "MATERIAL",
+                        "document_id": a.get("document_id"),
+                        "claims": [a["claim_id"], b["claim_id"]],
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Lexical overlap heuristic; may be false positive."],
+                    })
+                if a.get("amounts") and b.get("amounts") and set(a["amounts"]) != set(b["amounts"]):
+                    contr.append({
+                        "type": "AMOUNT_CONFLICT_CANDIDATE",
+                        "severity": "MATERIAL",
+                        "document_id": a.get("document_id"),
+                        "claims": [a["claim_id"], b["claim_id"]],
+                        "values_a": a["amounts"],
+                        "values_b": b["amounts"],
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Amounts may refer to different units/periods/entities."],
+                    })
+                if a.get("dates") and b.get("dates") and set(a["dates"]) != set(b["dates"]):
+                    contr.append({
+                        "type": "DATE_CONFLICT_CANDIDATE",
+                        "severity": "MATERIAL",
+                        "document_id": a.get("document_id"),
+                        "claims": [a["claim_id"], b["claim_id"]],
+                        "values_a": a["dates"],
+                        "values_b": b["dates"],
+                        "confidence": "POSSIBLE",
+                        "limitations": ["Dates may refer to different events."],
+                    })
+    return unique_dicts(contr)[:50]
+
+
+def unique_dicts(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen = set()
+    out = []
+    for it in items:
+        key = json.dumps(it, sort_keys=True, ensure_ascii=False, default=str)
+        if key not in seen:
+            seen.add(key)
+            out.append(it)
+    return out
+
+
+# --------------------------------------------------------------------
+# Duplicate / MinHash
+# --------------------------------------------------------------------
+
+def shingles(text: str, n: int = DEFAULT_MINHASH_SHINGLE, max_shingles: int = DEFAULT_MINHASH_MAX_SHINGLES) -> Set[str]:
+    tokens = normalize_text(text).lower().split()
+    if not tokens:
+        return set()
+    if len(tokens) < n:
+        return {" ".join(tokens)}
+    out = set()
+    limit = min(len(tokens) - n + 1, max_shingles)
+    for i in range(limit):
+        out.add(" ".join(tokens[i:i + n]))
+    return out
+
+
+def minhash_signature(text: str, num_perm: int = DEFAULT_MINHASH_PERM) -> List[int]:
+    hs = shingles(text)
+    sig = [(1 << 64) - 1 for _ in range(num_perm)]
+    if not hs:
+        return sig
+    for sh in hs:
+        b = sh.encode("utf-8", errors="replace")
+        for i in range(num_perm):
+            h = hashlib.blake2b(b, digest_size=8, key=bytes([i])).digest()
+            val = int.from_bytes(h, "big")
+            if val < sig[i]:
+                sig[i] = val
+    return sig
+
+
+def minhash_jaccard(a: List[int], b: List[int]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    match = sum(1 for x, y in zip(a, b) if x == y)
+    return match / len(a)
+
+
+# --------------------------------------------------------------------
+# Source reliability / fact gate / authenticity / hypotheses
+# --------------------------------------------------------------------
+
+SOURCE_RELIABILITY_MAP = {
+    "official_registry": "HIGH",
+    "government": "HIGH",
+    "court": "HIGH",
+    "company_filing": "MEDIUM_HIGH",
+    "internal_authorized_system": "MEDIUM_HIGH",
+    "official_website": "MEDIUM_HIGH",
+    "authorized_enterprise": "MEDIUM_HIGH",
+    "reputable_news": "MEDIUM",
+    "academic_publication": "MEDIUM",
+    "email_attachment": "LOW_MEDIUM",
+    "public_website": "LOW_MEDIUM",
+    "forum": "LOW",
+    "social_media": "LOW",
+    "anonymous_upload": "LOW",
+    "unknown": "UNKNOWN",
+}
+
+
+def assess_source_reliability(doc: Dict[str, Any]) -> Dict[str, Any]:
+    st = str(doc.get("source_type", "unknown")).lower()
+    rel = SOURCE_RELIABILITY_MAP.get(st, "UNKNOWN")
+    return {
+        "document_id": doc.get("document_id"),
+        "source_type": st,
+        "reliability": rel,
+        "limitations": [
+            "Source reliability is context-dependent and claim-dependent.",
+            "Official documents can contain errors, amendments, outdated records, or self-reported information.",
+        ],
+    }
+
+
+def normalize_fact(f: Any) -> str:
+    if isinstance(f, dict):
+        return normalize_text(f.get("text") or f.get("fact") or "")
+    return normalize_text(f)
+
+
+def fact_gate(claims: List[Dict[str, Any]], known_facts: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    known = [normalize_fact(f).lower() for f in known_facts if normalize_fact(f)]
+    supported = []
+    candidate = []
+    disputed = []
+    for c in claims:
+        ct = normalize_text(c.get("text", "")).lower()
+        matched = any(k and (k in ct or ct in k) for k in known)
+        if matched:
+            supported.append({
+                "claim_id": c["claim_id"],
+                "document_id": c.get("document_id"),
+                "fact": c.get("text"),
+                "status": "SUPPORTED_BY_PROVIDED_KNOWN_FACT",
+                "confidence": "PROBABLE",
+                "limitations": ["Supported only by supplied known facts; no external verification performed."],
+            })
+        else:
+            candidate.append({
+                "claim_id": c["claim_id"],
+                "document_id": c.get("document_id"),
+                "fact": c.get("text"),
+                "status": "DOCUMENT_REPORTED",
+                "confidence": "POSSIBLE",
+                "limitations": ["No independent verification performed."],
+            })
+    return supported, candidate, disputed
+
+
+def assess_authenticity(doc: Dict[str, Any]) -> Dict[str, Any]:
+    indicators = doc.get("tampering_indicators") or []
+    high = [i for i in indicators if i.get("severity") in ("HIGH", "MATERIAL")]
+    med = [i for i in indicators if i.get("severity") == "MEDIUM"]
+    sig = doc.get("signatures") or []
+    source_rel = assess_source_reliability(doc).get("reliability")
+
+    if high:
+        state = "AUTHENTICITY_DISPUTED"
+        conf = "POSSIBLE"
+    elif sig and all(s.get("state") == "NOT_VERIFIED" for s in sig):
+        state = "AUTHENTICITY_UNRESOLVED"
+        conf = "UNKNOWN"
+    elif source_rel in ("HIGH", "MEDIUM_HIGH") and not med:
+        state = "AUTHENTICITY_POSSIBLE"
+        conf = "POSSIBLE"
+    else:
+        state = "AUTHENTICITY_UNRESOLVED"
+        conf = "UNKNOWN"
+
+    return {
+        "document_id": doc.get("document_id"),
+        "state": state,
+        "confidence": conf,
+        "supporting_factors": [
+            f"source_type={doc.get('source_type')}",
+            f"hash_present={'sha256' in doc}",
+            f"signature_markers={len(sig)}",
+            f"tampering_indicators={len(indicators)}",
+        ],
+        "limitations": [
+            "No single factor establishes authenticity.",
+            "Digital signature validation not performed in starter.",
+            "Editing/recompression/conversion indicators are not proof of forgery.",
+        ],
+    }
+
+
+def generate_hypotheses(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
+    doc_id = doc.get("document_id")
+    indicators = doc.get("tampering_indicators") or []
+    sig = doc.get("signatures") or []
+    source_rel = assess_source_reliability(doc).get("reliability")
+    hyp = []
+
+    hyp.append({
+        "hypothesis_id": stable_id("HYP", doc_id, "authentic_original"),
+        "document_id": doc_id,
+        "statement": "Document is an authentic original or authorized native copy.",
+        "support": ["No strong manipulation indicator found."] if not indicators else [],
+        "opposition": [f"{i['type']}" for i in indicators[:5]],
+        "unknowns": ["Digital signature not cryptographically verified.", "External provenance not fully validated."],
+        "falsification_conditions": ["Valid signature covers different content.", "Official source hash differs.", "Material metadata/content conflict found."],
+        "status": "CANDIDATE" if source_rel in ("HIGH", "MEDIUM_HIGH") and not indicators else "UNKNOWN",
+    })
+
+    hyp.append({
+        "hypothesis_id": stable_id("HYP", doc_id, "authentic_modified"),
+        "document_id": doc_id,
+        "statement": "Document is authentic but modified after initial creation/signing.",
+        "support": [i["type"] for i in indicators if "INCREMENTAL" in i["type"] or "TRACKED" in i["type"] or "COMMENT" in i["type"]][:5],
+        "opposition": ["Modification may be normal editing, annotation, conversion, or optimization."],
+        "unknowns": ["Which revision was signed?", "What changed after signing?"],
+        "falsification_conditions": ["Changes explained by authorized amendment workflow.", "Signature covers current revision."],
+        "status": "CANDIDATE" if indicators else "UNKNOWN",
+    })
+
+    hyp.append({
+        "hypothesis_id": stable_id("HYP", doc_id, "derived_copy"),
+        "document_id": doc_id,
+        "statement": "Document is a legitimate derived/exported/printed/scanned copy.",
+        "support": ["Format/parser indicates derived text or OCR possibility."] if doc.get("ocr_outputs") or doc.get("format") in {"pdf", "image"} else [],
+        "opposition": ["Derived copy does not prove content authenticity."],
+        "unknowns": ["Original native file not available."],
+        "falsification_conditions": ["Native original hash differs materially.", "Missing pages/annexures found."],
+        "status": "CANDIDATE",
+    })
+
+    hyp.append({
+        "hypothesis_id": stable_id("HYP", doc_id, "material_manipulation"),
+        "document_id": doc_id,
+        "statement": "Document may have been materially manipulated.",
+        "support": [i["type"] for i in indicators if i.get("severity") in ("MEDIUM", "HIGH")][:5],
+        "opposition": ["Indicators may result from normal editing, conversion, compression, templates, or OCR."],
+        "unknowns": ["No forensic signature validation performed.", "No document-family baseline available."],
+        "falsification_conditions": ["All indicators explained by benign workflow.", "Official version matches content/hash."],
+        "status": "CANDIDATE" if any(i.get("severity") == "HIGH" for i in indicators) else "UNKNOWN",
+    })
+
+    hyp.append({
+        "hypothesis_id": stable_id("HYP", doc_id, "fabrication"),
+        "document_id": doc_id,
+        "statement": "Document may be fabricated.",
+        "support": [],
+        "opposition": ["Fabrication allegation requires strong evidence and human/legal review."],
+        "unknowns": ["Provenance incomplete.", "No authoritative original comparison."],
+        "falsification_conditions": ["Official registry/source confirms document.", "Valid trusted signature/certificate chain."],
+        "status": "UNKNOWN",
+    })
+
+    return hyp
+
+
+def dual_ai_review_stub(docs: List[Dict[str, Any]], pairs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    review = {
+        "status": "INSUFFICIENT_EVIDENCE",
+        "primary_conclusions": [],
+        "skeptic_challenges": [],
+        "comparison": "NO_SECOND_MODEL_CONFIGURED",
+        "notes": [
+            "This starter does not call an independent second model.",
+            "AI agreement is not document authenticity proof.",
+            "Human review required for forgery, legal, employment, fraud, or consequential attribution.",
+        ],
+    }
+    for d in docs:
+        if d.get("author_claims"):
+            review["primary_conclusions"].append(f"{d.get('document_id')}: metadata author claim present.")
+            review["skeptic_challenges"].append("Metadata author may be template/default/spoofed; do not treat as real author.")
+        if d.get("signatures"):
+            review["primary_conclusions"].append(f"{d.get('document_id')}: signature marker present.")
+            review["skeptic_challenges"].append("Signature marker is not cryptographic validation. Visual signature is not digital signature.")
+        if d.get("ocr_outputs"):
+            review["primary_conclusions"].append(f"{d.get('document_id')}: OCR-derived text present.")
+            review["skeptic_challenges"].append("OCR may misread 0/O, 1/I/l, 5/S, 8/B, decimals, currencies, dates, IDs.")
+    for p in pairs:
+        if p.get("duplicate_state") in ("EXACT_DUPLICATE", "TEXT_EQUIVALENT", "NEAR_DUPLICATE"):
+            review["primary_conclusions"].append(f"{p.get('pair_id')}: duplicate/derivative candidate.")
+            review["skeptic_challenges"].append("Do not count dependent copies as independent corroboration.")
+    if review["primary_conclusions"]:
+        review["status"] = "PARTIAL_AGREEMENT"
+    return review
+
+
+# --------------------------------------------------------------------
+# Graph memory
+# --------------------------------------------------------------------
+
+class GraphMemory:
+    def __init__(self) -> None:
+        self.nodes: List[Dict[str, Any]] = []
+        self.edges: List[Dict[str, Any]] = []
+        self._node_ids: Set[str] = set()
+
+    def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if node_id in self._node_ids:
+            return
+        self._node_ids.add(node_id)
+        self.nodes.append({"type": node_type, "id": node_id, "properties": properties or {}})
+
+    def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append({"from": from_id, "to": to_id, "type": edge_type, "properties": properties or {}})
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "nodes": self.nodes[:1000],
+            "edges": self.edges[:2000],
+            "note": "Graph is memory/index, not proof. Edges retain confidence/method where available.",
+        }
+
+
+def build_graph(docs: List[Dict[str, Any]], pairs: List[Dict[str, Any]], result: Dict[str, Any]) -> GraphMemory:
+    g = GraphMemory()
+    for d in docs:
+        doc_id = d.get("document_id")
+        g.add_node("Document", doc_id, {
+            "filename": d.get("filename"),
+            "format": d.get("format"),
+            "sha256": d.get("sha256"),
+            "source_id": d.get("source_id"),
+            "status": d.get("status"),
+        })
+        g.add_node("Evidence", f"EV-{doc_id}", {"document_id": doc_id, "hash": d.get("sha256")})
+        g.add_edge(f"EV-{doc_id}", doc_id, "SUPPORTED_BY", {"method": "artifact_hash"})
+
+        for page in d.get("pages", [])[:50]:
+            pid = page.get("page_id")
+            g.add_node("Page", pid, {"page_number": page.get("page_number"), "source": page.get("source")})
+            g.add_edge(doc_id, pid, "HAS_PAGE", {"method": "parser"})
+
+        for claim in d.get("claims", [])[:100]:
+            cid = claim.get("claim_id")
+            g.add_node("Claim", cid, {"text": truncate_text(claim.get("text", ""), 200), "state": claim.get("state")})
+            g.add_edge(doc_id, cid, "ASSERTS", {"method": "claim_extraction", "confidence": "POSSIBLE"})
+
+        for ent in d.get("entities", [])[:100]:
+            eid = stable_id("ENT", ent.get("text", ""), ent.get("label", ""))
+            g.add_node("Entity", eid, {"text": ent.get("text"), "label": ent.get("label")})
+            g.add_edge(doc_id, eid, "MENTIONS", {"method": "entity_extraction", "confidence": ent.get("confidence")})
+
+        for sig in d.get("signatures", [])[:20]:
+            sid = sig.get("signature_id")
+            g.add_node("Signature", sid, {"type": sig.get("type"), "state": sig.get("state")})
+            g.add_edge(doc_id, sid, "HAS_SIGNATURE_CONTEXT", {"method": "static_detection", "confidence": "POSSIBLE"})
+
+        for ac in d.get("author_claims", [])[:20]:
+            aid = stable_id("AUTHCLAIM", doc_id, ac.get("value", ""))
+            g.add_node("AuthorClaim", aid, {"value": ac.get("value"), "claim_type": ac.get("claim_type")})
+            g.add_edge(doc_id, aid, "CREATED_BY_METADATA", {"method": "metadata_extraction", "confidence": "POSSIBLE"})
+
+    for p in pairs:
+        a = p.get("document_id_a")
+        b = p.get("document_id_b")
+        if p.get("duplicate_state") in ("EXACT_DUPLICATE", "TEXT_EQUIVALENT"):
+            g.add_edge(b, a, "DUPLICATE_OF", {"state": p.get("duplicate_state"), "confidence": p.get("confidence")})
+        elif p.get("duplicate_state") == "NEAR_DUPLICATE":
+            g.add_edge(b, a, "NEAR_DUPLICATE_OF", {"similarity": p.get("minhash_similarity"), "confidence": p.get("confidence")})
+        if p.get("source_independence") in ("DEPENDENT", "PARTIALLY_DEPENDENT"):
+            g.add_edge(b, a, "DERIVED_FROM", {"state": p.get("source_independence"), "confidence": p.get("confidence")})
+
+    for h in result.get("hypotheses", [])[:100]:
+        g.add_node("Hypothesis", h.get("hypothesis_id"), {"statement": truncate_text(h.get("statement", ""), 300), "status": h.get("status")})
+
+    return g
+
+
+# --------------------------------------------------------------------
+# Pairwise document analysis
+# --------------------------------------------------------------------
+
+def pairwise_analysis(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    pairs = []
+    for i in range(len(docs)):
+        for j in range(i + 1, len(docs)):
+            a = docs[i]
+            b = docs[j]
+            sim = minhash_jaccard(a.get("minhash", []), b.get("minhash", []))
+            exact_hash = a.get("sha256") == b.get("sha256") and a.get("sha256") is not None
+            text_exact = a.get("text_hash") == b.get("text_hash") and a.get("text_hash") is not None
+
+            citations_a = {c.get("value", "").lower() for c in a.get("citations", [])}
+            citations_b = {c.get("value", "").lower() for c in b.get("citations", [])}
+            shared_citations = list(citations_a & citations_b)
+
+            if exact_hash:
+                dup_state = "EXACT_DUPLICATE"
+                conf = "HIGH_CONFIDENCE"
+                indep = "DEPENDENT"
+            elif text_exact:
+                dup_state = "TEXT_EQUIVALENT"
+                conf = "HIGH_CONFIDENCE"
+                indep = "DEPENDENT"
+            elif sim >= 0.80:
+                dup_state = "NEAR_DUPLICATE"
+                conf = "PROBABLE"
+                indep = "DEPENDENT"
+            elif sim >= 0.50:
+                dup_state = "PARTIAL_OVERLAP"
+                conf = "POSSIBLE"
+                indep = "PARTIALLY_DEPENDENT"
+            elif sim < 0.20 and not shared_citations and a.get("source_id") != b.get("source_id"):
+                dup_state = "DISTINCT"
+                conf = "POSSIBLE"
+                indep = "INDEPENDENT"
+            else:
+                dup_state = "UNKNOWN"
+                conf = "UNKNOWN"
+                indep = "UNKNOWN"
+
+            family = False
+            family_reasons = []
+            if a.get("format") == b.get("format"):
+                if sim >= 0.40:
+                    family = True
+                    family_reasons.append("format+content_similarity")
+                if a.get("metadata", {}).get("application") and a.get("metadata", {}).get("application") == b.get("metadata", {}).get("application"):
+                    family = True
+                    family_reasons.append("same_application_metadata")
+                if a.get("metadata", {}).get("template") and a.get("metadata", {}).get("template") == b.get("metadata", {}).get("template"):
+                    family = True
+                    family_reasons.append("same_template_metadata")
+
+            cross_contr = []
+            if sim >= 0.45:
+                claims_a = a.get("claims", [])[:80]
+                claims_b = b.get("claims", [])[:80]
+                for ca in claims_a:
+                    for cb in claims_b:
+                        ta = set(tokenize_words(ca.get("text", "")))
+                        tb = set(tokenize_words(cb.get("text", "")))
+                        if not ta or not tb:
+                            continue
+                        jac = len(ta & tb) / len(ta | tb)
+                        if jac >= 0.55:
+                            if ca.get("negated") != cb.get("negated"):
+                                cross_contr.append({
+                                    "type": "CROSS_DOC_NEGATION_CONFLICT_CANDIDATE",
+                                    "severity": "MATERIAL",
+                                    "documents": [a.get("document_id"), b.get("document_id")],
+                                    "claims": [ca.get("claim_id"), cb.get("claim_id")],
+                                    "confidence": "POSSIBLE",
+                                    "limitations": ["Heuristic overlap; may be false positive."],
+                                })
+                            if ca.get("dates") and cb.get("dates") and set(ca["dates"]) != set(cb["dates"]):
+                                cross_contr.append({
+                                    "type": "CROSS_DOC_DATE_CONFLICT_CANDIDATE",
+                                    "severity": "MATERIAL",
+                                    "documents": [a.get("document_id"), b.get("document_id")],
+                                    "claims": [ca.get("claim_id"), cb.get("claim_id")],
+                                    "values_a": ca["dates"],
+                                    "values_b": cb["dates"],
+                                    "confidence": "POSSIBLE",
+                                    "limitations": ["Dates may refer to different events."],
+                                })
+
+            pair_id = stable_id("PAIR", a.get("document_id"), b.get("document_id"))
+            pairs.append({
+                "pair_id": pair_id,
+                "document_id_a": a.get("document_id"),
+                "document_id_b": b.get("document_id"),
+                "source_id_a": a.get("source_id"),
+                "source_id_b": b.get("source_id"),
+                "format_a": a.get("format"),
+                "format_b": b.get("format"),
+                "exact_hash_match": exact_hash,
+                "text_hash_match": text_exact,
+                "minhash_similarity": round(sim, 4),
+                "shared_citations": shared_citations[:20],
+                "duplicate_state": dup_state,
+                "confidence": conf,
+                "source_independence": indep,
+                "document_family_candidate": family,
+                "family_reasons": family_reasons,
+                "cross_document_contradictions": unique_dicts(cross_contr)[:20],
+                "limitations": [
+                    "Hash equality proves byte identity, not truth or authorship.",
+                    "Near-duplicate similarity does not prove same author or malicious copying.",
+                    "Dependent sources are not independent corroboration.",
+                ],
+            })
+    return pairs
+
+
+# --------------------------------------------------------------------
+# Enrichment / final document record
+# --------------------------------------------------------------------
+
+def enrich_document(doc: Dict[str, Any], privacy_cfg: Dict[str, Any], known_facts: List[Any]) -> Dict[str, Any]:
+    text = doc.get("text") or "\n".join(p.get("text", "") for p in doc.get("pages", []))
+    text = truncate_text(text, int(DEFAULT_MAX_TEXT_CHARS))
+    doc["analysis_text"] = analysis_text(text)
+    doc["text_hash"] = sha256_text(doc["analysis_text"]) if doc["analysis_text"] else None
+    doc["minhash"] = minhash_signature(doc["analysis_text"]) if doc["analysis_text"] else []
+    doc["languages"] = detect_language(doc["analysis_text"])
+    doc["script"] = detect_scripts(doc["analysis_text"])
+
+    doc["claims"] = extract_claims_for_document(doc, privacy_cfg)
+    doc["entities"] = extract_entities_from_text(redact_for_output(doc["analysis_text"], privacy_cfg))
+    doc["relationships"] = extract_relationships(redact_for_output(doc["analysis_text"], privacy_cfg))
+    doc["citations"] = extract_citations(redact_for_output(doc["analysis_text"], privacy_cfg))
+
+    doc["internal_contradictions"] = detect_internal_contradictions(doc["claims"])
+    supported, candidate, disputed = fact_gate(doc["claims"], known_facts)
+    doc["supported_facts"] = supported
+    doc["candidate_facts"] = candidate
+    doc["disputed_facts"] = disputed
+
+    doc["source_reliability"] = assess_source_reliability(doc)
+    doc["authenticity_assessment"] = assess_authenticity(doc)
+    doc["hypotheses"] = generate_hypotheses(doc)
+
+    # Timeline updates
+    timeline = []
+    for t in doc.get("created_times", []):
+        timeline.append({"document_id": doc.get("document_id"), "type": t.get("type"), "time": t.get("iso"), "precision": "DATETIME_OR_DATE", "confidence": t.get("confidence")})
+    for t in doc.get("modified_times", []):
+        timeline.append({"document_id": doc.get("document_id"), "type": t.get("type"), "time": t.get("iso"), "precision": "DATETIME_OR_DATE", "confidence": t.get("confidence")})
+    for d in doc.get("document_dates", []):
+        timeline.append({"document_id": doc.get("document_id"), "type": d.get("type"), "time": d.get("value"), "precision": "DOCUMENT_CLAIMED_DATE", "confidence": d.get("confidence")})
+    for c in doc.get("claims", [])[:100]:
+        for dt in c.get("dates", [])[:3]:
+            timeline.append({"document_id": doc.get("document_id"), "type": "CLAIM_DATE_MENTION", "time": dt, "claim_id": c.get("claim_id"), "precision": "DATE", "confidence": "POSSIBLE"})
+    doc["timeline_updates"] = timeline[:200]
+
+    # Privacy/security summary counts
+    raw_text_for_scan = doc.get("analysis_text", "")
+    secret_hits = count_pattern_hits(raw_text_for_scan, [p for p, _ in SECRET_PATTERNS]) + len(PRIVATE_KEY_RE.findall(raw_text_for_scan))
+    pii_hits = count_pattern_hits(raw_text_for_scan, [p for p, _ in PII_PATTERNS])
+    doc["privacy_flags"] = []
+    if secret_hits:
+        doc["privacy_flags"].append({"type": "CREDENTIALS_OR_SECRETS_DETECTED", "count": secret_hits, "action": "REDACTED_IN_DERIVED_OUTPUT_DO_NOT_USE"})
+    if pii_hits:
+        doc["privacy_flags"].append({"type": "PERSONAL_DATA_DETECTED", "count": pii_hits, "action": "MINIMIZE_EXPOSURE_REDACTED_IN_OUTPUT"})
+    if doc.get("redaction_context"):
+        doc["privacy_flags"].append({"type": "REDACTION_CONTEXT_PRESENT", "action": "DO_NOT_RECOVER_WITHOUT_EXPLICIT_AUTHORIZATION"})
+
+    # Remove bulky fields from final per-doc output
+    out = {k: v for k, v in doc.items() if k not in {"analysis_text"}}
+    out["text_excerpt"] = truncate_text(redact_for_output(text, privacy_cfg), 3000)
+    out["pages"] = [
+        {
+            "page_id": p.get("page_id"),
+            "page_number": p.get("page_number"),
+            "page_label": p.get("page_label"),
+            "source": p.get("source"),
+            "confidence": p.get("confidence"),
+            "text_excerpt": truncate_text(redact_for_output(p.get("text", ""), privacy_cfg), 1500),
+            "tables": p.get("tables", []),
+            "limitations": p.get("limitations", []),
+        }
+        for p in out.get("pages", [])[:DEFAULT_MAX_PAGES]
+    ]
+    out["claims"] = out.get("claims", [])[:DEFAULT_MAX_CLAIMS]
+    out["entities"] = out.get("entities", [])[:DEFAULT_MAX_ENTITIES]
+    out["tables"] = out.get("tables", [])[:100]
+    out["hyperlinks"] = out.get("hyperlinks", [])[:100]
+    out["embedded_objects"] = out.get("embedded_objects", [])[:100]
+    out["attachments"] = out.get("attachments", [])[:100]
+    return out
+
+
+# --------------------------------------------------------------------
+# Result aggregation
+# --------------------------------------------------------------------
+
+def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+        "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+        "objective": manifest.get("objective", ""),
+        "questions": manifest.get("questions", []) or [],
+        "generated_at": utc_now(),
+        "version": VERSION,
+        "document_ids": [],
+        "artifact_ids": [],
+        "source_ids": [],
+        "evidence_ids": [],
+        "formats": [],
+        "mime_types": [],
+        "hashes": [],
+        "page_counts": [],
+        "languages": [],
+        "document_structures": [],
+        "pages": [],
+        "sections": [],
+        "paragraphs": [],
+        "tables": [],
+        "forms": [],
+        "figures": [],
+        "images": [],
+        "attachments": [],
+        "embedded_objects": [],
+        "hyperlinks": [],
+        "qr_codes": [],
+        "barcodes": [],
+        "metadata": [],
+        "author_claims": [],
+        "created_times": [],
+        "modified_times": [],
+        "document_dates": [],
+        "publication_dates": [],
+        "signatures": [],
+        "certificates": [],
+        "signature_states": [],
+        "version_relationships": [],
+        "duplicate_relationships": [],
+        "near_duplicate_relationships": [],
+        "document_families": [],
+        "ocr_outputs": [],
+        "ocr_confidence": [],
+        "translations": [],
+        "tracked_changes": [],
+        "comments": [],
+        "redaction_context": [],
+        "tampering_indicators": [],
+        "authenticity_assessments": [],
+        "entities": [],
+        "relationships": [],
+        "events": [],
+        "claims": [],
+        "citations": [],
+        "timeline_updates": [],
+        "observations": [],
+        "candidate_facts": [],
+        "supported_facts": [],
+        "partial_facts": [],
+        "disputed_facts": [],
+        "source_reliability": [],
+        "source_bias": [],
+        "source_limitations": [],
+        "source_pedigree": [],
+        "source_independence": [],
+        "contradictions": [],
+        "hypotheses": [],
+        "falsification_results": [],
+        "privacy_flags": [],
+        "security_flags": [],
+        "unknowns": [],
+        "knowledge_gaps": [],
+        "recommended_next_actions": [],
+        "specialist_handoffs": [],
+        "limitations": [],
+        "dual_ai_review": {},
+        "graph_memory": {},
+        "documents": [],
+        "pairs": [],
+        "status": "PARTIAL",
+    }
+
+
+def build_observations(docs: List[Dict[str, Any]], pairs: List[Dict[str, Any]]) -> List[str]:
+    obs = []
+    if docs:
+        obs.append(f"Documents ingested: {len(docs)}.")
+    fmts = Counter(d.get("format") for d in docs)
+    if fmts:
+        obs.append("Formats: " + ", ".join(f"{k}={v}" for k, v in fmts.most_common()))
+    statuses = Counter(d.get("status") for d in docs)
+    obs.append("Parser statuses: " + ", ".join(f"{k}={v}" for k, v in statuses.most_common()))
+    if any(not d.get("extension_matches_format", True) for d in docs):
+        obs.append("File extension/format mismatch detected in at least one artifact.")
+    if any(d.get("security_flags") for d in docs):
+        obs.append("Security flags present. Active content was not executed and remote links were not fetched.")
+    if any(d.get("ocr_outputs") for d in docs):
+        obs.append("OCR-derived text present. OCR is not primary text and material fields require human review.")
+    if any(d.get("author_claims") for d in docs):
+        obs.append("Metadata author claims present. These are not verified real authorship.")
+    if any(d.get("signatures") for d in docs):
+        obs.append("Signature markers/context present. Digital signature cryptographic validation not performed in starter.")
+    dep = [p for p in pairs if p.get("source_independence") in ("DEPENDENT", "PARTIALLY_DEPENDENT")]
+    if dep:
+        obs.append(f"Source dependency candidates: {len(dep)} pair(s). Do not count dependent copies as independent corroboration.")
+    return obs
+
+
+def build_unknowns(docs: List[Dict[str, Any]], pairs: List[Dict[str, Any]]) -> List[str]:
+    unknowns = []
+    for d in docs:
+        if d.get("status") in ("FAILED", "UNSUPPORTED_FORMAT", "ENCRYPTED", "PARTIAL"):
+            unknowns.append(f"Document {d.get('document_id')} parsing status: {d.get('status')}.")
+        if not d.get("signatures") and d.get("format") == "pdf":
+            unknowns.append(f"Document {d.get('document_id')}: digital signature status unresolved.")
+        if d.get("ocr_outputs"):
+            unknowns.append(f"Document {d.get('document_id')}: OCR confidence low; material values unverified.")
+    for p in pairs:
+        if p.get("source_independence") == "UNKNOWN":
+            unknowns.append(f"Pair {p.get('pair_id')}: source independence unresolved.")
+    return list(dict.fromkeys(unknowns))
+
+
+def build_gaps(docs: List[Dict[str, Any]], pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    gaps = []
+    for d in docs:
+        if d.get("status") == "ENCRYPTED":
+            gaps.append({
+                "gap_id": stable_id("GAP", "encrypted", d.get("document_id")),
+                "type": "ENCRYPTED_DOCUMENT",
+                "importance": "HIGH",
+                "document_id": d.get("document_id"),
+                "recommended_source": "Authorized decryption key/password or unencrypted original.",
+                "specialist": "DOCINT / CREDINT / human authorized process",
+                "expected_information_value": "Enable content parsing without bypassing protections improperly.",
+            })
+        if d.get("status") == "UNSUPPORTED_FORMAT":
+            gaps.append({
+                "gap_id": stable_id("GAP", "unsupported", d.get("document_id")),
+                "type": "UNSUPPORTED_FORMAT",
+                "importance": "MEDIUM",
+                "document_id": d.get("document_id"),
+                "recommended_source": "Supported parser, native original, or authorized conversion.",
+                "specialist": "DOCINT",
+                "expected_information_value": "Extract structure/content safely.",
+            })
+        if d.get("ocr_outputs") or d.get("ocr_confidence") == "LOW_CONFIDENCE":
+            gaps.append({
+                "gap_id": stable_id("GAP", "ocr", d.get("document_id")),
+                "type": "OCR_LOW_CONFIDENCE",
+                "importance": "HIGH",
+                "document_id": d.get("document_id"),
+                "recommended_source": "Higher-quality scan, native original, or human review of material fields.",
+                "specialist": "DOCINT / HUMAN_REVIEW",
+                "expected_information_value": "Reduce OCR material-field error rate.",
+            })
+        if d.get("signatures"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "sig", d.get("document_id")),
+                "type": "SIGNATURE_UNRESOLVED",
+                "importance": "HIGH",
+                "document_id": d.get("document_id"),
+                "recommended_source": "Cryptographic signature validation and certificate chain review.",
+                "specialist": "DOCINT / CERTINT",
+                "expected_information_value": "Distinguish valid signed revision from post-signature modification.",
+            })
+        if d.get("author_claims"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "author", d.get("document_id")),
+                "type": "AUTHOR_UNRESOLVED",
+                "importance": "MEDIUM",
+                "document_id": d.get("document_id"),
+                "recommended_source": "Provenance, edit history, authenticated system metadata, or identity handoff.",
+                "specialist": "DOCINT / METADATAINT / SOCMINT / authorized identity evidence",
+                "expected_information_value": "Prevent metadata author being mistaken for real author.",
+            })
+    for p in pairs:
+        if p.get("source_independence") == "UNKNOWN":
+            gaps.append({
+                "gap_id": stable_id("GAP", "indep", p.get("pair_id")),
+                "type": "SOURCE_INDEPENDENCE_UNRESOLVED",
+                "importance": "HIGH",
+                "pair_id": p.get("pair_id"),
+                "recommended_source": "Upstream source, publication chronology, hash registry, or citation lineage.",
+                "specialist": "DOCINT / LANGINT / WEBINT",
+                "expected_information_value": "Prevent false independent corroboration.",
+            })
+    return gaps[:100]
+
+
+def build_next_actions(gaps: List[Dict[str, Any]], docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    actions = []
+    priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    for g in gaps:
+        if g["type"] == "ENCRYPTED_DOCUMENT":
+            action = "Obtain authorized unencrypted original or approved key custody process. Do not bypass password."
+        elif g["type"] == "UNSUPPORTED_FORMAT":
+            action = "Use supported safe parser or obtain native original. Do not execute unknown binary."
+        elif g["type"] == "OCR_LOW_CONFIDENCE":
+            action = "Request higher-quality scan/native text and human review for amounts/dates/IDs/legal clauses."
+        elif g["type"] == "SIGNATURE_UNRESOLVED":
+            action = "Perform cryptographic digital signature validation and certificate chain review via CERTINT."
+        elif g["type"] == "AUTHOR_UNRESOLVED":
+            action = "Correlate provenance/edit history/metadata; do not treat metadata author as real author."
+        elif g["type"] == "SOURCE_INDEPENDENCE_UNRESOLVED":
+            action = "Trace upstream source, publication order, hashes, and citation lineage."
+        else:
+            action = "Gather additional authorized evidence."
+        actions.append({
+            "action": action,
+            "gap_id": g.get("gap_id"),
+            "priority": g.get("importance", "MEDIUM"),
+            "expected_information_value": g.get("expected_information_value"),
+            "prohibited_alternatives": [
+                "Do not execute macros/scripts/attachments.",
+                "Do not forge or alter documents.",
+                "Do not recover redacted data without explicit authorization.",
+                "Do not auto-fetch remote content.",
+            ],
+        })
+    actions.sort(key=lambda x: priority_map.get(x.get("priority", "LOW"), 9))
+    return actions[:50]
+
+
+def build_handoffs(manifest: Dict[str, Any], docs: List[Dict[str, Any]], result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    blob = " ".join([str(manifest.get("objective", ""))] + [str(q) for q in manifest.get("questions", []) or []]).lower()
+    hands = []
+
+    def add(spec: str, reason: str) -> None:
+        hands.append({
+            "specialist": spec,
+            "reason": reason,
+            "payload": ["document_id", "page_locator", "claim_ids", "hashes", "metadata", "known_facts", "unknowns", "limitations"],
+        })
+
+    if any(d.get("images") for d in docs) or "image" in blob or "photo" in blob:
+        add("IMINT", "Visual/image deep analysis requested or image artifacts present.")
+    if any("audio" in blob for _ in [1]):
+        add("AUDINT", "Audio source analysis requested.")
+    if any(d.get("hyperlinks") for d in docs) or "link" in blob or "url" in blob:
+        add("WEBINT / DOMAININT", "Hyperlink target analysis requested. Links were not fetched by DOCINT.")
+    if any(d.get("signatures") for d in docs) or "certificate" in blob or "signature" in blob:
+        add("CERTINT", "Digital signature/certificate deep validation requested.")
+    if any(d.get("security_flags") for d in docs) or "malware" in blob or "macro" in blob:
+        add("MALINT", "Active content/malicious document static context handoff. No execution performed.")
+    if any(d.get("metadata", {}).get("company") for d in docs) or "company" in blob or "corporate" in blob:
+        add("CORPINT / ORGINT", "Corporate/entity resolution requested.")
+    if any("invoice" in (d.get("filename") or "").lower() or "payment" in blob for d in docs):
+        add("FININT / TRADEINT", "Financial/payment performance analysis requested. Invoice is not payment.")
+    if any("contract" in blob or "legal" in blob for _ in [1]):
+        add("LEGALINT", "Legal interpretation requested. DOCINT extracts, does not give final legal opinion.")
+    if result.get("contradictions"):
+        add("FACT GATE / human review", "Contradiction candidates require independent verification.")
+    return hands
+
+
+def finalize_status(result: Dict[str, Any], docs: List[Dict[str, Any]], auth_ok: bool, policy_blocked: List[str]) -> str:
+    if policy_blocked:
+        return "POLICY_BLOCKED"
+    if not auth_ok:
+        return "BLOCKED_PERMISSION"
+    if not docs:
+        return "INSUFFICIENT_INPUT"
+    statuses = [d.get("status") for d in docs]
+    if all(s in ("FAILED", "UNSUPPORTED_FORMAT", "ENCRYPTED") for s in statuses):
+        return "FAILED"
+    if any(s in ("FAILED", "UNSUPPORTED_FORMAT", "ENCRYPTED", "PARTIAL") for s in statuses):
+        return "PARTIAL"
+    if result.get("contradictions") or result.get("unknowns"):
+        return "PARTIAL"
+    return "SUCCEEDED"
+
+
+def analyze_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    result = empty_result(manifest)
+    auth_ok, auth_reasons = authorization_check(manifest)
+    policy_blocked = policy_screen(manifest)
+
+    if policy_blocked:
+        result["status"] = "POLICY_BLOCKED"
+        result["limitations"] = [
+            f"PROHIBITED_REQUEST_DETECTED:{label}" for label in policy_blocked
+        ] + [
+            "DOCINT does not forge documents, execute active content, bypass protections, alter evidence, or recover redacted data without explicit authorization."
+        ]
+        result["security_flags"] = [{"type": "POLICY_BLOCK", "severity": "HIGH", "detail": "Prohibited document-fraud/execution/redaction-recovery request detected."}]
+        return result
+
+    if not auth_ok:
+        result["status"] = "BLOCKED_PERMISSION"
+        result["limitations"] = auth_reasons
+        return result
+
+    limits = manifest.get("limits", {}) or {}
+    privacy_cfg = (manifest.get("authorization", {}) or {}).get("privacy", {}) or manifest.get("privacy", {}) or {}
+    if "minimize_pii" not in privacy_cfg:
+        privacy_cfg["minimize_pii"] = True
+    ocr_enabled = bool((manifest.get("ocr", {}) or {}).get("enabled", False))
+
+    docs_cfg = manifest.get("documents", []) or []
+    known_facts = manifest.get("known_facts", []) or []
+
+    raw_docs = []
+    for dc in docs_cfg:
+        dc = dict(dc)
+        dc.setdefault("case_id", manifest.get("case_id"))
+        raw_docs.append(ingest_document(dc, limits, privacy_cfg, ocr_enabled))
+
+    enriched = [enrich_document(d, privacy_cfg, known_facts) for d in raw_docs]
+    pairs = pairwise_analysis(enriched)
+
+    result["documents"] = enriched
+    result["pairs"] = pairs
+
+    for d in enriched:
+        doc_id = d.get("document_id")
+        result["document_ids"].append(doc_id)
+        result["artifact_ids"].append(d.get("artifact_id"))
+        result["source_ids"].append(d.get("source_id"))
+        result["evidence_ids"].append(f"EV-{doc_id}")
+        result["formats"].append({"document_id": doc_id, "format": d.get("format"), "mime_type": d.get("mime_type"), "extension_matches_format": d.get("extension_matches_format")})
+        result["mime_types"].append({"document_id": doc_id, "mime_type": d.get("mime_type")})
+        result["hashes"].append({"document_id": doc_id, "sha256": d.get("sha256"), "text_hash": d.get("text_hash")})
+        result["page_counts"].append({"document_id": doc_id, "page_count": d.get("structure", {}).get("page_count"), "status": d.get("status")})
+        for l in d.get("languages", []):
+            result["languages"].append({"document_id": doc_id, **l})
+        result["document_structures"].append({"document_id": doc_id, "structure": d.get("structure", {})})
+        for p in d.get("pages", []):
+            result["pages"].append({"document_id": doc_id, **p})
+        for t in d.get("tables", []):
+            result["tables"].append({"document_id": doc_id, **t})
+        for f in d.get("forms", []):
+            result["forms"].append({"document_id": doc_id, **f})
+        for fig in d.get("figures", []):
+            result["figures"].append({"document_id": doc_id, **fig})
+        for im in d.get("images", []):
+            result["images"].append({"document_id": doc_id, **im})
+        for att in d.get("attachments", []):
+            result["attachments"].append({"document_id": doc_id, **att})
+        for emb in d.get("embedded_objects", []):
+            result["embedded_objects"].append({"document_id": doc_id, **emb})
+        for hl in d.get("hyperlinks", []):
+            result["hyperlinks"].append({"document_id": doc_id, **hl})
+        result["metadata"].append({"document_id": doc_id, "metadata": d.get("metadata", {})})
+        for ac in d.get("author_claims", []):
+            result["author_claims"].append({"document_id": doc_id, **ac})
+        for ct in d.get("created_times", []):
+            result["created_times"].append({"document_id": doc_id, **ct})
+        for mt in d.get("modified_times", []):
+            result["modified_times"].append({"document_id": doc_id, **mt})
+        for dd in d.get("document_dates", []):
+            result["document_dates"].append({"document_id": doc_id, **dd})
+        for pd in d.get("publication_dates", []):
+            result["publication_dates"].append({"document_id": doc_id, **pd})
+        for sg in d.get("signatures", []):
+            result["signatures"].append({"document_id": doc_id, **sg})
+            result["signature_states"].append({"document_id": doc_id, "signature_id": sg.get("signature_id"), "state": sg.get("state")})
+        for tc in d.get("tracked_changes", []):
+            result["tracked_changes"].append({"document_id": doc_id, **tc})
+        for cm in d.get("comments", []):
+            result["comments"].append({"document_id": doc_id, **cm})
+        for rc in d.get("redaction_context", []):
+            result["redaction_context"].append({"document_id": doc_id, **rc})
+        for ti in d.get("tampering_indicators", []):
+            result["tampering_indicators"].append({"document_id": doc_id, **ti})
+        for sf in d.get("security_flags", []):
+            result["security_flags"].append({"document_id": doc_id, **sf})
+        for pf in d.get("privacy_flags", []):
+            result["privacy_flags"].append({"document_id": doc_id, **pf})
+        for oo in d.get("ocr_outputs", []):
+            result["ocr_outputs"].append({"document_id": doc_id, **oo})
+        result["ocr_confidence"].append({"document_id": doc_id, "ocr_confidence": d.get("ocr_confidence")})
+        result["authenticity_assessments"].append({"document_id": doc_id, **d.get("authenticity_assessment", {})})
+        for ent in d.get("entities", []):
+            result["entities"].append({"document_id": doc_id, **ent})
+        for rel in d.get("relationships", []):
+            result["relationships"].append({"document_id": doc_id, **rel})
+        for cl in d.get("claims", []):
+            result["claims"].append(cl)
+        for cit in d.get("citations", []):
+            result["citations"].append({"document_id": doc_id, **cit})
+        for tl in d.get("timeline_updates", []):
+            result["timeline_updates"].append(tl)
+        result["supported_facts"].extend(d.get("supported_facts", []))
+        result["candidate_facts"].extend(d.get("candidate_facts", []))
+        result["disputed_facts"].extend(d.get("disputed_facts", []))
+        result["source_reliability"].append(d.get("source_reliability", {}))
+        result["contradictions"].extend(d.get("internal_contradictions", []))
+        result["hypotheses"].extend(d.get("hypotheses", []))
+        result["source_pedigree"].append({
+            "document_id": doc_id,
+            "source_id": d.get("source_id"),
+            "source_type": d.get("source_type"),
+            "provenance": d.get("provenance"),
+            "sha256": d.get("sha256"),
+            "retrieved_at": d.get("retrieved_at"),
+        })
+
+    for p in pairs:
+        result["duplicate_relationships"].append({
+            "pair_id": p.get("pair_id"),
+            "document_id_a": p.get("document_id_a"),
+            "document_id_b": p.get("document_id_b"),
+            "state": p.get("duplicate_state"),
+            "confidence": p.get("confidence"),
+        })
+        if p.get("duplicate_state") == "NEAR_DUPLICATE":
+            result["near_duplicate_relationships"].append(p)
+        if p.get("document_family_candidate"):
+            result["document_families"].append({
+                "pair_id": p.get("pair_id"),
+                "documents": [p.get("document_id_a"), p.get("document_id_b")],
+                "reasons": p.get("family_reasons"),
+                "confidence": "POSSIBLE",
+                "limitations": ["Template/family similarity does not prove same author."],
+            })
+        result["source_independence"].append({
+            "pair_id": p.get("pair_id"),
+            "state": p.get("source_independence"),
+            "confidence": p.get("confidence"),
+        })
+        result["contradictions"].extend(p.get("cross_document_contradictions", []))
+        result["version_relationships"].append({
+            "pair_id": p.get("pair_id"),
+            "state": p.get("duplicate_state"),
+            "note": "Version/supersedence requires timestamps and official lineage; starter marks candidate only."
+        })
+
+    result["falsification_results"] = [
+        {
+            "hypothesis_id": h.get("hypothesis_id"),
+            "opposition": h.get("opposition"),
+            "falsification_conditions": h.get("falsification_conditions"),
+        }
+        for h in result.get("hypotheses", [])
+    ]
+
+    result["observations"] = build_observations(enriched, pairs)
+    result["unknowns"] = build_unknowns(enriched, pairs)
+    result["knowledge_gaps"] = build_gaps(enriched, pairs)
+    result["recommended_next_actions"] = build_next_actions(result["knowledge_gaps"], enriched)
+    result["specialist_handoffs"] = build_handoffs(manifest, enriched, result)
+    result["dual_ai_review"] = dual_ai_review_stub(enriched, pairs)
+    result["graph_memory"] = build_graph(enriched, pairs, result).to_dict()
+
+    base_limits = [
+        "DOCINT starter performs static analysis only; no macros, JavaScript, OLE objects, attachments, or remote URLs are executed/fetched.",
+        "Document statements are DOCUMENT_REPORTED until verified through appropriate authoritative sources.",
+        "Metadata author fields are claims, not verified real-world authorship.",
+        "OCR output is derived interpretation and may contain material errors.",
+        "Digital signature markers were not cryptographically validated in this starter.",
+        "Hash equality proves byte identity, not truth, authorship, or lawfulness.",
+        "Near-duplicate/template similarity does not prove same author or malicious tampering.",
+        "Redaction context is reported defensively; protected redacted content is not recovered.",
+    ]
+    if auth_reasons:
+        base_limits.extend(auth_reasons)
+    result["limitations"] = list(dict.fromkeys(base_limits))
+
+    result["status"] = finalize_status(result, enriched, auth_ok, policy_blocked)
+    return result
+
+
+# --------------------------------------------------------------------
+# Report generation
+# --------------------------------------------------------------------
+
+def generate_report(result: Dict[str, Any]) -> str:
+    lines = []
+    lines.append("# DOCINT Evidence-Linked Report")
+    lines.append("")
+    lines.append(f"- Case ID: `{result.get('case_id')}`")
+    lines.append(f"- Task ID: `{result.get('task_id')}`")
+    lines.append(f"- Generated: `{result.get('generated_at')}`")
+    lines.append(f"- Version: `{result.get('version')}`")
+    lines.append(f"- Status: `{result.get('status')}`")
+    lines.append("")
+
+    lines.append("## Objective")
+    lines.append(str(result.get("objective", "")))
+    lines.append("")
+
+    lines.append("## Required Analyst Summary")
+    docs = result.get("documents", [])
+    pairs = result.get("pairs", [])
+    lines.append(f"- DOCUMENTS: {len(docs)}")
+    lines.append("- FORMATS: " + ", ".join(sorted({d.get('format', 'unknown') for d in docs})) or "UNKNOWN")
+    lines.append("- HASHES: SHA-256 computed for ingested artifacts where readable.")
+    lines.append("- EXTENSION MISMATCH: " + ("Detected" if any(not d.get("extension_matches_format", True) for d in docs) else "None detected"))
+    lines.append("- OCR STATUS: " + (
+        f"{sum(1 for d in docs if d.get('ocr_outputs'))} document(s) with OCR-derived output; OCR disabled/low confidence elsewhere."
+    ))
+    lines.append("- METADATA AUTHOR CLAIMS: " + str(sum(len(d.get("author_claims", [])) for d in docs)))
+    lines.append("- SIGNATURE CONTEXT: " + str(sum(len(d.get("signatures", [])) for d in docs)) + " marker(s); cryptographic validation NOT performed in starter.")
+    lines.append("- TAMPERING INDICATORS: " + str(sum(len(d.get("tampering_indicators", [])) for d in docs)) + " candidate indicator(s); not proof of forgery.")
+    lines.append("- SECURITY FLAGS: " + str(len(result.get("security_flags", []))))
+    lines.append("- PRIVACY FLAGS: " + str(len(result.get("privacy_flags", []))))
+    lines.append("- CLAIMS EXTRACTED: " + str(len(result.get("claims", []))))
+    lines.append("- ENTITIES EXTRACTED: " + str(len(result.get("entities", []))))
+    lines.append("- CITATIONS EXTRACTED: " + str(len(result.get("citations", []))))
+    lines.append("- DUPLICATE/NEAR-DUPLICATE PAIRS: " + str(len([p for p in pairs if p.get("duplicate_state") in ("EXACT_DUPLICATE", "TEXT_EQUIVALENT", "NEAR_DUPLICATE", "PARTIAL_OVERLAP")])))
+    lines.append("- SOURCE INDEPENDENCE: " + ", ".join(sorted({p.get("source_independence", "UNKNOWN") for p in pairs})) or "UNKNOWN")
+    lines.append("- CONTRADICTIONS: " + str(len(result.get("contradictions", []))) + " candidate(s)")
+    lines.append("- UNKNOWN: " + str(len(result.get("unknowns", []))) + " item(s)")
+    lines.append("- NEXT ACTION: " + (result.get("recommended_next_actions", [{}])[0].get("action", "None") if result.get("recommended_next_actions") else "None"))
+    lines.append("")
+
+    lines.append("## Policy / Security Boundaries")
+    lines.append("- No macros, JavaScript, OLE objects, attachments, or embedded executables were executed.")
+    lines.append("- No remote URLs/resources were fetched automatically.")
+    lines.append("- No documents, signatures, certificates, metadata, or evidence were forged/altered.")
+    lines.append("- Redacted content was not recovered; redaction exposure is reported defensively only.")
+    lines.append("- Document statements remain DOCUMENT_REPORTED until independently verified.")
+    lines.append("")
+
+    lines.append("## Document Inventory")
+    for d in docs[:50]:
+        lines.append(f"### `{d.get('document_id')}` — {d.get('filename')}")
+        lines.append(f"- Format: `{d.get('format')}` / MIME: `{d.get('mime_type')}`")
+        lines.append(f"- SHA-256: `{d.get('sha256')}`")
+        lines.append(f"- Size: {d.get('size')} bytes")
+        lines.append(f"- Source: `{d.get('source_id')}` / type: `{d.get('source_type')}`")
+        lines.append(f"- Status: `{d.get('status')}`")
+        lines.append(f"- Extension matches format: `{d.get('extension_matches_format')}`")
+        lines.append(f"- Page/structure: `{json_safe(d.get('structure', {}))}`"[:500])
+        if d.get("languages"):
+            lines.append("- Languages: " + ", ".join(f"{l.get('language')}({l.get('confidence')})" for l in d.get("languages", [])[:5]))
+        if d.get("author_claims"):
+            lines.append("- Author claims: " + "; ".join(f"{a.get('claim_type')}={a.get('value')}" for a in d.get("author_claims", [])[:5]))
+            lines.append("  - CAUTION: Metadata/header author claims are not verified real authorship.")
+        if d.get("signatures"):
+            lines.append("- Signatures: " + "; ".join(f"{s.get('type')}={s.get('state')}" for s in d.get("signatures", [])[:5]))
+        if d.get("tampering_indicators"):
+            lines.append("- Tampering indicators: " + "; ".join(f"{t.get('type')}({t.get('severity')})" for t in d.get("tampering_indicators", [])[:10]))
+        if d.get("security_flags"):
+            lines.append("- Security flags: " + "; ".join(f"{s.get('type')}({s.get('severity')})" for s in d.get("security_flags", [])[:10]))
+        if d.get("authenticity_assessment"):
+            aa = d.get("authenticity_assessment", {})
+            lines.append(f"- Authenticity: `{aa.get('state')}` confidence=`{aa.get('confidence')}`")
+        lines.append("")
+
+    lines.append("## Claims")
+    for c in result.get("claims", [])[:80]:
+        loc = c.get("locator", {})
+        lines.append(f"- `{c.get('claim_id')}` doc=`{c.get('document_id')}` page=`{loc.get('page_number')}` type=`{c.get('claim_type')}` state=`{c.get('state')}`")
+        lines.append(f"  - {truncate_text(c.get('text', ''), 300)}")
+    lines.append("")
+
+    lines.append("## Entities")
+    for e in result.get("entities", [])[:80]:
+        lines.append(f"- `{e.get('document_id')}`: {e.get('label')} = {truncate_text(e.get('text', ''), 120)}")
+    lines.append("")
+
+    lines.append("## Citations")
+    for cit in result.get("citations", [])[:80]:
+        lines.append(f"- `{cit.get('document_id')}`: {cit.get('type')} = {cit.get('value')}")
+    lines.append("")
+
+    lines.append("## Pairwise Duplicate / Independence")
+    for p in pairs[:50]:
+        lines.append(f"- `{p.get('pair_id')}`: {p.get('document_id_a')} ↔ {p.get('document_id_b')}")
+        lines.append(f"  - duplicate_state=`{p.get('duplicate_state')}`, confidence=`{p.get('confidence')}`")
+        lines.append(f"  - minhash_similarity=`{p.get('minhash_similarity')}`")
+        lines.append(f"  - source_independence=`{p.get('source_independence')}`")
+        lines.append(f"  - document_family_candidate=`{p.get('document_family_candidate')}`")
+    lines.append("")
+
+    lines.append("## Contradictions")
+    for c in result.get("contradictions", [])[:50]:
+        lines.append(f"- {c.get('type')} ({c.get('severity')}): docs={c.get('documents') or c.get('document_id')} claims={c.get('claims')}")
+    lines.append("")
+
+    lines.append("## Hypotheses")
+    for h in result.get("hypotheses", [])[:50]:
+        lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('status')}] doc=`{h.get('document_id')}`: {h.get('statement')}")
+        if h.get("support"):
+            lines.append(f"  - support: {'; '.join(map(str, h['support'][:5]))}")
+        if h.get("opposition"):
+            lines.append(f"  - opposition: {'; '.join(map(str, h['opposition'][:5]))}")
+        if h.get("falsification_conditions"):
+            lines.append(f"  - falsify if: {'; '.join(map(str, h['falsification_conditions'][:5]))}")
+    lines.append("")
+
+    lines.append("## Knowledge Gaps")
+    for g in result.get("knowledge_gaps", [])[:50]:
+        lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+    lines.append("")
+
+    lines.append("## Recommended Next Actions")
+    for a in result.get("recommended_next_actions", [])[:50]:
+        lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+    lines.append("")
+
+    lines.append("## Specialist Handoffs")
+    for h in result.get("specialist_handoffs", []):
+        lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+    lines.append("")
+
+    lines.append("## Limitations")
+    for lim in result.get("limitations", []):
+        lines.append(f"- {lim}")
+    lines.append("")
+
+    lines.append("## Non-Negotiable Boundary")
+    lines.append("- Preserve original bytes/hash.")
+    lines.append("- Parse safely; execute nothing.")
+    lines.append("- Separate metadata from fact.")
+    lines.append("- Separate OCR from original text.")
+    lines.append("- Locate every claim.")
+    lines.append("- Verify signatures carefully.")
+    lines.append("- Promote claims to facts only after verification.")
+
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TRACEATLAS DOCINT safe starter")
+    parser.add_argument("--manifest", required=True, help="Path to DOCINT manifest JSON")
+    parser.add_argument("--output", default="docint_result.json", help="Output JSON path")
+    parser.add_argument("--report", default="docint_report.md", help="Output Markdown report path")
+    args = parser.parse_args()
+
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+        return 2
+
+    result = analyze_manifest(manifest)
+
+    # Trim large arrays for file output
+    for key in [
+        "pages", "claims", "entities", "relationships", "citations", "tables",
+        "hyperlinks", "embedded_objects", "attachments", "signatures",
+        "tampering_indicators", "security_flags", "privacy_flags",
+        "hypotheses", "contradictions", "timeline_updates", "observations",
+        "unknowns", "knowledge_gaps", "recommended_next_actions",
+        "specialist_handoffs", "limitations", "documents", "pairs",
+    ]:
+        if isinstance(result.get(key), list):
+            result[key] = limit_list(result[key], 300 if key not in {"documents", "pairs"} else 100)
+
+    Path(args.output).write_text(
+        json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    Path(args.report).write_text(generate_report(result), encoding="utf-8")
+
+    print(f"Wrote: {args.output}")
+    print(f"Wrote: {args.report}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+
+{
+  "case_id": "DOC-CASE-001",
+  "task_id": "DOC-TASK-001",
+  "objective": "Safely parse authorized documents, identify format/metadata/signature context, extract claims/entities/citations, detect duplicates, and report source independence without executing active content.",
+  "questions": [
+    "What is the actual file format?",
+    "Does extension match detected format?",
+    "What metadata and author claims exist?",
+    "Are there signature markers?",
+    "What claims/entities/citations are present?",
+    "Are documents duplicates or independent sources?"
+  ],
+  "authorization": {
+    "approved": True,
+    "scope": "provided_files_only",
+    "model_mode": "LOCAL_ONLY",
+    "cloud_approved": False,
+    "privacy": {
+      "minimize_pii": True
+    }
+  },
+  "ocr": {
+    "enabled": False
+  },
+  "limits": {
+    "max_file_bytes": 104857600,
+    "max_zip_member_bytes": 26214400,
+    "max_pages": 200,
+    "max_rows_per_sheet": 300,
+    "max_cols_per_sheet": 60
+  },
+  "known_facts": [
+    "Example known fact if you want fact-gate support."
+  ],
+  "documents": [
+    {
+      "document_id": "D-001",
+      "path": "./sample_report.pdf",
+      "source_id": "S-001",
+      "source_type": "company_filing",
+      "classification": "INTERNAL",
+      "provenance": {
+        "collection_method": "authorized_upload",
+        "collector": "analyst"
+      }
+    },
+    {
+      "document_id": "D-002",
+      "path": "./sample_notes.txt",
+      "source_id": "S-002",
+      "source_type": "internal_authorized_system"
+    }
+  ]
+}

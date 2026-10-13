@@ -1,0 +1,3127 @@
+"""
+======================================================================
+TRACEATLAS — LOCINT
+LOCATION / PLACE / SPATIAL RELATIONSHIP INTELLIGENCE AI EMPLOYEE
+Python Implementation
+======================================================================
+
+Mode:
+PUBLIC / AUTHORIZED / PRIVACY-AWARE / EVIDENCE-FIRST
+
+Primary boundary:
+Location intelligence and spatial analysis,
+NOT private-person tracking, stalking or targeting.
+"""
+
+from __future__ import annotations
+
+import difflib
+import hashlib
+import itertools
+import json
+import logging
+import math
+import re
+import unicodedata
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("LOCINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class LocationType(str, Enum):
+    COUNTRY = "COUNTRY"
+    REGION = "REGION"
+    STATE_PROVINCE = "STATE_PROVINCE"
+    DISTRICT = "DISTRICT"
+    COUNTY = "COUNTY"
+    CITY = "CITY"
+    TOWN = "TOWN"
+    VILLAGE = "VILLAGE"
+    NEIGHBORHOOD = "NEIGHBORHOOD"
+    ZONE = "ZONE"
+    STREET = "STREET"
+    ADDRESS = "ADDRESS"
+    BUILDING = "BUILDING"
+    FACILITY = "FACILITY"
+    CAMPUS = "CAMPUS"
+    SITE = "SITE"
+    PORT = "PORT"
+    AIRPORT = "AIRPORT"
+    RAIL_STATION = "RAIL_STATION"
+    BUS_TERMINAL = "BUS_TERMINAL"
+    WAREHOUSE = "WAREHOUSE"
+    FACTORY = "FACTORY"
+    OFFICE = "OFFICE"
+    DATA_CENTER = "DATA_CENTER"
+    HOSPITAL = "HOSPITAL"
+    SCHOOL = "SCHOOL"
+    UNIVERSITY = "UNIVERSITY"
+    LAB = "LAB"
+    SHOP = "SHOP"
+    PUBLIC_SPACE = "PUBLIC_SPACE"
+    LANDMARK = "LANDMARK"
+    INFRASTRUCTURE_SITE = "INFRASTRUCTURE_SITE"
+    NATURAL_FEATURE = "NATURAL_FEATURE"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrecisionLevel(str, Enum):
+    COUNTRY = "COUNTRY"
+    REGION = "REGION"
+    STATE_PROVINCE = "STATE_PROVINCE"
+    DISTRICT_COUNTY = "DISTRICT_COUNTY"
+    CITY = "CITY"
+    NEIGHBORHOOD = "NEIGHBORHOOD"
+    ZONE = "ZONE"
+    SITE = "SITE"
+    BUILDING = "BUILDING"
+    ENTRANCE = "ENTRANCE"
+    EXACT_COORDINATE = "EXACT_COORDINATE"
+    UNKNOWN = "UNKNOWN"
+
+
+PRECISION_ORDER = {
+    PrecisionLevel.COUNTRY: 1,
+    PrecisionLevel.REGION: 2,
+    PrecisionLevel.STATE_PROVINCE: 3,
+    PrecisionLevel.DISTRICT_COUNTY: 4,
+    PrecisionLevel.CITY: 5,
+    PrecisionLevel.NEIGHBORHOOD: 6,
+    PrecisionLevel.ZONE: 7,
+    PrecisionLevel.SITE: 8,
+    PrecisionLevel.BUILDING: 9,
+    PrecisionLevel.ENTRANCE: 10,
+    PrecisionLevel.EXACT_COORDINATE: 11,
+    PrecisionLevel.UNKNOWN: 0,
+}
+
+
+class AddressType(str, Enum):
+    REGISTERED_ADDRESS = "REGISTERED_ADDRESS"
+    OPERATING_ADDRESS = "OPERATING_ADDRESS"
+    MAILING_ADDRESS = "MAILING_ADDRESS"
+    BILLING_ADDRESS = "BILLING_ADDRESS"
+    SHIPPING_ADDRESS = "SHIPPING_ADDRESS"
+    RESIDENTIAL_ADDRESS = "RESIDENTIAL_ADDRESS"
+    FACILITY_ADDRESS = "FACILITY_ADDRESS"
+    VIRTUAL_OFFICE = "VIRTUAL_OFFICE"
+    UNKNOWN = "UNKNOWN"
+
+
+class CRSState(str, Enum):
+    CRS_KNOWN = "CRS_KNOWN"
+    CRS_CANDIDATE = "CRS_CANDIDATE"
+    CRS_UNKNOWN = "CRS_UNKNOWN"
+
+
+class MatchState(str, Enum):
+    VERIFIED_MATCH = "VERIFIED_MATCH"
+    SUPPORTED_MATCH = "SUPPORTED_MATCH"
+    PROBABLE_MATCH = "PROBABLE_MATCH"
+    POSSIBLE_MATCH = "POSSIBLE_MATCH"
+    AMBIGUOUS = "AMBIGUOUS"
+    NO_MATCH = "NO_MATCH"
+
+
+class LocationStatus(str, Enum):
+    VERIFIED_LOCATION = "VERIFIED_LOCATION"
+    SUPPORTED_LOCATION = "SUPPORTED_LOCATION"
+    PROBABLE_LOCATION = "PROBABLE_LOCATION"
+    POSSIBLE_LOCATION = "POSSIBLE_LOCATION"
+    DISPUTED_LOCATION = "DISPUTED_LOCATION"
+    UNKNOWN_LOCATION = "UNKNOWN_LOCATION"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrivacyClassification(str, Enum):
+    PUBLIC = "PUBLIC"
+    BUSINESS = "BUSINESS"
+    INTERNAL = "INTERNAL"
+    SENSITIVE = "SENSITIVE"
+    HIGHLY_SENSITIVE = "HIGHLY_SENSITIVE"
+
+
+class RelationshipType(str, Enum):
+    REGISTERED_AT = "REGISTERED_AT"
+    OPERATES_AT = "OPERATES_AT"
+    HEADQUARTERED_AT = "HEADQUARTERED_AT"
+    HAS_BRANCH_AT = "HAS_BRANCH_AT"
+    OWNS_SITE_CANDIDATE = "OWNS_SITE_CANDIDATE"
+    USES_SITE = "USES_SITE"
+    LEASES_SITE_CANDIDATE = "LEASES_SITE_CANDIDATE"
+    UNKNOWN = "UNKNOWN"
+
+
+class IndependenceState(str, Enum):
+    INDEPENDENT = "INDEPENDENT"
+    PARTIALLY_DEPENDENT = "PARTIALLY_DEPENDENT"
+    DEPENDENT = "DEPENDENT"
+    UNKNOWN = "UNKNOWN"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class LocationChangeType(str, Enum):
+    OPENED = "OPENED"
+    CLOSED = "CLOSED"
+    RELOCATED = "RELOCATED"
+    RENAMED = "RENAMED"
+    EXPANDED = "EXPANDED"
+    REDUCED = "REDUCED"
+    DEMOLISHED = "DEMOLISHED"
+    REBUILT = "REBUILT"
+    BOUNDARY_CHANGED = "BOUNDARY_CHANGED"
+    UNKNOWN = "UNKNOWN"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+EARTH_RADIUS_M = 6371000.0
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def safe_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, (int, float)):
+        try:
+            dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except Exception:
+            return None
+    elif isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        s = s.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            dt = None
+            for fmt in (
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+                "%Y-%m-%d",
+            ):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            if dt is None:
+                return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def mean(values: Iterable[Optional[float]]) -> Optional[float]:
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def haversine_m(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dp = math.radians(float(lat2) - float(lat1))
+        dl = math.radians(float(lon2) - float(lon1))
+        a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return EARTH_RADIUS_M * c
+    except Exception:
+        return None
+
+
+def bearing_deg(
+    lat1: Optional[float],
+    lon1: Optional[float],
+    lat2: Optional[float],
+    lon2: Optional[float],
+) -> Optional[float]:
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    try:
+        p1 = math.radians(float(lat1))
+        p2 = math.radians(float(lat2))
+        dl = math.radians(float(lon2) - float(lon1))
+        y = math.sin(dl) * math.cos(p2)
+        x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+        return (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
+    except Exception:
+        return None
+
+
+def hash_payload(payload: Any) -> str:
+    try:
+        canonical = json.dumps(payload, sort_keys=True, default=_json_default)
+    except Exception:
+        canonical = str(payload)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def round_coord(value: Optional[float], digits: int = 5) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), digits)
+
+
+def token_set(text: Optional[str]) -> set[str]:
+    if not text:
+        return set()
+    return {t for t in re.split(r"\W+", text.lower()) if t}
+
+
+def jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+# ======================================================================
+# SECTION 3 — NAME / ADDRESS NORMALIZATION
+# ======================================================================
+
+PLACE_ABBREVIATIONS = {
+    "street": "st",
+    "avenue": "ave",
+    "boulevard": "blvd",
+    "road": "rd",
+    "drive": "dr",
+    "lane": "ln",
+    "court": "ct",
+    "place": "pl",
+    "square": "sq",
+    "terrace": "ter",
+    "highway": "hwy",
+    "suite": "ste",
+    "building": "bldg",
+    "number": "no",
+    "saint": "st",
+    "mount": "mt",
+    "international": "intl",
+    "university": "uni",
+    "corporation": "corp",
+    "company": "co",
+    "limited": "ltd",
+    "incorporated": "inc",
+}
+
+
+def normalize_place_name(value: Any) -> str:
+    if value is None:
+        return ""
+    s = unicodedata.normalize("NFKC", str(value)).lower().strip()
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = " ".join(s.split())
+    for long_form, short_form in PLACE_ABBREVIATIONS.items():
+        s = re.sub(rf"\b{re.escape(long_form)}\b", short_form, s)
+    s = " ".join(s.split())
+    return s
+
+
+def normalize_address_string(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        parts = [
+            value.get("house_number"),
+            value.get("building"),
+            value.get("street"),
+            value.get("locality"),
+            value.get("neighborhood"),
+            value.get("city"),
+            value.get("district"),
+            value.get("county"),
+            value.get("state"),
+            value.get("province"),
+            value.get("postal_code"),
+            value.get("zip"),
+            value.get("country"),
+        ]
+        s = ", ".join(str(p) for p in parts if p)
+    else:
+        s = str(value)
+
+    s = unicodedata.normalize("NFKC", s).lower().strip()
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = " ".join(s.split())
+    for long_form, short_form in PLACE_ABBREVIATIONS.items():
+        s = re.sub(rf"\b{re.escape(long_form)}\b", short_form, s)
+    return " ".join(s.split())
+
+
+# ======================================================================
+# SECTION 4 — COORDINATE PARSING
+# ======================================================================
+
+DMS_PATTERN = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(?:°|d|:)\s*(\d+(?:\.\d+)?)\s*(?:'|′|m|:)?\s*(\d+(?:\.\d+)?)?\s*(?:\"|″|s)?\s*([NSEW])",
+    re.IGNORECASE,
+)
+
+
+def dms_to_decimal(deg: str, minute: str, second: str, hemisphere: str) -> Optional[float]:
+    try:
+        d = float(deg)
+        m = float(minute or 0.0)
+        s = float(second or 0.0)
+        value = d + m / 60.0 + s / 3600.0
+        if hemisphere.upper() in {"S", "W"}:
+            value = -value
+        return value
+    except Exception:
+        return None
+
+
+def parse_coordinate_input(
+    value: Any,
+    source_id: str = "",
+    evidence_id: str = "",
+) -> "Coordinate":
+    flags: List[str] = []
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    crs = ""
+    accuracy = None
+    precision = PrecisionLevel.UNKNOWN
+    is_centroid = False
+    notes: List[str] = []
+
+    if isinstance(value, dict):
+        lat = safe_float(value.get("latitude", value.get("lat")))
+        lon = safe_float(value.get("longitude", value.get("lon")))
+        crs = str(value.get("crs", value.get("coordinate_system", ""))).strip()
+        accuracy = safe_float(value.get("accuracy_radius_m", value.get("accuracy_m")))
+        precision = enum_from(PrecisionLevel, value.get("precision_level"), PrecisionLevel.UNKNOWN)
+        is_centroid = bool(value.get("is_centroid", False))
+        notes = [str(x) for x in value.get("notes", [])]
+        if "centroid" in " ".join(notes).lower():
+            is_centroid = True
+    elif isinstance(value, str):
+        text = value.strip()
+        # Decimal pair: "40.123,-74.456"
+        parts = [p.strip() for p in text.split(",")]
+        if len(parts) == 2:
+            try:
+                lat = float(parts[0])
+                lon = float(parts[1])
+            except Exception:
+                lat = lon = None
+
+        # DMS fallback.
+        if lat is None or lon is None:
+            matches = DMS_PATTERN.findall(text)
+            if len(matches) >= 2:
+                lat = dms_to_decimal(*matches[0])
+                lon = dms_to_decimal(*matches[1])
+                crs = crs or "WGS84"
+    elif isinstance(value, (list, tuple)) and len(value) >= 2:
+        lat = safe_float(value[0])
+        lon = safe_float(value[1])
+
+    if lat is None or lon is None:
+        flags.append("COORDINATE_UNPARSEABLE")
+    else:
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            flags.append("INVALID_COORDINATE")
+            # Detect common swap but do not silently correct.
+            if -90.0 <= lon <= 90.0 and -180.0 <= lat <= 180.0:
+                flags.append("LAT_LON_SWAP_CANDIDATE")
+
+    crs_upper = crs.upper().replace(" ", "")
+    if crs_upper in {"WGS84", "EPSG:4326", "4326", "CRS84"}:
+        crs_state = CRSState.CRS_KNOWN
+        crs = "WGS84"
+    elif crs:
+        crs_state = CRSState.CRS_CANDIDATE
+        flags.append("CRS_CANDIDATE_UNVERIFIED")
+    else:
+        crs_state = CRSState.CRS_UNKNOWN
+        flags.append("CRS_UNKNOWN")
+
+    if is_centroid:
+        flags.append("CENTROID_OR_PARCEL_POINT_CANDIDATE")
+        notes.append("Coordinate may represent centroid/parcel/POI point, not entrance or exact site point.")
+
+    return Coordinate(
+        coord_id=new_id("COORD"),
+        latitude=lat,
+        longitude=lon,
+        crs=crs or "UNKNOWN",
+        crs_state=crs_state,
+        precision_level=precision,
+        accuracy_radius_m=accuracy,
+        source_id=source_id,
+        evidence_id=evidence_id,
+        is_centroid=is_centroid,
+        quality_flags=unique_list(flags),
+        notes=unique_list(notes),
+    )
+
+
+# ======================================================================
+# SECTION 5 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited LOCINT operational guidance.
+    Allows lawful public/authorized place, facility, business-location,
+    site, infrastructure-resilience, and spatial-context analysis.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:find|locate|discover|get|obtain|uncover).*(?:home|residence|private address|house|apartment|unit).*(?:person|individual|someone|him|her|they|victim|witness|source|journalist|activist)",
+        r"(?:track|surveil|stalk|follow|monitor).*(?:private person|individual|person|woman|man|child|victim|witness|source|journalist|activist|employee|home|residence)",
+        r"\b(?:doxx?|doxxing|stalking|harassment|revenge|burglary|targeting|attack route|entry path|guard pattern|weapon.target coordinates|strike coordinates)\b",
+        r"\b(?:stolen|illicit|unauthorized|leaked).*(?:gps|telecom|cell tower|location|app telemetry|account|device token|metadata)",
+        r"\b(?:ss7|imsi.?catcher|wifi.?tracking|wi.fi.?tracking|bluetooth.?tracking|spyware|compromised account|private device token|bypass access control|deanonymize|reidentify)\b",
+        r"(?:live|real.time|current).*(?:location|tracking|geolocation).*(?:person|individual|home|residence|victim|witness|source)",
+        r"(?:from|using).*(?:social media|instagram|facebook|x|twitter|tiktok|snapchat|whatsapp|telegram).*(?:home|address|location|track|find)",
+        r"(?:ip|vpn|proxy|cell.tower|telecom|gps|exif|metadata).*(?:prove|establish|exact).*(?:person|home|residence|individual)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited LOCINT private-person tracking, targeting, or exploitation guidance.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Map descriptions, business listings, reviews, websites, GIS attributes,
+    uploaded documents, and social claims are untrusted data.
+    Neutralize obvious instruction-like injections while preserving evidence.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|reveal\s+private|disable\s+privacy)\b"
+    )
+
+    def sanitize(self, text: Any, max_len: int = 500) -> Optional[str]:
+        if text is None:
+            return None
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return s[:max_len]
+
+
+# ======================================================================
+# SECTION 6 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    source_id: str = ""
+    source_type: str = "UNKNOWN"
+    location_reference: str = ""
+    geometry_reference: str = ""
+    observed_at: Optional[datetime] = None
+    effective_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    retrieved_at: datetime = field(default_factory=utcnow)
+    coordinate_system: str = "UNKNOWN"
+    precision: str = "UNKNOWN"
+    content_hash: str = ""
+    raw_artifact_reference: str = ""
+    parser_version: str = "LOCINT-parser-0.1.0"
+    normalizer_version: str = "LOCINT-normalizer-0.1.0"
+    authorization_context: str = ""
+
+
+@dataclass
+class Source:
+    source_id: str
+    provider: str = "UNKNOWN"
+    upstream_dataset: str = "UNKNOWN"
+    independence_group: str = "UNKNOWN"
+    reliability: str = "UNKNOWN"
+    source_type: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Coordinate:
+    coord_id: str = field(default_factory=lambda: new_id("COORD"))
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    crs: str = "UNKNOWN"
+    crs_state: CRSState = CRSState.CRS_UNKNOWN
+    precision_level: PrecisionLevel = PrecisionLevel.UNKNOWN
+    accuracy_radius_m: Optional[float] = None
+    source_id: str = ""
+    evidence_id: str = ""
+    is_centroid: bool = False
+    quality_flags: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Address:
+    address_id: str = field(default_factory=lambda: new_id("ADDR"))
+    raw_address: str = ""
+    normalized_address: str = ""
+    house_number: Optional[str] = None
+    street: Optional[str] = None
+    locality: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    address_type: AddressType = AddressType.UNKNOWN
+    source_id: str = ""
+    evidence_id: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Location:
+    location_id: str
+    name: str = ""
+    aliases: List[str] = field(default_factory=list)
+    location_type: LocationType = LocationType.UNKNOWN
+    privacy: PrivacyClassification = PrivacyClassification.PUBLIC
+    coordinates: List[Coordinate] = field(default_factory=list)
+    addresses: List[Address] = field(default_factory=list)
+    geometry: Dict[str, Any] = field(default_factory=dict)
+    administrative_hierarchy: Dict[str, str] = field(default_factory=dict)
+    postal_context: Dict[str, str] = field(default_factory=dict)
+    precision_level: PrecisionLevel = PrecisionLevel.UNKNOWN
+    accuracy_radius_m: Optional[float] = None
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.UNKNOWN
+    status: LocationStatus = LocationStatus.UNKNOWN_LOCATION
+    match_state: MatchState = MatchState.NO_MATCH
+    current_status: str = "UNKNOWN"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PlaceCandidate:
+    candidate_id: str = field(default_factory=lambda: new_id("CAND"))
+    query_id: str = ""
+    location_id: str = ""
+    name: str = ""
+    score: float = 0.0
+    match_state: MatchState = MatchState.NO_MATCH
+    support: List[str] = field(default_factory=list)
+    opposition: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    source_groups: List[str] = field(default_factory=list)
+    precision_level: PrecisionLevel = PrecisionLevel.UNKNOWN
+    accuracy_radius_m: Optional[float] = None
+    centroid_only: bool = False
+
+
+@dataclass
+class OrganizationLocationRelationship:
+    relationship_id: str = field(default_factory=lambda: new_id("REL"))
+    organization_id: str = ""
+    organization_name: str = ""
+    location_id: str = ""
+    relationship_type: str = RelationshipType.UNKNOWN.value
+    status: str = "UNKNOWN"
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    confidence: Confidence = Confidence.UNKNOWN
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    candidate_resolutions: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class LOCINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    sources: List[Source] = field(default_factory=list)
+    locations: List[Location] = field(default_factory=list)
+    place_queries: List[Dict[str, Any]] = field(default_factory=list)
+    place_candidates: List[PlaceCandidate] = field(default_factory=list)
+    resolved_locations: List[Location] = field(default_factory=list)
+    relationships: List[OrganizationLocationRelationship] = field(default_factory=list)
+
+    context: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    proximity_results: List[Dict[str, Any]] = field(default_factory=list)
+    distance_results: List[Dict[str, Any]] = field(default_factory=list)
+    catchment_results: List[Dict[str, Any]] = field(default_factory=list)
+    historical_locations: List[Dict[str, Any]] = field(default_factory=list)
+    location_change_events: List[Dict[str, Any]] = field(default_factory=list)
+    temporal_assessment: List[Dict[str, Any]] = field(default_factory=list)
+
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    contradictions: List[Contradiction] = field(default_factory=list)
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+    precision_caps: List[Dict[str, Any]] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 7 — INGESTION
+# ======================================================================
+
+class LOCINTIngestor:
+    PARSER_VERSION = "LOCINT-parser-0.1.0"
+    NORMALIZER_VERSION = "LOCINT-normalizer-0.1.0"
+
+    def __init__(self, injection_defense: Optional[PromptInjectionDefense] = None):
+        self.injection_defense = injection_defense or PromptInjectionDefense()
+
+    def ingest_case(
+        self, case: Dict[str, Any]
+    ) -> Tuple[
+        List[Evidence],
+        List[Source],
+        List[Location],
+        List[Dict[str, Any]],
+        List[OrganizationLocationRelationship],
+        Dict[str, List[Dict[str, Any]]],
+    ]:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        authorization = str(case.get("authorization", ""))
+
+        sources = [self._parse_source(s) for s in case.get("sources", [])]
+        source_map = {s.source_id: s for s in sources}
+
+        locations: List[Location] = []
+        evidence: List[Evidence] = []
+        for loc in case.get("locations", []):
+            parsed_loc, loc_evidence = self._parse_location(loc, case_id, authorization, source_map)
+            locations.append(parsed_loc)
+            evidence.extend(loc_evidence)
+
+        place_queries = [self._sanitize_query(q) for q in case.get("place_queries", [])]
+
+        relationships = [
+            self._parse_relationship(r, source_map)
+            for r in case.get("organization_relationships", [])
+        ]
+
+        context = {
+            "roads": [dict(x) for x in case.get("roads", [])],
+            "transport_hubs": [dict(x) for x in case.get("transport_hubs", [])],
+            "natural_features": [dict(x) for x in case.get("natural_features", [])],
+            "infrastructure_context": [dict(x) for x in case.get("infrastructure_context", [])],
+            "land_use": [dict(x) for x in case.get("land_use", [])],
+            "zoning_context": [dict(x) for x in case.get("zoning_context", [])],
+            "environmental_context": [dict(x) for x in case.get("environmental_context", [])],
+            "terrain_context": [dict(x) for x in case.get("terrain_context", [])],
+            "historical_locations": [dict(x) for x in case.get("historical_locations", [])],
+            "location_change_events": [dict(x) for x in case.get("location_change_events", [])],
+        }
+
+        return evidence, sources, locations, place_queries, relationships, context
+
+    def _parse_source(self, s: Dict[str, Any]) -> Source:
+        return Source(
+            source_id=str(s.get("source_id", new_id("SRC"))),
+            provider=str(s.get("provider", "UNKNOWN")),
+            upstream_dataset=str(s.get("upstream_dataset", "UNKNOWN")),
+            independence_group=str(s.get("independence_group", s.get("provider", "UNKNOWN"))),
+            reliability=str(s.get("reliability", "UNKNOWN")).upper(),
+            source_type=str(s.get("source_type", "UNKNOWN")),
+            limitations=[str(x) for x in s.get("limitations", [])],
+        )
+
+    def _sanitize_query(self, q: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(q)
+        for key in ("name", "address", "notes", "description", "organization"):
+            if key in out:
+                out[f"_sanitized_{key}"] = self.injection_defense.sanitize(out.get(key))
+        return out
+
+    def _parse_location(
+        self,
+        loc: Dict[str, Any],
+        case_id: str,
+        authorization: str,
+        source_map: Dict[str, Source],
+    ) -> Tuple[Location, List[Evidence]]:
+        coordinates: List[Coordinate] = []
+        for c in loc.get("coordinates", []):
+            source_id = ""
+            if isinstance(c, dict):
+                source_id = str(c.get("source_id", ""))
+            coordinates.append(parse_coordinate_input(c, source_id=source_id, evidence_id=new_id("EV")))
+
+        addresses: List[Address] = []
+        for a in loc.get("addresses", []):
+            addresses.append(self._parse_address(a))
+
+        admin = {str(k): str(v) for k, v in (loc.get("administrative_hierarchy") or {}).items()}
+        postal = {str(k): str(v) for k, v in (loc.get("postal_context") or {}).items()}
+
+        source_ids = [str(x) for x in loc.get("source_ids", [])]
+        for c in coordinates:
+            if c.source_id:
+                source_ids.append(c.source_id)
+        for a in addresses:
+            if a.source_id:
+                source_ids.append(a.source_id)
+        source_ids = unique_list(source_ids)
+
+        evidence_ids: List[str] = []
+        evidence: List[Evidence] = []
+        for sid in source_ids:
+            ev = Evidence(
+                case_id=case_id,
+                source_id=sid,
+                source_type=source_map.get(sid).source_type if sid in source_map else "UNKNOWN",
+                location_reference=str(loc.get("name", "")),
+                geometry_reference=json.dumps(
+                    {
+                        "coordinates": [{"lat": c.latitude, "lon": c.longitude, "crs": c.crs} for c in coordinates],
+                        "addresses": [a.normalized_address for a in addresses],
+                    },
+                    sort_keys=True,
+                    default=_json_default,
+                )[:1000],
+                observed_at=to_datetime(loc.get("observed_at")),
+                effective_at=to_datetime(loc.get("effective_at")),
+                published_at=to_datetime(loc.get("published_at")),
+                coordinate_system=coordinates[0].crs if coordinates else "UNKNOWN",
+                precision=str(loc.get("precision_level", "UNKNOWN")),
+                content_hash=hash_payload({"location_id": loc.get("location_id"), "source_id": sid}),
+                authorization_context=authorization,
+            )
+            evidence.append(ev)
+            evidence_ids.append(ev.evidence_id)
+
+        privacy = enum_from(PrivacyClassification, loc.get("privacy"), PrivacyClassification.PUBLIC)
+        if any(a.address_type == AddressType.RESIDENTIAL_ADDRESS for a in addresses):
+            privacy = PrivacyClassification.HIGHLY_SENSITIVE
+
+        accuracy_values = [c.accuracy_radius_m for c in coordinates if c.accuracy_radius_m is not None]
+        location_accuracy = safe_float(loc.get("accuracy_radius_m")) or (min(accuracy_values) if accuracy_values else None)
+
+        precision = enum_from(PrecisionLevel, loc.get("precision_level"), PrecisionLevel.UNKNOWN)
+        if precision == PrecisionLevel.UNKNOWN:
+            if coordinates and not all(c.is_centroid for c in coordinates):
+                precision = PrecisionLevel.SITE
+            elif loc.get("administrative_hierarchy", {}).get("city"):
+                precision = PrecisionLevel.CITY
+            else:
+                precision = PrecisionLevel.UNKNOWN
+
+        parsed = Location(
+            location_id=str(loc.get("location_id", new_id("LOC"))),
+            name=str(loc.get("name", "")),
+            aliases=[str(x) for x in loc.get("aliases", [])],
+            location_type=enum_from(LocationType, loc.get("location_type"), LocationType.UNKNOWN),
+            privacy=privacy,
+            coordinates=coordinates,
+            addresses=addresses,
+            geometry=dict(loc.get("geometry") or {}),
+            administrative_hierarchy=admin,
+            postal_context=postal,
+            precision_level=precision,
+            accuracy_radius_m=location_accuracy,
+            valid_from=to_datetime(loc.get("valid_from")),
+            valid_to=to_datetime(loc.get("valid_to")),
+            source_ids=source_ids,
+            evidence_ids=evidence_ids,
+            confidence=enum_from(Confidence, loc.get("confidence"), Confidence.UNKNOWN),
+            status=enum_from(LocationStatus, loc.get("status"), LocationStatus.UNKNOWN_LOCATION),
+            match_state=enum_from(MatchState, loc.get("match_state"), MatchState.NO_MATCH),
+            current_status=str(loc.get("current_status", "UNKNOWN")),
+            limitations=[str(x) for x in loc.get("limitations", [])],
+        )
+        return parsed, evidence
+
+    def _parse_address(self, a: Any) -> Address:
+        if isinstance(a, str):
+            raw = a
+            components: Dict[str, Any] = {}
+        else:
+            components = dict(a or {})
+            raw = str(components.get("raw_address") or "")
+            if not raw:
+                raw = ", ".join(
+                    str(components.get(k))
+                    for k in ("house_number", "street", "locality", "city", "district", "state", "postal_code", "country")
+                    if components.get(k)
+                )
+
+        normalized = normalize_address_string(components or raw)
+        return Address(
+            address_id=str(components.get("address_id", new_id("ADDR"))),
+            raw_address=raw,
+            normalized_address=normalized,
+            house_number=normalize_text(components.get("house_number") or components.get("building"), upper=False),
+            street=normalize_text(components.get("street"), upper=False),
+            locality=normalize_text(components.get("locality") or components.get("neighborhood"), upper=False),
+            city=normalize_text(components.get("city"), upper=False),
+            district=normalize_text(components.get("district") or components.get("county"), upper=False),
+            state=normalize_text(components.get("state") or components.get("province"), upper=False),
+            postal_code=normalize_text(components.get("postal_code") or components.get("zip"), upper=False),
+            country=normalize_text(components.get("country"), upper=False),
+            address_type=enum_from(AddressType, components.get("address_type"), AddressType.UNKNOWN),
+            source_id=str(components.get("source_id", "")),
+            evidence_id=str(components.get("evidence_id", "")),
+            limitations=[str(x) for x in components.get("limitations", [])],
+        )
+
+    def _parse_relationship(
+        self,
+        r: Dict[str, Any],
+        source_map: Dict[str, Source],
+    ) -> OrganizationLocationRelationship:
+        source_ids = [str(x) for x in r.get("source_ids", [])]
+        evidence_ids = [new_id("EV") for _ in source_ids]
+        rel_type = str(r.get("relationship_type", RelationshipType.UNKNOWN.value)).upper()
+        try:
+            rel_type = RelationshipType(rel_type).value
+        except Exception:
+            rel_type = RelationshipType.UNKNOWN.value
+
+        return OrganizationLocationRelationship(
+            relationship_id=str(r.get("relationship_id", new_id("REL"))),
+            organization_id=str(r.get("organization_id", "")),
+            organization_name=str(r.get("organization_name", "")),
+            location_id=str(r.get("location_id", "")),
+            relationship_type=rel_type,
+            status=str(r.get("status", "UNKNOWN")),
+            valid_from=to_datetime(r.get("valid_from")),
+            valid_to=to_datetime(r.get("valid_to")),
+            confidence=enum_from(Confidence, r.get("confidence"), Confidence.UNKNOWN),
+            source_ids=source_ids,
+            evidence_ids=evidence_ids,
+            limitations=[str(x) for x in r.get("limitations", [])],
+        )
+
+
+# ======================================================================
+# SECTION 8 — PLACE RESOLUTION
+# ======================================================================
+
+def reliability_score(rel: str) -> float:
+    return {
+        "HIGH": 2.0,
+        "MEDIUM_HIGH": 1.75,
+        "MEDIUM": 1.0,
+        "LOW": 0.25,
+        "UNKNOWN": 0.0,
+    }.get(str(rel).upper(), 0.0)
+
+
+def status_from_match(match: MatchState) -> LocationStatus:
+    return {
+        MatchState.VERIFIED_MATCH: LocationStatus.VERIFIED_LOCATION,
+        MatchState.SUPPORTED_MATCH: LocationStatus.SUPPORTED_LOCATION,
+        MatchState.PROBABLE_MATCH: LocationStatus.PROBABLE_LOCATION,
+        MatchState.POSSIBLE_MATCH: LocationStatus.POSSIBLE_LOCATION,
+        MatchState.AMBIGUOUS: LocationStatus.DISPUTED_LOCATION,
+        MatchState.NO_MATCH: LocationStatus.UNKNOWN_LOCATION,
+    }.get(match, LocationStatus.UNKNOWN_LOCATION)
+
+
+def confidence_from_match(match: MatchState) -> Confidence:
+    return {
+        MatchState.VERIFIED_MATCH: Confidence.HIGH,
+        MatchState.SUPPORTED_MATCH: Confidence.MEDIUM,
+        MatchState.PROBABLE_MATCH: Confidence.MEDIUM,
+        MatchState.POSSIBLE_MATCH: Confidence.LOW,
+        MatchState.AMBIGUOUS: Confidence.LOW,
+        MatchState.NO_MATCH: Confidence.UNKNOWN,
+    }.get(match, Confidence.UNKNOWN)
+
+
+def cap_precision(loc: Location, centroid_only: bool) -> PrecisionLevel:
+    cap = loc.precision_level
+
+    if centroid_only:
+        if PRECISION_ORDER.get(cap, 0) > PRECISION_ORDER[PrecisionLevel.SITE]:
+            cap = PrecisionLevel.SITE
+
+    if loc.accuracy_radius_m is not None:
+        if loc.accuracy_radius_m > 1000 and PRECISION_ORDER.get(cap, 0) > PRECISION_ORDER[PrecisionLevel.NEIGHBORHOOD]:
+            cap = PrecisionLevel.NEIGHBORHOOD
+        elif loc.accuracy_radius_m > 250 and PRECISION_ORDER.get(cap, 0) > PRECISION_ORDER[PrecisionLevel.SITE]:
+            cap = PrecisionLevel.SITE
+
+    if not loc.coordinates:
+        if loc.administrative_hierarchy.get("city"):
+            cap = PrecisionLevel.CITY
+        elif loc.administrative_hierarchy.get("state_province"):
+            cap = PrecisionLevel.STATE_PROVINCE
+        elif loc.administrative_hierarchy.get("country"):
+            cap = PrecisionLevel.COUNTRY
+        else:
+            cap = PrecisionLevel.UNKNOWN
+
+    if loc.privacy == PrivacyClassification.HIGHLY_SENSITIVE:
+        if PRECISION_ORDER.get(cap, 0) > PRECISION_ORDER[PrecisionLevel.CITY]:
+            cap = PrecisionLevel.CITY
+
+    return cap
+
+
+class PlaceResolver:
+    def resolve(
+        self,
+        query: Dict[str, Any],
+        locations: List[Location],
+        relationships_by_location: Dict[str, List[OrganizationLocationRelationship]],
+        source_map: Dict[str, Source],
+    ) -> List[PlaceCandidate]:
+        candidates: List[PlaceCandidate] = []
+
+        qname = normalize_place_name(query.get("name") or query.get("_sanitized_name") or "")
+        qaddr = normalize_address_string(query.get("address") or query.get("_sanitized_address") or "")
+        qorg = normalize_place_name(query.get("organization") or query.get("_sanitized_organization") or "")
+        qtime = to_datetime(query.get("time") or query.get("effective_at"))
+        qcoord = None
+        if query.get("coordinate") is not None:
+            qcoord = parse_coordinate_input(query.get("coordinate"))
+
+        query_text = " ".join(str(query.get(k, "")) for k in ("name", "address", "organization", "notes")).lower()
+        query_mentions_hq = any(x in query_text for x in ("headquarters", "hq", "operating", "operates", "main office"))
+        query_mentions_registered = any(x in query_text for x in ("registered", "registration", "legal address", "virtual office"))
+
+        for loc in locations:
+            score = 0.0
+            support: List[str] = []
+            opposition: List[str] = []
+            unknowns: List[str] = []
+
+            # Name match.
+            names = [loc.name] + loc.aliases
+            if qname:
+                best_sim = 0.0
+                best_name = ""
+                exact = False
+                for n in names:
+                    nn = normalize_place_name(n)
+                    if not nn:
+                        continue
+                    if qname == nn:
+                        exact = True
+                        best_name = n
+                        break
+                    sim = difflib.SequenceMatcher(None, qname, nn).ratio()
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_name = n
+                if exact:
+                    score += 5.0
+                    support.append("exact normalized name match")
+                elif best_sim >= 0.88:
+                    score += 4.0
+                    support.append(f"high name similarity with {best_name}")
+                elif best_sim >= 0.70:
+                    score += 2.0
+                    support.append(f"moderate name similarity with {best_name}")
+                elif best_sim >= 0.55:
+                    score += 1.0
+                    opposition.append("weak name similarity only")
+                else:
+                    opposition.append("name does not strongly match")
+
+            # Address match.
+            if qaddr and loc.addresses:
+                addr_score, addr_support = self._address_score(qaddr, loc.addresses)
+                score += addr_score
+                support.extend(addr_support)
+                if addr_score == 0:
+                    opposition.append("address does not match supplied candidate addresses")
+
+            # Coordinate match.
+            if qcoord and qcoord.latitude is not None and qcoord.longitude is not None and loc.coordinates:
+                best_dist = None
+                best_acc = None
+                for c in loc.coordinates:
+                    dist = haversine_m(qcoord.latitude, qcoord.longitude, c.latitude, c.longitude)
+                    acc = c.accuracy_radius_m or loc.accuracy_radius_m or 100.0
+                    if dist is None:
+                        continue
+                    if best_dist is None or dist < best_dist:
+                        best_dist = dist
+                        best_acc = acc
+                if best_dist is not None and best_acc is not None:
+                    if best_dist <= max(best_acc, 100.0):
+                        score += 4.0
+                        support.append(f"coordinate within supported accuracy ({best_dist:.0f} m)")
+                    elif best_dist <= 1000.0:
+                        score += 2.0
+                        support.append(f"coordinate within 1 km ({best_dist:.0f} m)")
+                    elif best_dist <= 10000.0:
+                        score += 1.0
+                        support.append(f"coordinate within 10 km ({best_dist/1000:.1f} km)")
+                    else:
+                        opposition.append(f"coordinate separation large ({best_dist/1000:.1f} km)")
+
+            # Administrative context.
+            admin_fields = ("country", "state_province", "district_county", "city")
+            for field in admin_fields:
+                qv = normalize_place_name(query.get(field))
+                lv = normalize_place_name(loc.administrative_hierarchy.get(field))
+                if qv and lv and qv == lv:
+                    score += 1.0
+                    support.append(f"administrative match: {field}={lv}")
+
+            # Postal context.
+            qpostal = normalize_text(query.get("postal_code") or query.get("zip"), upper=False)
+            lpostal = normalize_text(loc.postal_context.get("postal_code") or loc.administrative_hierarchy.get("postal_code"), upper=False)
+            if qpostal and lpostal and qpostal == lpostal:
+                score += 1.0
+                support.append("postal code match")
+
+            # Organization relationship context.
+            rels = relationships_by_location.get(loc.location_id, [])
+            if qorg and rels:
+                for rel in rels:
+                    if normalize_place_name(rel.organization_name) == qorg:
+                        score += 2.0
+                        support.append(f"organization relationship: {rel.relationship_type}")
+                        if query_mentions_hq and rel.relationship_type in (
+                            RelationshipType.HEADQUARTERED_AT.value,
+                            RelationshipType.OPERATES_AT.value,
+                        ):
+                            score += 2.0
+                            support.append("relationship consistent with headquarters/operating query")
+                        if query_mentions_hq and rel.relationship_type == RelationshipType.REGISTERED_AT.value:
+                            opposition.append("registered office relationship does not prove operating headquarters")
+                        if query_mentions_registered and rel.relationship_type == RelationshipType.REGISTERED_AT.value:
+                            score += 2.0
+                            support.append("relationship consistent with registered-office query")
+                        if rel.valid_from and rel.valid_to and qtime:
+                            if rel.valid_from <= qtime <= rel.valid_to:
+                                score += 1.0
+                                support.append("relationship valid at query time")
+                            else:
+                                opposition.append("relationship outside query time window")
+
+            # Temporal fit.
+            if qtime:
+                if loc.valid_from and loc.valid_to:
+                    if loc.valid_from <= qtime <= loc.valid_to:
+                        score += 2.0
+                        support.append("location validity window includes query time")
+                    else:
+                        score -= 3.0
+                        opposition.append("location outside supplied validity window for query time")
+                elif loc.valid_to and qtime > loc.valid_to:
+                    score -= 2.0
+                    opposition.append("location appears historical relative to query time")
+                elif loc.valid_from and qtime < loc.valid_from:
+                    score -= 1.0
+                    opposition.append("location appears future/planned relative to query time")
+
+            # Source quality and independence.
+            source_scores = [reliability_score(source_map[sid].reliability) for sid in loc.source_ids if sid in source_map]
+            avg_rel = mean(source_scores)
+            if avg_rel is not None:
+                score += avg_rel
+                support.append(f"average source reliability {avg_rel:.2f}")
+
+            groups = []
+            for sid in loc.source_ids:
+                src = source_map.get(sid)
+                if src and src.independence_group and src.independence_group != "UNKNOWN":
+                    groups.append(src.independence_group)
+            groups = unique_list(groups)
+            if len(groups) >= 2:
+                score += 1.0
+                support.append("multiple source independence groups present")
+            elif len(groups) == 1:
+                opposition.append("single source independence group; not independent corroboration")
+            else:
+                opposition.append("source independence group unknown")
+
+            # Centroid / precision caution.
+            centroid_only = bool(loc.coordinates) and all(c.is_centroid for c in loc.coordinates)
+            if centroid_only:
+                opposition.append("coordinate appears to be centroid/parcel/POI point, not entrance or exact site point")
+                unknowns.append("exact building entrance or operating frontage unresolved")
+
+            # Privacy caution.
+            if loc.privacy == PrivacyClassification.HIGHLY_SENSITIVE:
+                opposition.append("highly sensitive location; precision will be coarsened")
+                unknowns.append("private/residential sensitivity requires human review before disclosure")
+            elif loc.privacy == PrivacyClassification.SENSITIVE:
+                opposition.append("sensitive location; minimize precision unless authorized")
+
+            # Match state.
+            if score >= 18.0 and len(groups) >= 2 and not centroid_only:
+                match_state = MatchState.VERIFIED_MATCH
+            elif score >= 13.0 and len(groups) >= 2:
+                match_state = MatchState.SUPPORTED_MATCH
+            elif score >= 9.0:
+                match_state = MatchState.PROBABLE_MATCH
+            elif score >= 5.0:
+                match_state = MatchState.POSSIBLE_MATCH
+            elif score > 0.0:
+                match_state = MatchState.AMBIGUOUS
+            else:
+                match_state = MatchState.NO_MATCH
+
+            precision = cap_precision(loc, centroid_only)
+            accuracy = loc.accuracy_radius_m
+            if loc.coordinates:
+                accs = [c.accuracy_radius_m for c in loc.coordinates if c.accuracy_radius_m is not None]
+                if accs:
+                    accuracy = min(accuracy or math.inf, min(accs)) if accuracy is not None else min(accs)
+
+            candidates.append(
+                PlaceCandidate(
+                    query_id=str(query.get("query_id", "")),
+                    location_id=loc.location_id,
+                    name=loc.name,
+                    score=round(score, 3),
+                    match_state=match_state,
+                    support=unique_list(support),
+                    opposition=unique_list(opposition),
+                    unknowns=unique_list(unknowns),
+                    evidence_ids=loc.evidence_ids,
+                    source_groups=[str(g) for g in groups],
+                    precision_level=precision,
+                    accuracy_radius_m=accuracy,
+                    centroid_only=centroid_only,
+                )
+            )
+
+        candidates.sort(key=lambda c: (c.score, PRECISION_ORDER.get(c.precision_level, 0)), reverse=True)
+        return candidates
+
+    @staticmethod
+    def _address_score(qaddr: str, addresses: List[Address]) -> Tuple[float, List[str]]:
+        if not qaddr:
+            return 0.0, []
+        qs = token_set(qaddr)
+        score = 0.0
+        support: List[str] = []
+        for a in addresses:
+            ans = token_set(a.normalized_address)
+            if not ans:
+                continue
+            if qaddr == a.normalized_address:
+                score = max(score, 4.0)
+                support.append("exact normalized address match")
+            else:
+                jac = jaccard(qs, ans)
+                if jac >= 0.75:
+                    score = max(score, 3.0)
+                    support.append("high address token overlap")
+                elif jac >= 0.50:
+                    score = max(score, 2.0)
+                    support.append("moderate address token overlap")
+                elif jac >= 0.30:
+                    score = max(score, 1.0)
+                    support.append("partial address overlap")
+        return score, unique_list(support)
+
+
+# ======================================================================
+# SECTION 9 — SPATIAL / TEMPORAL / SOURCE INDEPENDENCE / CONTRADICTIONS
+# ======================================================================
+
+class SpatialAnalyzer:
+    def analyze(
+        self,
+        locations: List[Location],
+        context: Dict[str, List[Dict[str, Any]]],
+        case: Dict[str, Any],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        proximity: List[Dict[str, Any]] = []
+        distances: List[Dict[str, Any]] = []
+        catchments: List[Dict[str, Any]] = []
+
+        thresholds = case.get("proximity_thresholds", {})
+        transport_hubs = context.get("transport_hubs", [])
+        roads = context.get("roads", [])
+
+        for loc in locations:
+            if not loc.coordinates:
+                continue
+            loc_coord = loc.coordinates[0]
+            default_threshold = thresholds.get(loc.location_type.value, 2000.0)
+
+            hub_count = 0
+            road_count = 0
+
+            for hub in transport_hubs:
+                dist = haversine_m(
+                    loc_coord.latitude,
+                    loc_coord.longitude,
+                    safe_float(hub.get("lat", hub.get("latitude"))),
+                    safe_float(hub.get("lon", hub.get("longitude"))),
+                )
+                if dist is None:
+                    continue
+                threshold = float(hub.get("near_threshold_m", default_threshold))
+                item = {
+                    "location_id": loc.location_id,
+                    "feature_type": "TRANSPORT_HUB",
+                    "feature_id": hub.get("hub_id", hub.get("id", "")),
+                    "feature_name": hub.get("name", ""),
+                    "distance_m": round(dist, 1),
+                    "method": "GEODESIC",
+                    "near": dist <= threshold,
+                    "threshold_m": threshold,
+                }
+                distances.append(item)
+                if item["near"]:
+                    proximity.append(item)
+                    hub_count += 1
+
+            for road in roads:
+                dist = haversine_m(
+                    loc_coord.latitude,
+                    loc_coord.longitude,
+                    safe_float(road.get("lat", road.get("latitude"))),
+                    safe_float(road.get("lon", road.get("longitude"))),
+                )
+                if dist is None:
+                    continue
+                threshold = float(road.get("near_threshold_m", min(default_threshold, 1000.0)))
+                item = {
+                    "location_id": loc.location_id,
+                    "feature_type": "ROAD",
+                    "feature_id": road.get("road_id", road.get("id", "")),
+                    "feature_name": road.get("name", ""),
+                    "distance_m": round(dist, 1),
+                    "method": "GEODESIC",
+                    "near": dist <= threshold,
+                    "threshold_m": threshold,
+                }
+                distances.append(item)
+                if item["near"]:
+                    proximity.append(item)
+                    road_count += 1
+
+            catchments.append(
+                {
+                    "location_id": loc.location_id,
+                    "near_transport_hubs_5km": sum(
+                        1 for d in distances
+                        if d["location_id"] == loc.location_id
+                        and d["feature_type"] == "TRANSPORT_HUB"
+                        and d["distance_m"] <= 5000.0
+                    ),
+                    "near_roads_1km": sum(
+                        1 for d in distances
+                        if d["location_id"] == loc.location_id
+                        and d["feature_type"] == "ROAD"
+                        and d["distance_m"] <= 1000.0
+                    ),
+                    "service_area_radius_m": 10000.0,
+                    "notes": [
+                        "Catchment is potential service-area context, not actual users.",
+                        "Road on map does not prove public access permission.",
+                    ],
+                }
+            )
+
+        return proximity, distances, catchments
+
+
+class TemporalValidator:
+    def assess(
+        self,
+        locations: List[Location],
+        place_queries: List[Dict[str, Any]],
+        change_events: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        temporal: List[Dict[str, Any]] = []
+        historical: List[Dict[str, Any]] = []
+        events: List[Dict[str, Any]] = []
+
+        reference_time = None
+        for q in place_queries:
+            qt = to_datetime(q.get("time") or q.get("effective_at"))
+            if qt and (reference_time is None or qt > reference_time):
+                reference_time = qt
+        if reference_time is None:
+            reference_time = utcnow()
+
+        for loc in locations:
+            state = "UNKNOWN_TEMPORAL_STATE"
+            notes = []
+            if loc.valid_from and loc.valid_to:
+                if loc.valid_to < reference_time:
+                    state = "HISTORICAL"
+                    notes.append("Location validity ended before reference time.")
+                elif loc.valid_from > reference_time:
+                    state = "PLANNED_OR_FUTURE"
+                    notes.append("Location validity begins after reference time.")
+                else:
+                    state = "CURRENT"
+                    notes.append("Location validity includes reference time.")
+            elif loc.valid_to and loc.valid_to < reference_time:
+                state = "HISTORICAL"
+            elif loc.valid_from and loc.valid_from > reference_time:
+                state = "PLANNED_OR_FUTURE"
+            else:
+                notes.append("No validity window supplied; temporal state uncertain.")
+
+            temporal.append(
+                {
+                    "location_id": loc.location_id,
+                    "reference_time": reference_time.isoformat(),
+                    "temporal_state": state,
+                    "valid_from": loc.valid_from.isoformat() if loc.valid_from else None,
+                    "valid_to": loc.valid_to.isoformat() if loc.valid_to else None,
+                    "notes": notes,
+                }
+            )
+
+            if state == "HISTORICAL":
+                historical.append(
+                    {
+                        "location_id": loc.location_id,
+                        "name": loc.name,
+                        "valid_from": loc.valid_from.isoformat() if loc.valid_from else None,
+                        "valid_to": loc.valid_to.isoformat() if loc.valid_to else None,
+                        "notes": ["Historical location retained; do not overwrite with current state."],
+                    }
+                )
+
+        for ev in change_events:
+            enriched = dict(ev)
+            enriched["event_type"] = enum_from(LocationChangeType, ev.get("event_type"), LocationChangeType.UNKNOWN).value
+            enriched["date"] = to_datetime(ev.get("date") or ev.get("timestamp"))
+            events.append(enriched)
+
+        return temporal, historical, events
+
+
+class SourceIndependenceAnalyzer:
+    def assess(
+        self,
+        locations: List[Location],
+        relationships: List[OrganizationLocationRelationship],
+        source_map: Dict[str, Source],
+    ) -> Dict[str, Any]:
+        by_location: Dict[str, Dict[str, Any]] = {}
+        all_groups: set[str] = set()
+
+        rel_by_location: Dict[str, List[OrganizationLocationRelationship]] = {}
+        for rel in relationships:
+            rel_by_location.setdefault(rel.location_id, []).append(rel)
+
+        for loc in locations:
+            source_ids = set(loc.source_ids)
+            for rel in rel_by_location.get(loc.location_id, []):
+                source_ids.update(rel.source_ids)
+
+            groups = []
+            for sid in source_ids:
+                src = source_map.get(sid)
+                if src and src.independence_group and src.independence_group != "UNKNOWN":
+                    groups.append(src.independence_group)
+            groups = unique_list(groups)
+            all_groups.update(groups)
+
+            if not groups:
+                status = IndependenceState.UNKNOWN
+                notes = ["Source independence group unavailable."]
+            elif len(groups) == 1:
+                status = IndependenceState.DEPENDENT
+                notes = [
+                    "All available sources appear to share one independence group/upstream family.",
+                    "Multiple apps or geocoders using one map source are not independent confirmations.",
+                ]
+            else:
+                status = IndependenceState.PARTIALLY_DEPENDENT
+                notes = [
+                    "Multiple source groups exist, but full physical/logical independence is not proven.",
+                    "Verify upstream dataset lineage before treating as independent corroboration.",
+                ]
+
+            by_location[loc.location_id] = {
+                "status": status.value,
+                "groups": [str(g) for g in groups],
+                "source_ids": sorted(source_ids),
+                "notes": notes,
+            }
+
+        if not all_groups:
+            overall = IndependenceState.UNKNOWN
+        elif len(all_groups) == 1:
+            overall = IndependenceState.DEPENDENT
+        else:
+            overall = IndependenceState.PARTIALLY_DEPENDENT
+
+        return {
+            "overall_status": overall.value,
+            "by_location": by_location,
+            "all_groups": sorted(all_groups),
+            "notes": [
+                "Source pedigree must be tracked from original GIS/registry to aggregator to TraceAtlas.",
+                "AI agreement is not geographic corroboration.",
+            ],
+        }
+
+
+class ContradictionDetector:
+    def detect(
+        self,
+        locations: List[Location],
+        relationships: List[OrganizationLocationRelationship],
+        source_map: Dict[str, Source],
+    ) -> List[Contradiction]:
+        contradictions: List[Contradiction] = []
+        loc_by_id = {loc.location_id: loc for loc in locations}
+
+        # Coordinate conflicts within same location.
+        for loc in locations:
+            coords = [c for c in loc.coordinates if c.latitude is not None and c.longitude is not None]
+            for c1, c2 in itertools.combinations(coords, 2):
+                dist = haversine_m(c1.latitude, c1.longitude, c2.latitude, c2.longitude)
+                acc1 = c1.accuracy_radius_m or loc.accuracy_radius_m or 100.0
+                acc2 = c2.accuracy_radius_m or loc.accuracy_radius_m or 100.0
+                tol = max(3.0 * acc1, 3.0 * acc2, 1000.0)
+                if dist is not None and dist > tol:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="COORDINATE_CONFLICT",
+                            description=(
+                                f"Location {loc.location_id} has coordinate separation {dist/1000:.2f} km "
+                                f"between sources {c1.source_id} and {c2.source_id}."
+                            ),
+                            evidence_ids=[c1.evidence_id, c2.evidence_id],
+                            candidate_resolutions=[
+                                "different entrance vs centroid",
+                                "stale map POI",
+                                "geocoder interpolation",
+                                "different parcel/building",
+                                "CRS or coordinate swap error",
+                            ],
+                        )
+                    )
+
+            # Address conflicts by same address type.
+            by_type: Dict[str, List[Address]] = {}
+            for a in loc.addresses:
+                by_type.setdefault(a.address_type.value, []).append(a)
+            for atype, addrs in by_type.items():
+                norms = [a.normalized_address for a in addrs if a.normalized_address]
+                if len(set(norms)) > 1:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="ADDRESS_MISMATCH",
+                            description=f"Location {loc.location_id} has multiple differing {atype} normalized addresses.",
+                            evidence_ids=[a.evidence_id for a in addrs if a.evidence_id],
+                            candidate_resolutions=[
+                                "mailing vs physical address",
+                                "registered vs operating address",
+                                "suite/entrance difference",
+                                "stale directory data",
+                            ],
+                        )
+                    )
+
+        # Relationship conflicts: same organization + same relationship type + overlapping time + different locations far apart.
+        grouped: Dict[Tuple[str, str], List[OrganizationLocationRelationship]] = {}
+        for rel in relationships:
+            key = (normalize_place_name(rel.organization_name), rel.relationship_type)
+            grouped.setdefault(key, []).append(rel)
+
+        for (org, rtype), rels in grouped.items():
+            for r1, r2 in itertools.combinations(rels, 2):
+                if r1.location_id == r2.location_id:
+                    continue
+                if not self._overlap(r1, r2):
+                    continue
+                l1 = loc_by_id.get(r1.location_id)
+                l2 = loc_by_id.get(r2.location_id)
+                if not l1 or not l2 or not l1.coordinates or not l2.coordinates:
+                    continue
+                dist = haversine_m(
+                    l1.coordinates[0].latitude,
+                    l1.coordinates[0].longitude,
+                    l2.coordinates[0].latitude,
+                    l2.coordinates[0].longitude,
+                )
+                if dist is not None and dist > 5000.0:
+                    contradictions.append(
+                        Contradiction(
+                            contradiction_type="ORGANIZATION_LOCATION_RELATIONSHIP_CONFLICT",
+                            description=(
+                                f"Organization '{org}' has overlapping {rtype} relationships at locations "
+                                f"{r1.location_id} and {r2.location_id} separated by {dist/1000:.1f} km."
+                            ),
+                            evidence_ids=r1.evidence_ids + r2.evidence_ids,
+                            candidate_resolutions=[
+                                "multiple legitimate sites",
+                                "relocation with stale record",
+                                "branch vs headquarters mislabel",
+                                "registered office vs operating site",
+                                "data entry error",
+                            ],
+                        )
+                    )
+
+        return contradictions
+
+    @staticmethod
+    def _overlap(r1: OrganizationLocationRelationship, r2: OrganizationLocationRelationship) -> bool:
+        if r1.valid_from and r1.valid_to and r2.valid_from and r2.valid_to:
+            return max(r1.valid_from, r2.valid_from) < min(r1.valid_to, r2.valid_to)
+        if r1.valid_to and r2.valid_from and r1.valid_to < r2.valid_from:
+            return False
+        if r2.valid_to and r1.valid_from and r2.valid_to < r1.valid_from:
+            return False
+        return True
+
+
+# ======================================================================
+# SECTION 10 — HYPOTHESES / FACT GATE / DUAL-AI REVIEW
+# ======================================================================
+
+class HypothesisEngine:
+    def generate(
+        self,
+        queries: List[Dict[str, Any]],
+        candidates: List[PlaceCandidate],
+        locations: List[Location],
+        relationships: List[OrganizationLocationRelationship],
+        change_events: List[Dict[str, Any]],
+        contradictions: List[Contradiction],
+    ) -> List[Hypothesis]:
+        hypotheses: List[Hypothesis] = []
+        loc_by_id = {loc.location_id: loc for loc in locations}
+        rel_by_loc: Dict[str, List[OrganizationLocationRelationship]] = {}
+        for rel in relationships:
+            rel_by_loc.setdefault(rel.location_id, []).append(rel)
+
+        for q in queries:
+            qid = str(q.get("query_id", ""))
+            q_candidates = [c for c in candidates if c.query_id == qid]
+            if not q_candidates:
+                continue
+            best = q_candidates[0]
+            loc = loc_by_id.get(best.location_id)
+            if loc is None:
+                continue
+
+            rels = rel_by_loc.get(loc.location_id, [])
+            rel_types = {r.relationship_type for r in rels}
+            has_registered = RelationshipType.REGISTERED_AT.value in rel_types
+            has_operating = RelationshipType.OPERATES_AT.value in rel_types or RelationshipType.HEADQUARTERED_AT.value in rel_types
+            historical = any(ev.get("location_id") == loc.location_id and ev.get("event_type") in {
+                LocationChangeType.CLOSED.value,
+                LocationChangeType.RELOCATED.value,
+                LocationChangeType.DEMOLISHED.value,
+            } for ev in change_events)
+
+            hypotheses.append(
+                Hypothesis(
+                    statement=f"Query {qid} refers to current operating site/headquarters represented by {loc.location_id} ({loc.name}).",
+                    supports=best.support + (["operating/headquartered relationship present"] if has_operating else []),
+                    oppositions=best.opposition + (["registered office only relationship present"] if has_registered and not has_operating else []),
+                    unknowns=["ownership", "occupancy", "exact entrance", "person presence"],
+                    falsification_tests=[
+                        "official current facility page shows different site",
+                        "independent GIS/registry shows closure/relocation",
+                        "relationship source is stale or single-family",
+                    ],
+                )
+            )
+
+            if has_registered:
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"Address/site {loc.location_id} may be registered office or legal address only.",
+                        supports=["REGISTERED_AT relationship present"],
+                        oppositions=["operating/headquartered relationship also present"] if has_operating else [],
+                        unknowns=["whether physical operations occur here", "virtual office/agent address"],
+                        falsification_tests=[
+                            "company website/annual filing lists different operating HQ",
+                            "site imagery/planning records show no operational use",
+                        ],
+                    )
+                )
+
+            if historical or loc.valid_to:
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"Location {loc.location_id} may be historical/relocated rather than current.",
+                        supports=["validity window ended" if loc.valid_to else "change event indicates closure/relocation"],
+                        oppositions=["current source asserts active status"] if loc.current_status == "ACTIVE" else [],
+                        unknowns=["successor site", "effective relocation date"],
+                        falsification_tests=[
+                            "current official source confirms active use after validity end",
+                            "change event is renaming not relocation",
+                        ],
+                    )
+                )
+
+            if best.centroid_only:
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"Coordinate for {loc.location_id} is centroid/parcel/POI approximation rather than exact site point.",
+                        supports=["all supplied coordinates marked centroid/parcel/POI"],
+                        oppositions=[],
+                        unknowns=["entrance", "frontage", "building footprint alignment"],
+                        falsification_tests=[
+                            "authoritative footprint/building polygon supplied",
+                            "official site diagram identifies entrance",
+                        ],
+                    )
+                )
+
+            if any(c.contradiction_type == "COORDINATE_CONFLICT" for c in contradictions):
+                hypotheses.append(
+                    Hypothesis(
+                        statement=f"Coordinate conflict for {loc.location_id} may reflect stale map data or different physical reference point.",
+                        supports=["coordinate conflict detected"],
+                        oppositions=[],
+                        unknowns=["which source is current", "whether points refer to entrance/centroid/parcel"],
+                        falsification_tests=[
+                            "latest official GIS/parcel record resolves geometry",
+                            "imagery handoff confirms structure location",
+                        ],
+                    )
+                )
+
+        return hypotheses
+
+
+class FactGate:
+    def generate(
+        self,
+        *,
+        case: Dict[str, Any],
+        sources: List[Source],
+        locations: List[Location],
+        resolved_locations: List[Location],
+        candidates: List[PlaceCandidate],
+        relationships: List[OrganizationLocationRelationship],
+        source_independence: Dict[str, Any],
+        contradictions: List[Contradiction],
+        temporal_assessment: List[Dict[str, Any]],
+        change_events: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        facts: List[Fact] = []
+        unknowns: List[str] = []
+        limitations: List[str] = []
+        gaps: List[KnowledgeGap] = []
+        actions: List[NextAction] = []
+        handoffs: List[SpecialistHandoff] = []
+        precision_caps: List[Dict[str, Any]] = []
+
+        source_map = {s.source_id: s for s in sources}
+        loc_by_id = {loc.location_id: loc for loc in locations}
+        rel_by_loc: Dict[str, List[OrganizationLocationRelationship]] = {}
+        for rel in relationships:
+            rel_by_loc.setdefault(rel.location_id, []).append(rel)
+
+        temporal_by_loc = {t["location_id"]: t for t in temporal_assessment}
+
+        for loc in resolved_locations:
+            for sid in loc.source_ids:
+                src = source_map.get(sid)
+                provider = src.provider if src else sid
+                facts.append(
+                    Fact(
+                        statement=f"Source '{provider}' lists location '{loc.name}' ({loc.location_id}) with supplied address/coordinate context.",
+                        status=FactStatus.FACT,
+                        evidence_ids=loc.evidence_ids,
+                        limitations=[
+                            "This is a source-listed location reference, not independent ground truth.",
+                            "Source may be stale, approximate, centroid-based, or represent a different address type.",
+                        ],
+                    )
+                )
+
+            indep = source_independence.get("by_location", {}).get(loc.location_id, {})
+            if indep.get("status") == IndependenceState.DEPENDENT.value:
+                limitations.append(f"Location {loc.location_id} source independence is dependent.")
+                gaps.append(
+                    KnowledgeGap(
+                        description=f"Independent source corroboration lacking for {loc.location_id}.",
+                        importance="HIGH",
+                        recommended_source="official facility page / government GIS / current registry",
+                        specialist="LOCINT source evaluation",
+                        expected_information_value="Prevents false confidence from duplicated map listings.",
+                    )
+                )
+
+            precision_caps.append(
+                {
+                    "location_id": loc.location_id,
+                    "reported_precision": loc.precision_level.value,
+                    "accuracy_radius_m": loc.accuracy_radius_m,
+                    "reason": "Precision capped to justified level; centroid/parcel/POI points are not exact entrances.",
+                }
+            )
+
+            for rel in rel_by_loc.get(loc.location_id, []):
+                rel_groups = []
+                for sid in rel.source_ids:
+                    src = source_map.get(sid)
+                    if src and src.independence_group:
+                        rel_groups.append(src.independence_group)
+                rel_groups = unique_list(rel_groups)
+                independent = len(rel_groups) >= 2
+
+                if rel.relationship_type in (
+                    RelationshipType.OPERATES_AT.value,
+                    RelationshipType.HEADQUARTERED_AT.value,
+                ):
+                    status = FactStatus.SUPPORTED if independent and loc.match_state in (
+                        MatchState.VERIFIED_MATCH,
+                        MatchState.SUPPORTED_MATCH,
+                    ) else FactStatus.CANDIDATE
+                    facts.append(
+                        Fact(
+                            statement=(
+                                f"Organization '{rel.organization_name}' is {status.value.lower()} as "
+                                f"{rel.relationship_type} at location '{loc.name}' ({loc.location_id})."
+                            ),
+                            status=status,
+                            evidence_ids=rel.evidence_ids + loc.evidence_ids,
+                            limitations=[
+                                "Operating/HQ relationship does not prove property ownership.",
+                                "Does not prove any private person's presence or residence.",
+                                "Temporal validity must be preserved.",
+                            ],
+                        )
+                    )
+                elif rel.relationship_type == RelationshipType.REGISTERED_AT.value:
+                    facts.append(
+                        Fact(
+                            statement=(
+                                f"Organization '{rel.organization_name}' is listed as REGISTERED_AT "
+                                f"location '{loc.name}' ({loc.location_id})."
+                            ),
+                            status=FactStatus.FACT if rel.source_ids else FactStatus.CANDIDATE,
+                            evidence_ids=rel.evidence_ids,
+                            limitations=[
+                                "Registered office may be accountant/legal agent/virtual office.",
+                                "Registered address is not automatically headquarters or operating site.",
+                            ],
+                        )
+                    )
+                else:
+                    facts.append(
+                        Fact(
+                            statement=(
+                                f"Organization '{rel.organization_name}' has relationship "
+                                f"{rel.relationship_type} with location '{loc.name}' ({loc.location_id})."
+                            ),
+                            status=FactStatus.CANDIDATE,
+                            evidence_ids=rel.evidence_ids,
+                            limitations=["Relationship type and temporal validity must be preserved."],
+                        )
+                    )
+
+            temp = temporal_by_loc.get(loc.location_id, {})
+            if temp.get("temporal_state") == "HISTORICAL":
+                facts.append(
+                    Fact(
+                        statement=f"Location {loc.location_id} is historical relative to reference time.",
+                        status=FactStatus.SUPPORTED,
+                        evidence_ids=loc.evidence_ids,
+                        limitations=["Historical location remains valid for past-time analysis."],
+                    )
+                )
+                unknowns.append("successor/current location if relevant")
+
+            if any(c.centroid_only and c.location_id == loc.location_id for c in candidates):
+                limitations.append(
+                    f"Location {loc.location_id} coordinate appears centroid/parcel/POI-like; exact entrance not established."
+                )
+                unknowns.append("exact building entrance/frontage")
+
+        for con in contradictions[:100]:
+            facts.append(
+                Fact(
+                    statement=f"Open contradiction: {con.contradiction_type} — {con.description}",
+                    status=FactStatus.DISPUTED,
+                    evidence_ids=con.evidence_ids,
+                    limitations=con.candidate_resolutions,
+                )
+            )
+            unknowns.append(f"Unresolved contradiction: {con.contradiction_type}")
+
+        for ev in change_events[:100]:
+            facts.append(
+                Fact(
+                    statement=(
+                        f"Location change event {ev.get('event_type', 'UNKNOWN')} for {ev.get('location_id', '')} "
+                        f"at {ev.get('date') or ev.get('timestamp') or 'UNKNOWN'}."
+                    ),
+                    status=FactStatus.SUPPORTED if ev.get("location_id") else FactStatus.CANDIDATE,
+                    evidence_ids=[],
+                    limitations=["Change events preserve history; do not overwrite prior location state."],
+                )
+            )
+
+        limitations.extend(
+            [
+                "Location is not person presence.",
+                "Address is not building entrance.",
+                "Geocoder result is not exact coordinate.",
+                "Polygon centroid is not true site location.",
+                "Registered office is not headquarters.",
+                "Headquarters is not property ownership.",
+                "Business tenant is not building owner.",
+                "Facility operator is not facility owner.",
+                "Map listing is not current operation without freshness check.",
+                "Postal area is not exact property.",
+                "Administrative boundary is not cultural region.",
+                "Straight-line distance is not travel distance.",
+                "Road on map is not public access permission.",
+                "Multiple geocoders sharing one map source are not independent corroboration.",
+                "AI agreement is not geographic corroboration.",
+            ]
+        )
+
+        unknowns.extend(
+            [
+                "property ownership",
+                "lease/occupancy details",
+                "private-person presence",
+                "exact entrance/access point",
+                "current operational status if sources stale",
+                "legal/regulatory status of site use",
+            ]
+        )
+
+        gaps.extend(
+            [
+                KnowledgeGap(
+                    description="Official current facility page not checked.",
+                    importance="HIGH",
+                    recommended_source="organization official website / investor filings / press releases",
+                    specialist="LOCINT / CORPINT",
+                    expected_information_value="Distinguishes registered office, HQ, branch, and operating site.",
+                ),
+                KnowledgeGap(
+                    description="Government GIS/cadastral or planning record not checked.",
+                    importance="MEDIUM",
+                    recommended_source="public municipal GIS / planning portal where lawful",
+                    specialist="LOCINT / GEOINT",
+                    expected_information_value="Resolves parcel, zoning, land use, and geometry cautiously.",
+                ),
+                KnowledgeGap(
+                    description="Historical vs current map comparison not performed.",
+                    importance="MEDIUM",
+                    recommended_source="historical imagery / archived map versions",
+                    specialist="SATINT / IMINT / GEOINT",
+                    expected_information_value="Detects relocation, closure, expansion, renaming.",
+                ),
+                KnowledgeGap(
+                    description="Source pedigree/independence unresolved for map providers.",
+                    importance="HIGH",
+                    recommended_source="upstream dataset documentation",
+                    specialist="LOCINT source evaluation",
+                    expected_information_value="Prevents duplicate-feed confidence inflation.",
+                ),
+            ]
+        )
+
+        actions.extend(
+            [
+                NextAction(description="Check current official organization facility page or filing.", rationale="Separates registered office, HQ, branch, and operating site.", priority="HIGH"),
+                NextAction(description="Retrieve public/government GIS or planning record where lawful.", rationale="Validates parcel/zone/geometry without overprecision.", priority="HIGH"),
+                NextAction(description="Compare current and historical map/imagery versions.", rationale="Detects relocation, closure, renaming, or stale POI.", priority="MEDIUM"),
+                NextAction(description="Resolve source pedigree and independence groups.", rationale="Prevents multiple dashboards from counting as independent evidence.", priority="HIGH"),
+                NextAction(description="Handoff visual clues to GEOINT/IMINT if image geolocation is needed.", rationale="LOCINT resolves places; imagery specialists extract visual evidence.", priority="MEDIUM"),
+                NextAction(description="Coarsen precision if private/residential or sensitive site context appears.", rationale="Privacy gate requires minimum necessary location detail.", priority="HIGH"),
+            ]
+        )
+
+        guard = PolicyGuard()
+        actions = [a for a in actions if guard.is_safe_action(a.description)]
+
+        handoffs.extend(
+            [
+                SpecialistHandoff(specialist="GEOINT", reason="Broader geospatial reasoning, terrain, sun/shadow, visual geolocation."),
+                SpecialistHandoff(specialist="SATINT", reason="Satellite-derived facility geometry, change detection, imagery."),
+                SpecialistHandoff(specialist="IMINT", reason="Image clue extraction and ground imagery context, no facial identification."),
+                SpecialistHandoff(specialist="CORPINT", reason="Legal entity, registered agent, ownership, corporate filings."),
+                SpecialistHandoff(specialist="ORGINT", reason="Organizational structure and unit relationships."),
+                SpecialistHandoff(specialist="TRANSPORTINT", reason="Route/network/movement context beyond static place resolution."),
+                SpecialistHandoff(specialist="ENVINT", reason="Environmental/hazard overlay and resilience context."),
+                SpecialistHandoff(specialist="LEGALINT", reason="Regulatory/zoning/legal conclusions."),
+            ]
+        )
+
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs,
+            "precision_caps": precision_caps,
+        }
+
+
+class DualAIReviewer:
+    def review(
+        self,
+        *,
+        resolved_locations: List[Location],
+        candidates: List[PlaceCandidate],
+        contradictions: List[Contradiction],
+        source_independence: Dict[str, Any],
+        case: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        notes: List[str] = []
+        status = ReviewStatus.AGREE
+
+        if not resolved_locations:
+            status = ReviewStatus.INSUFFICIENT_EVIDENCE
+            notes.append("No resolved location candidate supplied.")
+
+        if any(c.centroid_only for c in candidates):
+            notes.append("Centroid/parcel/POI coordinate detected; do not present as exact entrance.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if source_independence.get("overall_status") in (IndependenceState.DEPENDENT.value, IndependenceState.UNKNOWN.value):
+            notes.append("Source independence dependent/unknown; multiple listings may share one upstream map.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        if contradictions:
+            notes.append("Open contradictions remain; final location claim should stay conservative.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+
+        human_review_required = False
+        tags = [str(x).upper() for x in case.get("sensitivity_tags", [])]
+
+        for loc in resolved_locations:
+            if loc.privacy in (PrivacyClassification.SENSITIVE, PrivacyClassification.HIGHLY_SENSITIVE):
+                human_review_required = True
+                notes.append("Sensitive/private-residential location context; precision coarsening and human review required.")
+            if any(a.address_type == AddressType.RESIDENTIAL_ADDRESS for a in loc.addresses):
+                human_review_required = True
+                notes.append("Residential address type present; suppress exact detail unless lawful, necessary, authorized.")
+
+        if any(t in {"PRIVATE_PERSON", "LAW_ENFORCEMENT", "CRITICAL_INFRASTRUCTURE", "REAL_TIME", "VICTIM_WITNESS_SOURCE"} for t in tags):
+            human_review_required = True
+            notes.append("Sensitive operational/legal context supplied; human governance required.")
+
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "AI agreement is not geographic corroboration.",
+            "human_review_required": human_review_required,
+        }
+
+
+# ======================================================================
+# SECTION 11 — GRAPHICAL MEMORY / REPORT GENERATOR
+# ======================================================================
+
+class GraphicalMemory:
+    def __init__(self) -> None:
+        self.nodes: Dict[str, Dict[str, Any]] = {}
+        self.edges: List[Dict[str, Any]] = []
+
+    def add_node(self, node_id: str, node_type: str, properties: Dict[str, Any]) -> None:
+        self.nodes[node_id] = {"type": node_type, "properties": properties}
+
+    def add_edge(self, source_id: str, relation: str, target_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        self.edges.append(
+            {
+                "source_id": source_id,
+                "relation": relation,
+                "target_id": target_id,
+                "properties": properties or {},
+            }
+        )
+
+    def write_result(self, result: LOCINTResult) -> Dict[str, Any]:
+        for s in result.sources:
+            self.add_node(s.source_id, "Source", {"provider": s.provider, "upstream": s.upstream_dataset, "group": s.independence_group})
+
+        for loc in result.locations:
+            self.add_node(
+                loc.location_id,
+                "Location",
+                {
+                    "name": loc.name,
+                    "type": loc.location_type.value,
+                    "privacy": loc.privacy.value,
+                    "precision": loc.precision_level.value,
+                    "status": loc.status.value,
+                    "match_state": loc.match_state.value,
+                },
+            )
+            for c in loc.coordinates:
+                self.add_node(c.coord_id, "Coordinate", {"lat": c.latitude, "lon": c.longitude, "crs": c.crs, "centroid": c.is_centroid})
+                self.add_edge(loc.location_id, "HAS_COORDINATE", c.coord_id, {"source_id": c.source_id})
+            for a in loc.addresses:
+                self.add_node(a.address_id, "Address", {"normalized": a.normalized_address, "type": a.address_type.value})
+                self.add_edge(loc.location_id, "HAS_ADDRESS", a.address_id, {"source_id": a.source_id})
+            for admin_key, admin_val in loc.administrative_hierarchy.items():
+                node_id = f"ADMIN_{admin_key}_{normalize_place_name(admin_val)}"
+                self.add_node(node_id, "AdministrativeArea", {"key": admin_key, "name": admin_val})
+                self.add_edge(loc.location_id, "LOCATED_IN", node_id)
+
+        for rel in result.relationships:
+            org_id = rel.organization_id or normalize_place_name(rel.organization_name)
+            self.add_node(org_id, "Organization", {"name": rel.organization_name})
+            self.add_edge(org_id, rel.relationship_type, rel.location_id, {"status": rel.status, "confidence": rel.confidence.value})
+
+        for f in result.facts[:1000]:
+            self.add_node(f.fact_id, "Fact", {"statement": f.statement, "status": f.status.value})
+            for ev in f.evidence_ids[:20]:
+                self.add_edge(f.fact_id, "SUPPORTED_BY", ev)
+
+        for h in result.hypotheses[:1000]:
+            self.add_node(h.hypothesis_id, "Hypothesis", {"statement": h.statement})
+
+        for c in result.contradictions[:1000]:
+            self.add_node(c.contradiction_id, "Contradiction", {"type": c.contradiction_type, "description": c.description})
+
+        return {
+            "node_count": len(self.nodes),
+            "edge_count": len(self.edges),
+            "sample_nodes": list(self.nodes.keys())[:20],
+        }
+
+
+class ReportGenerator:
+    def generate(self, result: LOCINTResult) -> str:
+        lines: List[str] = []
+
+        def section(title: str) -> None:
+            lines.append("")
+            lines.append(title.upper())
+            lines.append("-" * len(title))
+
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — LOCINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Task ID: {result.task_id}")
+        lines.append(f"Objective: {result.objective}")
+        lines.append(f"Status: {result.status}")
+        lines.append(f"Policy Decision: {result.policy_decision.value}")
+
+        section("Safety / Privacy Boundary")
+        lines.append("- Public/authorized place, facility, business-location, site, and spatial-context analysis only.")
+        lines.append("- No private-person tracking, stalking, live surveillance, home-address discovery, doxxing, device tracking, stolen GPS/telecom/app data, targeting, attack routes, entry paths, or sensitive private-location disclosure.")
+        for flag in result.safety_flags:
+            lines.append(f"- Safety: {flag}")
+        for flag in result.privacy_flags:
+            lines.append(f"- Privacy: {flag}")
+
+        section("Source Inventory")
+        if not result.sources:
+            lines.append("- No sources supplied.")
+        for s in result.sources:
+            lines.append(f"- {s.source_id}: provider={s.provider}, upstream={s.upstream_dataset}, group={s.independence_group}, reliability={s.reliability}")
+            if s.limitations:
+                lines.append(f"  limitations={'; '.join(s.limitations)}")
+
+        section("Place Queries")
+        if not result.place_queries:
+            lines.append("- No place queries supplied.")
+        for q in result.place_queries:
+            lines.append(f"- {q.get('query_id', '')}: name={q.get('name', '')}, address={q.get('address', '')}, org={q.get('organization', '')}, time={q.get('time', '')}")
+
+        section("Place Candidates")
+        if not result.place_candidates:
+            lines.append("- No candidates generated.")
+        for c in result.place_candidates[:100]:
+            lines.append(
+                f"- {c.candidate_id}: query={c.query_id}, location={c.location_id} ({c.name}), score={c.score}, "
+                f"match={c.match_state.value}, precision={c.precision_level.value}, accuracy_m={c.accuracy_radius_m}, centroid_only={c.centroid_only}"
+            )
+            lines.append(f"  support={c.support}")
+            lines.append(f"  opposition={c.opposition}")
+            lines.append(f"  unknowns={c.unknowns}")
+            lines.append(f"  source_groups={c.source_groups}")
+
+        section("Resolved Locations")
+        if not result.resolved_locations:
+            lines.append("- No resolved location.")
+        for loc in result.resolved_locations:
+            lines.append(f"- {loc.location_id}: name={loc.name}, type={loc.location_type.value}, status={loc.status.value}, match={loc.match_state.value}")
+            lines.append(f"  precision={loc.precision_level.value}, accuracy_radius_m={loc.accuracy_radius_m}, privacy={loc.privacy.value}")
+            lines.append(f"  admin={loc.administrative_hierarchy}")
+            for c in loc.coordinates:
+                lines.append(f"  coordinate: ({round_coord(c.latitude)}, {round_coord(c.longitude)}) crs={c.crs} crs_state={c.crs_state.value} centroid={c.is_centroid} accuracy={c.accuracy_radius_m} flags={c.quality_flags}")
+            for a in loc.addresses:
+                lines.append(f"  address: type={a.address_type.value} raw='{a.raw_address}' normalized='{a.normalized_address}'")
+            if loc.limitations:
+                lines.append(f"  limitations={'; '.join(loc.limitations)}")
+
+        section("Organization-Location Relationships")
+        if not result.relationships:
+            lines.append("- None.")
+        for rel in result.relationships:
+            lines.append(
+                f"- {rel.relationship_id}: org={rel.organization_name} ({rel.organization_id}) {rel.relationship_type} "
+                f"location={rel.location_id} status={rel.status} valid={rel.valid_from}->{rel.valid_to} confidence={rel.confidence.value}"
+            )
+            lines.append("  caution: registered office != HQ != operating site != ownership != person presence.")
+
+        section("Spatial Context / Proximity / Catchment")
+        for item in result.proximity_results[:100]:
+            lines.append(f"- Proximity: {item}")
+        for item in result.catchment_results[:50]:
+            lines.append(f"- Catchment: {item}")
+        lines.append("- Method: GEODESIC straight-line unless otherwise stated. Straight-line distance is not travel distance.")
+
+        section("Temporal Assessment / History")
+        for item in result.temporal_assessment[:100]:
+            lines.append(f"- Temporal: {item}")
+        for item in result.historical_locations[:100]:
+            lines.append(f"- Historical: {item}")
+        for item in result.location_change_events[:100]:
+            lines.append(f"- Change event: {item}")
+
+        section("Source Independence")
+        lines.append(f"- Overall: {result.source_independence.get('overall_status', 'UNKNOWN')}")
+        for note in result.source_independence.get("notes", []):
+            lines.append(f"  - {note}")
+        for loc_id, info in result.source_independence.get("by_location", {}).items():
+            lines.append(f"- {loc_id}: {info.get('status')} groups={info.get('groups')}")
+
+        section("Precision Caps")
+        for item in result.precision_caps:
+            lines.append(f"- {item}")
+
+        section("Facts")
+        for f in result.facts[:200]:
+            lines.append(f"- [{f.status.value}] {f.statement}")
+            if f.limitations:
+                lines.append(f"  limitations: {'; '.join(f.limitations)}")
+
+        section("Contradictions")
+        if not result.contradictions:
+            lines.append("- None detected.")
+        for c in result.contradictions[:100]:
+            lines.append(f"- {c.contradiction_type}: {c.description}")
+            lines.append(f"  resolutions: {c.candidate_resolutions}")
+
+        section("Competing Hypotheses")
+        for h in result.hypotheses[:100]:
+            lines.append(f"- {h.hypothesis_id}: {h.statement}")
+            lines.append(f"  supports: {h.supports}")
+            lines.append(f"  oppositions: {h.oppositions}")
+            lines.append(f"  falsification: {h.falsification_tests}")
+
+        section("Unknowns / Knowledge Gaps")
+        for u in result.unknowns[:100]:
+            lines.append(f"- Unknown: {u}")
+        for g in result.knowledge_gaps[:100]:
+            lines.append(f"- Gap: {g.description} | importance={g.importance} | specialist={g.specialist}")
+
+        section("Next Actions")
+        if not result.next_actions:
+            lines.append("- None.")
+        for a in result.next_actions:
+            lines.append(f"- {a.description} ({a.priority}) — {a.rationale}")
+
+        section("Specialist Handoffs")
+        if not result.specialist_handoffs:
+            lines.append("- None.")
+        for h in result.specialist_handoffs:
+            lines.append(f"- {h.specialist}: {h.reason}")
+
+        section("Limitations")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+
+        section("Dual-AI Review")
+        lines.append(f"- Status: {result.review.get('status', 'N/A')}")
+        for n in result.review.get("skeptic_notes", []):
+            lines.append(f"  - {n}")
+        if result.review.get("human_review_required"):
+            lines.append("  - Human review required before consequential disclosure, enforcement, or precision increase.")
+
+        section("Required Analyst Summary")
+        if result.resolved_locations:
+            loc = result.resolved_locations[0]
+            lines.append(f"LOCATION: {loc.name} ({loc.location_id}).")
+            lines.append(f"PRECISION: {loc.precision_level.value}; accuracy radius {loc.accuracy_radius_m}.")
+            if any(c.centroid_only and c.location_id == loc.location_id for c in result.place_candidates):
+                lines.append("CAUTION: Supplied coordinate appears centroid/parcel/POI-like; not evidence of exact entrance.")
+            rels = [r for r in result.relationships if r.location_id == loc.location_id]
+            if rels:
+                types = ", ".join(sorted({r.relationship_type for r in rels}))
+                lines.append(f"ORGANIZATION RELATIONSHIP: {types}. Registered office, HQ, branch, ownership, and person presence remain separate.")
+            lines.append("PRIVACY: No private residential coordinates surfaced.")
+            lines.append("NEXT ACTION: Verify current official facility page/government GIS rather than increasing precision from map interpolation.")
+        else:
+            lines.append("LOCATION: No sufficiently resolved location from supplied evidence.")
+            lines.append("NEXT ACTION: Add official source, administrative context, or independent geospatial reference.")
+
+        lines.append("")
+        lines.append("=" * 72)
+        lines.append("END REPORT")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 12 — LOCINT AI EMPLOYEE
+# ======================================================================
+
+class LOCIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.injection_defense = PromptInjectionDefense()
+        self.ingestor = LOCINTIngestor(injection_defense=self.injection_defense)
+        self.resolver = PlaceResolver()
+        self.spatial = SpatialAnalyzer()
+        self.temporal = TemporalValidator()
+        self.independence = SourceIndependenceAnalyzer()
+        self.contradictions = ContradictionDetector()
+        self.hypotheses = HypothesisEngine()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> LOCINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        task_id = str(case.get("task_id", new_id("TASK")))
+        objective = str(case.get("objective", ""))
+        questions = case.get("questions", [])
+
+        request_text = objective + "\n" + "\n".join(str(q) for q in questions)
+        # Also scan query free-text fields, but do not treat untrusted data as instructions.
+        for q in case.get("place_queries", []):
+            request_text += "\n" + " ".join(str(q.get(k, "")) for k in ("name", "address", "organization", "notes"))
+
+        policy = self.policy.check_request(request_text)
+
+        if policy.decision == PolicyDecision.POLICY_BLOCKED:
+            return LOCINTResult(
+                case_id=case_id,
+                task_id=task_id,
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report=(
+                    "POLICY_BLOCKED\n\n"
+                    "This request seeks prohibited LOCINT private-person tracking, targeting, or exploitation guidance. "
+                    "Lawful alternative: public/authorized place resolution, business-location intelligence, "
+                    "facility/site context, registered vs operating address separation, administrative hierarchy, "
+                    "precision-capped spatial analysis, historical location validation, source independence, "
+                    "and evidence-linked reporting without private-person tracking, home-location discovery, "
+                    "stolen GPS/telecom data, doxxing, or targeting."
+                ),
+                safety_flags=[
+                    "No private-person tracking or home-address discovery provided.",
+                    "No stolen GPS/telecom/app/spyware location exploitation provided.",
+                    "No targeting coordinates, attack routes, entry paths, or guard patterns provided.",
+                ],
+                limitations=[policy.reason],
+            )
+
+        evidence, sources, locations, place_queries, relationships, context = self.ingestor.ingest_case(case)
+        source_map = {s.source_id: s for s in sources}
+
+        rel_by_location: Dict[str, List[OrganizationLocationRelationship]] = {}
+        for rel in relationships:
+            rel_by_location.setdefault(rel.location_id, []).append(rel)
+
+        all_candidates: List[PlaceCandidate] = []
+        resolved_ids: set[str] = set()
+        resolved_locations: List[Location] = []
+
+        for q in place_queries:
+            cands = self.resolver.resolve(q, locations, rel_by_location, source_map)
+            # Mark ambiguity if close competitors exist.
+            if len(cands) >= 2 and cands[0].score >= 5.0 and (cands[0].score - cands[1].score) <= 2.0:
+                cands[0].match_state = MatchState.AMBIGUOUS
+                cands[0].opposition = unique_list(cands[0].opposition + ["Close competing location candidate; exact resolution ambiguous."])
+            all_candidates.extend(cands)
+
+            if cands and cands[0].match_state not in (MatchState.NO_MATCH,):
+                loc = next((l for l in locations if l.location_id == cands[0].location_id), None)
+                if loc is not None and loc.location_id not in resolved_ids:
+                    best = cands[0]
+                    loc.precision_level = best.precision_level
+                    loc.accuracy_radius_m = best.accuracy_radius_m
+                    loc.match_state = best.match_state
+                    loc.status = status_from_match(best.match_state)
+                    loc.confidence = confidence_from_match(best.match_state)
+                    loc.limitations = unique_list(loc.limitations + best.opposition + [
+                        "Resolution is evidence-linked; not person presence, ownership, or exact entrance.",
+                    ])
+                    resolved_locations.append(loc)
+                    resolved_ids.add(loc.location_id)
+
+        proximity, distances, catchments = self.spatial.analyze(resolved_locations or locations, context, case)
+        temporal, historical, change_events = self.temporal.assess(
+            resolved_locations or locations,
+            place_queries,
+            context.get("location_change_events", []),
+        )
+        source_independence = self.independence.assess(resolved_locations or locations, relationships, source_map)
+        contradictions = self.contradictions.detect(resolved_locations or locations, relationships, source_map)
+        hypotheses = self.hypotheses.generate(
+            place_queries,
+            all_candidates,
+            locations,
+            relationships,
+            change_events,
+            contradictions,
+        )
+
+        fact_out = self.fact_gate.generate(
+            case=case,
+            sources=sources,
+            locations=locations,
+            resolved_locations=resolved_locations,
+            candidates=all_candidates,
+            relationships=relationships,
+            source_independence=source_independence,
+            contradictions=contradictions,
+            temporal_assessment=temporal,
+            change_events=change_events,
+        )
+
+        review = self.reviewer.review(
+            resolved_locations=resolved_locations,
+            candidates=all_candidates,
+            contradictions=contradictions,
+            source_independence=source_independence,
+            case=case,
+        )
+
+        status = "PARTIAL"
+        if not locations and not place_queries:
+            status = "INSUFFICIENT_DATA"
+        elif not resolved_locations:
+            status = "LOCATION_UNRESOLVED"
+        elif review.get("human_review_required"):
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+        elif any(loc.status in (LocationStatus.VERIFIED_LOCATION, LocationStatus.SUPPORTED_LOCATION) for loc in resolved_locations):
+            status = "SUCCEEDED"
+        elif contradictions:
+            status = "DISPUTED_LOCATION"
+
+        privacy_flags = []
+        if self.mode == ModelMode.LOCAL_ONLY:
+            privacy_flags.append("LOCAL_ONLY mode selected; sensitive internal facility/asset coordinates should remain local.")
+        elif self.mode == ModelMode.CLOUD:
+            privacy_flags.append("CLOUD mode requires public/coarsened/redacted location context only.")
+        else:
+            privacy_flags.append("HYBRID mode requires routing controls, tenant isolation, and purpose limitation.")
+
+        privacy_flags.append("Private residential locations are suppressed/coarsened by default unless clearly lawful, necessary, authorized, and human-reviewed.")
+
+        result = LOCINTResult(
+            case_id=case_id,
+            task_id=task_id,
+            objective=objective,
+            status=status,
+            policy_decision=PolicyDecision.ALLOW,
+            evidence=evidence,
+            sources=sources,
+            locations=locations,
+            place_queries=place_queries,
+            place_candidates=all_candidates,
+            resolved_locations=resolved_locations,
+            relationships=relationships,
+            context=context,
+            proximity_results=proximity,
+            distance_results=distances,
+            catchment_results=catchments,
+            historical_locations=historical,
+            location_change_events=change_events,
+            temporal_assessment=temporal,
+            source_independence=source_independence,
+            contradictions=contradictions,
+            hypotheses=hypotheses,
+            facts=fact_out["facts"],
+            knowledge_gaps=fact_out["knowledge_gaps"],
+            next_actions=fact_out["next_actions"],
+            specialist_handoffs=fact_out["specialist_handoffs"],
+            review=review,
+            unknowns=fact_out["unknowns"],
+            limitations=fact_out["limitations"],
+            precision_caps=fact_out["precision_caps"],
+            safety_flags=[
+                "No private-person tracking or stalking.",
+                "No home-address discovery from weak clues.",
+                "No stolen GPS/telecom/app/spyware location data.",
+                "No targeting coordinates, attack routes, entry paths, or guard patterns.",
+                "Location is not person presence.",
+                "Registered office is not headquarters or ownership.",
+                "Centroid/parcel point is not exact entrance.",
+                "Human review required for sensitive/private/critical-infrastructure precision.",
+            ],
+            privacy_flags=privacy_flags,
+        )
+
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 13 — SYNTHETIC DEMOS
+# ======================================================================
+
+def demo_lawful_business_location() -> None:
+    """
+    Synthetic lawful demo:
+    Resolve public business headquarters vs registered office,
+    preserve centroid caution, source independence, and privacy limits.
+    No private-person tracking.
+    """
+    employee = LOCIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-LOCINT-001",
+        "task_id": "DEMO-TASK-001",
+        "objective": (
+            "Lawful public business-location intelligence: resolve whether 'Demo Logistics Ltd headquarters' "
+            "refers to an operating site, registered office, historical site, or stale map POI, while preserving "
+            "precision limits, source independence, and privacy boundaries."
+        ),
+        "questions": [
+            "What location entity is best supported?",
+            "Is the coordinate exact or centroid/parcel-like?",
+            "Does registered office equal headquarters?",
+            "What remains unknown?",
+        ],
+        "authorization": "PUBLIC_BUSINESS_LOCATION_RESEARCH_LAWFUL",
+        "sensitivity_tags": ["BUSINESS_LOCATION", "PUBLIC_DATA", "SYNTHETIC_DEMO"],
+        "proximity_thresholds": {
+            "FACILITY": 5000.0,
+            "WAREHOUSE": 5000.0,
+            "OFFICE": 1000.0,
+        },
+        "sources": [
+            {
+                "source_id": "SRC_REGISTRY",
+                "provider": "Demo Corporate Registry",
+                "upstream_dataset": "registry_db",
+                "independence_group": "registry",
+                "reliability": "HIGH",
+                "source_type": "GOVERNMENT_REGISTRY",
+                "limitations": ["Registered address may be legal agent/virtual office."],
+            },
+            {
+                "source_id": "SRC_WEBSITE",
+                "provider": "Demo Logistics Official Website",
+                "upstream_dataset": "company_cms",
+                "independence_group": "company_self",
+                "reliability": "MEDIUM_HIGH",
+                "source_type": "ORGANIZATION_OFFICIAL",
+                "limitations": ["Self-published; verify currentness."],
+            },
+            {
+                "source_id": "SRC_GIS",
+                "provider": "Demo Municipal GIS",
+                "upstream_dataset": "parcel_gis",
+                "independence_group": "gov_gis",
+                "reliability": "HIGH",
+                "source_type": "PUBLIC_GIS",
+                "limitations": ["Parcel centroid may not equal building entrance."],
+            },
+            {
+                "source_id": "SRC_MAP_A",
+                "provider": "Demo Map Provider A",
+                "upstream_dataset": "openstreetmap_like",
+                "independence_group": "map_osm",
+                "reliability": "MEDIUM",
+                "source_type": "COMMERCIAL_MAP",
+                "limitations": ["POI may be stale."],
+            },
+            {
+                "source_id": "SRC_MAP_B",
+                "provider": "Demo Map Provider B",
+                "upstream_dataset": "openstreetmap_like",
+                "independence_group": "map_osm",
+                "reliability": "MEDIUM",
+                "source_type": "COMMERCIAL_MAP",
+                "limitations": ["Shares upstream map family with Map A; not independent."],
+            },
+        ],
+        "locations": [
+            {
+                "location_id": "LOC_REGISTERED_OFFICE",
+                "name": "Demo Legal Suite",
+                "aliases": ["Demo Registered Office", "Legal Agent Suite 500"],
+                "location_type": "OFFICE",
+                "privacy": "BUSINESS",
+                "precision_level": "BUILDING",
+                "accuracy_radius_m": 25.0,
+                "administrative_hierarchy": {
+                    "country": "DEMO_COUNTRY",
+                    "state_province": "DEMO_STATE",
+                    "district_county": "Demo County",
+                    "city": "Demo City",
+                },
+                "postal_context": {"postal_code": "10001"},
+                "valid_from": "2024-01-01T00:00:00Z",
+                "valid_to": None,
+                "current_status": "ACTIVE",
+                "source_ids": ["SRC_REGISTRY"],
+                "coordinates": [
+                    {
+                        "latitude": 40.0000,
+                        "longitude": -74.0000,
+                        "crs": "WGS84",
+                        "accuracy_radius_m": 25.0,
+                        "precision_level": "BUILDING",
+                        "is_centroid": False,
+                        "source_id": "SRC_REGISTRY",
+                        "notes": ["Registry building point."],
+                    }
+                ],
+                "addresses": [
+                    {
+                        "raw_address": "100 Legal Avenue, Suite 500, Demo City, DEMO_STATE 10001",
+                        "house_number": "100",
+                        "street": "Legal Avenue",
+                        "suite": "500",
+                        "city": "Demo City",
+                        "state": "DEMO_STATE",
+                        "postal_code": "10001",
+                        "country": "DEMO_COUNTRY",
+                        "address_type": "REGISTERED_ADDRESS",
+                        "source_id": "SRC_REGISTRY",
+                    }
+                ],
+                "limitations": ["Registered office may be virtual/legal agent address."],
+            },
+            {
+                "location_id": "LOC_OPERATING_HQ",
+                "name": "Demo Logistics Headquarters Campus",
+                "aliases": ["Demo Logistics HQ", "Demo Logistics Operating Site"],
+                "location_type": "CAMPUS",
+                "privacy": "BUSINESS",
+                "precision_level": "SITE",
+                "accuracy_radius_m": 150.0,
+                "administrative_hierarchy": {
+                    "country": "DEMO_COUNTRY",
+                    "state_province": "DEMO_STATE",
+                    "district_county": "Demo County",
+                    "city": "Demo City",
+                },
+                "postal_context": {"postal_code": "10010"},
+                "valid_from": "2026-01-15T00:00:00Z",
+                "valid_to": None,
+                "current_status": "ACTIVE",
+                "source_ids": ["SRC_WEBSITE", "SRC_GIS"],
+                "coordinates": [
+                    {
+                        "latitude": 40.0100,
+                        "longitude": -74.0100,
+                        "crs": "WGS84",
+                        "accuracy_radius_m": 150.0,
+                        "precision_level": "SITE",
+                        "is_centroid": True,
+                        "source_id": "SRC_GIS",
+                        "notes": ["Parcel centroid."],
+                    },
+                    {
+                        "latitude": 40.0102,
+                        "longitude": -74.0105,
+                        "crs": "WGS84",
+                        "accuracy_radius_m": 120.0,
+                        "precision_level": "SITE",
+                        "is_centroid": True,
+                        "source_id": "SRC_WEBSITE",
+                        "notes": ["Website campus marker approximate/centroid-like."],
+                    },
+                ],
+                "addresses": [
+                    {
+                        "raw_address": "2000 Industrial Parkway, Demo City, DEMO_STATE 10010",
+                        "house_number": "2000",
+                        "street": "Industrial Parkway",
+                        "city": "Demo City",
+                        "state": "DEMO_STATE",
+                        "postal_code": "10010",
+                        "country": "DEMO_COUNTRY",
+                        "address_type": "OPERATING_ADDRESS",
+                        "source_id": "SRC_WEBSITE",
+                    }
+                ],
+                "limitations": ["Campus may contain multiple buildings; entrance not specified."],
+            },
+            {
+                "location_id": "LOC_OLD_WAREHOUSE",
+                "name": "Demo Logistics Old Warehouse",
+                "aliases": ["Former Demo Logistics Site"],
+                "location_type": "WAREHOUSE",
+                "privacy": "BUSINESS",
+                "precision_level": "SITE",
+                "accuracy_radius_m": 80.0,
+                "administrative_hierarchy": {
+                    "country": "DEMO_COUNTRY",
+                    "state_province": "DEMO_STATE",
+                    "city": "Demo City",
+                },
+                "valid_from": "2018-01-01T00:00:00Z",
+                "valid_to": "2025-12-31T00:00:00Z",
+                "current_status": "CLOSED",
+                "source_ids": ["SRC_MAP_A", "SRC_MAP_B"],
+                "coordinates": [
+                    {
+                        "latitude": 40.0200,
+                        "longitude": -74.0200,
+                        "crs": "WGS84",
+                        "accuracy_radius_m": 80.0,
+                        "is_centroid": False,
+                        "source_id": "SRC_MAP_A",
+                    }
+                ],
+                "addresses": [
+                    {
+                        "raw_address": "500 Old Dock Road, Demo City, DEMO_STATE 10020",
+                        "street": "Old Dock Road",
+                        "city": "Demo City",
+                        "state": "DEMO_STATE",
+                        "postal_code": "10020",
+                        "country": "DEMO_COUNTRY",
+                        "address_type": "FACILITY_ADDRESS",
+                        "source_id": "SRC_MAP_A",
+                    }
+                ],
+                "limitations": ["Historical site; may be stale in map POIs."],
+            },
+            {
+                "location_id": "LOC_STALE_POI",
+                "name": "Demo Logistics Branch",
+                "aliases": ["Demo Logistics (Map Listing)"],
+                "location_type": "OFFICE",
+                "privacy": "BUSINESS",
+                "precision_level": "BUILDING",
+                "accuracy_radius_m": 50.0,
+                "administrative_hierarchy": {
+                    "country": "DEMO_COUNTRY",
+                    "state_province": "DEMO_STATE",
+                    "city": "Demo City",
+                },
+                "valid_from": "2022-01-01T00:00:00Z",
+                "valid_to": None,
+                "current_status": "UNKNOWN",
+                "source_ids": ["SRC_MAP_A", "SRC_MAP_B"],
+                "coordinates": [
+                    {
+                        "latitude": 40.0300,
+                        "longitude": -74.0300,
+                        "crs": "WGS84",
+                        "accuracy_radius_m": 50.0,
+                        "is_centroid": False,
+                        "source_id": "SRC_MAP_A",
+                    }
+                ],
+                "addresses": [
+                    {
+                        "raw_address": "77 Market Street, Demo City, DEMO_STATE 10030",
+                        "street": "Market Street",
+                        "city": "Demo City",
+                        "state": "DEMO_STATE",
+                        "postal_code": "10030",
+                        "country": "DEMO_COUNTRY",
+                        "address_type": "UNKNOWN",
+                        "source_id": "SRC_MAP_B",
+                    }
+                ],
+                "limitations": ["Map-only POI; no official current corroboration supplied."],
+            },
+        ],
+        "organization_relationships": [
+            {
+                "relationship_id": "REL_REG",
+                "organization_id": "ORG_DEMO_LOGISTICS",
+                "organization_name": "Demo Logistics Ltd",
+                "location_id": "LOC_REGISTERED_OFFICE",
+                "relationship_type": "REGISTERED_AT",
+                "status": "ACTIVE",
+                "valid_from": "2024-01-01T00:00:00Z",
+                "valid_to": None,
+                "confidence": "HIGH",
+                "source_ids": ["SRC_REGISTRY"],
+                "limitations": ["Registered office may not be operating HQ."],
+            },
+            {
+                "relationship_id": "REL_HQ",
+                "organization_id": "ORG_DEMO_LOGISTICS",
+                "organization_name": "Demo Logistics Ltd",
+                "location_id": "LOC_OPERATING_HQ",
+                "relationship_type": "HEADQUARTERED_AT",
+                "status": "ACTIVE",
+                "valid_from": "2026-01-15T00:00:00Z",
+                "valid_to": None,
+                "confidence": "MEDIUM",
+                "source_ids": ["SRC_WEBSITE"],
+                "limitations": ["Self-published; corroborate with GIS/records."],
+            },
+            {
+                "relationship_id": "REL_OP",
+                "organization_id": "ORG_DEMO_LOGISTICS",
+                "organization_name": "Demo Logistics Ltd",
+                "location_id": "LOC_OPERATING_HQ",
+                "relationship_type": "OPERATES_AT",
+                "status": "ACTIVE",
+                "valid_from": "2026-01-15T00:00:00Z",
+                "valid_to": None,
+                "confidence": "MEDIUM",
+                "source_ids": ["SRC_WEBSITE", "SRC_GIS"],
+                "limitations": ["Operating relationship does not prove ownership."],
+            },
+            {
+                "relationship_id": "REL_OLD",
+                "organization_id": "ORG_DEMO_LOGISTICS",
+                "organization_name": "Demo Logistics Ltd",
+                "location_id": "LOC_OLD_WAREHOUSE",
+                "relationship_type": "OPERATES_AT",
+                "status": "HISTORICAL",
+                "valid_from": "2018-01-01T00:00:00Z",
+                "valid_to": "2025-12-31T00:00:00Z",
+                "confidence": "MEDIUM",
+                "source_ids": ["SRC_MAP_A", "SRC_MAP_B"],
+                "limitations": ["Historical relationship retained."],
+            },
+            {
+                "relationship_id": "REL_STALE",
+                "organization_id": "ORG_DEMO_LOGISTICS",
+                "organization_name": "Demo Logistics Ltd",
+                "location_id": "LOC_STALE_POI",
+                "relationship_type": "HAS_BRANCH_AT",
+                "status": "UNKNOWN",
+                "valid_from": "2022-01-01T00:00:00Z",
+                "valid_to": None,
+                "confidence": "LOW",
+                "source_ids": ["SRC_MAP_A", "SRC_MAP_B"],
+                "limitations": ["Map-only branch claim; may be stale."],
+            },
+        ],
+        "place_queries": [
+            {
+                "query_id": "Q_HQ",
+                "name": "Demo Logistics Ltd headquarters",
+                "organization": "Demo Logistics Ltd",
+                "city": "Demo City",
+                "country": "DEMO_COUNTRY",
+                "time": "2026-10-08T00:00:00Z",
+                "notes": "Public business-location research; no private-person tracking.",
+            },
+            {
+                "query_id": "Q_REG",
+                "name": "Demo Logistics Ltd registered office",
+                "address": "100 Legal Avenue Suite 500 Demo City DEMO_STATE 10001",
+                "organization": "Demo Logistics Ltd",
+                "time": "2026-10-08T00:00:00Z",
+            },
+        ],
+        "transport_hubs": [
+            {
+                "hub_id": "TH_DEMO_CENTRAL",
+                "name": "Demo Central Station",
+                "type": "RAIL_STATION",
+                "lat": 40.0050,
+                "lon": -74.0050,
+            },
+            {
+                "hub_id": "TH_DEMO_PORT",
+                "name": "Demo Port Terminal",
+                "type": "PORT",
+                "lat": 40.0150,
+                "lon": -74.0200,
+            },
+        ],
+        "roads": [
+            {
+                "road_id": "RD_INDUSTRIAL",
+                "name": "Demo Industrial Parkway",
+                "class": "secondary",
+                "lat": 40.0095,
+                "lon": -74.0105,
+            }
+        ],
+        "land_use": [
+            {"location_id": "LOC_OPERATING_HQ", "use": "INDUSTRIAL_LOGISTICS"},
+            {"location_id": "LOC_REGISTERED_OFFICE", "use": "COMMERCIAL_OFFICE"},
+        ],
+        "zoning_context": [
+            {"location_id": "LOC_OPERATING_HQ", "zone": "M-1 INDUSTRIAL", "source": "Demo Municipal Planning"},
+            {"location_id": "LOC_REGISTERED_OFFICE", "zone": "C-2 COMMERCIAL", "source": "Demo Municipal Planning"},
+        ],
+        "terrain_context": [
+            {"location_id": "LOC_OPERATING_HQ", "elevation_m": 12.0, "slope_class": "flat", "source": "Demo DEM"}
+        ],
+        "environmental_context": [
+            {"location_id": "LOC_OPERATING_HQ", "flood_zone": "X", "source": "Demo FEMA-like layer", "limitations": ["Illustrative public hazard context only."]}
+        ],
+        "historical_locations": [
+            {"location_id": "LOC_OLD_WAREHOUSE", "note": "Closed at end of 2025; retained for historical analysis."}
+        ],
+        "location_change_events": [
+            {"event_id": "CH_OPEN_HQ", "location_id": "LOC_OPERATING_HQ", "event_type": "OPENED", "date": "2026-01-15"},
+            {"event_id": "CH_CLOSE_OLD", "location_id": "LOC_OLD_WAREHOUSE", "event_type": "CLOSED", "date": "2025-12-31"},
+            {"event_id": "CH_RELOCATE", "location_id": "ORG_DEMO_LOGISTICS", "event_type": "RELOCATED", "date": "2026-01-15", "notes": ["From old warehouse to operating HQ campus."]},
+        ],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def demo_policy_blocked_private_tracking() -> None:
+    """
+    Synthetic policy-block demonstration.
+    Shows that private-person tracking/home-location requests are refused.
+    """
+    employee = LOCIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+
+    case = {
+        "case_id": "DEMO-LOCINT-BLOCK-001",
+        "task_id": "DEMO-TASK-BLOCK-001",
+        "objective": "Find the private home address of Jane Doe from her social media posts and track her live location.",
+        "questions": [
+            "What is her home address?",
+            "Where is she right now?",
+        ],
+        "authorization": "NONE",
+        "place_queries": [
+            {
+                "query_id": "Q_BLOCK",
+                "name": "Jane Doe home",
+                "notes": "Locate private residence and track individual.",
+            }
+        ],
+    }
+
+    result = employee.run_case(case)
+    print(result.report)
+
+
+def main() -> None:
+    print("\n" + "=" * 72)
+    print("LAWFUL PUBLIC BUSINESS-LOCATION DEMO")
+    print("=" * 72 + "\n")
+    demo_lawful_business_location()
+
+    print("\n" + "=" * 72)
+    print("POLICY-BLOCKED PRIVATE-TRACKING DEMO")
+    print("=" * 72 + "\n")
+    demo_policy_blocked_private_tracking()
+
+
+if __name__ == "__main__":
+    main()

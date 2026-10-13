@@ -1,0 +1,2664 @@
+"""
+======================================================================
+TRACEATLAS — EMAILINT
+EMAIL HEADER / INFRASTRUCTURE / COMMUNICATION-EVIDENCE INTELLIGENCE AI EMPLOYEE
+Python Implementation
+======================================================================
+
+Mode:
+DEFENSIVE / AUTHORIZED / EVIDENCE-FIRST / PRIVACY-AWARE
+
+Primary boundary:
+Email intelligence and forensic communication analysis,
+NOT phishing, account access, email spoofing or social engineering.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import re
+import unicodedata
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import urlparse
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("EMAILINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class HopTrustLevel(str, Enum):
+    TRUSTED_HOP = "TRUSTED_HOP"
+    UNTRUSTED_HOP = "UNTRUSTED_HOP"
+    UNKNOWN = "UNKNOWN"
+
+
+class AuthResultStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    SOFT_FAIL = "SOFT_FAIL"
+    NEUTRAL = "NEUTRAL"
+    TEMPERROR = "TEMPERROR"
+    PERMERROR = "PERMERROR"
+    NONE = "NONE"
+    UNKNOWN = "UNKNOWN"
+
+
+class ImpersonationType(str, Enum):
+    DISPLAY_NAME_IMPERSONATION_CANDIDATE = "DISPLAY_NAME_IMPERSONATION_CANDIDATE"
+    LOOKALIKE_DOMAIN_CANDIDATE = "LOOKALIKE_DOMAIN_CANDIDATE"
+    SPOOFING_CANDIDATE = "SPOOFING_CANDIDATE"
+    THREAD_HIJACK_CANDIDATE = "THREAD_HIJACK_CANDIDATE"
+    VENDOR_IMPERSONATION_CANDIDATE = "VENDOR_IMPERSONATION_CANDIDATE"
+    EXECUTIVE_IMPERSONATION_CANDIDATE = "EXECUTIVE_IMPERSONATION_CANDIDATE"
+    NONE_DETECTED = "NONE_DETECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class MailboxCompromiseState(str, Enum):
+    POSSIBLE_NOT_VERIFIED = "POSSIBLE_NOT_VERIFIED"
+    SUPPORTED_BY_TELEMETRY = "SUPPORTED_BY_TELEMETRY"
+    NOT_SUPPORTED = "NOT_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ClaimState(str, Enum):
+    DOCUMENT_REPORTED = "DOCUMENT_REPORTED" # Using generic term for email content claim
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    DISPUTED = "DISPUTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def normalize_whitespace(value: Any) -> str:
+    if value is None:
+        return ""
+    return " ".join(str(value).split())
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        s = value.strip().replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            # Try RFC 2822 formats commonly found in Date/Received headers
+            for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%d %b %Y %H:%M:%S %z"):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            else:
+                return None
+    else:
+        return None
+    
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def excerpt(text: str, limit: int = 220) -> str:
+    s = normalize_whitespace(text)
+    if len(s) <= limit:
+        return s
+    return s[: limit - 1].rstrip() + "…"
+
+
+def fmt_dt(value: Optional[datetime]) -> str:
+    return value.isoformat() if value else "UNKNOWN"
+
+
+def extract_email_address(header_value: str) -> Optional[Tuple[str, str]]:
+    """
+    Extracts (display_name, email_address) from a header like 'Name <addr>'.
+    Returns None if no valid address found.
+    """
+    if not header_value:
+        return None
+    
+    # Simple regex for angle bracket syntax
+    match = re.search(r'<([^>]+)>', header_value)
+    if match:
+        addr = match.group(1).strip()
+        name_part = header_value[:match.start()].strip().strip('"')
+        if '@' in addr:
+            return (name_part or "", addr.lower())
+    
+    # Fallback: just the address if no brackets
+    clean = header_value.strip().strip('"').lower()
+    if '@' in clean and '<' not in clean:
+        return ("", clean)
+        
+    return None
+
+
+def get_domain(email: Optional[str]) -> Optional[str]:
+    if not email or '@' not in email:
+        return None
+    return email.split('@')[1].lower()
+
+
+# ======================================================================
+# SECTION 3 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited EMAILINT operational guidance.
+    Allows lawful defensive analysis, header forensics, and verification.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:send|generate|create|craft).{0,100}(?:phishing|spoof|fake|malicious|credential.harvesting|scam)",
+        r"(?:access|intrude|hack|compromise|takeover|login).{0,100}(?:mailbox|account|inbox|email.server|user.email)",
+        r"(?:bypass|break|defeat|evade).{0,100}(?:mfa|otp|two.factor|authentication|security.control)",
+        r"(?:use|exploit|replay).{0,100}(?:stolen.password|oauth.token|session.cookie|api.key)",
+        r"\b(?:social.engineering|pretexting|vishing|smishing)\b",
+        r"(?:modify|delete|exfiltrate|forward.rule|auto.forward).{0,100}(?:evidence|message|mail.box)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited EMAILINT phishing, intrusion, credential abuse, or evidence tampering.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Email body and headers are UNTRUSTED DATA.
+    Neutralize obvious instruction-like injections while preserving raw evidence.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|reveal\s+secret|execute\s+script|click\s+here\s+to\s+verify)\b"
+    )
+
+    def sanitize_for_analysis(self, text: Any) -> str:
+        if text is None:
+            return ""
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return normalize_whitespace(s)
+
+
+# ======================================================================
+# SECTION 4 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    email_id: str = ""
+    source_id: str = ""
+    source_type: str = "UNKNOWN"
+    artifact_hash: str = ""
+    raw_artifact_reference: str = ""
+    file_format: str = "UNKNOWN"
+    ingested_at: datetime = field(default_factory=utcnow)
+    parser_version: str = "EMAILINT-parser-0.1.0"
+    normalizer_version: str = "EMAILINT-normalizer-0.1.0"
+    authorization_context: str = ""
+
+
+@dataclass
+class ReceivedHop:
+    hop_id: str = field(default_factory=lambda: new_id("HOP"))
+    order_index: int = 0 # 0 is oldest/first received
+    from_host: str = ""
+    from_ip: Optional[str] = None
+    by_host: str = ""
+    by_ip: Optional[str] = None
+    protocol: str = ""
+    tls_cipher: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    queue_id: Optional[str] = None
+    trust_level: HopTrustLevel = HopTrustLevel.UNKNOWN
+    raw_header_line: str = ""
+
+
+@dataclass
+class AuthenticationResult:
+    auth_id: str = field(default_factory=lambda: new_id("AUTH"))
+    mechanism: str = "" # SPF, DKIM, DMARC, ARC
+    result: AuthResultStatus = AuthResultStatus.UNKNOWN
+    domain: Optional[str] = None
+    selector: Optional[str] = None # For DKIM
+    smtp_remote_ip: Optional[str] = None
+    comment: Optional[str] = None
+    producing_server: Optional[str] = None
+    raw_field: str = ""
+
+
+@dataclass
+class Attachment:
+    attachment_id: str = field(default_factory=lambda: new_id("ATT"))
+    filename: str = ""
+    declared_mime: str = ""
+    detected_mime: str = "UNKNOWN"
+    size_bytes: int = 0
+    sha256: str = ""
+    content_disposition: str = ""
+    content_id: Optional[str] = None
+    parent_email_id: str = ""
+    handoff_target: str = "None" # MALINT, DOCINT, etc.
+
+
+@dataclass
+class UrlInfo:
+    url_id: str = field(default_factory=lambda: new_id("URL"))
+    visible_text: str = ""
+    actual_href: str = ""
+    domain: Optional[str] = None
+    is_tracking_pixel: bool = False
+    is_shortener: bool = False
+    rewritten_by_gateway: bool = False
+    parent_email_id: str = ""
+
+
+@dataclass
+class EmailMessage:
+    email_id: str
+    message_id_header: str = ""
+    subject: str = ""
+    from_display: str = ""
+    from_address: str = ""
+    sender_display: str = ""
+    sender_address: str = ""
+    return_path: str = ""
+    reply_to_display: str = ""
+    reply_to_address: str = ""
+    to_recipients: List[str] = field(default_factory=list)
+    cc_recipients: List[str] = field(default_factory=list)
+    bcc_recipients: List[str] = field(default_factory=list) # Only if authorized
+    date_header: Optional[datetime] = None
+    first_trusted_received_time: Optional[datetime] = None
+    received_hops: List[ReceivedHop] = field(default_factory=list)
+    auth_results: List[AuthenticationResult] = field(default_factory=list)
+    spf_result: Optional[AuthenticationResult] = None
+    dkim_results: List[AuthenticationResult] = field(default_factory=list)
+    dmarc_result: Optional[AuthenticationResult] = None
+    arc_result: Optional[AuthenticationResult] = None
+    in_reply_to: str = ""
+    references: List[str] = field(default_factory=list)
+    thread_id: str = ""
+    body_plain: str = ""
+    body_html_sanitized: str = ""
+    attachments: List[Attachment] = field(default_factory=list)
+    urls: List[UrlInfo] = field(default_factory=list)
+    mailing_list_headers: Dict[str, str] = field(default_factory=dict)
+    forwarding_indicators: List[str] = field(default_factory=list)
+    source_id: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class DomainContext:
+    domain: str
+    mx_hosts: List[str] = field(default_factory=list)
+    spf_record_present: bool = False
+    dmarc_policy: str = "UNKNOWN"
+    registrar_age_days: Optional[int] = None
+    is_lookalike_candidate: bool = False
+    lookalike_of: Optional[str] = None
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    email_ids: List[str] = field(default_factory=list)
+    possible_explanations: List[str] = field(default_factory=list)
+    resolution_status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class IngestedCase:
+    evidence: List[Evidence] = field(default_factory=list)
+    emails: List[EmailMessage] = field(default_factory=list)
+    domains: List[DomainContext] = field(default_factory=list)
+    gateway_logs: List[Dict[str, Any]] = field(default_factory=list)
+    mailbox_audit_logs: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class EMAILINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    emails: List[EmailMessage] = field(default_factory=list)
+    threads: Dict[str, List[EmailMessage]] = field(default_factory=dict)
+    domain_contexts: List[DomainContext] = field(default_factory=list)
+    
+    impersonation_findings: List[Dict[str, Any]] = field(default_factory=list)
+    bec_findings: List[Dict[str, Any]] = field(default_factory=list)
+    mailbox_compromise_findings: List[Dict[str, Any]] = field(default_factory=list)
+    
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    contradictions: List[Contradiction] = field(default_factory=list)
+    
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+    
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 5 — INGESTION & PARSING
+# ======================================================================
+
+class EMAILINTParser:
+    """
+    Safe, static parser for email artifacts.
+    Does NOT execute scripts, load remote images, or open attachments.
+    """
+    
+    RECEIVED_RX = re.compile(r'^Received:\s*(.*)$', re.I | re.M)
+    FROM_RX = re.compile(r'^From:\s*(.*)$', re.I | re.M)
+    TO_RX = re.compile(r'^To:\s*(.*)$', re.I | re.M)
+    CC_RX = re.compile(r'^Cc:\s*(.*)$', re.I | re.M)
+    SUBJECT_RX = re.compile(r'^Subject:\s*(.*)$', re.I | re.M)
+    MESSAGE_ID_RX = re.compile(r'^Message-ID:\s*<([^>]+)>', re.I | re.M)
+    DATE_RX = re.compile(r'^Date:\s*(.*)$', re.I | re.M)
+    RETURN_PATH_RX = re.compile(r'^Return-Path:\s*<([^>]+)>', re.I | re.M)
+    REPLY_TO_RX = re.compile(r'^Reply-To:\s*(.*)$', re.I | re.M)
+    AUTH_RESULTS_RX = re.compile(r'^Authentication-Results:\s*(.*)$', re.I | re.M)
+    IN_REPLY_TO_RX = re.compile(r'^In-Reply-To:\s*<([^>]+)>', re.I | re.M)
+    REFERENCES_RX = re.compile(r'^References:\s*(.*)$', re.I | re.M)
+    
+    # Simple heuristic to split headers from body in raw text
+    HEADER_BODY_SPLIT_RX = re.compile(r'\r?\n\r?\n', re.M)
+
+    def parse_raw_eml(self, raw_data: str, case_id: str, source_id: str) -> Tuple[EmailMessage, Evidence]:
+        # Preserve original
+        artifact_hash = sha256_bytes(raw_data.encode('utf-8'))
+        
+        ev = Evidence(
+            case_id=case_id,
+            email_id="", # Will be filled
+            source_id=source_id,
+            source_type="EML_RAW",
+            artifact_hash=artifact_hash,
+            raw_artifact_reference=raw_data[:500], # Truncated ref for storage
+            file_format="EML",
+            authorization_context="AUTHORIZED_INGESTION"
+        )
+
+        # Split Headers and Body
+        parts = self.HEADER_BODY_SPLIT_RX.split(raw_data, maxsplit=1)
+        header_block = parts[0] if parts else ""
+        body_block = parts[1] if len(parts) > 1 else ""
+
+        msg = EmailMessage(
+            email_id=new_id("EMAIL"),
+            source_id=source_id,
+            evidence_ids=[ev.evidence_id],
+            body_plain=body_block,
+            body_html_sanitized=self._sanitize_body(body_block),
+            limitations=["Parsed from raw text; MIME structure may be simplified."],
+            confidence=Confidence.MEDIUM
+        )
+        ev.email_id = msg.email_id
+
+        # Parse Headers
+        msg.subject = self._extract_single(header_block, self.SUBJECT_RX)
+        msg.message_id_header = self._extract_single(header_block, self.MESSAGE_ID_RX)
+        
+        # From
+        from_val = self._extract_single(header_block, self.FROM_RX)
+        parsed_from = extract_email_address(from_val)
+        if parsed_from:
+            msg.from_display, msg.from_address = parsed_from
+        
+        # To / Cc
+        to_vals = self._extract_all(header_block, self.TO_RX)
+        for tv in to_vals:
+            for part in re.split(r',(?![^<]*>)', tv): # Split by comma outside brackets
+                p = extract_email_address(part)
+                if p:
+                    msg.to_recipients.append(p[1])
+                    
+        cc_vals = self._extract_all(header_block, self.CC_RX)
+        for cv in cc_vals:
+             for part in re.split(r',(?![^<]*>)', cv):
+                p = extract_email_address(part)
+                if p:
+                    msg.cc_recipients.append(p[1])
+
+        # Return Path
+        rp_val = self._extract_single(header_block, self.RETURN_PATH_RX)
+        if rp_val:
+            msg.return_path = rp_val.lower()
+
+        # Reply To
+        rt_val = self._extract_single(header_block, self.REPLY_TO_RX)
+        parsed_rt = extract_email_address(rt_val)
+        if parsed_rt:
+            msg.reply_to_display, msg.reply_to_address = parsed_rt
+
+        # Date
+        date_val = self._extract_single(header_block, self.DATE_RX)
+        msg.date_header = to_datetime(date_val)
+
+        # Threading
+        irt = self._extract_single(header_block, self.IN_REPLY_TO_RX)
+        if irt:
+            msg.in_reply_to = irt
+        
+        refs = self._extract_single(header_block, self.REFERENCES_RX)
+        if refs:
+            msg.references = [r.strip('<>') for r in re.findall(r'<[^>]+>', refs)]
+
+        # Received Hops
+        recv_lines = self._extract_all(header_block, self.RECEIVED_RX)
+        # Note: In standard EML, Received headers are usually prepended (last one is first hop).
+        # We will store them in order of appearance in file, then reverse for chronological logic later if needed.
+        for i, line in enumerate(recv_lines):
+            hop = self._parse_received_hop(line, i)
+            msg.received_hops.append(hop)
+            
+        # Set earliest trusted time placeholder (logic applied later)
+        if msg.received_hops:
+            # Assuming last hop in list (top of file) is most recent, first hop (bottom) is oldest
+            # But we need to identify trust boundaries. For now, take the very first hop chronologically.
+            # Chronological order is Reverse of File Order for Received headers.
+            oldest_hop = msg.received_hops[-1] 
+            msg.first_trusted_received_time = oldest_hop.timestamp
+
+        # Authentication Results
+        auth_lines = self._extract_all(header_block, self.AUTH_RESULTS_RX)
+        for al in auth_lines:
+            ar = self._parse_auth_results(al)
+            msg.auth_results.extend(ar)
+            for res in ar:
+                if res.mechanism == "spf":
+                    msg.spf_result = res
+                elif res.mechanism == "dkim":
+                    msg.dkim_results.append(res)
+                elif res.mechanism == "dmarc":
+                    msg.dmarc_result = res
+                elif res.mechanism == "arc":
+                    msg.arc_result = res
+
+        return msg, ev
+
+    def _extract_single(self, block: str, rx: re.Pattern) -> str:
+        m = rx.search(block)
+        return m.group(1).strip() if m else ""
+
+    def _extract_all(self, block: str, rx: re.Pattern) -> List[str]:
+        return [m.group(1).strip() for m in rx.finditer(block)]
+
+    def _sanitize_body(self, body: str) -> str:
+        # Basic HTML tag stripping for analysis, keeping text
+        # Real implementation would use a safe library like BeautifulSoup with CSS disabled
+        text_only = re.sub(r'<[^>]+>', '', body)
+        return self.sanitize_injection(text_only)
+    
+    @staticmethod
+    def sanitize_injection(text: str) -> str:
+        defense = PromptInjectionDefense()
+        return defense.sanitize_for_analysis(text)
+
+    def _parse_received_hop(self, line: str, index: int) -> ReceivedHop:
+        # Simplified parsing: "from X (Y [IP]) by Z ..."
+        hop = ReceivedHop(order_index=index, raw_header_line=line)
+        
+        from_match = re.search(r'from\s+(\S+)', line, re.I)
+        if from_match:
+            hop.from_host = from_match.group(1)
+            
+        ip_match = re.search(r'\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\]', line)
+        if ip_match:
+            hop.from_ip = ip_match.group(1)
+            
+        by_match = re.search(r'by\s+(\S+)', line, re.I)
+        if by_match:
+            hop.by_host = by_match.group(1)
+            
+        date_match = re.search(r';\s*(.+)$', line)
+        if date_match:
+            hop.timestamp = to_datetime(date_match.group(1))
+            
+        if 'TLS' in line.upper():
+            hop.protocol = "TLS"
+        elif 'SMTP' in line.upper():
+            hop.protocol = "SMTP"
+            
+        return hop
+
+    def _parse_auth_results(self, line: str) -> List[AuthenticationResult]:
+        results = []
+        # Format: server.domain mech=result (comment) identity=user domain=d.com ...
+        # This is complex. We'll do a basic extraction for demo purposes.
+        
+        mechanisms = ['spf', 'dkim', 'dmarc', 'arc']
+        current_mech = None
+        
+        tokens = line.split()
+        for token in tokens:
+            t_lower = token.lower()
+            if '=' in token:
+                key, val = token.split('=', 1)
+                k_low = key.lower()
+                
+                if k_low in mechanisms:
+                    status_map = {
+                        'pass': AuthResultStatus.PASS,
+                        'fail': AuthResultStatus.FAIL,
+                        'softfail': AuthResultStatus.SOFT_FAIL,
+                        'neutral': AuthResultStatus.NEUTRAL,
+                        'none': AuthResultStatus.NONE,
+                        'temperror': AuthResultStatus.TEMPERROR,
+                        'permerror': AuthResultStatus.PERMERROR,
+                    }
+                    status = status_map.get(val.lower(), AuthResultStatus.UNKNOWN)
+                    
+                    ar = AuthenticationResult(mechanism=k_low, result=status, raw_field=token)
+                    
+                    # Look ahead for domain
+                    # Very simplified: assumes next token might have domain= or similar
+                    # In production, use a proper AR parser lib
+                    
+                    results.append(ar)
+                    
+        return results
+
+
+# ======================================================================
+# SECTION 6 — ANALYSIS ENGINES
+# ======================================================================
+
+class TrustBoundaryAnalyzer:
+    """
+    Determines which Received hops are likely trustworthy based on known infrastructure.
+    """
+    def __init__(self, trusted_providers: List[str]):
+        self.trusted_providers = [p.lower() for p in trusted_providers]
+
+    def analyze(self, email: EmailMessage) -> None:
+        # Walk backwards from the recipient's mail server (usually the first hop in the list if sorted correctly, 
+        # but in our stored list, index 0 is top-of-file/latest, index N is bottom-of-file/oldest).
+        # Actually, standard EML puts newest at top. So Index 0 is Last Hop (Recipient Server).
+        # Index N is First Hop (Sender Client).
+        
+        found_trust_boundary = False
+        
+        # Iterate from Newest (Index 0) to Oldest (Index N-1)
+        for i in range(len(email.received_hops)):
+            hop = email.received_hops[i]
+            
+            # If we haven't hit the boundary yet, assume everything up to the first trusted provider is suspect?
+            # No, usually the receiving server adds the first Received header. That is Trusted.
+            # Then it forwards to internal relays (Trusted).
+            # Until it hits an external relay (Untrusted).
+            
+            host = hop.by_host.lower()
+            from_host = hop.from_host.lower()
+            
+            is_internal_or_provider = any(tp in host or tp in from_host for tp in self.trusted_providers)
+            
+            if not found_trust_boundary:
+                if is_internal_or_provider:
+                    hop.trust_level = HopTrustLevel.TRUSTED_HOP
+                else:
+                    # The moment we see a non-trusted host in the chain going back in time,
+                    # that hop and all subsequent older hops are Untrusted.
+                    hop.trust_level = HopTrustLevel.UNTRUSTED_HOP
+                    found_trust_boundary = True
+            else:
+                hop.trust_level = HopTrustLevel.UNTRUSTED_HOP
+                
+        # Update first trusted received time
+        # Find the oldest hop that is TRUSTED
+        trusted_hops = [h for h in email.received_hops if h.trust_level == HopTrustLevel.TRUSTED_HOP]
+        if trusted_hops:
+            # Sort by timestamp ascending
+            trusted_hops.sort(key=lambda x: x.timestamp or datetime.max.replace(tzinfo=timezone.utc))
+            email.first_trusted_received_time = trusted_hops[0].timestamp
+
+
+class AuthenticationInterpreter:
+    """
+    Interprets SPF/DKIM/DMARC without conflating with human identity.
+    """
+    def interpret(self, email: EmailMessage) -> Dict[str, Any]:
+        interp = {}
+        
+        # SPF
+        if email.spf_result:
+            interp['spf_meaning'] = "SPF validates if the sending IP was authorized by the Envelope-From domain's DNS records."
+            if email.spf_result.result == AuthResultStatus.PASS:
+                interp['spf_note'] = "PASS indicates infrastructure alignment. It does NOT prove the human sender or that the account wasn't compromised."
+            elif email.spf_result.result == AuthResultStatus.FAIL:
+                interp['spf_note'] = "FAIL suggests unauthorized sending IP for the envelope domain. Could be spoofing, misconfiguration, or forwarding issues."
+                
+        # DKIM
+        if email.dkim_results:
+            interp['dkim_meaning'] = "DKIM validates cryptographic signature against the signing domain's public key."
+            passed_dkims = [d for d in email.dkim_results if d.result == AuthResultStatus.PASS]
+            if passed_dkims:
+                interp['dkim_note'] = "Valid signature confirms message integrity for signed parts from that domain. Does NOT prove sender intent or uncompromised state."
+                
+        # DMARC
+        if email.dmarc_result:
+            interp['dmarc_meaning'] = "DMARC checks alignment between Visible From domain and authenticated SPF/DKIM domains."
+            if email.dmarc_result.result == AuthResultStatus.PASS:
+                interp['dmarc_note'] = "PASS means the visible sender domain aligned with successful authentication. Strong indicator of domain legitimacy, BUT still vulnerable to compromised legitimate accounts."
+            elif email.dmarc_result.result == AuthResultStatus.FAIL:
+                interp['dmarc_note'] = "FAIL means visible From did not align with authenticated domains. High suspicion of spoofing/phishing, unless legitimate forwarding/list rewriting occurred."
+                
+        return interp
+
+
+class ThreadReconstructor:
+    def reconstruct(self, emails: List[EmailMessage]) -> Dict[str, List[EmailMessage]]:
+        threads: Dict[str, List[EmailMessage]] = defaultdict(list)
+        id_to_email: Dict[str, EmailMessage] = {}
+        
+        # Map Message-IDs
+        for e in emails:
+            if e.message_id_header:
+                id_to_email[e.message_id_header] = e
+                
+        # Group by Root Message ID or References
+        for e in emails:
+            root_id = e.message_id_header
+            if e.in_reply_to and e.in_reply_to in id_to_email:
+                # Find ultimate ancestor roughly
+                curr = e
+                visited = set()
+                while curr.in_reply_to and curr.in_reply_to in id_to_email and curr.in_reply_to not in visited:
+                    visited.add(curr.in_reply_to)
+                    parent = id_to_email[curr.in_reply_to]
+                    if not parent.in_reply_to:
+                        root_id = parent.message_id_header
+                        break
+                    curr = parent
+            
+            threads[root_id].append(e)
+            
+        # Sort each thread by date
+        for tid, t_emails in threads.items():
+            t_emails.sort(key=lambda x: x.date_header or x.first_trusted_received_time or datetime.min.replace(tzinfo=timezone.utc))
+            
+        return dict(threads)
+
+
+class ImpersonationAnalyzer:
+    def analyze(self, email: EmailMessage, org_directory: Dict[str, str]) -> List[Dict[str, Any]]:
+        findings = []
+        
+        # Display Name Impersonation
+        if email.from_display:
+            # Check if display name matches a known exec/person but address doesn't belong to their official domain
+            # Simplified: If display name contains "CEO" or "Director" and domain is free-mail or unrelated
+            suspicious_keywords = ["ceo", "cto", "director", "president", "admin"]
+            if any(kw in email.from_display.lower() for kw in suspicious_keywords):
+                domain = get_domain(email.from_address)
+                if domain and ('gmail.com' in domain or 'yahoo.com' in domain or domain not in org_directory.values()):
+                     findings.append({
+                         "type": ImpersonationType.DISPLAY_NAME_IMPERSONATION_CANDIDATE,
+                         "detail": f"Display name '{email.from_display}' suggests executive role, but domain '{domain}' is not recognized as corporate.",
+                         "confidence": Confidence.MEDIUM
+                     })
+                     
+        # Lookalike Domain
+        # Requires external DOMAININT data, here we just flag if domain looks weird (basic heuristic)
+        domain = get_domain(email.from_address)
+        if domain:
+            # Example: examp1e.com vs example.com
+            # In real system, compare against registered corporate domains via DOMAININT
+            pass 
+            
+        return findings
+
+
+class BecAnalyzer:
+    def analyze(self, email: EmailMessage, historical_vendor_details: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        
+        # Check for Payment Instruction Changes
+        body = email.body_plain.lower()
+        if "bank details" in body or "wire transfer" in body or "iban" in body:
+            # Compare with historical
+            # Simplified: Just flag presence of payment change language in unexpected context
+            if "changed" in body or "new" in body or "update" in body:
+                findings.append({
+                    "type": "BEC_PAYMENT_CHANGE_CANDIDATE",
+                    "detail": "Email discusses changing bank/payment details. Verify independently via phone/known channel.",
+                    "confidence": Confidence.HIGH_RISK
+                })
+                
+        return findings
+
+
+class MailboxCompromiseAnalyzer:
+    def analyze(self, email: EmailMessage, audit_logs: List[Dict[str, Any]]) -> MailboxCompromiseState:
+        # Check logs for anomalies around send time
+        send_time = email.date_header or email.first_trusted_received_time
+        if not send_time:
+            return MailboxCompromiseState.UNKNOWN
+            
+        for log in audit_logs:
+            log_time = to_datetime(log.get("timestamp"))
+            if log_time and abs((log_time - send_time).total_seconds()) < 3600: # Within 1 hour
+                if log.get("event") in ["LoginFailure", "PasswordReset", "RuleCreated", "ForwardingEnabled"]:
+                    return MailboxCompromiseState.POSSIBLE_NOT_VERIFIED
+                    
+        return MailboxCompromiseState.NOT_SUPPORTED
+
+
+# ======================================================================
+# SECTION 7 — FACT GATE / HYPOTHESES / REVIEW
+# ======================================================================
+
+class FactGate:
+    def generate(self, *, emails: List[EmailMessage], sources: List[Any]) -> Dict[str, Any]:
+        facts = []
+        unknowns = []
+        limitations = []
+        gaps = []
+        actions = []
+        handoffs = []
+        
+        for e in emails:
+            # Technical Facts
+            if e.spf_result and e.spf_result.result == AuthResultStatus.PASS:
+                facts.append(Fact(
+                    statement=f"SPF PASS recorded for envelope domain associated with {e.from_address}.",
+                    status=FactStatus.SUPPORTED,
+                    evidence_ids=e.evidence_ids,
+                    limitations=["SPF PASS does not prove human sender identity or uncompromised account."]
+                ))
+                
+            if e.dkim_results:
+                passing = [d for d in e.dkim_results if d.result == AuthResultStatus.PASS]
+                if passing:
+                    facts.append(Fact(
+                        statement=f"DKIM signature validated for domain(s): {[d.domain for d in passing]}.",
+                        status=FactStatus.SUPPORTED,
+                        evidence_ids=e.evidence_ids,
+                        limitations=["DKIM validates integrity/signature, not author intent."]
+                    ))
+                    
+            # Content Claims (Not Facts yet)
+            if "payment" in e.body_plain.lower():
+                 facts.append(Fact(
+                    statement=f"Email content contains claim regarding payment/transfer.",
+                    status=FactStatus.DOCUMENT_REPORTED, # Or CANDIDATE
+                    evidence_ids=e.evidence_ids,
+                    limitations=["Content claim requires independent financial verification."]
+                ))
+                
+        limitations.extend([
+            "From header is a claim, not proof of identity.",
+            "Received headers before trust boundary are attacker-controllable.",
+            "Screenshots do not provide header forensics.",
+            "Gateway rewrites modify original artifacts.",
+            "AI agreement is not independent corroboration."
+        ])
+        
+        unknowns.extend([
+            "Human operator identity",
+            "Intent behind message",
+            "Account compromise status (without telemetry)",
+            "Validity of attached documents/URLs"
+        ])
+        
+        gaps.append(KnowledgeGap(
+            description="Original native EML missing (only screenshot/header snippet provided).",
+            importance="HIGH",
+            recommended_source="Authorized mailbox export or Gateway Log",
+            specialist="EMAILINT / INCIDENTINT",
+            expected_information_value="Enables full routing/authentication analysis."
+        ))
+        
+        actions.append(NextAction(
+            description="Verify payment instructions via out-of-band channel (phone/known contact).",
+            rationale="Prevents BEC fraud.",
+            priority="HIGH"
+        ))
+        
+        handoffs.append(SpecialistHandoff(
+            specialist="MALINT",
+            reason="Suspicious attachment detected.",
+            payload={"attachment_hashes": [a.sha256 for e in emails for a in e.attachments]}
+        ))
+        
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs
+        }
+
+
+class DualAIReviewer:
+    def review(self, *, emails: List[EmailMessage], findings: List[Dict]) -> Dict[str, Any]:
+        notes = []
+        status = ReviewStatus.AGREE
+        
+        if any(ImpersonationType.DISPLAY_NAME_IMPERSONATION_CANDIDATE.value in [f.get('type') for f in findings] for _ in [1]): # Logic placeholder
+             notes.append("Impersonation candidates flagged. Ensure organizational directory is up-to-date.")
+             status = ReviewStatus.PARTIAL_AGREEMENT
+             
+        if any(e.spf_result and e.spf_result.result == AuthResultStatus.FAIL for e in emails):
+            notes.append("SPF Failures present. Check for legitimate forwarding or misconfigurations before concluding phishing.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+            
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "Technical authentication success != Human authenticity.",
+            "human_review_required": True # Always for security decisions
+        }
+
+
+# ======================================================================
+# SECTION 8 — GRAPHICAL MEMORY / REPORT
+# ======================================================================
+
+class GraphicalMemory:
+    def write_result(self, result: EMAILINTResult) -> Dict[str, Any]:
+        nodes = {}
+        edges = []
+        
+        for e in result.emails:
+            nodes[e.email_id] = {"type": "Email", "subject": e.subject, "from": e.from_address}
+            if e.message_id_header:
+                nodes[f"MID_{e.message_id_header}"] = {"type": "MessageID"}
+                edges.append({"source": e.email_id, "relation": "HAS_MESSAGE_ID", "target": f"MID_{e.message_id_header}"})
+                
+            for hop in e.received_hops:
+                hid = f"HOP_{hop.hop_id}"
+                nodes[hid] = {"type": "Hop", "host": hop.by_host, "trust": hop.trust_level.value}
+                edges.append({"source": e.email_id, "relation": "ROUTED_VIA", "target": hid})
+                
+        return {"node_count": len(nodes), "edge_count": len(edges)}
+
+
+class ReportGenerator:
+    def generate(self, result: EMAILINTResult) -> str:
+        lines = []
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — EMAILINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Status: {result.status}")
+        lines.append("")
+        
+        lines.append("SAFETY BOUNDARY:")
+        lines.append("- Defensive Analysis Only. No Phishing/Spoofing/Access.")
+        lines.append("- Original Artifacts Preserved.")
+        lines.append("- Active Content Not Executed.")
+        lines.append("")
+        
+        for e in result.emails:
+            lines.append(f"--- EMAIL: {e.email_id} ---")
+            lines.append(f"Subject: {e.subject}")
+            lines.append(f"From: {e.from_display} <{e.from_address}>")
+            lines.append(f"To: {', '.join(e.to_recipients)}")
+            lines.append(f"Date Header: {fmt_dt(e.date_header)}")
+            lines.append(f"First Trusted Receive: {fmt_dt(e.first_trusted_received_time)}")
+            
+            lines.append("ROUTING CHAIN:")
+            for hop in reversed(e.received_hops): # Show oldest to newest
+                lines.append(f"  [{hop.trust_level.value}] From: {hop.from_host} ({hop.from_ip}) By: {hop.by_host} Time: {fmt_dt(hop.timestamp)}")
+                
+            lines.append("AUTHENTICATION:")
+            if e.spf_result:
+                lines.append(f"  SPF: {e.spf_result.result.value} (Domain: {e.spf_result.domain})")
+            if e.dkim_results:
+                for d in e.dkim_results:
+                    lines.append(f"  DKIM: {d.result.value} (Selector: {d.selector}, Domain: {d.domain})")
+            if e.dmarc_result:
+                lines.append(f"  DMARC: {e.dmarc_result.result.value}")
+                
+            lines.append("ATTACHMENTS:")
+            for att in e.attachments:
+                lines.append(f"  {att.filename} ({att.declared_mime}) Hash: {att.sha256[:16]}... Handoff: {att.handoff_target}")
+                
+            lines.append("URLS:")
+            for u in e.urls:
+                lines.append(f"  Visible: {u.visible_text} -> Actual: {u.actual_href} (Tracking: {u.is_tracking_pixel})")
+                
+            lines.append("")
+            
+        lines.append("FINDINGS:")
+        for f in result.impersonation_findings:
+            lines.append(f"- IMPERSONATION: {f['type']} - {f['detail']}")
+            
+        lines.append("")
+        lines.append("LIMITATIONS:")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+            
+        lines.append("")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 9 — MAIN EMPLOYEE
+# ======================================================================
+
+class EmailIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.parser = EMAILINTParser()
+        self.trust_analyzer = TrustBoundaryAnalyzer(trusted_providers=["google.com", "microsoft.com", "proton.me", "internal.mail"])
+        self.auth_interpreter = AuthenticationInterpreter()
+        self.thread_reconstructor = ThreadReconstructor()
+        self.impersonation_analyzer = ImpersonationAnalyzer()
+        self.bec_analyzer = BecAnalyzer()
+        self.compromise_analyzer = MailboxCompromiseAnalyzer()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> EMAILINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        objective = str(case.get("objective", ""))
+        
+        # Policy Check
+        req_text = objective + " " + " ".join(str(q) for q in case.get("questions", []))
+        pol = self.policy.check_request(req_text)
+        if pol.decision == PolicyDecision.POLICY_BLOCKED:
+            return EMAILINTResult(
+                case_id=case_id,
+                task_id=str(case.get("task_id")),
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report="POLICY_BLOCKED: Request seeks prohibited email intrusion/phishing/spoofing activities.",
+                safety_flags=["No mailbox access provided.", "No spoofing/phishing generated."],
+                limitations=[pol.reason]
+            )
+
+        emails = []
+        evidence = []
+        
+        # Ingest Emails
+        for eml_data in case.get("email_artifacts", []):
+            raw = eml_data.get("raw_content", "")
+            src_id = eml_data.get("source_id", "USER_SUPPLIED")
+            msg, ev = self.parser.parse_raw_eml(raw, case_id, src_id)
+            
+            # Analyze Trust
+            self.trust_analyzer.analyze(msg)
+            
+            # Interpret Auth
+            msg.auth_interpretation = self.auth_interpreter.interpret(msg) # Added dynamic attr for simplicity
+            
+            emails.append(msg)
+            evidence.append(ev)
+            
+        # Threads
+        threads = self.thread_reconstructor.reconstruct(emails)
+        
+        # Impersonation/BEC
+        imp_findings = []
+        bec_findings = []
+        comp_findings = []
+        
+        org_dir = case.get("organizational_directory", {})
+        hist_vendor = case.get("historical_vendor_details", {})
+        audit_logs = case.get("mailbox_audit_logs", [])
+        
+        for e in emails:
+            imp_findings.extend(self.impersonation_analyzer.analyze(e, org_dir))
+            bec_findings.extend(self.bec_analyzer.analyze(e, hist_vendor))
+            state = self.compromise_analyzer.analyze(e, audit_logs)
+            if state != MailboxCompromiseState.NOT_SUPPORTED:
+                comp_findings.append({"email_id": e.email_id, "state": state.value})
+                
+        # Fact Gate
+        fg_out = self.fact_gate.generate(emails=emails, sources=[])
+        
+        # Review
+        rev = self.reviewer.review(emails=emails, findings=imp_findings + bec_findings)
+        
+        status = "SUCCEEDED" if emails else "INSUFFICIENT_DATA"
+        if rev["human_review_required"]:
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+            
+        result = EMAILINTResult(
+            case_id=case_id,
+            task_id=str(case.get("task_id")),
+            objective=objective,
+            status=status,
+            evidence=evidence,
+            emails=emails,
+            threads=threads,
+            impersonation_findings=imp_findings,
+            bec_findings=bec_findings,
+            mailbox_compromise_findings=comp_findings,
+            facts=fg_out["facts"],
+            hypotheses=[], # Placeholder
+            contradictions=[], # Placeholder
+            knowledge_gaps=fg_out["knowledge_gaps"],
+            next_actions=fg_out["next_actions"],
+            specialist_handoffs=fg_out["specialist_handoffs"],
+            source_independence={}, # Placeholder
+            review=rev,
+            graph=self.memory.write_result(_ := EMAILINTResult(**{"case_id":"tmp","task_id":"t","objective":"o","status":"s"})), # Hacky init for mem
+            report="",
+            unknowns=fg_out["unknowns"],
+            limitations=fg_out["limitations"],
+            safety_flags=["No active content executed.", "No credentials used.", "Original hashes preserved."],
+            privacy_flags=["BCC minimized unless authorized.", "PII redacted in reports where possible."]
+        )
+        
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 10 — DEMO
+# ======================================================================
+
+def demo_lawful_bec_analysis():
+    employee = EmailIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+    
+    # Synthetic Raw EML
+    raw_eml = """
+Return-Path: <billing@vendor-example.com>
+Received: from mail.vendor-example.com (mail.vendor-example.com [192.0.2.1])
+	by mx.google.com (Google) with SMTP id abc123;
+	Mon, 09 Oct 2026 10:00:00 +0000 (UTC)
+Received: from localhost (localhost [127.0.0.1])
+	by mail.vendor-example.com (Postfix) with ESMTP id def456;
+	Mon, 09 Oct 2026 09:59:00 +0000 (UTC)
+From: "Vendor Finance Dept" <billing@vendor-example.com>
+To: accounts.payable@company-target.com
+Subject: URGENT: Updated Bank Details for Invoice #9981
+Date: Mon, 09 Oct 2026 10:00:00 +0000
+Message-ID: <20261009100000.12345@mail.vendor-example.com>
+Authentication-Results: mx.google.com;
+       spf=pass (google.com: domain of billing@vendor-example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=billing@vendor-example.com;
+       dkim=pass header.i=@vendor-example.com header.s=default header.b=abc123xyz;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=vendor-example.com
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="frontier"
+
+--frontier
+Content-Type: text/plain; charset="UTF-8"
+
+Hello Accounts Team,
+
+Please note that our banking details have changed due to a merger. 
+Kindly update your records for Invoice #9981.
+
+New IBAN: GB12 XXXX 1234 5678 9012
+New SWIFT: XXXXGB2L
+
+Please process the pending payment to this new account immediately to avoid late fees.
+
+Regards,
+Finance Dept
+Vendor Example Inc.
+--frontier
+Content-Type: application/pdf; name="invoice_9981.pdf"
+Content-Disposition: attachment; filename="invoice_9981.pdf"
+
+[Binary PDF Data Omitted for Demo]
+--frontier--
+"""
+
+    case = {
+        "case_id": "DEMO-EMAILINT-001",
+        "task_id": "TASK-001",
+        "objective": "Analyze suspected BEC email for technical indicators and authentication status.",
+        "questions": ["Is the domain authenticated?", "Are there signs of impersonation?", "What is the risk level?"],
+        "authorization": "INCIDENT_RESPONSE_AUTHORIZED",
+        "email_artifacts": [
+            {
+                "source_id": "GATEWAY_LOG_EXPORT",
+                "raw_content": raw_eml
+            }
+        ],
+        "organizational_directory": {
+            "Vendor Example Inc": "vendor-legit-domain.com" # Target expects different domain
+        },
+        "historical_vendor_details": {
+            "old_iban": "GB11 YYYY 0000 0000 0000"
+        },
+        "mailbox_audit_logs": []
+    }
+    
+    result = employee.run_case(case)
+    print(result.report)
+
+if __name__ == "__main__":
+    demo_lawful_bec_analysis()
+    """
+======================================================================
+TRACEATLAS — EMAILINT
+EMAIL HEADER / INFRASTRUCTURE / COMMUNICATION-EVIDENCE INTELLIGENCE AI EMPLOYEE
+Python Implementation
+======================================================================
+
+Mode:
+DEFENSIVE / AUTHORIZED / EVIDENCE-FIRST / PRIVACY-AWARE
+
+Primary boundary:
+Email intelligence and forensic communication analysis,
+NOT phishing, account access, email spoofing or social engineering.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import re
+import unicodedata
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import urlparse
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("EMAILINT")
+
+
+# ======================================================================
+# SECTION 1 — ENUMS
+# ======================================================================
+
+class ModelMode(str, Enum):
+    LOCAL_ONLY = "LOCAL_ONLY"
+    HYBRID = "HYBRID"
+    CLOUD = "CLOUD"
+
+
+class PolicyDecision(str, Enum):
+    ALLOW = "ALLOW"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class HopTrustLevel(str, Enum):
+    TRUSTED_HOP = "TRUSTED_HOP"
+    UNTRUSTED_HOP = "UNTRUSTED_HOP"
+    UNKNOWN = "UNKNOWN"
+
+
+class AuthResultStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    SOFT_FAIL = "SOFT_FAIL"
+    NEUTRAL = "NEUTRAL"
+    TEMPERROR = "TEMPERROR"
+    PERMERROR = "PERMERROR"
+    NONE = "NONE"
+    UNKNOWN = "UNKNOWN"
+
+
+class ImpersonationType(str, Enum):
+    DISPLAY_NAME_IMPERSONATION_CANDIDATE = "DISPLAY_NAME_IMPERSONATION_CANDIDATE"
+    LOOKALIKE_DOMAIN_CANDIDATE = "LOOKALIKE_DOMAIN_CANDIDATE"
+    SPOOFING_CANDIDATE = "SPOOFING_CANDIDATE"
+    THREAD_HIJACK_CANDIDATE = "THREAD_HIJACK_CANDIDATE"
+    VENDOR_IMPERSONATION_CANDIDATE = "VENDOR_IMPERSONATION_CANDIDATE"
+    EXECUTIVE_IMPERSONATION_CANDIDATE = "EXECUTIVE_IMPERSONATION_CANDIDATE"
+    NONE_DETECTED = "NONE_DETECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class MailboxCompromiseState(str, Enum):
+    POSSIBLE_NOT_VERIFIED = "POSSIBLE_NOT_VERIFIED"
+    SUPPORTED_BY_TELEMETRY = "SUPPORTED_BY_TELEMETRY"
+    NOT_SUPPORTED = "NOT_SUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ClaimState(str, Enum):
+    DOCUMENT_REPORTED = "DOCUMENT_REPORTED" # Using generic term for email content claim
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    DISPUTED = "DISPUTED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class FactStatus(str, Enum):
+    FACT = "FACT"
+    SUPPORTED = "SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    DISPUTED = "DISPUTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class ReviewStatus(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL_AGREEMENT = "PARTIAL_AGREEMENT"
+    DISAGREE = "DISAGREE"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class Confidence(str, Enum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNKNOWN = "UNKNOWN"
+
+
+# ======================================================================
+# SECTION 2 — UTILITIES
+# ======================================================================
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return str(obj)
+
+
+def normalize_whitespace(value: Any) -> str:
+    if value is None:
+        return ""
+    return " ".join(str(value).split())
+
+
+def normalize_text(value: Any, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    s = unicodedata.normalize("NFKC", str(value)).strip()
+    if not s:
+        return None
+    return s.upper() if upper else s
+
+
+def to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        s = value.strip().replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            # Try RFC 2822 formats commonly found in Date/Received headers
+            for fmt in ("%a, %d %b %Y %H:%M:%S %z", "%d %b %Y %H:%M:%S %z"):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except Exception:
+                    continue
+            else:
+                return None
+    else:
+        return None
+    
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def enum_from(cls, value: Any, default: Any) -> Any:
+    if isinstance(value, cls):
+        return value
+    try:
+        return cls(str(value).upper())
+    except Exception:
+        try:
+            return cls(str(value))
+        except Exception:
+            return default
+
+
+def unique_list(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        if item is None:
+            continue
+        key = item.value if isinstance(item, Enum) else item
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def excerpt(text: str, limit: int = 220) -> str:
+    s = normalize_whitespace(text)
+    if len(s) <= limit:
+        return s
+    return s[: limit - 1].rstrip() + "…"
+
+
+def fmt_dt(value: Optional[datetime]) -> str:
+    return value.isoformat() if value else "UNKNOWN"
+
+
+def extract_email_address(header_value: str) -> Optional[Tuple[str, str]]:
+    """
+    Extracts (display_name, email_address) from a header like 'Name <addr>'.
+    Returns None if no valid address found.
+    """
+    if not header_value:
+        return None
+    
+    # Simple regex for angle bracket syntax
+    match = re.search(r'<([^>]+)>', header_value)
+    if match:
+        addr = match.group(1).strip()
+        name_part = header_value[:match.start()].strip().strip('"')
+        if '@' in addr:
+            return (name_part or "", addr.lower())
+    
+    # Fallback: just the address if no brackets
+    clean = header_value.strip().strip('"').lower()
+    if '@' in clean and '<' not in clean:
+        return ("", clean)
+        
+    return None
+
+
+def get_domain(email: Optional[str]) -> Optional[str]:
+    if not email or '@' not in email:
+        return None
+    return email.split('@')[1].lower()
+
+
+# ======================================================================
+# SECTION 3 — POLICY GUARD / PROMPT INJECTION DEFENSE
+# ======================================================================
+
+@dataclass
+class PolicyResult:
+    decision: PolicyDecision
+    reason: str = ""
+
+
+class PolicyGuard:
+    """
+    Blocks requests seeking prohibited EMAILINT operational guidance.
+    Allows lawful defensive analysis, header forensics, and verification.
+    """
+
+    PROHIBITED_PATTERNS = [
+        r"(?:send|generate|create|craft).{0,100}(?:phishing|spoof|fake|malicious|credential.harvesting|scam)",
+        r"(?:access|intrude|hack|compromise|takeover|login).{0,100}(?:mailbox|account|inbox|email.server|user.email)",
+        r"(?:bypass|break|defeat|evade).{0,100}(?:mfa|otp|two.factor|authentication|security.control)",
+        r"(?:use|exploit|replay).{0,100}(?:stolen.password|oauth.token|session.cookie|api.key)",
+        r"\b(?:social.engineering|pretexting|vishing|smishing)\b",
+        r"(?:modify|delete|exfiltrate|forward.rule|auto.forward).{0,100}(?:evidence|message|mail.box)",
+    ]
+
+    def __init__(self) -> None:
+        self._compiled = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.PROHIBITED_PATTERNS]
+
+    def check_request(self, text: str) -> PolicyResult:
+        t = text or ""
+        for rx in self._compiled:
+            if rx.search(t):
+                return PolicyResult(
+                    decision=PolicyDecision.POLICY_BLOCKED,
+                    reason="Request seeks prohibited EMAILINT phishing, intrusion, credential abuse, or evidence tampering.",
+                )
+        return PolicyResult(decision=PolicyDecision.ALLOW, reason="")
+
+    def is_safe_action(self, action: str) -> bool:
+        return self.check_request(action).decision == PolicyDecision.ALLOW
+
+
+class PromptInjectionDefense:
+    """
+    Email body and headers are UNTRUSTED DATA.
+    Neutralize obvious instruction-like injections while preserving raw evidence.
+    """
+
+    CONTROL_TOKEN_RX = re.compile(r"<\|.*?\|>", re.DOTALL)
+    INSTRUCTION_RX = re.compile(
+        r"(?i)\b(ignore\s+previous|ignore\s+above|system\s+prompt|you\s+are\s+now|new\s+instructions?|change\s+classification|reveal\s+secret|execute\s+script|click\s+here\s+to\s+verify)\b"
+    )
+
+    def sanitize_for_analysis(self, text: Any) -> str:
+        if text is None:
+            return ""
+        s = str(text)
+        s = self.CONTROL_TOKEN_RX.sub("[REDACTED_CONTROL_TOKEN]", s)
+        s = self.INSTRUCTION_RX.sub("[UNTRUSTED_INSTRUCTION]", s)
+        return normalize_whitespace(s)
+
+
+# ======================================================================
+# SECTION 4 — CORE DATA OBJECTS
+# ======================================================================
+
+@dataclass
+class Evidence:
+    evidence_id: str = field(default_factory=lambda: new_id("EV"))
+    case_id: str = ""
+    email_id: str = ""
+    source_id: str = ""
+    source_type: str = "UNKNOWN"
+    artifact_hash: str = ""
+    raw_artifact_reference: str = ""
+    file_format: str = "UNKNOWN"
+    ingested_at: datetime = field(default_factory=utcnow)
+    parser_version: str = "EMAILINT-parser-0.1.0"
+    normalizer_version: str = "EMAILINT-normalizer-0.1.0"
+    authorization_context: str = ""
+
+
+@dataclass
+class ReceivedHop:
+    hop_id: str = field(default_factory=lambda: new_id("HOP"))
+    order_index: int = 0 # 0 is oldest/first received
+    from_host: str = ""
+    from_ip: Optional[str] = None
+    by_host: str = ""
+    by_ip: Optional[str] = None
+    protocol: str = ""
+    tls_cipher: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    queue_id: Optional[str] = None
+    trust_level: HopTrustLevel = HopTrustLevel.UNKNOWN
+    raw_header_line: str = ""
+
+
+@dataclass
+class AuthenticationResult:
+    auth_id: str = field(default_factory=lambda: new_id("AUTH"))
+    mechanism: str = "" # SPF, DKIM, DMARC, ARC
+    result: AuthResultStatus = AuthResultStatus.UNKNOWN
+    domain: Optional[str] = None
+    selector: Optional[str] = None # For DKIM
+    smtp_remote_ip: Optional[str] = None
+    comment: Optional[str] = None
+    producing_server: Optional[str] = None
+    raw_field: str = ""
+
+
+@dataclass
+class Attachment:
+    attachment_id: str = field(default_factory=lambda: new_id("ATT"))
+    filename: str = ""
+    declared_mime: str = ""
+    detected_mime: str = "UNKNOWN"
+    size_bytes: int = 0
+    sha256: str = ""
+    content_disposition: str = ""
+    content_id: Optional[str] = None
+    parent_email_id: str = ""
+    handoff_target: str = "None" # MALINT, DOCINT, etc.
+
+
+@dataclass
+class UrlInfo:
+    url_id: str = field(default_factory=lambda: new_id("URL"))
+    visible_text: str = ""
+    actual_href: str = ""
+    domain: Optional[str] = None
+    is_tracking_pixel: bool = False
+    is_shortener: bool = False
+    rewritten_by_gateway: bool = False
+    parent_email_id: str = ""
+
+
+@dataclass
+class EmailMessage:
+    email_id: str
+    message_id_header: str = ""
+    subject: str = ""
+    from_display: str = ""
+    from_address: str = ""
+    sender_display: str = ""
+    sender_address: str = ""
+    return_path: str = ""
+    reply_to_display: str = ""
+    reply_to_address: str = ""
+    to_recipients: List[str] = field(default_factory=list)
+    cc_recipients: List[str] = field(default_factory=list)
+    bcc_recipients: List[str] = field(default_factory=list) # Only if authorized
+    date_header: Optional[datetime] = None
+    first_trusted_received_time: Optional[datetime] = None
+    received_hops: List[ReceivedHop] = field(default_factory=list)
+    auth_results: List[AuthenticationResult] = field(default_factory=list)
+    spf_result: Optional[AuthenticationResult] = None
+    dkim_results: List[AuthenticationResult] = field(default_factory=list)
+    dmarc_result: Optional[AuthenticationResult] = None
+    arc_result: Optional[AuthenticationResult] = None
+    in_reply_to: str = ""
+    references: List[str] = field(default_factory=list)
+    thread_id: str = ""
+    body_plain: str = ""
+    body_html_sanitized: str = ""
+    attachments: List[Attachment] = field(default_factory=list)
+    urls: List[UrlInfo] = field(default_factory=list)
+    mailing_list_headers: Dict[str, str] = field(default_factory=dict)
+    forwarding_indicators: List[str] = field(default_factory=list)
+    source_id: str = ""
+    evidence_ids: List[str] = field(default_factory=list)
+    confidence: Confidence = Confidence.LOW
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class DomainContext:
+    domain: str
+    mx_hosts: List[str] = field(default_factory=list)
+    spf_record_present: bool = False
+    dmarc_policy: str = "UNKNOWN"
+    registrar_age_days: Optional[int] = None
+    is_lookalike_candidate: bool = False
+    lookalike_of: Optional[str] = None
+
+
+@dataclass
+class Contradiction:
+    contradiction_id: str = field(default_factory=lambda: new_id("CONTRA"))
+    contradiction_type: str = ""
+    description: str = ""
+    email_ids: List[str] = field(default_factory=list)
+    possible_explanations: List[str] = field(default_factory=list)
+    resolution_status: str = "OPEN"
+
+
+@dataclass
+class Hypothesis:
+    hypothesis_id: str = field(default_factory=lambda: new_id("HYP"))
+    statement: str = ""
+    supports: List[str] = field(default_factory=list)
+    oppositions: List[str] = field(default_factory=list)
+    unknowns: List[str] = field(default_factory=list)
+    falsification_tests: List[str] = field(default_factory=list)
+    status: str = "OPEN"
+
+
+@dataclass
+class Fact:
+    fact_id: str = field(default_factory=lambda: new_id("FACT"))
+    statement: str = ""
+    status: FactStatus = FactStatus.UNKNOWN
+    evidence_ids: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeGap:
+    gap_id: str = field(default_factory=lambda: new_id("GAP"))
+    description: str = ""
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: str = ""
+    expected_information_value: str = ""
+
+
+@dataclass
+class NextAction:
+    action_id: str = field(default_factory=lambda: new_id("ACT"))
+    description: str = ""
+    rationale: str = ""
+    priority: str = "MEDIUM"
+    safety_ok: bool = True
+
+
+@dataclass
+class SpecialistHandoff:
+    handoff_id: str = field(default_factory=lambda: new_id("HAND"))
+    specialist: str = ""
+    reason: str = ""
+    payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class IngestedCase:
+    evidence: List[Evidence] = field(default_factory=list)
+    emails: List[EmailMessage] = field(default_factory=list)
+    domains: List[DomainContext] = field(default_factory=list)
+    gateway_logs: List[Dict[str, Any]] = field(default_factory=list)
+    mailbox_audit_logs: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class EMAILINTResult:
+    case_id: str
+    task_id: str
+    objective: str
+    status: str
+    policy_decision: PolicyDecision = PolicyDecision.ALLOW
+
+    evidence: List[Evidence] = field(default_factory=list)
+    emails: List[EmailMessage] = field(default_factory=list)
+    threads: Dict[str, List[EmailMessage]] = field(default_factory=dict)
+    domain_contexts: List[DomainContext] = field(default_factory=list)
+    
+    impersonation_findings: List[Dict[str, Any]] = field(default_factory=list)
+    bec_findings: List[Dict[str, Any]] = field(default_factory=list)
+    mailbox_compromise_findings: List[Dict[str, Any]] = field(default_factory=list)
+    
+    facts: List[Fact] = field(default_factory=list)
+    hypotheses: List[Hypothesis] = field(default_factory=list)
+    contradictions: List[Contradiction] = field(default_factory=list)
+    
+    knowledge_gaps: List[KnowledgeGap] = field(default_factory=list)
+    next_actions: List[NextAction] = field(default_factory=list)
+    specialist_handoffs: List[SpecialistHandoff] = field(default_factory=list)
+    
+    source_independence: Dict[str, Any] = field(default_factory=dict)
+    review: Dict[str, Any] = field(default_factory=dict)
+    graph: Dict[str, Any] = field(default_factory=dict)
+    report: str = ""
+
+    unknowns: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
+    privacy_flags: List[str] = field(default_factory=list)
+
+
+# ======================================================================
+# SECTION 5 — INGESTION & PARSING
+# ======================================================================
+
+class EMAILINTParser:
+    """
+    Safe, static parser for email artifacts.
+    Does NOT execute scripts, load remote images, or open attachments.
+    """
+    
+    RECEIVED_RX = re.compile(r'^Received:\s*(.*)$', re.I | re.M)
+    FROM_RX = re.compile(r'^From:\s*(.*)$', re.I | re.M)
+    TO_RX = re.compile(r'^To:\s*(.*)$', re.I | re.M)
+    CC_RX = re.compile(r'^Cc:\s*(.*)$', re.I | re.M)
+    SUBJECT_RX = re.compile(r'^Subject:\s*(.*)$', re.I | re.M)
+    MESSAGE_ID_RX = re.compile(r'^Message-ID:\s*<([^>]+)>', re.I | re.M)
+    DATE_RX = re.compile(r'^Date:\s*(.*)$', re.I | re.M)
+    RETURN_PATH_RX = re.compile(r'^Return-Path:\s*<([^>]+)>', re.I | re.M)
+    REPLY_TO_RX = re.compile(r'^Reply-To:\s*(.*)$', re.I | re.M)
+    AUTH_RESULTS_RX = re.compile(r'^Authentication-Results:\s*(.*)$', re.I | re.M)
+    IN_REPLY_TO_RX = re.compile(r'^In-Reply-To:\s*<([^>]+)>', re.I | re.M)
+    REFERENCES_RX = re.compile(r'^References:\s*(.*)$', re.I | re.M)
+    
+    # Simple heuristic to split headers from body in raw text
+    HEADER_BODY_SPLIT_RX = re.compile(r'\r?\n\r?\n', re.M)
+
+    def parse_raw_eml(self, raw_data: str, case_id: str, source_id: str) -> Tuple[EmailMessage, Evidence]:
+        # Preserve original
+        artifact_hash = sha256_bytes(raw_data.encode('utf-8'))
+        
+        ev = Evidence(
+            case_id=case_id,
+            email_id="", # Will be filled
+            source_id=source_id,
+            source_type="EML_RAW",
+            artifact_hash=artifact_hash,
+            raw_artifact_reference=raw_data[:500], # Truncated ref for storage
+            file_format="EML",
+            authorization_context="AUTHORIZED_INGESTION"
+        )
+
+        # Split Headers and Body
+        parts = self.HEADER_BODY_SPLIT_RX.split(raw_data, maxsplit=1)
+        header_block = parts[0] if parts else ""
+        body_block = parts[1] if len(parts) > 1 else ""
+
+        msg = EmailMessage(
+            email_id=new_id("EMAIL"),
+            source_id=source_id,
+            evidence_ids=[ev.evidence_id],
+            body_plain=body_block,
+            body_html_sanitized=self._sanitize_body(body_block),
+            limitations=["Parsed from raw text; MIME structure may be simplified."],
+            confidence=Confidence.MEDIUM
+        )
+        ev.email_id = msg.email_id
+
+        # Parse Headers
+        msg.subject = self._extract_single(header_block, self.SUBJECT_RX)
+        msg.message_id_header = self._extract_single(header_block, self.MESSAGE_ID_RX)
+        
+        # From
+        from_val = self._extract_single(header_block, self.FROM_RX)
+        parsed_from = extract_email_address(from_val)
+        if parsed_from:
+            msg.from_display, msg.from_address = parsed_from
+        
+        # To / Cc
+        to_vals = self._extract_all(header_block, self.TO_RX)
+        for tv in to_vals:
+            for part in re.split(r',(?![^<]*>)', tv): # Split by comma outside brackets
+                p = extract_email_address(part)
+                if p:
+                    msg.to_recipients.append(p[1])
+                    
+        cc_vals = self._extract_all(header_block, self.CC_RX)
+        for cv in cc_vals:
+             for part in re.split(r',(?![^<]*>)', cv):
+                p = extract_email_address(part)
+                if p:
+                    msg.cc_recipients.append(p[1])
+
+        # Return Path
+        rp_val = self._extract_single(header_block, self.RETURN_PATH_RX)
+        if rp_val:
+            msg.return_path = rp_val.lower()
+
+        # Reply To
+        rt_val = self._extract_single(header_block, self.REPLY_TO_RX)
+        parsed_rt = extract_email_address(rt_val)
+        if parsed_rt:
+            msg.reply_to_display, msg.reply_to_address = parsed_rt
+
+        # Date
+        date_val = self._extract_single(header_block, self.DATE_RX)
+        msg.date_header = to_datetime(date_val)
+
+        # Threading
+        irt = self._extract_single(header_block, self.IN_REPLY_TO_RX)
+        if irt:
+            msg.in_reply_to = irt
+        
+        refs = self._extract_single(header_block, self.REFERENCES_RX)
+        if refs:
+            msg.references = [r.strip('<>') for r in re.findall(r'<[^>]+>', refs)]
+
+        # Received Hops
+        recv_lines = self._extract_all(header_block, self.RECEIVED_RX)
+        # Note: In standard EML, Received headers are usually prepended (last one is first hop).
+        # We will store them in order of appearance in file, then reverse for chronological logic later if needed.
+        for i, line in enumerate(recv_lines):
+            hop = self._parse_received_hop(line, i)
+            msg.received_hops.append(hop)
+            
+        # Set earliest trusted time placeholder (logic applied later)
+        if msg.received_hops:
+            # Assuming last hop in list (top of file) is most recent, first hop (bottom) is oldest
+            # But we need to identify trust boundaries. For now, take the very first hop chronologically.
+            # Chronological order is Reverse of File Order for Received headers.
+            oldest_hop = msg.received_hops[-1] 
+            msg.first_trusted_received_time = oldest_hop.timestamp
+
+        # Authentication Results
+        auth_lines = self._extract_all(header_block, self.AUTH_RESULTS_RX)
+        for al in auth_lines:
+            ar = self._parse_auth_results(al)
+            msg.auth_results.extend(ar)
+            for res in ar:
+                if res.mechanism == "spf":
+                    msg.spf_result = res
+                elif res.mechanism == "dkim":
+                    msg.dkim_results.append(res)
+                elif res.mechanism == "dmarc":
+                    msg.dmarc_result = res
+                elif res.mechanism == "arc":
+                    msg.arc_result = res
+
+        return msg, ev
+
+    def _extract_single(self, block: str, rx: re.Pattern) -> str:
+        m = rx.search(block)
+        return m.group(1).strip() if m else ""
+
+    def _extract_all(self, block: str, rx: re.Pattern) -> List[str]:
+        return [m.group(1).strip() for m in rx.finditer(block)]
+
+    def _sanitize_body(self, body: str) -> str:
+        # Basic HTML tag stripping for analysis, keeping text
+        # Real implementation would use a safe library like BeautifulSoup with CSS disabled
+        text_only = re.sub(r'<[^>]+>', '', body)
+        return self.sanitize_injection(text_only)
+    
+    @staticmethod
+    def sanitize_injection(text: str) -> str:
+        defense = PromptInjectionDefense()
+        return defense.sanitize_for_analysis(text)
+
+    def _parse_received_hop(self, line: str, index: int) -> ReceivedHop:
+        # Simplified parsing: "from X (Y [IP]) by Z ..."
+        hop = ReceivedHop(order_index=index, raw_header_line=line)
+        
+        from_match = re.search(r'from\s+(\S+)', line, re.I)
+        if from_match:
+            hop.from_host = from_match.group(1)
+            
+        ip_match = re.search(r'\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\]', line)
+        if ip_match:
+            hop.from_ip = ip_match.group(1)
+            
+        by_match = re.search(r'by\s+(\S+)', line, re.I)
+        if by_match:
+            hop.by_host = by_match.group(1)
+            
+        date_match = re.search(r';\s*(.+)$', line)
+        if date_match:
+            hop.timestamp = to_datetime(date_match.group(1))
+            
+        if 'TLS' in line.upper():
+            hop.protocol = "TLS"
+        elif 'SMTP' in line.upper():
+            hop.protocol = "SMTP"
+            
+        return hop
+
+    def _parse_auth_results(self, line: str) -> List[AuthenticationResult]:
+        results = []
+        # Format: server.domain mech=result (comment) identity=user domain=d.com ...
+        # This is complex. We'll do a basic extraction for demo purposes.
+        
+        mechanisms = ['spf', 'dkim', 'dmarc', 'arc']
+        current_mech = None
+        
+        tokens = line.split()
+        for token in tokens:
+            t_lower = token.lower()
+            if '=' in token:
+                key, val = token.split('=', 1)
+                k_low = key.lower()
+                
+                if k_low in mechanisms:
+                    status_map = {
+                        'pass': AuthResultStatus.PASS,
+                        'fail': AuthResultStatus.FAIL,
+                        'softfail': AuthResultStatus.SOFT_FAIL,
+                        'neutral': AuthResultStatus.NEUTRAL,
+                        'none': AuthResultStatus.NONE,
+                        'temperror': AuthResultStatus.TEMPERROR,
+                        'permerror': AuthResultStatus.PERMERROR,
+                    }
+                    status = status_map.get(val.lower(), AuthResultStatus.UNKNOWN)
+                    
+                    ar = AuthenticationResult(mechanism=k_low, result=status, raw_field=token)
+                    
+                    # Look ahead for domain
+                    # Very simplified: assumes next token might have domain= or similar
+                    # In production, use a proper AR parser lib
+                    
+                    results.append(ar)
+                    
+        return results
+
+
+# ======================================================================
+# SECTION 6 — ANALYSIS ENGINES
+# ======================================================================
+
+class TrustBoundaryAnalyzer:
+    """
+    Determines which Received hops are likely trustworthy based on known infrastructure.
+    """
+    def __init__(self, trusted_providers: List[str]):
+        self.trusted_providers = [p.lower() for p in trusted_providers]
+
+    def analyze(self, email: EmailMessage) -> None:
+        # Walk backwards from the recipient's mail server (usually the first hop in the list if sorted correctly, 
+        # but in our stored list, index 0 is top-of-file/latest, index N is bottom-of-file/oldest).
+        # Actually, standard EML puts newest at top. So Index 0 is Last Hop (Recipient Server).
+        # Index N is First Hop (Sender Client).
+        
+        found_trust_boundary = False
+        
+        # Iterate from Newest (Index 0) to Oldest (Index N-1)
+        for i in range(len(email.received_hops)):
+            hop = email.received_hops[i]
+            
+            # If we haven't hit the boundary yet, assume everything up to the first trusted provider is suspect?
+            # No, usually the receiving server adds the first Received header. That is Trusted.
+            # Then it forwards to internal relays (Trusted).
+            # Until it hits an external relay (Untrusted).
+            
+            host = hop.by_host.lower()
+            from_host = hop.from_host.lower()
+            
+            is_internal_or_provider = any(tp in host or tp in from_host for tp in self.trusted_providers)
+            
+            if not found_trust_boundary:
+                if is_internal_or_provider:
+                    hop.trust_level = HopTrustLevel.TRUSTED_HOP
+                else:
+                    # The moment we see a non-trusted host in the chain going back in time,
+                    # that hop and all subsequent older hops are Untrusted.
+                    hop.trust_level = HopTrustLevel.UNTRUSTED_HOP
+                    found_trust_boundary = True
+            else:
+                hop.trust_level = HopTrustLevel.UNTRUSTED_HOP
+                
+        # Update first trusted received time
+        # Find the oldest hop that is TRUSTED
+        trusted_hops = [h for h in email.received_hops if h.trust_level == HopTrustLevel.TRUSTED_HOP]
+        if trusted_hops:
+            # Sort by timestamp ascending
+            trusted_hops.sort(key=lambda x: x.timestamp or datetime.max.replace(tzinfo=timezone.utc))
+            email.first_trusted_received_time = trusted_hops[0].timestamp
+
+
+class AuthenticationInterpreter:
+    """
+    Interprets SPF/DKIM/DMARC without conflating with human identity.
+    """
+    def interpret(self, email: EmailMessage) -> Dict[str, Any]:
+        interp = {}
+        
+        # SPF
+        if email.spf_result:
+            interp['spf_meaning'] = "SPF validates if the sending IP was authorized by the Envelope-From domain's DNS records."
+            if email.spf_result.result == AuthResultStatus.PASS:
+                interp['spf_note'] = "PASS indicates infrastructure alignment. It does NOT prove the human sender or that the account wasn't compromised."
+            elif email.spf_result.result == AuthResultStatus.FAIL:
+                interp['spf_note'] = "FAIL suggests unauthorized sending IP for the envelope domain. Could be spoofing, misconfiguration, or forwarding issues."
+                
+        # DKIM
+        if email.dkim_results:
+            interp['dkim_meaning'] = "DKIM validates cryptographic signature against the signing domain's public key."
+            passed_dkims = [d for d in email.dkim_results if d.result == AuthResultStatus.PASS]
+            if passed_dkims:
+                interp['dkim_note'] = "Valid signature confirms message integrity for signed parts from that domain. Does NOT prove sender intent or uncompromised state."
+                
+        # DMARC
+        if email.dmarc_result:
+            interp['dmarc_meaning'] = "DMARC checks alignment between Visible From domain and authenticated SPF/DKIM domains."
+            if email.dmarc_result.result == AuthResultStatus.PASS:
+                interp['dmarc_note'] = "PASS means the visible sender domain aligned with successful authentication. Strong indicator of domain legitimacy, BUT still vulnerable to compromised legitimate accounts."
+            elif email.dmarc_result.result == AuthResultStatus.FAIL:
+                interp['dmarc_note'] = "FAIL means visible From did not align with authenticated domains. High suspicion of spoofing/phishing, unless legitimate forwarding/list rewriting occurred."
+                
+        return interp
+
+
+class ThreadReconstructor:
+    def reconstruct(self, emails: List[EmailMessage]) -> Dict[str, List[EmailMessage]]:
+        threads: Dict[str, List[EmailMessage]] = defaultdict(list)
+        id_to_email: Dict[str, EmailMessage] = {}
+        
+        # Map Message-IDs
+        for e in emails:
+            if e.message_id_header:
+                id_to_email[e.message_id_header] = e
+                
+        # Group by Root Message ID or References
+        for e in emails:
+            root_id = e.message_id_header
+            if e.in_reply_to and e.in_reply_to in id_to_email:
+                # Find ultimate ancestor roughly
+                curr = e
+                visited = set()
+                while curr.in_reply_to and curr.in_reply_to in id_to_email and curr.in_reply_to not in visited:
+                    visited.add(curr.in_reply_to)
+                    parent = id_to_email[curr.in_reply_to]
+                    if not parent.in_reply_to:
+                        root_id = parent.message_id_header
+                        break
+                    curr = parent
+            
+            threads[root_id].append(e)
+            
+        # Sort each thread by date
+        for tid, t_emails in threads.items():
+            t_emails.sort(key=lambda x: x.date_header or x.first_trusted_received_time or datetime.min.replace(tzinfo=timezone.utc))
+            
+        return dict(threads)
+
+
+class ImpersonationAnalyzer:
+    def analyze(self, email: EmailMessage, org_directory: Dict[str, str]) -> List[Dict[str, Any]]:
+        findings = []
+        
+        # Display Name Impersonation
+        if email.from_display:
+            # Check if display name matches a known exec/person but address doesn't belong to their official domain
+            # Simplified: If display name contains "CEO" or "Director" and domain is free-mail or unrelated
+            suspicious_keywords = ["ceo", "cto", "director", "president", "admin"]
+            if any(kw in email.from_display.lower() for kw in suspicious_keywords):
+                domain = get_domain(email.from_address)
+                if domain and ('gmail.com' in domain or 'yahoo.com' in domain or domain not in org_directory.values()):
+                     findings.append({
+                         "type": ImpersonationType.DISPLAY_NAME_IMPERSONATION_CANDIDATE,
+                         "detail": f"Display name '{email.from_display}' suggests executive role, but domain '{domain}' is not recognized as corporate.",
+                         "confidence": Confidence.MEDIUM
+                     })
+                     
+        # Lookalike Domain
+        # Requires external DOMAININT data, here we just flag if domain looks weird (basic heuristic)
+        domain = get_domain(email.from_address)
+        if domain:
+            # Example: examp1e.com vs example.com
+            # In real system, compare against registered corporate domains via DOMAININT
+            pass 
+            
+        return findings
+
+
+class BecAnalyzer:
+    def analyze(self, email: EmailMessage, historical_vendor_details: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        
+        # Check for Payment Instruction Changes
+        body = email.body_plain.lower()
+        if "bank details" in body or "wire transfer" in body or "iban" in body:
+            # Compare with historical
+            # Simplified: Just flag presence of payment change language in unexpected context
+            if "changed" in body or "new" in body or "update" in body:
+                findings.append({
+                    "type": "BEC_PAYMENT_CHANGE_CANDIDATE",
+                    "detail": "Email discusses changing bank/payment details. Verify independently via phone/known channel.",
+                    "confidence": Confidence.HIGH_RISK
+                })
+                
+        return findings
+
+
+class MailboxCompromiseAnalyzer:
+    def analyze(self, email: EmailMessage, audit_logs: List[Dict[str, Any]]) -> MailboxCompromiseState:
+        # Check logs for anomalies around send time
+        send_time = email.date_header or email.first_trusted_received_time
+        if not send_time:
+            return MailboxCompromiseState.UNKNOWN
+            
+        for log in audit_logs:
+            log_time = to_datetime(log.get("timestamp"))
+            if log_time and abs((log_time - send_time).total_seconds()) < 3600: # Within 1 hour
+                if log.get("event") in ["LoginFailure", "PasswordReset", "RuleCreated", "ForwardingEnabled"]:
+                    return MailboxCompromiseState.POSSIBLE_NOT_VERIFIED
+                    
+        return MailboxCompromiseState.NOT_SUPPORTED
+
+
+# ======================================================================
+# SECTION 7 — FACT GATE / HYPOTHESES / REVIEW
+# ======================================================================
+
+class FactGate:
+    def generate(self, *, emails: List[EmailMessage], sources: List[Any]) -> Dict[str, Any]:
+        facts = []
+        unknowns = []
+        limitations = []
+        gaps = []
+        actions = []
+        handoffs = []
+        
+        for e in emails:
+            # Technical Facts
+            if e.spf_result and e.spf_result.result == AuthResultStatus.PASS:
+                facts.append(Fact(
+                    statement=f"SPF PASS recorded for envelope domain associated with {e.from_address}.",
+                    status=FactStatus.SUPPORTED,
+                    evidence_ids=e.evidence_ids,
+                    limitations=["SPF PASS does not prove human sender identity or uncompromised account."]
+                ))
+                
+            if e.dkim_results:
+                passing = [d for d in e.dkim_results if d.result == AuthResultStatus.PASS]
+                if passing:
+                    facts.append(Fact(
+                        statement=f"DKIM signature validated for domain(s): {[d.domain for d in passing]}.",
+                        status=FactStatus.SUPPORTED,
+                        evidence_ids=e.evidence_ids,
+                        limitations=["DKIM validates integrity/signature, not author intent."]
+                    ))
+                    
+            # Content Claims (Not Facts yet)
+            if "payment" in e.body_plain.lower():
+                 facts.append(Fact(
+                    statement=f"Email content contains claim regarding payment/transfer.",
+                    status=FactStatus.DOCUMENT_REPORTED, # Or CANDIDATE
+                    evidence_ids=e.evidence_ids,
+                    limitations=["Content claim requires independent financial verification."]
+                ))
+                
+        limitations.extend([
+            "From header is a claim, not proof of identity.",
+            "Received headers before trust boundary are attacker-controllable.",
+            "Screenshots do not provide header forensics.",
+            "Gateway rewrites modify original artifacts.",
+            "AI agreement is not independent corroboration."
+        ])
+        
+        unknowns.extend([
+            "Human operator identity",
+            "Intent behind message",
+            "Account compromise status (without telemetry)",
+            "Validity of attached documents/URLs"
+        ])
+        
+        gaps.append(KnowledgeGap(
+            description="Original native EML missing (only screenshot/header snippet provided).",
+            importance="HIGH",
+            recommended_source="Authorized mailbox export or Gateway Log",
+            specialist="EMAILINT / INCIDENTINT",
+            expected_information_value="Enables full routing/authentication analysis."
+        ))
+        
+        actions.append(NextAction(
+            description="Verify payment instructions via out-of-band channel (phone/known contact).",
+            rationale="Prevents BEC fraud.",
+            priority="HIGH"
+        ))
+        
+        handoffs.append(SpecialistHandoff(
+            specialist="MALINT",
+            reason="Suspicious attachment detected.",
+            payload={"attachment_hashes": [a.sha256 for e in emails for a in e.attachments]}
+        ))
+        
+        return {
+            "facts": facts,
+            "unknowns": sorted(set(unknowns)),
+            "limitations": sorted(set(limitations)),
+            "knowledge_gaps": gaps,
+            "next_actions": actions,
+            "specialist_handoffs": handoffs
+        }
+
+
+class DualAIReviewer:
+    def review(self, *, emails: List[EmailMessage], findings: List[Dict]) -> Dict[str, Any]:
+        notes = []
+        status = ReviewStatus.AGREE
+        
+        if any(ImpersonationType.DISPLAY_NAME_IMPERSONATION_CANDIDATE.value in [f.get('type') for f in findings] for _ in [1]): # Logic placeholder
+             notes.append("Impersonation candidates flagged. Ensure organizational directory is up-to-date.")
+             status = ReviewStatus.PARTIAL_AGREEMENT
+             
+        if any(e.spf_result and e.spf_result.result == AuthResultStatus.FAIL for e in emails):
+            notes.append("SPF Failures present. Check for legitimate forwarding or misconfigurations before concluding phishing.")
+            status = ReviewStatus.PARTIAL_AGREEMENT
+            
+        return {
+            "status": status.value,
+            "skeptic_notes": notes,
+            "rule": "Technical authentication success != Human authenticity.",
+            "human_review_required": True # Always for security decisions
+        }
+
+
+# ======================================================================
+# SECTION 8 — GRAPHICAL MEMORY / REPORT
+# ======================================================================
+
+class GraphicalMemory:
+    def write_result(self, result: EMAILINTResult) -> Dict[str, Any]:
+        nodes = {}
+        edges = []
+        
+        for e in result.emails:
+            nodes[e.email_id] = {"type": "Email", "subject": e.subject, "from": e.from_address}
+            if e.message_id_header:
+                nodes[f"MID_{e.message_id_header}"] = {"type": "MessageID"}
+                edges.append({"source": e.email_id, "relation": "HAS_MESSAGE_ID", "target": f"MID_{e.message_id_header}"})
+                
+            for hop in e.received_hops:
+                hid = f"HOP_{hop.hop_id}"
+                nodes[hid] = {"type": "Hop", "host": hop.by_host, "trust": hop.trust_level.value}
+                edges.append({"source": e.email_id, "relation": "ROUTED_VIA", "target": hid})
+                
+        return {"node_count": len(nodes), "edge_count": len(edges)}
+
+
+class ReportGenerator:
+    def generate(self, result: EMAILINTResult) -> str:
+        lines = []
+        lines.append("=" * 72)
+        lines.append("TRACEATLAS — EMAILINT REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Case ID: {result.case_id}")
+        lines.append(f"Status: {result.status}")
+        lines.append("")
+        
+        lines.append("SAFETY BOUNDARY:")
+        lines.append("- Defensive Analysis Only. No Phishing/Spoofing/Access.")
+        lines.append("- Original Artifacts Preserved.")
+        lines.append("- Active Content Not Executed.")
+        lines.append("")
+        
+        for e in result.emails:
+            lines.append(f"--- EMAIL: {e.email_id} ---")
+            lines.append(f"Subject: {e.subject}")
+            lines.append(f"From: {e.from_display} <{e.from_address}>")
+            lines.append(f"To: {', '.join(e.to_recipients)}")
+            lines.append(f"Date Header: {fmt_dt(e.date_header)}")
+            lines.append(f"First Trusted Receive: {fmt_dt(e.first_trusted_received_time)}")
+            
+            lines.append("ROUTING CHAIN:")
+            for hop in reversed(e.received_hops): # Show oldest to newest
+                lines.append(f"  [{hop.trust_level.value}] From: {hop.from_host} ({hop.from_ip}) By: {hop.by_host} Time: {fmt_dt(hop.timestamp)}")
+                
+            lines.append("AUTHENTICATION:")
+            if e.spf_result:
+                lines.append(f"  SPF: {e.spf_result.result.value} (Domain: {e.spf_result.domain})")
+            if e.dkim_results:
+                for d in e.dkim_results:
+                    lines.append(f"  DKIM: {d.result.value} (Selector: {d.selector}, Domain: {d.domain})")
+            if e.dmarc_result:
+                lines.append(f"  DMARC: {e.dmarc_result.result.value}")
+                
+            lines.append("ATTACHMENTS:")
+            for att in e.attachments:
+                lines.append(f"  {att.filename} ({att.declared_mime}) Hash: {att.sha256[:16]}... Handoff: {att.handoff_target}")
+                
+            lines.append("URLS:")
+            for u in e.urls:
+                lines.append(f"  Visible: {u.visible_text} -> Actual: {u.actual_href} (Tracking: {u.is_tracking_pixel})")
+                
+            lines.append("")
+            
+        lines.append("FINDINGS:")
+        for f in result.impersonation_findings:
+            lines.append(f"- IMPERSONATION: {f['type']} - {f['detail']}")
+            
+        lines.append("")
+        lines.append("LIMITATIONS:")
+        for lim in result.limitations:
+            lines.append(f"- {lim}")
+            
+        lines.append("")
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
+
+# ======================================================================
+# SECTION 9 — MAIN EMPLOYEE
+# ======================================================================
+
+class EmailIntelligenceEmployee:
+    def __init__(self, mode: ModelMode = ModelMode.LOCAL_ONLY):
+        self.mode = mode
+        self.policy = PolicyGuard()
+        self.parser = EMAILINTParser()
+        self.trust_analyzer = TrustBoundaryAnalyzer(trusted_providers=["google.com", "microsoft.com", "proton.me", "internal.mail"])
+        self.auth_interpreter = AuthenticationInterpreter()
+        self.thread_reconstructor = ThreadReconstructor()
+        self.impersonation_analyzer = ImpersonationAnalyzer()
+        self.bec_analyzer = BecAnalyzer()
+        self.compromise_analyzer = MailboxCompromiseAnalyzer()
+        self.fact_gate = FactGate()
+        self.reviewer = DualAIReviewer()
+        self.memory = GraphicalMemory()
+        self.reporter = ReportGenerator()
+
+    def run_case(self, case: Dict[str, Any]) -> EMAILINTResult:
+        case_id = str(case.get("case_id", new_id("CASE")))
+        objective = str(case.get("objective", ""))
+        
+        # Policy Check
+        req_text = objective + " " + " ".join(str(q) for q in case.get("questions", []))
+        pol = self.policy.check_request(req_text)
+        if pol.decision == PolicyDecision.POLICY_BLOCKED:
+            return EMAILINTResult(
+                case_id=case_id,
+                task_id=str(case.get("task_id")),
+                objective=objective,
+                status="POLICY_BLOCKED",
+                policy_decision=PolicyDecision.POLICY_BLOCKED,
+                report="POLICY_BLOCKED: Request seeks prohibited email intrusion/phishing/spoofing activities.",
+                safety_flags=["No mailbox access provided.", "No spoofing/phishing generated."],
+                limitations=[pol.reason]
+            )
+
+        emails = []
+        evidence = []
+        
+        # Ingest Emails
+        for eml_data in case.get("email_artifacts", []):
+            raw = eml_data.get("raw_content", "")
+            src_id = eml_data.get("source_id", "USER_SUPPLIED")
+            msg, ev = self.parser.parse_raw_eml(raw, case_id, src_id)
+            
+            # Analyze Trust
+            self.trust_analyzer.analyze(msg)
+            
+            # Interpret Auth
+            msg.auth_interpretation = self.auth_interpreter.interpret(msg) # Added dynamic attr for simplicity
+            
+            emails.append(msg)
+            evidence.append(ev)
+            
+        # Threads
+        threads = self.thread_reconstructor.reconstruct(emails)
+        
+        # Impersonation/BEC
+        imp_findings = []
+        bec_findings = []
+        comp_findings = []
+        
+        org_dir = case.get("organizational_directory", {})
+        hist_vendor = case.get("historical_vendor_details", {})
+        audit_logs = case.get("mailbox_audit_logs", [])
+        
+        for e in emails:
+            imp_findings.extend(self.impersonation_analyzer.analyze(e, org_dir))
+            bec_findings.extend(self.bec_analyzer.analyze(e, hist_vendor))
+            state = self.compromise_analyzer.analyze(e, audit_logs)
+            if state != MailboxCompromiseState.NOT_SUPPORTED:
+                comp_findings.append({"email_id": e.email_id, "state": state.value})
+                
+        # Fact Gate
+        fg_out = self.fact_gate.generate(emails=emails, sources=[])
+        
+        # Review
+        rev = self.reviewer.review(emails=emails, findings=imp_findings + bec_findings)
+        
+        status = "SUCCEEDED" if emails else "INSUFFICIENT_DATA"
+        if rev["human_review_required"]:
+            status = "PARTIAL_HUMAN_REVIEW_REQUIRED"
+            
+        result = EMAILINTResult(
+            case_id=case_id,
+            task_id=str(case.get("task_id")),
+            objective=objective,
+            status=status,
+            evidence=evidence,
+            emails=emails,
+            threads=threads,
+            impersonation_findings=imp_findings,
+            bec_findings=bec_findings,
+            mailbox_compromise_findings=comp_findings,
+            facts=fg_out["facts"],
+            hypotheses=[], # Placeholder
+            contradictions=[], # Placeholder
+            knowledge_gaps=fg_out["knowledge_gaps"],
+            next_actions=fg_out["next_actions"],
+            specialist_handoffs=fg_out["specialist_handoffs"],
+            source_independence={}, # Placeholder
+            review=rev,
+            graph=self.memory.write_result(_ := EMAILINTResult(**{"case_id":"tmp","task_id":"t","objective":"o","status":"s"})), # Hacky init for mem
+            report="",
+            unknowns=fg_out["unknowns"],
+            limitations=fg_out["limitations"],
+            safety_flags=["No active content executed.", "No credentials used.", "Original hashes preserved."],
+            privacy_flags=["BCC minimized unless authorized.", "PII redacted in reports where possible."]
+        )
+        
+        result.graph = self.memory.write_result(result)
+        result.report = self.reporter.generate(result)
+        return result
+
+
+# ======================================================================
+# SECTION 10 — DEMO
+# ======================================================================
+
+def demo_lawful_bec_analysis():
+    employee = EmailIntelligenceEmployee(mode=ModelMode.LOCAL_ONLY)
+    
+    # Synthetic Raw EML
+    raw_eml = """
+Return-Path: <billing@vendor-example.com>
+Received: from mail.vendor-example.com (mail.vendor-example.com [192.0.2.1])
+	by mx.google.com (Google) with SMTP id abc123;
+	Mon, 09 Oct 2026 10:00:00 +0000 (UTC)
+Received: from localhost (localhost [127.0.0.1])
+	by mail.vendor-example.com (Postfix) with ESMTP id def456;
+	Mon, 09 Oct 2026 09:59:00 +0000 (UTC)
+From: "Vendor Finance Dept" <billing@vendor-example.com>
+To: accounts.payable@company-target.com
+Subject: URGENT: Updated Bank Details for Invoice #9981
+Date: Mon, 09 Oct 2026 10:00:00 +0000
+Message-ID: <20261009100000.12345@mail.vendor-example.com>
+Authentication-Results: mx.google.com;
+       spf=pass (google.com: domain of billing@vendor-example.com designates 192.0.2.1 as permitted sender) smtp.mailfrom=billing@vendor-example.com;
+       dkim=pass header.i=@vendor-example.com header.s=default header.b=abc123xyz;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=vendor-example.com
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="frontier"
+
+--frontier
+Content-Type: text/plain; charset="UTF-8"
+
+Hello Accounts Team,
+
+Please note that our banking details have changed due to a merger. 
+Kindly update your records for Invoice #9981.
+
+New IBAN: GB12 XXXX 1234 5678 9012
+New SWIFT: XXXXGB2L
+
+Please process the pending payment to this new account immediately to avoid late fees.
+
+Regards,
+Finance Dept
+Vendor Example Inc.
+--frontier
+Content-Type: application/pdf; name="invoice_9981.pdf"
+Content-Disposition: attachment; filename="invoice_9981.pdf"
+
+[Binary PDF Data Omitted for Demo]
+--frontier--
+"""
+
+    case = {
+        "case_id": "DEMO-EMAILINT-001",
+        "task_id": "TASK-001",
+        "objective": "Analyze suspected BEC email for technical indicators and authentication status.",
+        "questions": ["Is the domain authenticated?", "Are there signs of impersonation?", "What is the risk level?"],
+        "authorization": "INCIDENT_RESPONSE_AUTHORIZED",
+        "email_artifacts": [
+            {
+                "source_id": "GATEWAY_LOG_EXPORT",
+                "raw_content": raw_eml
+            }
+        ],
+        "organizational_directory": {
+            "Vendor Example Inc": "vendor-legit-domain.com" # Target expects different domain
+        },
+        "historical_vendor_details": {
+            "old_iban": "GB11 YYYY 0000 0000 0000"
+        },
+        "mailbox_audit_logs": []
+    }
+    
+    result = employee.run_case(case)
+    print(result.report)
+
+if __name__ == "__main__":
+    demo_lawful_bec_analysis()

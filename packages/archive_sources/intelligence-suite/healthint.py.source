@@ -1,0 +1,3093 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS / HEALTHINT — Local privacy-first public-health intelligence pipeline.
+
+IMPORTANT SAFETY / POLICY NOTES:
+- This is a local demo implementation.
+- It does NOT access live health ministries, hospitals, laboratories, wastewater systems,
+  pharmacies, registries, social platforms, private medical records, or clinical systems.
+- It does NOT diagnose individuals, prescribe medication, alter treatment, ration care,
+  determine insurance/employment eligibility, or profile private persons.
+- It does NOT reidentify de-identified data, expose small-cell sensitive health information,
+  infer health status from face/voice/posts/purchases/location, or conduct covert surveillance.
+- It does NOT design, enhance, optimize, weaponize, disseminate, or evade detection for pathogens.
+- It supports authorized, population-level, privacy-preserving, evidence-first public-health
+  intelligence only.
+- Sample data is synthetic and aggregated.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+import unicodedata
+from collections import defaultdict
+from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+PIPELINE_VERSION = "0.1.0-healthint-public-health-safe-demo"
+DEFAULT_AS_OF = "2026-10-09T00:00:00Z"
+SMALL_CELL_THRESHOLD = 5
+
+
+# =====================================================================
+# ENUMS
+# =====================================================================
+
+class Status(str, Enum):
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DATA_INSUFFICIENT = "DATA_INSUFFICIENT"
+    CASE_DEFINITION_UNRESOLVED = "CASE_DEFINITION_UNRESOLVED"
+    DENOMINATOR_UNRESOLVED = "DENOMINATOR_UNRESOLVED"
+    GEOGRAPHY_UNRESOLVED = "GEOGRAPHY_UNRESOLVED"
+    REPORTING_DELAY_UNRESOLVED = "REPORTING_DELAY_UNRESOLVED"
+    PRIVACY_SUPPRESSED = "PRIVACY_SUPPRESSED"
+    SMALL_CELL_SUPPRESSED = "SMALL_CELL_SUPPRESSED"
+    BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+    BLOCKED_PERMISSION = "BLOCKED_PERMISSION"
+    BLOCKED_PRIVACY = "BLOCKED_PRIVACY"
+    BLOCKED_LEGAL = "BLOCKED_LEGAL"
+    BLOCKED_BIOSECURITY = "BLOCKED_BIOSECURITY"
+    BLOCKED_POLICY = "BLOCKED_POLICY"
+    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+    HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+
+
+class SourceType(str, Enum):
+    MINISTRY_HEALTH = "MINISTRY_HEALTH"
+    INTERNATIONAL_HEALTH = "INTERNATIONAL_HEALTH"
+    LABORATORY_NETWORK = "LABORATORY_NETWORK"
+    HOSPITAL_DASHBOARD = "HOSPITAL_DASHBOARD"
+    WASTEWATER_SURVEILLANCE = "WASTEWATER_SURVEILLANCE"
+    VACCINATION_DASHBOARD = "VACCINATION_DASHBOARD"
+    MEDICINE_SUPPLY_NOTICE = "MEDICINE_SUPPLY_NOTICE"
+    ENVIRONMENTAL_MONITORING = "ENVIRONMENTAL_MONITORING"
+    PUBLIC_HEALTH_GUIDANCE = "PUBLIC_HEALTH_GUIDANCE"
+    SCIENTIFIC_STUDY = "SCIENTIFIC_STUDY"
+    NEWS_REPORT = "NEWS_REPORT"
+    SOCIAL_PUBLIC_SIGNAL = "SOCIAL_PUBLIC_SIGNAL"
+    NGO_PUBLIC_HEALTH = "NGO_PUBLIC_HEALTH"
+    OTHER = "OTHER"
+
+
+class CaseDefinitionType(str, Enum):
+    SYNDROMIC_RESPIRATORY = "SYNDROMIC_RESPIRATORY"
+    SYNDROMIC_GI = "SYNDROMIC_GI"
+    SYNDROMIC_FEVER = "SYNDROMIC_FEEVER"
+    LAB_CONFIRMED = "LAB_CONFIRMED"
+    PROBABLE_CASE = "PROBABLE_CASE"
+    CONFIRMED_CASE = "CONFIRMED_CASE"
+    CLINICAL_CASE = "CLINICAL_CASE"
+    ADMINISTRATIVE_CODE = "ADMINISTRATIVE_CODE"
+    SELF_REPORTED = "SELF_REPORTED"
+    OTHER = "OTHER"
+
+
+class MetricType(str, Enum):
+    RESPIRATORY_PRESENTATIONS = "RESPIRATORY_PRESENTATIONS"
+    LAB_CONFIRMED_CASES = "LAB_CONFIRMED_CASES"
+    TESTS_PERFORMED = "TESTS_PERFORMED"
+    TEST_POSITIVITY = "TEST_POSITIVITY"
+    HOSPITALIZATIONS = "HOSPITALIZATIONS"
+    HOSPITAL_OCCUPANCY = "HOSPITAL_OCCUPANCY"
+    ICU_OCCUPANCY = "ICU_OCCUPANCY"
+    DEATHS = "DEATHS"
+    WASTEWATER_SIGNAL = "WASTEWATER_SIGNAL"
+    VACCINE_DOSES_ALLOCATED = "VACCINE_DOSES_ALLOCATED"
+    VACCINE_DOSES_DELIVERED = "VACCINE_DOSES_DELIVERED"
+    VACCINE_DOSES_ADMINISTERED = "VACCINE_DOSES_ADMINISTERED"
+    ELIGIBLE_POPULATION = "ELIGIBLE_POPULATION"
+    VACCINATION_COVERAGE = "VACCINATION_COVERAGE"
+    MEDICINE_STOCKOUT_RATE = "MEDICINE_STOCKOUT_RATE"
+    AIR_PM25 = "AIR_PM25"
+    HEAT_INDEX = "HEAT_INDEX"
+    MISINFORMATION_REACH = "MISINFORMATION_REACH"
+    PUBLIC_CONCERN_SIGNAL = "PUBLIC_CONCERN_SIGNAL"
+    PEDIATRIC_RARE_SYNDROME = "PEDIATRIC_RARE_SYNDROME"
+    OTHER = "OTHER"
+
+
+class TrendState(str, Enum):
+    INCREASING = "INCREASING"
+    DECREASING = "DECREASING"
+    STABLE = "STABLE"
+    VOLATILE = "VOLATILE"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    UNKNOWN = "UNKNOWN"
+
+
+class OutbreakSignalState(str, Enum):
+    NO_SIGNAL = "NO_SIGNAL"
+    WEAK_SIGNAL = "WEAK_SIGNAL"
+    ELEVATED_SIGNAL = "ELEVATED_SIGNAL"
+    OUTBREAK_CANDIDATE = "OUTBREAK_CANDIDATE"
+    OUTBREAK_SUPPORTED = "OUTBREAK_SUPPORTED"
+    OFFICIALLY_DECLARED_OUTBREAK = "OFFICIALLY_DECLARED_OUTBREAK"
+
+
+class DataQualityState(str, Enum):
+    GOOD = "GOOD"
+    FAIR = "FAIR"
+    POOR = "POOR"
+    PROVISIONAL = "PROVISIONAL"
+    REVISED = "REVISED"
+    MISSING = "MISSING"
+    UNKNOWN = "UNKNOWN"
+
+
+class DenominatorQuality(str, Enum):
+    OFFICIAL_CURRENT = "OFFICIAL_CURRENT"
+    OFFICIAL_ESTIMATE = "OFFICIAL_ESTIMATE"
+    SURVEY_ESTIMATE = "SURVEY_ESTIMATE"
+    OUTDATED = "OUTDATED"
+    PARTIAL = "PARTIAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class PrivacyClassification(str, Enum):
+    PUBLIC = "PUBLIC"
+    AGGREGATED = "AGGREGATED"
+    DEIDENTIFIED = "DEIDENTIFIED"
+    SENSITIVE_AGGREGATED = "SENSITIVE_AGGREGATED"
+    SUPPRESSED = "SUPPRESSED"
+    UNKNOWN = "UNKNOWN"
+
+
+class VerificationState(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
+    CANDIDATE = "CANDIDATE"
+    OBSERVED = "OBSERVED"
+    INCONCLUSIVE = "INCONCLUSIVE"
+    DISPUTED = "DISPUTED"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class FindingType(str, Enum):
+    POPULATION_LEVEL_SIGNAL_OBSERVED = "POPULATION_LEVEL_SIGNAL_OBSERVED"
+    ELEVATED_RESPIRATORY_ACTIVITY = "ELEVATED_RESPIRATORY_ACTIVITY"
+    LAB_POSITIVITY_INCREASE = "LAB_POSITIVITY_INCREASE"
+    WASTEWATER_UPWARD_SIGNAL = "WASTEWATER_UPWARD_SIGNAL"
+    HOSPITAL_CAPACITY_STRESS_CANDIDATE = "HOSPITAL_CAPACITY_STRESS_CANDIDATE"
+    MEDICINE_SUPPLY_CONSTRAINT_OBSERVED = "MEDICINE_SUPPLY_CONSTRAINT_OBSERVED"
+    VACCINATION_COVERAGE_OBSERVED = "VACCINATION_COVERAGE_OBSERVED"
+    ENVIRONMENTAL_CORRELATION_CANDIDATE = "ENVIRONMENTAL_CORRELATION_CANDIDATE"
+    MISINFORMATION_REACH_OBSERVED = "MISINFORMATION_REACH_OBSERVED"
+    PUBLIC_CONCERN_NOT_PREVALENCE = "PUBLIC_CONCERN_NOT_PREVALENCE"
+    OUTBREAK_CANDIDATE = "OUTBREAK_CANDIDATE"
+    OFFICIAL_OUTBREAK_NOT_DECLARED = "OFFICIAL_OUTBREAK_NOT_DECLARED"
+    SOURCE_DEPENDENCY_OBSERVED = "SOURCE_DEPENDENCY_OBSERVED"
+    CASE_DEFINITION_LIMITATION = "CASE_DEFINITION_LIMITATION"
+    DENOMINATOR_VALIDATED = "DENOMINATOR_VALIDATED"
+    DENOMINATOR_UNCERTAIN = "DENOMINATOR_UNCERTAIN"
+    REPORTING_DELAY_UNRESOLVED = "REPORTING_DELAY_UNRESOLVED"
+    PROVISIONAL_DATA_OBSERVED = "PROVISIONAL_DATA_OBSERVED"
+    SMALL_CELL_SUPPRESSED = "SMALL_CELL_SUPPRESSED"
+    PRIVACY_AGGREGATION_ENFORCED = "PRIVACY_AGGREGATION_ENFORCED"
+    BIOSECURITY_BOUNDARY_ENFORCED = "BIOSECURITY_BOUNDARY_ENFORCED"
+    NO_INDIVIDUAL_DIAGNOSIS = "NO_INDIVIDUAL_DIAGNOSIS"
+    STIGMATIZATION_CONTROL = "STIGMATIZATION_CONTROL"
+    CONTRADICTION_OBSERVED = "CONTRADICTION_OBSERVED"
+    DATA_QUALITY_LIMITATION = "DATA_QUALITY_LIMITATION"
+
+
+class GapType(str, Enum):
+    CASE_DEFINITION_UNCLEAR = "CASE_DEFINITION_UNCLEAR"
+    DENOMINATOR_OUTDATED = "DENOMINATOR_OUTDATED"
+    TESTING_VOLUME_MISSING = "TESTING_VOLUME_MISSING"
+    REPORTING_DELAY_UNKNOWN = "REPORTING_DELAY_UNKNOWN"
+    LAB_CONFIRMATION_UNAVAILABLE = "LAB_CONFIRMATION_UNAVAILABLE"
+    GEOGRAPHIC_COVERAGE_INCOMPLETE = "GEOGRAPHIC_COVERAGE_INCOMPLETE"
+    HOSPITAL_CAPACITY_STALE = "HOSPITAL_CAPACITY_STALE"
+    VACCINATION_DENOMINATOR_UNCERTAIN = "VACCINATION_DENOMINATOR_UNCERTAIN"
+    WASTEWATER_NORMALIZATION_UNKNOWN = "WASTEWATER_NORMALIZATION_UNKNOWN"
+    STUDY_QUALITY_UNCLEAR = "STUDY_QUALITY_UNCLEAR"
+    SOURCE_INDEPENDENCE_UNRESOLVED = "SOURCE_INDEPENDENCE_UNRESOLVED"
+    PRIVACY_THRESHOLD_PREVENTS_FINER_ANALYSIS = "PRIVACY_THRESHOLD_PREVENTS_FINER_ANALYSIS"
+    GENOMIC_CONTEXT_UNAVAILABLE = "GENOMIC_CONTEXT_UNAVAILABLE"
+    SUPPLY_CHAIN_ROOT_CAUSE_UNKNOWN = "SUPPLY_CHAIN_ROOT_CAUSE_UNKNOWN"
+
+
+class PrivacyFlag(str, Enum):
+    CASE_SCOPED = "CASE_SCOPED"
+    POPULATION_LEVEL_ONLY = "POPULATION_LEVEL_ONLY"
+    NO_INDIVIDUAL_DIAGNOSIS = "NO_INDIVIDUAL_DIAGNOSIS"
+    NO_MEDICAL_RECORD_ACCESS = "NO_MEDICAL_RECORD_ACCESS"
+    NO_REIDENTIFICATION = "NO_REIDENTIFICATION"
+    SMALL_CELL_SUPPRESSION = "SMALL_CELL_SUPPRESSION"
+    LOCATION_GENERALIZATION = "LOCATION_GENERALIZATION"
+    PURPOSE_LIMITATION = "PURPOSE_LIMITATION"
+    NO_COVERT_HEALTH_SURVEILLANCE = "NO_COVERT_HEALTH_SURVEILLANCE"
+    LOCAL_ONLY_DEFAULT = "LOCAL_ONLY_DEFAULT"
+
+
+class BiosecurityFlag(str, Enum):
+    NO_PATHogen_ENGINEERING = "NO_PATHOGEN_ENGINEERING"
+    NO_VIRULENCE_OPTIMIZATION = "NO_VIRULENCE_OPTIMIZATION"
+    NO_TRANSMISSIBILITY_OPTIMIZATION = "NO_TRANSMISSIBILITY_OPTIMIZATION"
+    NO_IMMUNE_EVASION_ENGINEERING = "NO_IMMUNE_EVASION_ENGINEERING"
+    NO_BIOLOGICAL_ATTACK_PLANNING = "NO_BIOLOGICAL_ATTACK_PLANNING"
+    NO_CONTAMINATION_METHODS = "NO_CONTAMINATION_METHODS"
+    PUBLIC_HEALTH_ORIENTATION_ONLY = "PUBLIC_HEALTH_ORIENTATION_ONLY"
+
+
+class LegalFlag(str, Enum):
+    HEALTH_PRIVACY_REVIEW_REQUIRED = "HEALTH_PRIVACY_REVIEW_REQUIRED"
+    DATA_USE_AGREEMENT_REVIEW_REQUIRED = "DATA_USE_AGREEMENT_REVIEW_REQUIRED"
+    LEGALINT_HANDOFF_REQUIRED = "LEGALINT_HANDOFF_REQUIRED"
+    HUMAN_PUBLIC_HEALTH_AUTHORITY_REQUIRED = "HUMAN_PUBLIC_HEALTH_AUTHORITY_REQUIRED"
+
+
+class HypothesisStatus(str, Enum):
+    SUPPORTED = "SUPPORTED"
+    PROBABLE = "PROBABLE"
+    POSSIBLE = "POSSIBLE"
+    UNRESOLVED = "UNRESOLVED"
+    DISPUTED = "DISPUTED"
+    REJECTED = "REJECTED"
+
+
+# =====================================================================
+# CONSTANTS
+# =====================================================================
+
+SOURCE_FACTOR: Dict[SourceType, float] = {
+    SourceType.MINISTRY_HEALTH: 0.92,
+    SourceType.INTERNATIONAL_HEALTH: 0.88,
+    SourceType.LABORATORY_NETWORK: 0.90,
+    SourceType.HOSPITAL_DASHBOARD: 0.88,
+    SourceType.WASTEWATER_SURVEILLANCE: 0.86,
+    SourceType.VACCINATION_DASHBOARD: 0.88,
+    SourceType.MEDICINE_SUPPLY_NOTICE: 0.82,
+    SourceType.ENVIRONMENTAL_MONITORING: 0.84,
+    SourceType.PUBLIC_HEALTH_GUIDANCE: 0.88,
+    SourceType.SCIENTIFIC_STUDY: 0.84,
+    SourceType.NEWS_REPORT: 0.62,
+    SourceType.SOCIAL_PUBLIC_SIGNAL: 0.50,
+    SourceType.NGO_PUBLIC_HEALTH: 0.78,
+    SourceType.OTHER: 0.65,
+}
+
+PROHIBITED_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
+    (
+        "INDIVIDUAL_DIAGNOSIS_OR_MEDICAL_ADVICE",
+        re.compile(
+            r"\b(diagnose|tell me whether|does (this|the|that) person|individual.*(has|infected|disease)|"
+            r"prescribe|medication dosage|change treatment|personal medical profile)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "REIDENTIFICATION_OR_PATIENT_TRACKING",
+        re.compile(
+            r"\b(reidentif\w+|identify patient|find who has|named individual.*health|"
+            r"track.*patient|covert.*health surveillance|private person.*health)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "UNAUTHORIZED_MEDICAL_RECORDS_OR_CREDENTIALS",
+        re.compile(
+            r"\b(access medical records|obtain health records|stolen health credential|"
+            r"patient portal|electronic health record without authorization)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "PATHOGEN_ENGINEERING_OR_BIOLOGICAL_HARM",
+        re.compile(
+            r"\b(engineer|enhance|optimize|design|weaponize|disseminate)\s+"
+            r"(pathogen|virus|bacterium|bacteria|virulence|transmissibility|host range|"
+            r"immune evasion|diagnostic evasion|biological attack|contamination method)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "HEALTH_DISCRIMINATION_OR_AUTOMATED_ELIGIBILITY",
+        re.compile(
+            r"\b(health data.*(employment|insurance|immigration|law enforcement|marketing)|"
+            r"deny insurance|deny employment|rank individual worth|risk score.*person)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "SMALL_CELL_OR_SENSITIVE_HEALTH_DISCLOSURE",
+        re.compile(
+            r"\b(expose|publish|reveal).*(small cell|HIV status|STI status|pregnancy status|"
+            r"psychiatric diagnosis|genetic disease status|individual vaccination status)\b",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+# =====================================================================
+# UTILITIES
+# =====================================================================
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def new_id(prefix: str, seed: str) -> str:
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:10]
+    return f"{prefix}{h}" if prefix else h
+
+
+def stable_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_short(text: str) -> str:
+    return stable_hash(text)[:16]
+
+
+def jsonable(obj: Any) -> Any:
+    if isinstance(obj, Enum):
+        return obj.value
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {f.name: jsonable(getattr(obj, f.name)) for f in fields(obj)}
+    if isinstance(obj, (list, tuple, set)):
+        return [jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): jsonable(v) for k, v in obj.items()}
+    return obj
+
+
+def normalize_text(value: str) -> str:
+    s = unicodedata.normalize("NFKC", value or "")
+    s = s.lower().strip()
+    s = re.sub(r"[^\w\s\-'.:/@]", " ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def dt_or_min(value: Optional[str]) -> datetime:
+    dt = parse_dt(value)
+    return dt if dt else datetime.min.replace(tzinfo=timezone.utc)
+
+
+def safe_div(n: Optional[float], d: Optional[float]) -> Optional[float]:
+    if n is None or d is None or d == 0:
+        return None
+    return float(n) / float(d)
+
+
+def pct_change(latest: Optional[float], baseline: Optional[float]) -> Optional[float]:
+    if latest is None or baseline is None or baseline == 0:
+        return None
+    return ((latest - baseline) / baseline) * 100.0
+
+
+def policy_guard(text: str) -> List[Dict[str, str]]:
+    violations: List[Dict[str, str]] = []
+    for rule, rx in PROHIBITED_PATTERNS:
+        m = rx.search(text or "")
+        if m:
+            violations.append({"rule": rule, "matched": m.group(0)})
+    return violations
+
+
+# =====================================================================
+# DATACLASSES
+# =====================================================================
+
+@dataclass
+class Source:
+    id: str
+    title: str
+    url: str
+    source_type: SourceType
+    independence_group: str = "UNKNOWN"
+    reliability: float = 0.5
+    derived_from: Optional[str] = None
+    published_at: Optional[str] = None
+    retrieved_at: Optional[str] = None
+    notes: str = ""
+
+
+@dataclass
+class Evidence:
+    id: str
+    source_id: str
+    artifact_type: str
+    excerpt: str
+    observed_at: Optional[str] = None
+    content_hash: str = ""
+    parsed_fields: Dict[str, Any] = field(default_factory=dict)
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Population:
+    id: str
+    geography: str
+    time_period: str
+    definition: str
+    denominator: Optional[int] = None
+    denominator_source: str = ""
+    denominator_quality: DenominatorQuality = DenominatorQuality.UNKNOWN
+    age_band: Optional[str] = None
+    sex_category: Optional[str] = None
+    coverage: str = ""
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Observation:
+    id: str
+    source_id: str
+    population_id: str
+    geography: str
+    time_period: str
+    metric: MetricType
+    case_definition: CaseDefinitionType = CaseDefinitionType.OTHER
+    numerator: Optional[float] = None
+    denominator: Optional[float] = None
+    value: Optional[float] = None
+    unit: str = ""
+    rate_per_100k: Optional[float] = None
+    percentage: Optional[float] = None
+    provisional: bool = False
+    revised: bool = False
+    privacy_classification: PrivacyClassification = PrivacyClassification.PUBLIC
+    privacy_sensitive: bool = False
+    suppressed: bool = False
+    limitations: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Finding:
+    id: str
+    finding_type: FindingType
+    subject_id: str
+    statement: str
+    verification_state: VerificationState = VerificationState.INCONCLUSIVE
+    confidence: float = 0.0
+    population_id: Optional[str] = None
+    geography: Optional[str] = None
+    time_period: Optional[str] = None
+    metric: Optional[str] = None
+    case_definition: Optional[str] = None
+    denominator: Optional[float] = None
+    source_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    privacy_classification: PrivacyClassification = PrivacyClassification.PUBLIC
+    limitations: List[str] = field(default_factory=list)
+    specialist_handoff: Optional[str] = None
+
+
+@dataclass
+class Hypothesis:
+    id: str
+    statement: str
+    kind: str
+    supporting_finding_ids: List[str] = field(default_factory=list)
+    supporting_evidence_ids: List[str] = field(default_factory=list)
+    contradicting_finding_ids: List[str] = field(default_factory=list)
+    contradicting_evidence_ids: List[str] = field(default_factory=list)
+    assumptions: List[str] = field(default_factory=list)
+    predictions: List[str] = field(default_factory=list)
+    falsification_conditions: List[str] = field(default_factory=list)
+    status: HypothesisStatus = HypothesisStatus.UNRESOLVED
+    confidence: float = 0.0
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Contradiction:
+    id: str
+    contradiction_type: str
+    description: str
+    subject_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    evidence_ids: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
+    severity: str = "MEDIUM"
+    status: str = "OPEN"
+    recommended_resolution: str = ""
+
+
+@dataclass
+class KnowledgeGap:
+    id: str
+    gap_type: GapType
+    description: str
+    about_subject_ids: List[str] = field(default_factory=list)
+    about_finding_ids: List[str] = field(default_factory=list)
+    importance: str = "MEDIUM"
+    recommended_source: str = ""
+    specialist: Optional[str] = None
+    expected_information_value: float = 0.0
+
+
+@dataclass
+class NextAction:
+    id: str
+    description: str
+    priority: int = 1
+    privacy_impact: str = "LOW_IF_AUTHORIZED"
+    expected_gain: float = 0.0
+    specialist: Optional[str] = None
+    requires_human_approval: bool = False
+
+
+@dataclass
+class Recommendation:
+    id: str
+    category: str
+    action: str
+    target: str
+    rationale: str
+    evidence_ids: List[str] = field(default_factory=list)
+    finding_ids: List[str] = field(default_factory=list)
+    approval: str = "HUMAN_PUBLIC_HEALTH_REVIEW_REQUIRED"
+    limitations: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Case:
+    case_id: str
+    task_id: str
+    objective: str
+    questions: List[str] = field(default_factory=list)
+    scope: List[str] = field(default_factory=lambda: [
+        "authorized_population_level_public_health",
+        "privacy_first",
+        "evidence_first",
+        "human_governed",
+        "no_individual_diagnosis",
+        "no_biosecurity_harm",
+    ])
+    authorization: str = "demo_authorized_public_health_intelligence"
+    region: Optional[str] = None
+    population: Optional[str] = None
+    condition: Optional[str] = None
+    time_range: Optional[str] = None
+    as_of: str = DEFAULT_AS_OF
+    sample: bool = False
+    budget: Optional[str] = None
+    deadline: Optional[str] = None
+
+
+# =====================================================================
+# HEALTHINT ENGINE
+# =====================================================================
+
+class HealthInt:
+    def __init__(self, case: Case) -> None:
+        self.case = case
+        self.as_of = case.as_of or DEFAULT_AS_OF
+
+        self.sources: Dict[str, Source] = {}
+        self.evidence: Dict[str, Evidence] = {}
+        self.populations: Dict[str, Population] = {}
+        self.observations: Dict[str, Observation] = {}
+        self.findings: Dict[str, Finding] = {}
+        self.hypotheses: List[Hypothesis] = []
+        self.contradictions: List[Contradiction] = []
+        self.gaps: List[KnowledgeGap] = []
+        self.actions: List[NextAction] = []
+        self.recommendations: List[Recommendation] = []
+        self.handoffs: List[Dict[str, str]] = []
+        self.trends: Dict[str, Dict[str, Any]] = {}
+        self.outbreak_state: OutbreakSignalState = OutbreakSignalState.UNKNOWN
+        self.data_quality: Dict[str, Any] = {}
+        self.validation_errors: List[str] = []
+
+    # -----------------------------------------------------------------
+    # Adders
+    # -----------------------------------------------------------------
+
+    def add_source(self, source: Source) -> Source:
+        self.sources[source.id] = source
+        return source
+
+    def add_evidence(self, evidence: Evidence) -> Evidence:
+        if not evidence.content_hash:
+            evidence.content_hash = stable_hash("|".join([
+                evidence.source_id,
+                evidence.artifact_type,
+                evidence.excerpt,
+            ]))
+        self.evidence[evidence.id] = evidence
+        return evidence
+
+    def add_population(self, population: Population) -> Population:
+        self.populations[population.id] = population
+        return population
+
+    def add_observation(self, obs: Observation) -> Observation:
+        self.observations[obs.id] = obs
+        return obs
+
+    def add_finding(self, finding: Finding) -> Finding:
+        if finding.id in self.findings:
+            return self.findings[finding.id]
+        self.findings[finding.id] = finding
+        return finding
+
+    def add_contradiction(self, contradiction: Contradiction) -> Contradiction:
+        if any(c.description == contradiction.description for c in self.contradictions):
+            return self.contradictions[0]
+        self.contradictions.append(contradiction)
+        return contradiction
+
+    # -----------------------------------------------------------------
+    # Source lineage / independence
+    # -----------------------------------------------------------------
+
+    def get_source_family(self, source_id: str) -> Optional[str]:
+        src = self.sources.get(source_id)
+        if not src:
+            return None
+        seen: Set[str] = set()
+        cur = src
+        while (
+            cur
+            and cur.derived_from
+            and cur.derived_from in self.sources
+            and cur.id not in seen
+        ):
+            seen.add(cur.id)
+            cur = self.sources[cur.derived_from]
+        if cur and cur.independence_group and cur.independence_group != "UNKNOWN":
+            return cur.independence_group
+        return cur.id if cur else source_id
+
+    def source_families(self, source_ids: List[str]) -> Set[str]:
+        families: Set[str] = set()
+        for sid in source_ids:
+            fam = self.get_source_family(sid)
+            families.add(fam or sid)
+        return families
+
+    def independence_state(self, source_ids: List[str]) -> str:
+        if not source_ids:
+            return "UNKNOWN"
+        families = self.source_families(source_ids)
+        if len(source_ids) == 1:
+            return "SINGLE_SOURCE"
+        if len(families) == 1:
+            return "DEPENDENT"
+        if len(families) == len(source_ids):
+            return "INDEPENDENT"
+        return "PARTIALLY_DEPENDENT"
+
+    # -----------------------------------------------------------------
+    # Privacy / normalization / analytics
+    # -----------------------------------------------------------------
+
+    def privacy_gate(self) -> None:
+        for obs in self.observations.values():
+            if obs.suppressed:
+                continue
+
+            # Suppress small sensitive cells.
+            if (
+                obs.privacy_sensitive
+                and obs.numerator is not None
+                and float(obs.numerator) < SMALL_CELL_THRESHOLD
+            ):
+                obs.suppressed = True
+                obs.privacy_classification = PrivacyClassification.SUPPRESSED
+                obs.rate_per_100k = None
+                obs.percentage = None
+                obs.value = None
+                obs.limitations.append(
+                    "Small-cell suppression applied to reduce reidentification risk."
+                )
+                self.add_finding(Finding(
+                    id=new_id("FIND-SMALLCELL-", obs.id),
+                    finding_type=FindingType.SMALL_CELL_SUPPRESSED,
+                    subject_id=obs.id,
+                    statement=(
+                        f"Observation {obs.id} suppressed because numerator is below "
+                        f"small-cell threshold {SMALL_CELL_THRESHOLD} for sensitive health signal."
+                    ),
+                    verification_state=VerificationState.SUPPORTED,
+                    population_id=obs.population_id,
+                    geography=obs.geography,
+                    time_period=obs.time_period,
+                    metric=obs.metric.value,
+                    case_definition=obs.case_definition.value,
+                    source_ids=[obs.source_id],
+                    evidence_ids=obs.evidence_ids,
+                    privacy_classification=PrivacyClassification.SUPPRESSED,
+                    limitations=[
+                        "Suppressed data must not be used for individual inference.",
+                        "Aggregate reporting only.",
+                    ],
+                ))
+                continue
+
+            # Enforce region-level geography; reject precise private location language in sample metadata.
+            if obs.geography and any(token in normalize_text(obs.geography) for token in ["home", "residence", "address", "gps"]):
+                obs.suppressed = True
+                obs.privacy_classification = PrivacyClassification.SUPPRESSED
+                obs.limitations.append("Precise private-location geography blocked; aggregation required.")
+
+    def compute_rates_and_percentages(self) -> None:
+        for obs in self.observations.values():
+            if obs.suppressed:
+                continue
+
+            pop = self.populations.get(obs.population_id)
+            denom = obs.denominator
+            if denom is None and pop and pop.denominator is not None:
+                denom = float(pop.denominator)
+                obs.denominator = denom
+
+            if obs.numerator is not None and denom is not None and denom > 0:
+                if obs.metric in {
+                    MetricType.RESPIRATORY_PRESENTATIONS,
+                    MetricType.LAB_CONFIRMED_CASES,
+                    MetricType.HOSPITALIZATIONS,
+                    MetricType.DEATHS,
+                    MetricType.PEDIATRIC_RARE_SYNDROME,
+                }:
+                    obs.rate_per_100k = round((float(obs.numerator) / float(denom)) * 100000.0, 3)
+
+                if obs.metric in {
+                    MetricType.TEST_POSITIVITY,
+                    MetricType.HOSPITAL_OCCUPANCY,
+                    MetricType.ICU_OCCUPANCY,
+                    MetricType.MEDICINE_STOCKOUT_RATE,
+                    MetricType.VACCINATION_COVERAGE,
+                }:
+                    obs.percentage = round((float(obs.numerator) / float(denom)) * 100.0, 3)
+
+            if obs.metric == MetricType.TEST_POSITIVITY and obs.numerator is not None and obs.denominator is not None:
+                obs.percentage = round((float(obs.numerator) / float(obs.denominator)) * 100.0, 3)
+
+    def temporal_analysis(self) -> None:
+        series: Dict[str, List[Observation]] = defaultdict(list)
+
+        for obs in self.observations.values():
+            if obs.suppressed:
+                continue
+            key = "|".join([
+                obs.population_id,
+                obs.geography,
+                obs.metric.value,
+                obs.case_definition.value,
+            ])
+            series[key].append(obs)
+
+        for key, obs_list in series.items():
+            obs_list = sorted(obs_list, key=lambda o: dt_or_min(o.time_period))
+            values: List[float] = []
+            for o in obs_list:
+                v = o.numerator if o.numerator is not None else o.value
+                if v is not None:
+                    values.append(float(v))
+
+            if not values:
+                self.trends[key] = {
+                    "state": TrendState.INSUFFICIENT_DATA.value,
+                    "latest": None,
+                    "baseline": None,
+                    "percent_change": None,
+                    "series_length": len(obs_list),
+                }
+                continue
+
+            latest = values[-1]
+            baseline_values = values[:-1][-4:] if len(values) > 1 else []
+            baseline = sum(baseline_values) / len(baseline_values) if baseline_values else None
+            change = pct_change(latest, baseline)
+
+            if change is None:
+                state = TrendState.INSUFFICIENT_DATA
+            elif abs(change) < 5:
+                state = TrendState.STABLE
+            elif change > 15:
+                state = TrendState.INCREASING
+            elif change < -15:
+                state = TrendState.DECREASING
+            else:
+                state = TrendState.VOLATILE
+
+            self.trends[key] = {
+                "state": state.value,
+                "latest": latest,
+                "baseline": round(baseline, 3) if baseline is not None else None,
+                "percent_change": round(change, 3) if change is not None else None,
+                "series_length": len(values),
+                "time_periods": [o.time_period for o in obs_list],
+                "raw_values": values,
+                "guardrails": [
+                    "Trend is population-level and does not identify individuals.",
+                    "Trend does not establish cause.",
+                    "Provisional data may be revised.",
+                ],
+            }
+
+    def latest_observation(
+        self,
+        metric: MetricType,
+        case_definition: Optional[CaseDefinitionType] = None,
+        population_id: Optional[str] = None,
+    ) -> Optional[Observation]:
+        candidates = [
+            o for o in self.observations.values()
+            if o.metric == metric
+            and not o.suppressed
+            and (case_definition is None or o.case_definition == case_definition)
+            and (population_id is None or o.population_id == population_id)
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda o: dt_or_min(o.time_period))
+
+    def trend_for(
+        self,
+        metric: MetricType,
+        case_definition: Optional[CaseDefinitionType] = None,
+        population_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        for key, val in self.trends.items():
+            parts = key.split("|")
+            if len(parts) != 4:
+                continue
+            pop, geo, met, cd = parts
+            if met != metric.value:
+                continue
+            if case_definition is not None and cd != case_definition.value:
+                continue
+            if population_id is not None and pop != population_id:
+                continue
+            return val
+        return None
+
+    def assess_outbreak_signal(self) -> None:
+        syndromic = self.trend_for(
+            MetricType.RESPIRATORY_PRESENTATIONS,
+            CaseDefinitionType.SYNDROMIC_RESPIRATORY,
+        )
+        lab_pos = self.trend_for(
+            MetricType.TEST_POSITIVITY,
+            CaseDefinitionType.LAB_CONFIRMED,
+        )
+        wastewater = self.trend_for(MetricType.WASTEWATER_SIGNAL)
+        hosp_occ = self.latest_observation(MetricType.HOSPITAL_OCCUPANCY)
+
+        syndromic_increase = bool(
+            syndromic
+            and syndromic.get("state") == TrendState.INCREASING.value
+            and (syndromic.get("percent_change") or 0) >= 20
+        )
+        lab_increase = bool(
+            lab_pos
+            and lab_pos.get("state") in {TrendState.INCREASING.value, TrendState.VOLATILE.value}
+            and (lab_pos.get("percent_change") or 0) >= 5
+        )
+        ww_increase = bool(wastewater and wastewater.get("state") == TrendState.INCREASING.value)
+        capacity_stress = bool(hosp_occ and hosp_occ.percentage is not None and hosp_occ.percentage >= 85)
+
+        independent_support = sum([syndromic_increase, lab_increase, ww_increase, capacity_stress])
+
+        if independent_support >= 3:
+            self.outbreak_state = OutbreakSignalState.OUTBREAK_CANDIDATE
+        elif independent_support == 2:
+            self.outbreak_state = OutbreakSignalState.ELEVATED_SIGNAL
+        elif independent_support == 1:
+            self.outbreak_state = OutbreakSignalState.WEAK_SIGNAL
+        else:
+            self.outbreak_state = OutbreakSignalState.NO_SIGNAL
+
+    def build_core_findings(self) -> None:
+        pop = self.populations.get("POP-NB-ALL")
+        geo = pop.geography if pop else "UNKNOWN"
+        latest_syndromic = self.latest_observation(
+            MetricType.RESPIRATORY_PRESENTATIONS,
+            CaseDefinitionType.SYNDROMIC_RESPIRATORY,
+        )
+        latest_lab = self.latest_observation(MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED)
+        latest_ww = self.latest_observation(MetricType.WASTEWATER_SIGNAL)
+        latest_hosp = self.latest_observation(MetricType.HOSPITAL_OCCUPANCY)
+        latest_icu = self.latest_observation(MetricType.ICU_OCCUPANCY)
+        latest_vax = self.latest_observation(MetricType.VACCINATION_COVERAGE)
+        latest_stock = self.latest_observation(MetricType.MEDICINE_STOCKOUT_RATE)
+        latest_air = self.latest_observation(MetricType.AIR_PM25)
+        latest_heat = self.latest_observation(MetricType.HEAT_INDEX)
+        latest_misinfo = self.latest_observation(MetricType.MISINFORMATION_REACH)
+
+        if latest_syndromic:
+            self.add_finding(Finding(
+                id="FIND-POP-SIGNAL",
+                finding_type=FindingType.POPULATION_LEVEL_SIGNAL_OBSERVED,
+                subject_id=latest_syndromic.id,
+                statement=(
+                    f"Population-level syndromic respiratory presentations are observed in {geo}; "
+                    f"this is not an individual diagnosis."
+                ),
+                verification_state=VerificationState.SUPPORTED,
+                population_id=latest_syndromic.population_id,
+                geography=geo,
+                time_period=latest_syndromic.time_period,
+                metric=latest_syndromic.metric.value,
+                case_definition=latest_syndromic.case_definition.value,
+                denominator=latest_syndromic.denominator,
+                source_ids=[latest_syndromic.source_id],
+                evidence_ids=latest_syndromic.evidence_ids,
+                limitations=[
+                    "Syndromic case definition is not disease-specific.",
+                    "Population-level only.",
+                ],
+            ))
+
+        syndromic_trend = self.trend_for(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY)
+        if syndromic_trend and syndromic_trend.get("state") == TrendState.INCREASING.value:
+            self.add_finding(Finding(
+                id="FIND-ELEVATED-RESP",
+                finding_type=FindingType.ELEVATED_RESPIRATORY_ACTIVITY,
+                subject_id="REGION-NORTHBRIDGE-RESP",
+                statement=(
+                    f"Respiratory presentations increased {syndromic_trend.get('percent_change')}% "
+                    f"relative to recent baseline in {geo}."
+                ),
+                verification_state=VerificationState.SUPPORTED,
+                population_id="POP-NB-ALL",
+                geography=geo,
+                time_period=self.as_of,
+                metric=MetricType.RESPIRATORY_PRESENTATIONS.value,
+                case_definition=CaseDefinitionType.SYNDROMIC_RESPIRATORY.value,
+                denominator=float(pop.denominator) if pop and pop.denominator else None,
+                source_ids=["SRC-MOH"],
+                evidence_ids=["EV-MOH-WEEKLY"],
+                limitations=[
+                    "Increase may reflect transmission, care-seeking, reporting, seasonality, or definition change.",
+                    "Does not diagnose individuals.",
+                ],
+            ))
+
+        lab_trend = self.trend_for(MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED)
+        if latest_lab and lab_trend:
+            self.add_finding(Finding(
+                id="FIND-LAB-POS",
+                finding_type=FindingType.LAB_POSITIVITY_INCREASE,
+                subject_id=latest_lab.id,
+                statement=(
+                    f"Laboratory positivity changed {lab_trend.get('percent_change')}% relative to baseline; "
+                    f"latest percentage {latest_lab.percentage}%."
+                ),
+                verification_state=VerificationState.PARTIALLY_SUPPORTED,
+                population_id=latest_lab.population_id,
+                geography=geo,
+                time_period=latest_lab.time_period,
+                metric=latest_lab.metric.value,
+                case_definition=latest_lab.case_definition.value,
+                denominator=latest_lab.denominator,
+                source_ids=[latest_lab.source_id],
+                evidence_ids=latest_lab.evidence_ids,
+                limitations=[
+                    "Test positivity depends on testing criteria, volume, and population selection.",
+                    "Positive test is not severity or individual prognosis.",
+                ],
+            ))
+
+        ww_trend = self.trend_for(MetricType.WASTEWATER_SIGNAL)
+        if latest_ww and ww_trend:
+            self.add_finding(Finding(
+                id="FIND-WW",
+                finding_type=FindingType.WASTEWATER_UPWARD_SIGNAL,
+                subject_id=latest_ww.id,
+                statement=(
+                    f"Wastewater signal trend is {ww_trend.get('state')} with latest normalized value "
+                    f"{latest_ww.value} {latest_ww.unit}."
+                ),
+                verification_state=VerificationState.SUPPORTED,
+                population_id=latest_ww.population_id,
+                geography=geo,
+                time_period=latest_ww.time_period,
+                metric=latest_ww.metric.value,
+                case_definition=latest_ww.case_definition.value,
+                source_ids=[latest_ww.source_id],
+                evidence_ids=latest_ww.evidence_ids,
+                limitations=[
+                    "Wastewater signal is population-level and not an exact case count.",
+                    "Catchment, dilution, rainfall, and normalization affect interpretation.",
+                ],
+            ))
+
+        if latest_hosp and latest_hosp.percentage is not None and latest_hosp.percentage >= 85:
+            self.add_finding(Finding(
+                id="FIND-HOSP-STRESS",
+                finding_type=FindingType.HOSPITAL_CAPACITY_STRESS_CANDIDATE,
+                subject_id=latest_hosp.id,
+                statement=(
+                    f"Hospital occupancy {latest_hosp.percentage}% indicates potential capacity stress candidate in {geo}."
+                ),
+                verification_state=VerificationState.CANDIDATE,
+                population_id=latest_hosp.population_id,
+                geography=geo,
+                time_period=latest_hosp.time_period,
+                metric=latest_hosp.metric.value,
+                case_definition=latest_hosp.case_definition.value,
+                source_ids=[latest_hosp.source_id],
+                evidence_ids=latest_hosp.evidence_ids,
+                limitations=[
+                    "Occupancy is not automatically outbreak.",
+                    "Licensed beds, staffed beds, operational beds, and available beds are distinct.",
+                    "Staffing and regional referral patterns matter.",
+                ],
+                specialist_handoff="ORGINT / SUPPLYCHAININT / HUMAN_PUBLIC_HEALTH",
+            ))
+
+        if latest_icu and latest_icu.percentage is not None and latest_icu.percentage >= 75:
+            self.add_finding(Finding(
+                id="FIND-ICU",
+                finding_type=FindingType.HOSPITAL_CAPACITY_STRESS_CANDIDATE,
+                subject_id=latest_icu.id,
+                statement=f"ICU occupancy {latest_icu.percentage}% observed as aggregate capacity context.",
+                verification_state=VerificationState.OBSERVED,
+                population_id=latest_icu.population_id,
+                geography=geo,
+                time_period=latest_icu.time_period,
+                metric=latest_icu.metric.value,
+                source_ids=[latest_icu.source_id],
+                evidence_ids=latest_icu.evidence_ids,
+                limitations=["ICU occupancy requires staffing and baseline context."],
+            ))
+
+        if latest_vax and latest_vax.percentage is not None:
+            self.add_finding(Finding(
+                id="FIND-VAX",
+                finding_type=FindingType.VACCINATION_COVERAGE_OBSERVED,
+                subject_id=latest_vax.id,
+                statement=f"Aggregate vaccination coverage {latest_vax.percentage}% observed for eligible population.",
+                verification_state=VerificationState.SUPPORTED,
+                population_id=latest_vax.population_id,
+                geography=geo,
+                time_period=latest_vax.time_period,
+                metric=latest_vax.metric.value,
+                denominator=latest_vax.denominator,
+                source_ids=[latest_vax.source_id],
+                evidence_ids=latest_vax.evidence_ids,
+                limitations=[
+                    "Doses allocated, delivered, and administered are distinct.",
+                    "Coverage does not equal individual immunity or effectiveness without studies.",
+                ],
+            ))
+
+        if latest_stock and latest_stock.percentage is not None and latest_stock.percentage >= 10:
+            self.add_finding(Finding(
+                id="FIND-SUPPLY",
+                finding_type=FindingType.MEDICINE_SUPPLY_CONSTRAINT_OBSERVED,
+                subject_id=latest_stock.id,
+                statement=f"Aggregate medicine stockout rate {latest_stock.percentage}% observed.",
+                verification_state=VerificationState.OBSERVED,
+                population_id=latest_stock.population_id,
+                geography=geo,
+                time_period=latest_stock.time_period,
+                metric=latest_stock.metric.value,
+                source_ids=[latest_stock.source_id],
+                evidence_ids=latest_stock.evidence_ids,
+                limitations=[
+                    "Shortage is not zero availability everywhere.",
+                    "Supply chain root cause requires SUPPLYCHAININT.",
+                    "No individual medication recommendation is made.",
+                ],
+                specialist_handoff="SUPPLYCHAININT / PROCUREMENTINT",
+            ))
+
+        if latest_air or latest_heat:
+            self.add_finding(Finding(
+                id="FIND-ENV",
+                finding_type=FindingType.ENVIRONMENTAL_CORRELATION_CANDIDATE,
+                subject_id="ENV-CONTEXT",
+                statement=(
+                    f"Environmental health context observed: PM2.5={latest_air.value if latest_air else 'UNKNOWN'} "
+                    f"{latest_air.unit if latest_air else ''}, heat index={latest_heat.value if latest_heat else 'UNKNOWN'} "
+                    f"{latest_heat.unit if latest_heat else ''}."
+                ),
+                verification_state=VerificationState.CANDIDATE,
+                population_id="POP-NB-ALL",
+                geography=geo,
+                time_period=self.as_of,
+                source_ids=sorted({x.source_id for x in [latest_air, latest_heat] if x}),
+                evidence_ids=sorted({eid for x in [latest_air, latest_heat] if x for eid in x.evidence_ids}),
+                limitations=[
+                    "Environmental exposure correlation is not individual causation.",
+                    "Ecological fallacy avoided.",
+                    "No harmful contamination methods are provided.",
+                ],
+            ))
+
+        if latest_misinfo:
+            self.add_finding(Finding(
+                id="FIND-MISINFO",
+                finding_type=FindingType.MISINFORMATION_REACH_OBSERVED,
+                subject_id=latest_misinfo.id,
+                statement=(
+                    f"Public misinformation/concern signal reach {latest_misinfo.value} {latest_misinfo.unit} observed; "
+                    "this is not disease prevalence."
+                ),
+                verification_state=VerificationState.OBSERVED,
+                population_id=latest_misinfo.population_id,
+                geography=geo,
+                time_period=latest_misinfo.time_period,
+                metric=latest_misinfo.metric.value,
+                source_ids=[latest_misinfo.source_id],
+                evidence_ids=latest_misinfo.evidence_ids,
+                limitations=[
+                    "Search/social activity may reflect concern, media coverage, or information seeking.",
+                    "No named-user health inference.",
+                    "Intent is not inferred as disinformation without evidence.",
+                ],
+                specialist_handoff="DISINFOINT / SOCMINT",
+            ))
+
+        if self.outbreak_state in {
+            OutbreakSignalState.ELEVATED_SIGNAL,
+            OutbreakSignalState.OUTBREAK_CANDIDATE,
+            OutbreakSignalState.OUTBREAK_SUPPORTED,
+        }:
+            self.add_finding(Finding(
+                id="FIND-OUTBREAK-SIGNAL",
+                finding_type=FindingType.OUTBREAK_CANDIDATE,
+                subject_id="OUTBREAK-SIGNAL-NORTHBRIDGE",
+                statement=(
+                    f"Population-level outbreak signal state is {self.outbreak_state.value} based on syndromic, "
+                    "laboratory, wastewater, and hospital capacity context."
+                ),
+                verification_state=VerificationState.CANDIDATE,
+                population_id="POP-NB-ALL",
+                geography=geo,
+                time_period=self.as_of,
+                source_ids=["SRC-MOH", "SRC-LAB", "SRC-WW", "SRC-HOSP"],
+                evidence_ids=["EV-MOH-WEEKLY", "EV-LAB-WEEKLY", "EV-WW-WEEKLY", "EV-HOSP-WEEKLY"],
+                limitations=[
+                    "HEALTHINT does not officially declare outbreaks.",
+                    "Alternative explanations remain: testing change, reporting artifact, seasonality, case-definition change, healthcare-seeking behavior.",
+                    "Human public-health authority required for consequential action.",
+                ],
+                specialist_handoff="HUMAN_PUBLIC_HEALTH_AUTHORITY",
+            ))
+
+        self.add_finding(Finding(
+            id="FIND-NO-OFFICIAL-DECLARATION",
+            finding_type=FindingType.OFFICIAL_OUTBREAK_NOT_DECLARED,
+            subject_id="GOVERNANCE",
+            statement="No autonomous official outbreak declaration is made by HEALTHINT.",
+            verification_state=VerificationState.SUPPORTED,
+            source_ids=[],
+            evidence_ids=[],
+            limitations=["Only competent public-health authorities may declare official emergencies/outbreaks where relevant."],
+        ))
+
+        self.add_finding(Finding(
+            id="FIND-NO-DIAGNOSIS",
+            finding_type=FindingType.NO_INDIVIDUAL_DIAGNOSIS,
+            subject_id="GOVERNANCE",
+            statement="No individual diagnosis, prescription, treatment change, or personal medical profiling is performed.",
+            verification_state=VerificationState.SUPPORTED,
+            source_ids=[],
+            evidence_ids=[],
+            limitations=["Clinical care belongs to qualified healthcare professionals and appropriate clinical systems."],
+        ))
+
+        self.add_finding(Finding(
+            id="FIND-BIOSECURITY",
+            finding_type=FindingType.BIOSECURITY_BOUNDARY_ENFORCED,
+            subject_id="GOVERNANCE",
+            statement="No pathogen engineering, virulence/transmissibility optimization, immune-evasion engineering, biological attack planning, or contamination methods are provided.",
+            verification_state=VerificationState.SUPPORTED,
+            source_ids=[],
+            evidence_ids=[],
+            limitations=["Analysis remains public-health, biosafety, preparedness, surveillance, and response oriented."],
+        ))
+
+        self.add_finding(Finding(
+            id="FIND-STIGMA",
+            finding_type=FindingType.STIGMATIZATION_CONTROL,
+            subject_id="GOVERNANCE",
+            statement="No ethnic, religious, national, occupational, or neighborhood group is labeled as disease carrier.",
+            verification_state=VerificationState.SUPPORTED,
+            source_ids=[],
+            evidence_ids=[],
+            limitations=["Neutral epidemiological language required."],
+        ))
+
+    def detect_source_dependencies_and_contradictions(self) -> None:
+        # News derived from ministry bulletin.
+        news = self.sources.get("SRC-NEWS")
+        moh = self.sources.get("SRC-MOH")
+        if news and moh and news.derived_from == moh.id:
+            self.add_finding(Finding(
+                id="FIND-NEWS-DEP",
+                finding_type=FindingType.SOURCE_DEPENDENCY_OBSERVED,
+                subject_id="SRC-NEWS",
+                statement="News report derives from the same ministry bulletin and is not independent corroboration.",
+                verification_state=VerificationState.SUPPORTED,
+                source_ids=["SRC-NEWS", "SRC-MOH"],
+                evidence_ids=["EV-NEWS", "EV-MOH-WEEKLY"],
+                limitations=["Multiple dashboards/articles using same upstream data count as one evidence family."],
+            ))
+
+        # Contradiction: news count vs ministry count due case definition / dependency.
+        latest_moh = self.latest_observation(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY)
+        latest_news = self.latest_observation(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SELF_REPORTED)
+        if latest_moh and latest_news and latest_moh.numerator is not None and latest_news.numerator is not None:
+            if abs(float(latest_moh.numerator) - float(latest_news.numerator)) > 20:
+                desc = (
+                    f"News-reported respiratory presentations ({latest_news.numerator}) differ from ministry syndromic count "
+                    f"({latest_moh.numerator}); case definition and source dependency may explain difference."
+                )
+                fid = new_id("FIND-CONTRA-NEWS-", desc)
+                self.add_finding(Finding(
+                    id=fid,
+                    finding_type=FindingType.CONTRADICTION_OBSERVED,
+                    subject_id="NEWS-VS-MOH",
+                    statement=desc,
+                    verification_state=VerificationState.DISPUTED,
+                    population_id="POP-NB-ALL",
+                    geography="Northbridge",
+                    time_period=self.as_of,
+                    source_ids=["SRC-MOH", "SRC-NEWS"],
+                    evidence_ids=["EV-MOH-WEEKLY", "EV-NEWS"],
+                    limitations=[
+                        "Do not average incompatible metrics.",
+                        "Preserve case-definition differences.",
+                    ],
+                ))
+                self.add_contradiction(Contradiction(
+                    id=new_id("CON-", desc),
+                    contradiction_type="COUNT_CASE_DEFINITION_SOURCE_DEPENDENCY",
+                    description=desc,
+                    subject_ids=[latest_moh.id, latest_news.id],
+                    finding_ids=[fid],
+                    evidence_ids=["EV-MOH-WEEKLY", "EV-NEWS"],
+                    source_ids=["SRC-MOH", "SRC-NEWS"],
+                    severity="MEDIUM",
+                    status="OPEN",
+                    recommended_resolution="Use official syndromic definition for trend; treat news as dependent/public-concern context.",
+                ))
+
+        # Provisional data limitation.
+        provisional = [o for o in self.observations.values() if o.provisional and not o.suppressed]
+        if provisional:
+            self.add_finding(Finding(
+                id="FIND-PROVISIONAL",
+                finding_type=FindingType.PROVISIONAL_DATA_OBSERVED,
+                subject_id="DATA_QUALITY",
+                statement=f"{len(provisional)} observations are provisional and may be revised by backfill.",
+                verification_state=VerificationState.SUPPORTED,
+                source_ids=sorted({o.source_id for o in provisional}),
+                evidence_ids=sorted({eid for o in provisional for eid in o.evidence_ids}),
+                limitations=["Provisional surveillance must not be treated as final."],
+            ))
+
+    def build_hypotheses(self) -> None:
+        self.hypotheses = [
+            Hypothesis(
+                id="H-TRUE-TRANSMISSION",
+                statement="Observed increase represents true population-level disease transmission increase.",
+                kind="OUTBREAK_CAUSE",
+                supporting_finding_ids=["FIND-ELEVATED-RESP", "FIND-LAB-POS", "FIND-WW"],
+                assumptions=["Signals are independent and case definitions stable."],
+                predictions=["Hospitalizations and lab pathogen-specific confirmations would rise with matched timing."],
+                falsification_conditions=[
+                    "Testing volume alone explains case increase.",
+                    "Reporting backlog released.",
+                    "Case definition changed.",
+                    "Seasonal baseline explains pattern.",
+                ],
+                status=HypothesisStatus.POSSIBLE,
+                confidence=0.58,
+                limitations=["Correlation is not causation.", "Human epidemiological investigation required."],
+            ),
+            Hypothesis(
+                id="H-TESTING-ARTIFACT",
+                statement="Increase is mainly due to expanded testing or changed testing criteria.",
+                kind="REPORTING_ARTIFACT",
+                contradicting_finding_ids=["FIND-LAB-POS"],
+                assumptions=["Test volume increased substantially."],
+                predictions=["Positivity would remain flat or decline if purely testing artifact."],
+                falsification_conditions=["Positivity rises alongside volume and wastewater/hospital signals move."],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.35,
+                limitations=["Testing volume must be interpreted with positivity and eligibility."],
+            ),
+            Hypothesis(
+                id="H-REPORTING-BACKLOG",
+                statement="Increase reflects reporting backlog rather than new events.",
+                kind="DATA_QUALITY",
+                assumptions=["Specimen/event dates differ from report dates."],
+                predictions=["Backfilled historical periods would show delayed spike."],
+                falsification_conditions=["Event-date series shows same recent increase."],
+                status=HypothesisStatus.UNRESOLVED,
+                confidence=0.30,
+                limitations=["Reporting delay metadata unavailable in sample."],
+            ),
+            Hypothesis(
+                id="H-SEASONALITY",
+                statement="Increase is consistent with seasonal respiratory activity.",
+                kind="SEASONALITY",
+                supporting_finding_ids=["FIND-ELEVATED-RESP"],
+                assumptions=["Historical seasonal baseline is appropriate."],
+                predictions=["Similar pattern would appear in prior years."],
+                falsification_conditions=["Current level exceeds historical seasonal envelope."],
+                status=HypothesisStatus.POSSIBLE,
+                confidence=0.45,
+                limitations=["Seasonality does not exclude outbreak signal."],
+            ),
+            Hypothesis(
+                id="H-CASE-DEFINITION-CHANGE",
+                finding_ids_placeholder := None,  # intentionally removed below
+            ),
+        ]
+        # Replace malformed last hypothesis cleanly.
+        self.hypotheses[-1] = Hypothesis(
+            id="H-CASE-DEFINITION-CHANGE",
+            statement="Increase is partly due to case-definition or coding change.",
+            kind="SURVEILLANCE_CHANGE",
+            assumptions=["Definition version history is available."],
+            predictions=["Stratified series by old/new definition would show discontinuity."],
+            falsification_conditions=["Definition unchanged and lab/wastewater move independently."],
+            status=HypothesisStatus.UNRESOLVED,
+            confidence=0.25,
+            limitations=["Case-definition versioning is required for trend interpretation."],
+        )
+
+    def build_knowledge_gaps(self) -> None:
+        self.gaps = [
+            KnowledgeGap(
+                id="GAP-LAB-PATHOGEN-SPECIFIC",
+                gap_type=GapType.LAB_CONFIRMATION_UNAVAILABLE,
+                description="Pathogen-specific laboratory confirmation and fraction typing are incomplete for syndrome signal.",
+                about_subject_ids=["FIND-ELEVATED-RESP", "FIND-LAB-POS"],
+                importance="HIGH",
+                recommended_source="Authorized laboratory network pathogen-specific summary",
+                specialist="HEALTHINT / ACADEMICINT",
+                expected_information_value=0.85,
+            ),
+            KnowledgeGap(
+                id="GAP-REPORTING-DELAY",
+                gap_type=GapType.REPORTING_DELAY_UNKNOWN,
+                description="Event/specimen/report/publication date separation is unavailable in sample.",
+                about_subject_ids=["FIND-PROVISIONAL"],
+                importance="HIGH",
+                recommended_source="Surveillance metadata with event_date, specimen_date, report_date, publication_date",
+                specialist="HEALTHINT / DOCINT",
+                expected_information_value=0.80,
+            ),
+            KnowledgeGap(
+                id="GAP-HOSPITAL-STAFFING",
+                gap_type=GapType.HOSPITAL_CAPACITY_STALE,
+                description="Staffed/operational/available bed distinction and healthcare-worker staffing context unavailable.",
+                about_subject_ids=["FIND-HOSP-STRESS", "FIND-ICU"],
+                importance="MEDIUM",
+                recommended_source="Authorized hospital capacity dashboard with staffing and operational bed counts",
+                specialist="ORGINT / HEALTHINT",
+                expected_information_value=0.75,
+            ),
+            KnowledgeGap(
+                id="GAP-SUPPLY-ROOT-CAUSE",
+                gap_type=GapType.SUPPLY_CHAIN_ROOT_CAUSE_UNKNOWN,
+                description="Medicine stockout root cause, distributor allocation, and regional formulation availability unknown.",
+                about_subject_ids=["FIND-SUPPLY"],
+                importance="MEDIUM",
+                recommended_source="Authorized medicine supply notices and procurement records",
+                specialist="SUPPLYCHAININT / PROCUREMENTINT",
+                expected_information_value=0.70,
+            ),
+            KnowledgeGap(
+                id="GAP-GENOMIC-CONTEXT",
+                gap_type=GapType.GENOMIC_CONTEXT_UNAVAILABLE,
+                description="Public lineage/variant prevalence summaries unavailable; variant severity cannot be assessed.",
+                about_subject_ids=["FIND-OUTBREAK-SIGNAL"],
+                importance="MEDIUM",
+                recommended_source="Authorized/public genomic surveillance summaries",
+                specialist="HEALTHINT / ACADEMICINT",
+                expected_information_value=0.65,
+            ),
+            KnowledgeGap(
+                id="GAP-PRIVACY-FINER",
+                gap_type=GapType.PRIVACY_THRESHOLD_PREVENTS_FINER_ANALYSIS,
+                description="Small-cell suppression prevents finer pediatric/rare syndrome analysis to protect privacy.",
+                about_subject_ids=["OBS-PED-RARE"],
+                importance="HIGH",
+                recommended_source="Further aggregation or authorized privacy-preserving analytics",
+                specialist="LEGALINT / PRIVACY_OFFICER",
+                expected_information_value=0.40,
+            ),
+        ]
+
+    def build_next_actions(self) -> None:
+        self.actions = [
+            NextAction(
+                id="ACT-VALIDATE-LAB",
+                description="Retrieve latest pathogen-specific laboratory confirmation and testing criteria/volume context before promoting syndrome signal.",
+                priority=1,
+                privacy_impact="LOW",
+                expected_gain=0.90,
+                specialist="HEALTHINT / LABORATORY NETWORK",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-CHECK-REPORTING-DELAY",
+                description="Obtain event/specimen/report/publication date metadata and backfill history.",
+                priority=2,
+                privacy_impact="LOW",
+                expected_gain=0.85,
+                specialist="HEALTHINT / DOCINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-VERIFY-CASE-DEF",
+                description="Verify case-definition versions and coding changes over the surveillance window.",
+                priority=3,
+                privacy_impact="LOW",
+                expected_gain=0.80,
+                specialist="HEALTHINT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-CAPACITY-DETAIL",
+                description="Obtain staffed/operational/available bed counts, ICU staffing, ambulance/lab turnaround, and oxygen/PPE stock context.",
+                priority=4,
+                privacy_impact="MEDIUM_IF_AUTHORIZED",
+                expected_gain=0.80,
+                specialist="ORGINT / SUPPLYCHAININT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-SUPPLY-HANDOFF",
+                description="Hand medicine stockout dependency analysis to SUPPLYCHAININT / PROCUREMENTINT.",
+                priority=5,
+                privacy_impact="LOW",
+                expected_gain=0.70,
+                specialist="SUPPLYCHAININT",
+                requires_human_approval=False,
+            ),
+            NextAction(
+                id="ACT-AGGREGATE-PRIVACY",
+                description="If small-cell risk remains, aggregate further by region/age band/time and suppress sensitive counts.",
+                priority=6,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.75,
+                specialist="PRIVACY_OFFICER / LEGALINT",
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-COMMUNICATION",
+                description="Support transparent public-health communication; avoid stigma, covert manipulation, and individual targeting.",
+                priority=7,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.70,
+                specialist="PUBLIC_HEALTH_COMMUNICATION / DISINFOINT",
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-HUMAN-REVIEW",
+                description="Require qualified human public-health review before outbreak declaration, quarantine/isolation policy action, or resource rationing.",
+                priority=8,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.95,
+                specialist="HUMAN_PUBLIC_HEALTH_AUTHORITY",
+                requires_human_approval=True,
+            ),
+            NextAction(
+                id="ACT-NO-HARM",
+                description="Do not diagnose individuals, access private records, reidentify patients, engineer pathogens, or provide biological harm methods.",
+                priority=99,
+                privacy_impact="PROTECTIVE",
+                expected_gain=0.0,
+                specialist=None,
+                requires_human_approval=False,
+            ),
+        ]
+
+    def build_recommendations(self) -> None:
+        self.recommendations = [
+            Recommendation(
+                id="REC-NO-INDIVIDUAL-DIAGNOSIS",
+                category="CLINICAL_BOUNDARY",
+                action="Do not convert syndromic or lab aggregates into individual diagnoses.",
+                target="All outputs",
+                rationale="Population surveillance is not clinical diagnosis.",
+                finding_ids=["FIND-NO-DIAGNOSIS"],
+                approval="AUTONOMOUS_ANALYTIC",
+                limitations=["Individual care belongs to qualified healthcare professionals."],
+            ),
+            Recommendation(
+                id="REC-NO-AUTONOMOUS-DECLARATION",
+                category="GOVERNANCE",
+                action="Do not autonomously declare outbreak or emergency; route to competent authority.",
+                target="Outbreak signal",
+                rationale="Official declarations require human public-health authority.",
+                finding_ids=["FIND-OUTBREAK-SIGNAL", "FIND-NO-OFFICIAL-DECLARATION"],
+                approval="HUMAN_PUBLIC_HEALTH_REVIEW_REQUIRED",
+                limitations=["AI assists; humans govern consequential actions."],
+            ),
+            Recommendation(
+                id="REC-SMALL-CELL",
+                category="PRIVACY",
+                action="Maintain small-cell suppression and further aggregation for sensitive pediatric/rare signals.",
+                target="OBS-PED-RARE",
+                rationale="Reidentification risk exceeds analytic benefit.",
+                finding_ids=["FIND-SMALLCELL-OBS-PED-RARE"],
+                approval="PRIVACY_OFFICER_REVIEW",
+                limitations=["Do not attempt reidentification."],
+            ),
+            Recommendation(
+                id="REC-INDEPENDENT-SOURCES",
+                category="EVIDENCE",
+                action="Treat news/social signals as dependent or public-concern context, not independent outbreak confirmation.",
+                target="SRC-NEWS / SRC-SOCIAL",
+                rationale="Source pedigree shows dependency and low reliability for clinical verification.",
+                finding_ids=["FIND-NEWS-DEP", "FIND-MISINFO"],
+                approval="AUTONOMOUS_ANALYTIC",
+                limitations=["Multiple dashboards using same data are one evidence family."],
+            ),
+            Recommendation(
+                id="REC-NO-STIGMA",
+                category="ETHICS",
+                action="Use neutral geographic/population language; avoid naming tiny communities or groups as carriers.",
+                target="Reports",
+                rationale="Stigmatization can harm public-health response and civil rights.",
+                finding_ids=["FIND-STIGMA"],
+                approval="HUMAN_REVIEW",
+                limitations=["Place stigma control required."],
+            ),
+            Recommendation(
+                id="REC-BIOSECURITY",
+                category="BIOSECURITY",
+                action="Keep genomic/variant analysis descriptive/public-health oriented; no engineering or attack planning.",
+                target="Genomic context",
+                rationale="Biosecurity boundary is non-negotiable.",
+                finding_ids=["FIND-BIOSECURITY"],
+                approval="AUTONOMOUS_ANALYTIC",
+                limitations=["Allowed: biosafety, preparedness, surveillance, detection, response."],
+            ),
+        ]
+
+    def build_handoffs(self) -> None:
+        self.handoffs = [
+            {"specialist": "SUPPLYCHAININT", "reason": "Medicine/PPE/oxygen/cold-chain dependency and shortage root cause."},
+            {"specialist": "PROCUREMENTINT", "reason": "Authorized procurement/allocation context."},
+            {"specialist": "ORGINT", "reason": "Health agency/hospital system responsibilities and organizational capacity."},
+            {"specialist": "GEOINT", "reason": "Administrative boundaries, travel corridors, environmental layers without private-person locations."},
+            {"specialist": "DISINFOINT", "reason": "Misinformation network attribution and intent analysis."},
+            {"specialist": "SOCMINT", "reason": "Public social signal aggregation with privacy controls."},
+            {"specialist": "ACADEMICINT", "reason": "Scientific literature, studies, guidelines, and evidence grading."},
+            {"specialist": "LEGALINT", "reason": "Health privacy, data-use agreements, purpose limitation, and legal review."},
+            {"specialist": "CYBINT / INCIDENTINT", "reason": "If health-system cyber incident affects surveillance or care delivery."},
+            {"specialist": "HUMAN_PUBLIC_HEALTH_AUTHORITY", "reason": "Outbreak declaration, quarantine/isolation policy, resource rationing, and consequential actions."},
+        ]
+
+    def fact_gate_findings(self) -> None:
+        for f in self.findings.values():
+            srcs = [self.sources[sid] for sid in f.source_ids if sid in self.sources]
+            if not srcs:
+                f.confidence = 0.0 if f.finding_type not in {
+                    FindingType.NO_INDIVIDUAL_DIAGNOSIS,
+                    FindingType.BIOSECURITY_BOUNDARY_ENFORCED,
+                    FindingType.STIGMATIZATION_CONTROL,
+                    FindingType.OFFICIAL_OUTBREAK_NOT_DECLARED,
+                    FindingType.PRIVACY_AGGREGATION_ENFORCED,
+                } else 0.99
+                if f.verification_state == VerificationState.OBSERVED:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                f.limitations.append("No mapped source for fact gate; governance finding may still be policy-supported.")
+                continue
+
+            families = self.source_families(f.source_ids)
+            max_rel = max((s.reliability for s in srcs), default=0.5)
+            direct = max((SOURCE_FACTOR.get(s.source_type, 0.65) for s in srcs), default=0.65)
+            base = max_rel * direct
+
+            if len(families) >= 2:
+                base = min(0.99, base * 1.05)
+            elif len(families) == 1 and len(f.source_ids) > 1:
+                base *= 0.90
+                f.limitations.append("Multiple sources share one upstream source family.")
+
+            ft = f.finding_type
+            if ft == FindingType.POPULATION_LEVEL_SIGNAL_OBSERVED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.append("Population-level only; no individual inference.")
+
+            elif ft == FindingType.ELEVATED_RESPIRATORY_ACTIVITY:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.PARTIALLY_SUPPORTED
+                f.limitations.extend([
+                    "Syndromic increase is not disease-specific diagnosis.",
+                    "Alternative explanations must be tested.",
+                ])
+
+            elif ft == FindingType.LAB_POSITIVITY_INCREASE:
+                f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                base = min(base, 0.82)
+                f.limitations.append("Positivity depends on testing volume, criteria, and selection effects.")
+
+            elif ft == FindingType.WASTEWATER_UPWARD_SIGNAL:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.70 else VerificationState.OBSERVED
+                f.limitations.append("Wastewater is not exact case count.")
+
+            elif ft == FindingType.HOSPITAL_CAPACITY_STRESS_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.78)
+                f.limitations.append("Capacity stress requires staffing/operational bed context.")
+
+            elif ft == FindingType.MEDICINE_SUPPLY_CONSTRAINT_OBSERVED:
+                f.verification_state = VerificationState.OBSERVED
+                f.specialist_handoff = f.specialist_handoff or "SUPPLYCHAININT"
+                f.limitations.append("Supply claim is not inventory or individual treatment guidance.")
+
+            elif ft == FindingType.VACCINATION_COVERAGE_OBSERVED:
+                f.verification_state = VerificationState.SUPPORTED if base >= 0.72 else VerificationState.OBSERVED
+                f.limitations.append("Coverage is not individual immunity or effectiveness.")
+
+            elif ft == FindingType.ENVIRONMENTAL_CORRELATION_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.65)
+                f.limitations.append("Population correlation is not individual causation.")
+
+            elif ft in {FindingType.MISINFORMATION_REACH_OBSERVED, FindingType.PUBLIC_CONCERN_NOT_PREVALENCE}:
+                f.verification_state = VerificationState.OBSERVED
+                base = min(base, 0.65)
+                f.limitations.append("Public concern is not disease prevalence.")
+
+            elif ft == FindingType.OUTBREAK_CANDIDATE:
+                f.verification_state = VerificationState.CANDIDATE
+                base = min(base, 0.75)
+                f.specialist_handoff = "HUMAN_PUBLIC_HEALTH_AUTHORITY"
+                f.limitations.extend([
+                    "Not an official outbreak declaration.",
+                    "Requires epidemiological investigation and independent corroboration.",
+                ])
+
+            elif ft == FindingType.SOURCE_DEPENDENCY_OBSERVED:
+                f.verification_state = VerificationState.SUPPORTED
+                f.limitations.append("Do not count dependent sources as independent confirmation.")
+
+            elif ft == FindingType.SMALL_CELL_SUPPRESSED:
+                f.verification_state = VerificationState.SUPPORTED
+                base = 0.99
+                f.limitations.append("Privacy suppression enforced.")
+
+            elif ft == FindingType.CONTRADICTION_OBSERVED:
+                f.verification_state = VerificationState.DISPUTED
+                base = min(base, 0.80)
+                f.limitations.append("Preserve contradictory counts and definitions.")
+
+            elif ft == FindingType.PROVISIONAL_DATA_OBSERVED:
+                f.verification_state = VerificationState.SUPPORTED
+                f.limitations.append("Provisional data may be revised.")
+
+            elif ft in {
+                FindingType.NO_INDIVIDUAL_DIAGNOSIS,
+                FindingType.BIOSECURITY_BOUNDARY_ENFORCED,
+                FindingType.STIGMATIZATION_CONTROL,
+                FindingType.OFFICIAL_OUTBREAK_NOT_DECLARED,
+                FindingType.PRIVACY_AGGREGATION_ENFORCED,
+            }:
+                f.verification_state = VerificationState.SUPPORTED
+                f.confidence = 0.99
+                continue
+
+            else:
+                if base >= 0.75:
+                    f.verification_state = VerificationState.SUPPORTED
+                elif base >= 0.60:
+                    f.verification_state = VerificationState.PARTIALLY_SUPPORTED
+                elif base >= 0.40:
+                    f.verification_state = VerificationState.INCONCLUSIVE
+                else:
+                    f.verification_state = VerificationState.UNSUPPORTED
+
+            f.confidence = round(max(0.0, min(0.99, base)), 3)
+
+    def build_data_quality(self) -> None:
+        total = len(self.observations)
+        suppressed = sum(1 for o in self.observations.values() if o.suppressed)
+        provisional = sum(1 for o in self.observations.values() if o.provisional and not o.suppressed)
+        missing_denom = sum(1 for o in self.observations.values() if not o.suppressed and o.denominator is None and o.metric in {
+            MetricType.RESPIRATORY_PRESENTATIONS,
+            MetricType.LAB_CONFIRMED_CASES,
+            MetricType.HOSPITALIZATIONS,
+            MetricType.DEATHS,
+        })
+        self.data_quality = {
+            "as_of": self.as_of,
+            "observation_count": total,
+            "suppressed_count": suppressed,
+            "provisional_count": provisional,
+            "missing_denominator_count": missing_denom,
+            "small_cell_threshold": SMALL_CELL_THRESHOLD,
+            "state": DataQualityState.FAIR.value if missing_denom == 0 and provisional < total * 0.5 else DataQualityState.POOR.value,
+            "guardrails": [
+                "Data quality does not justify individual inference.",
+                "Provisional data must be labeled and revised historically.",
+                "Missing data is not imputed silently.",
+            ],
+        }
+
+    def dual_ai_review(self) -> Dict[str, Any]:
+        issues: List[str] = []
+
+        if any(f.finding_type == FindingType.OUTBREAK_CANDIDATE for f in self.findings.values()):
+            issues.append("Outbreak candidate remains candidate-only; official declaration requires human authority.")
+
+        if any(f.finding_type == FindingType.LAB_POSITIVITY_INCREASE for f in self.findings.values()):
+            issues.append("Laboratory positivity must be interpreted with testing volume/criteria.")
+
+        if any(f.finding_type == FindingType.SOURCE_DEPENDENCY_OBSERVED for f in self.findings.values()):
+            issues.append("Some public/news sources are dependent on official bulletin.")
+
+        if any(f.finding_type == FindingType.SMALL_CELL_SUPPRESSED for f in self.findings.values()):
+            issues.append("Small-cell suppression limits finer pediatric/rare analysis.")
+
+        if any(f.finding_type == FindingType.PROVISIONAL_DATA_OBSERVED for f in self.findings.values()):
+            issues.append("Provisional surveillance may be revised.")
+
+        if self.contradictions:
+            issues.append(f"{len(self.contradictions)} contradiction(s) remain open.")
+
+        if not issues:
+            verdict = "AGREE"
+        elif len(issues) <= 5:
+            verdict = "PARTIAL_AGREEMENT"
+        else:
+            verdict = "INSUFFICIENT_EVIDENCE"
+
+        return {
+            "primary_public_health_analyst": (
+                "Synthetic authorized aggregated corpus supports elevated respiratory activity in Northbridge, "
+                "with partial laboratory and wastewater corroboration and hospital occupancy stress candidate. "
+                "Signal is population-level only and not an official outbreak declaration."
+            ),
+            "independent_epidemiology_skeptic_issues": issues,
+            "verdict": verdict,
+            "adversarial_checks": [
+                "Is individual diagnosis performed? No.",
+                "Are small cells suppressed? Yes.",
+                "Are dependent sources counted as independent? No.",
+                "Is syndromic case treated as confirmed disease? No.",
+                "Is wastewater treated as case count? No.",
+                "Is correlation treated as causation? No.",
+                "Is pathogen engineering or biological harm enabled? No.",
+                "Is stigmatizing group attribution avoided? Yes.",
+            ],
+            "note": "AI agreement is analytical agreement, not independent epidemiological evidence.",
+        }
+
+    def analyst_summary(self, dual: Dict[str, Any]) -> str:
+        syndromic = self.latest_observation(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY)
+        lab = self.latest_observation(MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED)
+        ww = self.latest_observation(MetricType.WASTEWATER_SIGNAL)
+        hosp = self.latest_observation(MetricType.HOSPITAL_OCCUPANCY)
+        vax = self.latest_observation(MetricType.VACCINATION_COVERAGE)
+        stock = self.latest_observation(MetricType.MEDICINE_STOCKOUT_RATE)
+
+        lines = [
+            "PUBLIC-HEALTH QUESTION: Is elevated respiratory activity supported by independent population-level signals in Northbridge?",
+            "POPULATION: Northbridge all ages, aggregate denominator used.",
+            "GEOGRAPHY: Region-level aggregation; no private-person locations.",
+            "TIME PERIOD: 2026-09-07 to 2026-10-05 weekly surveillance.",
+            "CONDITION / SYNDROME: Respiratory illness syndrome; pathogen-specific confirmation incomplete.",
+            "CASE DEFINITION: SYNDROMIC_RESPIRATORY; not individual diagnosis.",
+            "",
+            "CURRENT SIGNAL:",
+            f"- Syndromic respiratory presentations latest: {syndromic.numerator if syndromic else 'UNKNOWN'}.",
+            f"- Laboratory positivity latest: {lab.percentage if lab and lab.percentage is not None else 'UNKNOWN'}%.",
+            f"- Wastewater normalized signal latest: {ww.value if ww else 'UNKNOWN'} {ww.unit if ww else ''}.",
+            f"- Hospital occupancy latest: {hosp.percentage if hosp and hosp.percentage is not None else 'UNKNOWN'}%.",
+            f"- Vaccination coverage latest: {vax.percentage if vax and vax.percentage is not None else 'UNKNOWN'}%.",
+            f"- Medicine stockout rate latest: {stock.percentage if stock and stock.percentage is not None else 'UNKNOWN'}%.",
+            "",
+            "ASSESSMENT:",
+            f"- OUTBREAK_SIGNAL_STATE = {self.outbreak_state.value}.",
+            "- ELEVATED_RESPIRATORY_ACTIVITY = SUPPORTED at population level.",
+            "- PATHOGEN_SPECIFIC_OUTBREAK = PARTIALLY_SUPPORTED / requires laboratory verification.",
+            "- OFFICIAL_OUTBREAK_DECLARATION = NOT MADE / human authority required.",
+            "- INDIVIDUAL_DIAGNOSIS = NOT PERMITTED / NOT INFERRED.",
+            "",
+            "ALTERNATIVE EXPLANATIONS:",
+            "- Testing volume/criteria change.",
+            "- Reporting delay/backfill.",
+            "- Case-definition change.",
+            "- Seasonality.",
+            "- Healthcare-seeking behavior/media coverage.",
+            "",
+            "PRIVACY / BIOSECURITY:",
+            "- Small-cell sensitive pediatric/rare signal suppressed.",
+            "- No reidentification, no covert surveillance, no pathogen engineering, no biological attack planning.",
+            "",
+            f"DUAL-AI REVIEW: {dual['verdict']}.",
+            "NEXT ACTION: Validate pathogen-specific lab data, reporting-delay metadata, case-definition versions, and operational hospital capacity; hand supply questions to SUPPLYCHAININT; route declaration/action to human public-health authority.",
+        ]
+        return "\n".join(lines)
+
+    def prepare(self) -> None:
+        self.privacy_gate()
+        self.compute_rates_and_percentages()
+        self.temporal_analysis()
+        self.assess_outbreak_signal()
+        self.build_core_findings()
+        self.detect_source_dependencies_and_contradictions()
+        self.build_hypotheses()
+        self.build_knowledge_gaps()
+        self.build_next_actions()
+        self.build_recommendations()
+        self.build_handoffs()
+        self.fact_gate_findings()
+        self.build_data_quality()
+
+
+# =====================================================================
+# SAMPLE DATA
+# =====================================================================
+
+def sample_case() -> Case:
+    return Case(
+        case_id="SAMPLE-HEALTHINT-001",
+        task_id="TASK-HEALTHINT-001",
+        objective=(
+            "Authorized population-level public-health intelligence review for respiratory illness signals in "
+            "Northbridge region using synthetic aggregated public/authorized-style surveillance, laboratory, "
+            "wastewater, hospital capacity, vaccination, supply, environmental, and public-communication context."
+        ),
+        questions=[
+            "Is elevated respiratory activity supported at population level?",
+            "Which signals are independent versus dependent?",
+            "What alternative explanations remain?",
+            "Is healthcare capacity stressed?",
+            "What privacy and biosecurity boundaries apply?",
+            "What human public-health actions should be considered?",
+        ],
+        scope=[
+            "authorized_population_level_public_health",
+            "privacy_first",
+            "evidence_first",
+            "human_governed",
+            "no_individual_diagnosis",
+            "no_biosecurity_harm",
+        ],
+        authorization="demo_authorized_public_health_intelligence",
+        region="Northbridge",
+        population="POP-NB-ALL",
+        condition="respiratory illness",
+        time_range="2026-09-07/2026-10-05",
+        as_of=DEFAULT_AS_OF,
+        sample=True,
+    )
+
+
+def build_sample_healthint() -> HealthInt:
+    h = HealthInt(sample_case())
+    retrieved = now_iso()
+
+    # Sources
+    h.add_source(Source(
+        id="SRC-MOH",
+        title="Synthetic Ministry of Health weekly respiratory surveillance bulletin",
+        url="https://health.example/moh/weekly-respiratory",
+        source_type=SourceType.MINISTRY_HEALTH,
+        independence_group="MOH_ROOT",
+        reliability=0.92,
+        published_at="2026-10-07T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Official aggregated syndromic surveillance; provisional possible.",
+    ))
+    h.add_source(Source(
+        id="SRC-WHO-DASH",
+        title="Synthetic international health dashboard ingesting ministry data",
+        url="https://dash.example/regional-respiratory",
+        source_type=SourceType.INTERNATIONAL_HEALTH,
+        independence_group="MOH_ROOT",
+        reliability=0.88,
+        derived_from="SRC-MOH",
+        published_at="2026-10-07T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Dashboard aggregation is not independent from underlying ministry dataset.",
+    ))
+    h.add_source(Source(
+        id="SRC-LAB",
+        title="Synthetic laboratory network aggregated summary",
+        url="https://lab.example/northbridge/summary",
+        source_type=SourceType.LABORATORY_NETWORK,
+        independence_group="LAB_ROOT",
+        reliability=0.90,
+        published_at="2026-10-06T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Aggregated tests/positivity; no patient-level identity.",
+    ))
+    h.add_source(Source(
+        id="SRC-HOSP",
+        title="Synthetic hospital capacity dashboard",
+        url="https://hosp.example/northbridge/capacity",
+        source_type=SourceType.HOSPITAL_DASHBOARD,
+        independence_group="HOSP_ROOT",
+        reliability=0.88,
+        published_at="2026-10-06T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Aggregate occupancy; licensed/staffed/operational distinctions incomplete.",
+    ))
+    h.add_source(Source(
+        id="SRC-WW",
+        title="Synthetic wastewater surveillance dashboard",
+        url="https://ww.example/northbridge",
+        source_type=SourceType.WASTEWATER_SURVEILLANCE,
+        independence_group="WW_ROOT",
+        reliability=0.86,
+        published_at="2026-10-05T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Normalized population-level signal; not case count.",
+    ))
+    h.add_source(Source(
+        id="SRC-VAX",
+        title="Synthetic vaccination coverage dashboard",
+        url="https://vax.example/northbridge",
+        source_type=SourceType.VACCINATION_DASHBOARD,
+        independence_group="VAX_ROOT",
+        reliability=0.88,
+        published_at="2026-10-04T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Aggregate doses administered/eligible population.",
+    ))
+    h.add_source(Source(
+        id="SRC-SUPPLY",
+        title="Synthetic medicine supply notice",
+        url="https://supply.example/northbridge/antiviral",
+        source_type=SourceType.MEDICINE_SUPPLY_NOTICE,
+        independence_group="SUPPLY_ROOT",
+        reliability=0.82,
+        published_at="2026-10-05T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Aggregate stockout rate; root cause requires SUPPLYCHAININT.",
+    ))
+    h.add_source(Source(
+        id="SRC-ENV",
+        title="Synthetic environmental monitoring aggregate",
+        url="https://env.example/northbridge",
+        source_type=SourceType.ENVIRONMENTAL_MONITORING,
+        independence_group="ENV_ROOT",
+        reliability=0.84,
+        published_at="2026-10-05T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Air quality and heat index aggregates; correlation not causation.",
+    ))
+    h.add_source(Source(
+        id="SRC-NEWS",
+        title="Synthetic news report citing ministry bulletin",
+        url="https://news.example/northbridge-respiratory",
+        source_type=SourceType.NEWS_REPORT,
+        independence_group="MOH_ROOT",
+        reliability=0.62,
+        derived_from="SRC-MOH",
+        published_at="2026-10-07T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Dependent source; public concern not clinical verification.",
+    ))
+    h.add_source(Source(
+        id="SRC-SOCIAL",
+        title="Synthetic public social/search concern aggregate",
+        url="https://social.example/northbridge-respiratory",
+        source_type=SourceType.SOCIAL_PUBLIC_SIGNAL,
+        independence_group="SOCIAL_ROOT",
+        reliability=0.50,
+        published_at="2026-10-07T00:00:00Z",
+        retrieved_at=retrieved,
+        notes="Aggregate public concern/misinformation reach; no named-user inference.",
+    ))
+
+    # Evidence
+    h.add_evidence(Evidence(
+        id="EV-MOH-WEEKLY",
+        source_id="SRC-MOH",
+        artifact_type="weekly_surveillance_bulletin",
+        excerpt="Northbridge syndromic respiratory presentations: 800, 860, 900, 1020, 1180 across five weeks.",
+        observed_at="2026-10-07T00:00:00Z",
+        parsed_fields={"weeks": ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"]},
+        limitations=["Provisional counts may be revised.", "Syndromic definition is not pathogen-specific."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-LAB-WEEKLY",
+        source_id="SRC-LAB",
+        artifact_type="lab_summary",
+        excerpt="Aggregate tests: 2000, 2100, 2200, 2600, 3400; positives: 120, 130, 150, 190, 240.",
+        observed_at="2026-10-06T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-HOSP-WEEKLY",
+        source_id="SRC-HOSP",
+        artifact_type="hospital_capacity",
+        excerpt="Hospital occupancy percentages: 72, 75, 78, 84, 88; ICU occupancy: 60, 62, 65, 70, 76.",
+        observed_at="2026-10-06T00:00:00Z",
+        limitations=["Staffed/operational/available bed distinction unavailable."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-WW-WEEKLY",
+        source_id="SRC-WW",
+        artifact_type="wastewater_dashboard",
+        excerpt="Normalized wastewater signal: 10, 11, 13, 18, 24 gene copies/L equivalent.",
+        observed_at="2026-10-05T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-VAX",
+        source_id="SRC-VAX",
+        artifact_type="vaccination_dashboard",
+        excerpt="Eligible population 900000; doses administered 540000; coverage 60%.",
+        observed_at="2026-10-04T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-SUPPLY",
+        source_id="SRC-SUPPLY",
+        artifact_type="supply_notice",
+        excerpt="Antiviral stockout rate 12% across reporting pharmacies.",
+        observed_at="2026-10-05T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-ENV",
+        source_id="SRC-ENV",
+        artifact_type="environmental_monitoring",
+        excerpt="PM2.5 latest 33 ug/m3; heat index latest 39 C.",
+        observed_at="2026-10-05T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-NEWS",
+        source_id="SRC-NEWS",
+        artifact_type="news_report",
+        excerpt="News cites ministry and adds self-reported suspected cases, reporting 1250 presentations.",
+        observed_at="2026-10-07T00:00:00Z",
+        limitations=["Dependent on ministry bulletin; different case definition."],
+    ))
+    h.add_evidence(Evidence(
+        id="EV-SOCIAL",
+        source_id="SRC-SOCIAL",
+        artifact_type="social_public_signal",
+        excerpt="Aggregate misinformation/concern reach 150000 impressions; no individual health inference.",
+        observed_at="2026-10-07T00:00:00Z",
+    ))
+    h.add_evidence(Evidence(
+        id="EV-PED-RARE",
+        source_id="SRC-MOH",
+        artifact_type="sensitive_aggregate_note",
+        excerpt="Pediatric rare syndrome count 3 in small subregion; suppressed.",
+        observed_at="2026-10-07T00:00:00Z",
+        limitations=["Small cell; reidentification risk."],
+    ))
+
+    # Populations
+    h.add_population(Population(
+        id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-W40",
+        definition="All residents in Northbridge region",
+        denominator=1200000,
+        denominator_source="Synthetic official current population estimate",
+        denominator_quality=DenominatorQuality.OFFICIAL_CURRENT,
+        coverage="Region-level aggregate surveillance",
+        limitations=["Migration/displacement may affect denominator."],
+    ))
+    h.add_population(Population(
+        id="POP-NB-65PLUS",
+        geography="Northbridge",
+        time_period="2026-W40",
+        definition="Residents age 65+ aggregate",
+        denominator=190000,
+        denominator_source="Synthetic official current age-band estimate",
+        denominator_quality=DenominatorQuality.OFFICIAL_CURRENT,
+        age_band="65+",
+        coverage="Aggregate age band only",
+        limitations=["Age-band denominator may lag migration changes."],
+    ))
+
+    # Observations: syndromic respiratory weekly
+    syndromic_values = [
+        ("2026-09-07", 800),
+        ("2026-09-14", 860),
+        ("2026-09-21", 900),
+        ("2026-09-28", 1020),
+        ("2026-10-05", 1180),
+    ]
+    for i, (t, n) in enumerate(syndromic_values):
+        h.add_observation(Observation(
+            id=f"OBS-SYND-{i+1}",
+            source_id="SRC-MOH",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.RESPIRATORY_PRESENTATIONS,
+            case_definition=CaseDefinitionType.SYNDROMIC_RESPIRATORY,
+            numerator=n,
+            denominator=1200000,
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-MOH-WEEKLY"],
+            limitations=["Syndromic not pathogen-specific.", "Provisional may revise."],
+        ))
+
+    # News self-reported/suspected latest
+    h.add_observation(Observation(
+        id="OBS-NEWS-SYND",
+        source_id="SRC-NEWS",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-05",
+        metric=MetricType.RESPIRATORY_PRESENTATIONS,
+        case_definition=CaseDefinitionType.SELF_REPORTED,
+        numerator=1250,
+        denominator=1200000,
+        privacy_classification=PrivacyClassification.PUBLIC,
+        evidence_ids=["EV-NEWS"],
+        limitations=["Includes suspected/self-reported presentations; dependent on ministry bulletin."],
+    ))
+
+    # Lab tests and positives
+    lab_weeks = [
+        ("2026-09-07", 2000, 120),
+        ("2026-09-14", 2100, 130),
+        ("2026-09-21", 2200, 150),
+        ("2026-09-28", 2600, 190),
+        ("2026-10-05", 3400, 240),
+    ]
+    for i, (t, tests, pos) in enumerate(lab_weeks):
+        h.add_observation(Observation(
+            id=f"OBS-TESTS-{i+1}",
+            source_id="SRC-LAB",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.TESTS_PERFORMED,
+            case_definition=CaseDefinitionType.LAB_CONFIRMED,
+            numerator=tests,
+            denominator=None,
+            unit="tests",
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-LAB-WEEKLY"],
+        ))
+        h.add_observation(Observation(
+            id=f"OBS-POS-{i+1}",
+            source_id="SRC-LAB",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.LAB_CONFIRMED_CASES,
+            case_definition=CaseDefinitionType.LAB_CONFIRMED,
+            numerator=pos,
+            denominator=1200000,
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-LAB-WEEKLY"],
+        ))
+        h.add_observation(Observation(
+            id=f"OBS-POSRATE-{i+1}",
+            source_id="SRC-LAB",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.TEST_POSITIVITY,
+            case_definition=CaseDefinitionType.LAB_CONFIRMED,
+            numerator=pos,
+            denominator=tests,
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-LAB-WEEKLY"],
+            limitations=["Positivity depends on testing criteria and volume."],
+        ))
+
+    # Hospitalizations / occupancy / ICU
+    hosp_weeks = [
+        ("2026-09-07", 40, 72, 60),
+        ("2026-09-14", 45, 75, 62),
+        ("2026-09-21", 50, 78, 65),
+        ("2026-09-28", 65, 84, 70),
+        ("2026-10-05", 82, 88, 76),
+    ]
+    for i, (t, adm, occ, icu) in enumerate(hosp_weeks):
+        h.add_observation(Observation(
+            id=f"OBS-HOSPADM-{i+1}",
+            source_id="SRC-HOSP",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.HOSPITALIZATIONS,
+            case_definition=CaseDefinitionType.ADMINISTRATIVE_CODE,
+            numerator=adm,
+            denominator=1200000,
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-HOSP-WEEKLY"],
+        ))
+        h.add_observation(Observation(
+            id=f"OBS-HOSPOCC-{i+1}",
+            source_id="SRC-HOSP",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.HOSPITAL_OCCUPANCY,
+            numerator=occ,
+            denominator=100,
+            unit="percent",
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-HOSP-WEEKLY"],
+            limitations=["Occupancy is not outbreak proof."],
+        ))
+        h.add_observation(Observation(
+            id=f"OBS-ICU-{i+1}",
+            source_id="SRC-HOSP",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.ICU_OCCUPANCY,
+            numerator=icu,
+            denominator=100,
+            unit="percent",
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-HOSP-WEEKLY"],
+        ))
+
+    # Wastewater
+    ww_values = [("2026-09-07", 10), ("2026-09-14", 11), ("2026-09-21", 13), ("2026-09-28", 18), ("2026-10-05", 24)]
+    for i, (t, v) in enumerate(ww_values):
+        h.add_observation(Observation(
+            id=f"OBS-WW-{i+1}",
+            source_id="SRC-WW",
+            population_id="POP-NB-ALL",
+            geography="Northbridge",
+            time_period=t,
+            metric=MetricType.WASTEWATER_SIGNAL,
+            value=v,
+            unit="normalized_gene_copies_per_L",
+            provisional=i >= 3,
+            privacy_classification=PrivacyClassification.AGGREGATED,
+            evidence_ids=["EV-WW-WEEKLY"],
+            limitations=["Not exact case count."],
+        ))
+
+    # Vaccination
+    h.add_observation(Observation(
+        id="OBS-VAX-ELIG",
+        source_id="SRC-VAX",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-04",
+        metric=MetricType.ELIGIBLE_POPULATION,
+        numerator=900000,
+        unit="persons",
+        privacy_classification=PrivacyClassification.AGGREGATED,
+        evidence_ids=["EV-VAX"],
+    ))
+    h.add_observation(Observation(
+        id="OBS-VAX-ADMIN",
+        source_id="SRC-VAX",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-04",
+        metric=MetricType.VACCINE_DOSES_ADMINISTERED,
+        numerator=540000,
+        unit="doses",
+        privacy_classification=PrivacyClassification.AGGREGATED,
+        evidence_ids=["EV-VAX"],
+    ))
+    h.add_observation(Observation(
+        id="OBS-VAX-COV",
+        source_id="SRC-VAX",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-04",
+        metric=MetricType.VACCINATION_COVERAGE,
+        numerator=540000,
+        denominator=900000,
+        unit="percent",
+        privacy_classification=PrivacyClassification.AGGREGATED,
+        evidence_ids=["EV-VAX"],
+        limitations=["Coverage definition may require dose schedule/product context."],
+    ))
+
+    # Supply
+    h.add_observation(Observation(
+        id="OBS-SUPPLY-STOCKOUT",
+        source_id="SRC-SUPPLY",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-05",
+        metric=MetricType.MEDICINE_STOCKOUT_RATE,
+        numerator=12,
+        denominator=100,
+        unit="percent",
+        privacy_classification=PrivacyClassification.AGGREGATED,
+        evidence_ids=["EV-SUPPLY"],
+        limitations=["No individual medication recommendation."],
+    ))
+
+    # Environmental
+    h.add_observation(Observation(
+        id="OBS-ENV-PM25",
+        source_id="SRC-ENV",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-05",
+        metric=MetricType.AIR_PM25,
+        value=33,
+        unit="ug/m3",
+        privacy_classification=PrivacyClassification.PUBLIC,
+        evidence_ids=["EV-ENV"],
+        limitations=["Population exposure context; not individual causation."],
+    ))
+    h.add_observation(Observation(
+        id="OBS-ENV-HEAT",
+        source_id="SRC-ENV",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-05",
+        metric=MetricType.HEAT_INDEX,
+        value=39,
+        unit="C",
+        privacy_classification=PrivacyClassification.PUBLIC,
+        evidence_ids=["EV-ENV"],
+        limitations=["Heat-health context; vulnerable population aggregates only."],
+    ))
+
+    # Misinformation/public concern
+    h.add_observation(Observation(
+        id="OBS-SOCIAL-MISINFO",
+        source_id="SRC-SOCIAL",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-07",
+        metric=MetricType.MISINFORMATION_REACH,
+        value=150000,
+        unit="impressions",
+        privacy_classification=PrivacyClassification.PUBLIC,
+        evidence_ids=["EV-SOCIAL"],
+        limitations=["Public concern/misinformation reach is not disease prevalence."],
+    ))
+
+    # Small-cell sensitive pediatric rare syndrome, should suppress
+    h.add_observation(Observation(
+        id="OBS-PED-RARE",
+        source_id="SRC-MOH",
+        population_id="POP-NB-ALL",
+        geography="Northbridge",
+        time_period="2026-10-05",
+        metric=MetricType.PEDIATRIC_RARE_SYNDROME,
+        case_definition=CaseDefinitionType.PROBABLE_CASE,
+        numerator=3,
+        denominator=1200000,
+        privacy_classification=PrivacyClassification.SENSITIVE_AGGREGATED,
+        privacy_sensitive=True,
+        evidence_ids=["EV-PED-RARE"],
+        limitations=["Small cell; suppression required."],
+    ))
+
+    h.prepare()
+    return h
+
+
+# =====================================================================
+# RESULT BUILDER
+# =====================================================================
+
+def graph_version_hash(h: HealthInt) -> str:
+    seed_obj = {
+        "populations": sorted((pid, p.geography, p.time_period, p.denominator or 0) for pid, p in h.populations.items()),
+        "observations": sorted(
+            (oid, o.population_id, o.geography, o.time_period, o.metric.value, o.case_definition.value,
+             o.numerator if not o.suppressed else None, o.suppressed)
+            for oid, o in h.observations.items()
+        ),
+        "trends": sorted((k, v.get("state"), v.get("latest"), v.get("percent_change")) for k, v in h.trends.items()),
+        "findings": sorted((fid, f.finding_type.value, f.subject_id, f.verification_state.value, round(float(f.confidence), 3)) for fid, f in h.findings.items()),
+        "outbreak": h.outbreak_state.value,
+    }
+    return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+
+
+def build_source_graph(h: HealthInt) -> Dict[str, Any]:
+    edges = []
+    for src in h.sources.values():
+        if src.derived_from:
+            edges.append({"source": src.derived_from, "target": src.id, "relationship_type": "DERIVED_FROM"})
+    return {"nodes": [s.id for s in h.sources.values()], "edges": edges}
+
+
+def build_source_dependency_graph(h: HealthInt) -> Dict[str, List[str]]:
+    families: Dict[str, List[str]] = defaultdict(list)
+    for sid in h.sources:
+        fam = h.get_source_family(sid) or "UNKNOWN"
+        families[fam].append(sid)
+    return {k: sorted(v) for k, v in families.items()}
+
+
+def build_health_graph(h: HealthInt) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+
+    for pop in h.populations.values():
+        nodes.append({
+            "id": pop.id,
+            "type": "Population",
+            "geography": pop.geography,
+            "time_period": pop.time_period,
+            "denominator": pop.denominator,
+            "denominator_quality": pop.denominator_quality.value,
+        })
+        nodes.append({"id": f"GEO-{pop.geography}", "type": "Region", "name": pop.geography})
+        edges.append({"source": pop.id, "target": f"GEO-{pop.geography}", "relationship_type": "LOCATED_IN"})
+
+    nodes.append({"id": "COND-RESPIRATORY", "type": "Syndrome", "name": "Respiratory illness"})
+    nodes.append({"id": "SIGNAL-NB-RESP", "type": "HealthSignal", "state": h.outbreak_state.value})
+    edges.append({"source": "SIGNAL-NB-RESP", "target": "COND-RESPIRATORY", "relationship_type": "OBSERVED_IN"})
+    edges.append({"source": "SIGNAL-NB-RESP", "target": "POP-NB-ALL", "relationship_type": "AFFECTS_POPULATION"})
+
+    for obs in h.observations.values():
+        if obs.suppressed:
+            continue
+        nodes.append({
+            "id": obs.id,
+            "type": "Observation",
+            "metric": obs.metric.value,
+            "case_definition": obs.case_definition.value,
+            "time_period": obs.time_period,
+            "geography": obs.geography,
+            "privacy_classification": obs.privacy_classification.value,
+        })
+        edges.append({
+            "source": obs.id,
+            "target": obs.population_id,
+            "relationship_type": "MEASURED_IN_POPULATION",
+        })
+        edges.append({
+            "source": obs.id,
+            "target": obs.source_id,
+            "relationship_type": "REPORTED_BY",
+        })
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "guardrails": [
+            "No named patient diagnosis nodes.",
+            "No private medical history.",
+            "Population-level graph only.",
+            "Privacy classification preserved on edges/nodes where applicable.",
+        ],
+    }
+
+
+def build_timeline(h: HealthInt) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = []
+    for obs in h.observations.values():
+        if obs.suppressed:
+            continue
+        events.append({
+            "time": obs.time_period,
+            "type": "HEALTH_OBSERVATION",
+            "subject_id": obs.id,
+            "description": (
+                f"{obs.metric.value} ({obs.case_definition.value}) in {obs.geography}: "
+                f"numerator={obs.numerator}, denominator={obs.denominator}, "
+                f"rate_per_100k={obs.rate_per_100k}, percentage={obs.percentage}, value={obs.value}."
+            ),
+            "source_ids": [obs.source_id],
+            "evidence_ids": obs.evidence_ids,
+            "privacy_classification": obs.privacy_classification.value,
+        })
+    return sorted(events, key=lambda e: dt_or_min(e.get("time")))
+
+
+def build_facts_by_state(h: HealthInt) -> Dict[str, List[Finding]]:
+    out: Dict[str, List[Finding]] = defaultdict(list)
+    for f in h.findings.values():
+        out[f.verification_state.value].append(f)
+    return {k: v for k, v in out.items()}
+
+
+def latest_metric_summary(h: HealthInt, metric: MetricType, case_definition: Optional[CaseDefinitionType] = None) -> Dict[str, Any]:
+    obs = h.latest_observation(metric, case_definition)
+    trend = h.trend_for(metric, case_definition)
+    if not obs:
+        return {"state": "MISSING"}
+    return {
+        "observation_id": obs.id,
+        "time_period": obs.time_period,
+        "geography": obs.geography,
+        "population_id": obs.population_id,
+        "numerator": obs.numerator,
+        "denominator": obs.denominator,
+        "rate_per_100k": obs.rate_per_100k,
+        "percentage": obs.percentage,
+        "value": obs.value,
+        "unit": obs.unit,
+        "case_definition": obs.case_definition.value,
+        "provisional": obs.provisional,
+        "privacy_classification": obs.privacy_classification.value,
+        "trend": trend,
+        "limitations": obs.limitations,
+    }
+
+
+def build_result(h: HealthInt, status: Status) -> Dict[str, Any]:
+    dual = h.dual_ai_review()
+    summary = h.analyst_summary(dual)
+    source_families = build_source_dependency_graph(h)
+    facts_by_state = build_facts_by_state(h)
+
+    finding_independence = {
+        fid: h.independence_state(f.source_ids)
+        for fid, f in h.findings.items()
+    }
+
+    supported_facts = facts_by_state.get(VerificationState.SUPPORTED.value, [])
+    partial_facts = facts_by_state.get(VerificationState.PARTIALLY_SUPPORTED.value, [])
+    candidate_facts = facts_by_state.get(VerificationState.CANDIDATE.value, [])
+    disputed_facts = facts_by_state.get(VerificationState.DISPUTED.value, [])
+    observed_facts = facts_by_state.get(VerificationState.OBSERVED.value, [])
+
+    counts = {
+        "respiratory_presentations_latest": h.latest_observation(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY).numerator if h.latest_observation(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY) else None,
+        "lab_confirmed_cases_latest": h.latest_observation(MetricType.LAB_CONFIRMED_CASES, CaseDefinitionType.LAB_CONFIRMED).numerator if h.latest_observation(MetricType.LAB_CONFIRMED_CASES, CaseDefinitionType.LAB_CONFIRMED) else None,
+        "hospitalizations_latest": h.latest_observation(MetricType.HOSPITALIZATIONS).numerator if h.latest_observation(MetricType.HOSPITALIZATIONS) else None,
+        "deaths_latest": None,
+        "tests_performed_latest": h.latest_observation(MetricType.TESTS_PERFORMED).numerator if h.latest_observation(MetricType.TESTS_PERFORMED) else None,
+        "vaccine_doses_administered_latest": h.latest_observation(MetricType.VACCINE_DOSES_ADMINISTERED).numerator if h.latest_observation(MetricType.VACCINE_DOSES_ADMINISTERED) else None,
+    }
+
+    rates = {
+        "respiratory_presentations_rate_per_100k": latest_metric_summary(h, MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY).get("rate_per_100k"),
+        "lab_confirmed_cases_rate_per_100k": latest_metric_summary(h, MetricType.LAB_CONFIRMED_CASES, CaseDefinitionType.LAB_CONFIRMED).get("rate_per_100k"),
+        "hospitalizations_rate_per_100k": latest_metric_summary(h, MetricType.HOSPITALIZATIONS).get("rate_per_100k"),
+        "test_positivity_percent": latest_metric_summary(h, MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED).get("percentage"),
+        "hospital_occupancy_percent": latest_metric_summary(h, MetricType.HOSPITAL_OCCUPANCY).get("percentage"),
+        "icu_occupancy_percent": latest_metric_summary(h, MetricType.ICU_OCCUPANCY).get("percentage"),
+        "vaccination_coverage_percent": latest_metric_summary(h, MetricType.VACCINATION_COVERAGE).get("percentage"),
+        "medicine_stockout_percent": latest_metric_summary(h, MetricType.MEDICINE_STOCKOUT_RATE).get("percentage"),
+    }
+
+    replay_manifest = {
+        "generated_at": now_iso(),
+        "pipeline_version": PIPELINE_VERSION,
+        "graph_version": graph_version_hash(h),
+        "core_principle": (
+            "RAW HEALTH SIGNAL -> PRIVACY GATE -> SOURCE PRESERVATION -> POPULATION DEFINITION -> "
+            "CASE / METRIC DEFINITION -> DENOMINATOR VALIDATION -> TEMPORAL NORMALIZATION -> "
+            "GEOGRAPHIC NORMALIZATION -> DATA-QUALITY REVIEW -> SOURCE RELIABILITY -> SOURCE INDEPENDENCE -> "
+            "BIAS ANALYSIS -> ALTERNATIVE EXPLANATIONS -> FACT GATE -> PUBLIC-HEALTH ASSESSMENT -> HUMAN REVIEW"
+        ),
+        "as_of": h.as_of,
+        "population_rule": "Default unit of analysis is population/cohort/region/facility aggregate, not named individual.",
+        "case_definition_rule": "Syndromic, probable, confirmed, lab-confirmed, clinical, administrative, and self-reported definitions preserved separately.",
+        "denominator_rule": "Counts are converted to rates only with validated denominators; denominator quality stored.",
+        "temporal_rule": "Event/specimen/report/publication dates should be preserved separately; provisional data labeled.",
+        "privacy_rule": "Small-cell suppression, aggregation, location generalization, purpose limitation, and no reidentification enforced.",
+        "biosecurity_rule": "No pathogen engineering, virulence/transmissibility optimization, immune-evasion engineering, biological attack planning, or contamination methods.",
+        "governance_rule": "Outbreak/emergency declaration and consequential health actions require human public-health authority.",
+        "policy_exclusions": [
+            "No individual diagnosis.",
+            "No prescription or treatment change.",
+            "No private medical record access.",
+            "No reidentification.",
+            "No covert health surveillance.",
+            "No health discrimination for employment/insurance/immigration/law enforcement/marketing.",
+            "No pathogen enhancement or biological harm enablement.",
+        ],
+        "source_lineage": source_families,
+        "finding_independence": finding_independence,
+        "formulas": {
+            "rate_per_100k": "numerator / denominator * 100000",
+            "percentage": "numerator / denominator * 100",
+            "test_positivity": "positive_tests / tests_performed * 100",
+            "baseline": "mean of up to previous four non-supervised observations",
+            "percent_change": "(latest - baseline) / baseline * 100",
+        },
+    }
+
+    return {
+        "case_id": h.case.case_id,
+        "task_id": h.case.task_id,
+        "objective": h.case.objective,
+        "questions": h.case.questions,
+        "scope": h.case.scope,
+        "authorization": h.case.authorization,
+        "status": status.value,
+        "as_of": h.as_of,
+
+        "source_ids": sorted(h.sources.keys()),
+        "evidence_ids": sorted(h.evidence.keys()),
+
+        "populations": list(h.populations.values()),
+        "cohorts": [p for p in h.populations.values() if p.age_band or p.sex_category],
+        "geographies": sorted({p.geography for p in h.populations.values()}),
+
+        "conditions": ["respiratory illness"],
+        "diseases": [],
+        "disease_note": "Pathogen-specific disease attribution not established without laboratory/epidemiological confirmation.",
+        "syndromes": ["respiratory syndrome"],
+        "case_definitions": sorted({o.case_definition.value for o in h.observations.values()}),
+        "case_definition_versions": {
+            "SYNDROMIC_RESPIRATORY": {
+                "definition": "Aggregate respiratory presentations under syndromic surveillance",
+                "version": "synthetic-v1",
+                "limitation": "Not pathogen-specific; not individual diagnosis.",
+            },
+            "LAB_CONFIRMED": {
+                "definition": "Aggregate laboratory-confirmed detections",
+                "version": "synthetic-v1",
+                "limitation": "Positive test is not severity or prognosis.",
+            },
+        },
+
+        "counts": counts,
+        "rates": rates,
+        "incidence": {
+            "respiratory_presentations_incidence_rate_per_100k_weekly": rates["respiratory_presentations_rate_per_100k"],
+            "lab_confirmed_incidence_rate_per_100k_weekly": rates["lab_confirmed_cases_rate_per_100k"],
+            "note": "Incidence proxies based on surveillance definitions; not clinical incidence for individuals.",
+        },
+        "prevalence": {
+            "state": "NOT_CALCULATED",
+            "reason": "Point prevalence requires existing-case definition and population snapshot not available in sample.",
+        },
+        "mortality": {
+            "state": "NO_MORTALITY_SIGNAL_IN_SAMPLE",
+            "note": "All-cause/cause-specific/excess mortality not calculated without mortality registry baseline.",
+        },
+        "morbidity": {
+            "respiratory_presentations": latest_metric_summary(h, MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY),
+            "hospitalizations": latest_metric_summary(h, MetricType.HOSPITALIZATIONS),
+        },
+        "hospitalizations": latest_metric_summary(h, MetricType.HOSPITALIZATIONS),
+        "test_volume": latest_metric_summary(h, MetricType.TESTS_PERFORMED),
+        "test_positivity": latest_metric_summary(h, MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED),
+        "laboratory_signals": [
+            latest_metric_summary(h, MetricType.LAB_CONFIRMED_CASES, CaseDefinitionType.LAB_CONFIRMED),
+            latest_metric_summary(h, MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED),
+        ],
+        "wastewater_signals": [latest_metric_summary(h, MetricType.WASTEWATER_SIGNAL)],
+        "vaccination_coverage": latest_metric_summary(h, MetricType.VACCINATION_COVERAGE),
+        "program_coverage": {
+            "vaccination_program": latest_metric_summary(h, MetricType.VACCINATION_COVERAGE),
+            "note": "Program output/coverage is not health outcome proof.",
+        },
+        "hospital_capacity": latest_metric_summary(h, MetricType.HOSPITAL_OCCUPANCY),
+        "icu_context": latest_metric_summary(h, MetricType.ICU_OCCUPANCY),
+        "healthcare_staffing_context": {
+            "state": "UNAVAILABLE",
+            "reason": "Aggregate staffing/absenteeism/vacancy data not configured in sample.",
+            "privacy_note": "Named worker medical status never exposed.",
+        },
+        "medicine_availability": latest_metric_summary(h, MetricType.MEDICINE_STOCKOUT_RATE),
+        "medical_supply_context": {
+            "stockout_signal": latest_metric_summary(h, MetricType.MEDICINE_STOCKOUT_RATE),
+            "handoff": "SUPPLYCHAININT / PROCUREMENTINT for root cause and dependency analysis.",
+        },
+        "environmental_health_signals": {
+            "air_quality": latest_metric_summary(h, MetricType.AIR_PM25),
+            "heat_health": latest_metric_summary(h, MetricType.HEAT_INDEX),
+        },
+        "air_quality_context": latest_metric_summary(h, MetricType.AIR_PM25),
+        "water_quality_context": {"state": "NOT_CONFIGURED_IN_SAMPLE"},
+        "heat_health_context": latest_metric_summary(h, MetricType.HEAT_INDEX),
+        "vector_surveillance": {"state": "NOT_CONFIGURED_IN_SAMPLE"},
+        "foodborne_context": {"state": "NOT_CONFIGURED_IN_SAMPLE"},
+        "maternal_child_health_context": {
+            "pediatric_rare_syndrome": "SUPPRESSED_SMALL_CELL",
+            "privacy_note": "Sensitive pediatric aggregate suppressed to prevent reidentification.",
+        },
+        "mental_health_population_context": {"state": "NOT_CONFIGURED_IN_SAMPLE", "boundary": "No individual mental-health inference."},
+        "occupational_health_context": {"state": "NOT_CONFIGURED_IN_SAMPLE", "boundary": "No punitive individual employment use."},
+        "health_access": {
+            "state": "PARTIAL",
+            "note": "Facility capacity observed; distance/travel time/insurance/wait times not configured.",
+        },
+        "health_disparities": {
+            "state": "NOT_ANALYZED",
+            "note": "Aggregate lawful strata required; no stigmatizing group attribution.",
+        },
+        "genomic_surveillance_context": {"state": "NOT_CONFIGURED_IN_SAMPLE", "boundary": "Descriptive public-health summaries only; no engineering."},
+        "variant_context": {"state": "NOT_CONFIGURED_IN_SAMPLE", "boundary": "Variant prevalence is not severity proof."},
+        "amr_context": {"state": "NOT_CONFIGURED_IN_SAMPLE", "boundary": "Population AMR patterns do not determine individual therapy."},
+        "public_health_programs": [
+            {
+                "program_id": "PROG-VAX-NB",
+                "name": "Northbridge respiratory vaccination program",
+                "coverage": latest_metric_summary(h, MetricType.VACCINATION_COVERAGE),
+                "note": "Coverage is program output; outcome effectiveness requires studies.",
+            }
+        ],
+        "public_health_interventions": [
+            "testing",
+            "vaccination",
+            "public communication",
+            "infection prevention guidance",
+            "capacity monitoring",
+        ],
+        "health_policies": {"state": "NOT_CONFIGURED_IN_SAMPLE", "note": "Policy announcement is not implementation."},
+        "misinformation_context": [latest_metric_summary(h, MetricType.MISINFORMATION_REACH)],
+        "outbreak_signals": {
+            "state": h.outbreak_state.value,
+            "official_declaration": False,
+            "signals": {
+                "syndromic": h.trend_for(MetricType.RESPIRATORY_PRESENTATIONS, CaseDefinitionType.SYNDROMIC_RESPIRATORY),
+                "lab_positivity": h.trend_for(MetricType.TEST_POSITIVITY, CaseDefinitionType.LAB_CONFIRMED),
+                "wastewater": h.trend_for(MetricType.WASTEWATER_SIGNAL),
+                "hospital_occupancy": latest_metric_summary(h, MetricType.HOSPITAL_OCCUPANCY),
+            },
+            "guardrails": [
+                "Outbreak candidate is not confirmed outbreak.",
+                "Only competent authorities declare official outbreaks.",
+                "Alternative explanations remain.",
+            ],
+        },
+        "public_health_event_states": {
+            "current_state": h.outbreak_state.value,
+            "early_warning_state": "ELEVATED" if h.outbreak_state in {OutbreakSignalState.ELEVATED_SIGNAL, OutbreakSignalState.OUTBREAK_CANDIDATE} else "WATCH",
+        },
+        "baseline": {
+            "method": "mean of up to previous four observations per metric/population/geography/case-definition series",
+            "trends": h.trends,
+        },
+        "seasonality": {
+            "state": "POSSIBLE_CONFOUNDER",
+            "note": "Historical seasonal envelope not fully configured; seasonality hypothesis retained.",
+        },
+        "forecast_context": {
+            "state": "NOT_PRODUCED",
+            "reason": "Forecast requires model registry, training window, validation, and uncertainty; not fabricated.",
+            "safe_scenarios": [
+                "Hospital demand under continued case increase",
+                "Medicine supply under sustained stockout",
+                "Vaccination uptake under misinformation exposure",
+            ],
+        },
+        "timeline_updates": build_timeline(h),
+        "observations": list(h.observations.values()),
+        "candidate_facts": candidate_facts,
+        "supported_facts": supported_facts,
+        "partial_facts": partial_facts,
+        "disputed_facts": disputed_facts,
+        "observed_facts": observed_facts,
+        "source_reliability": {sid: src.reliability for sid, src in h.sources.items()},
+        "source_bias": {sid: src.notes for sid, src in h.sources.items()},
+        "source_limitations": {sid: [src.notes] for sid, src in h.sources.items() if src.notes},
+        "source_pedigree": {sid: h.get_source_family(sid) for sid in h.sources},
+        "source_independence": {
+            "source_families": source_families,
+            "finding_independence": finding_independence,
+        },
+        "data_quality": h.data_quality,
+        "coverage": {
+            "geographic_coverage": "Northbridge region aggregate",
+            "laboratory_coverage": "Partial laboratory network",
+            "hospital_coverage": "Aggregate hospital dashboard",
+            "wastewater_coverage": "Two or more synthetic surveillance sites implied",
+            "limitations": h.data_quality.get("guardrails", []),
+        },
+        "reporting_delays": {
+            "state": "UNRESOLVED",
+            "note": "Event/specimen/report/publication date metadata not fully available.",
+        },
+        "confounders": [
+            "testing volume/criteria",
+            "reporting delay/backfill",
+            "case-definition change",
+            "seasonality",
+            "healthcare-seeking behavior",
+            "media coverage/public concern",
+            "environmental heat/air exposure",
+            "migration/denominator change",
+        ],
+        "contradictions": h.contradictions,
+        "hypotheses": h.hypotheses,
+        "falsification_results": [
+            {
+                "hypothesis_id": hy.id,
+                "statement": hy.statement,
+                "kind": hy.kind,
+                "status": hy.status.value,
+                "confidence": hy.confidence,
+                "supporting_finding_ids": hy.supporting_finding_ids,
+                "contradicting_finding_ids": hy.contradicting_finding_ids,
+                "assumptions": hy.assumptions,
+                "predictions": hy.predictions,
+                "falsification_conditions": hy.falsification_conditions,
+                "limitations": hy.limitations,
+            }
+            for hy in h.hypotheses
+        ],
+        "privacy_flags": [
+            PrivacyFlag.CASE_SCOPED.value,
+            PrivacyFlag.POPULATION_LEVEL_ONLY.value,
+            PrivacyFlag.NO_INDIVIDUAL_DIAGNOSIS.value,
+            PrivacyFlag.NO_MEDICAL_RECORD_ACCESS.value,
+            PrivacyFlag.NO_REIDENTIFICATION.value,
+            PrivacyFlag.SMALL_CELL_SUPPRESSION.value,
+            PrivacyFlag.LOCATION_GENERALIZATION.value,
+            PrivacyFlag.PURPOSE_LIMITATION.value,
+            PrivacyFlag.NO_COVERT_HEALTH_SURVEILLANCE.value,
+            PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+        ],
+        "legal_flags": [
+            LegalFlag.HEALTH_PRIVACY_REVIEW_REQUIRED.value,
+            LegalFlag.DATA_USE_AGREEMENT_REVIEW_REQUIRED.value,
+            LegalFlag.LEGALINT_HANDOFF_REQUIRED.value,
+            LegalFlag.HUMAN_PUBLIC_HEALTH_AUTHORITY_REQUIRED.value,
+        ],
+        "biosecurity_flags": [
+            BiosecurityFlag.NO_PATHogen_ENGINEERING.value,
+            BiosecurityFlag.NO_VIRULENCE_OPTIMIZATION.value,
+            BiosecurityFlag.NO_TRANSMISSIBILITY_OPTIMIZATION.value,
+            BiosecurityFlag.NO_IMMUNE_EVASION_ENGINEERING.value,
+            BiosecurityFlag.NO_BIOLOGICAL_ATTACK_PLANNING.value,
+            BiosecurityFlag.NO_CONTAMINATION_METHODS.value,
+            BiosecurityFlag.PUBLIC_HEALTH_ORIENTATION_ONLY.value,
+        ],
+        "unknowns": sorted(set(
+            [g.description for g in h.gaps]
+            + [hy.statement for hy in h.hypotheses if hy.status in {HypothesisStatus.UNRESOLVED, HypothesisStatus.DISPUTED}]
+        )),
+        "knowledge_gaps": h.gaps,
+        "recommended_next_actions": h.actions,
+        "recommendations": h.recommendations,
+        "specialist_handoffs": h.handoffs,
+        "limitations": [
+            "Local synthetic demo; no live public-health system access.",
+            "Population-level privacy-first analysis only.",
+            "No individual diagnosis, prescription, treatment change, or personal medical profiling.",
+            "No medical record access, reidentification, or covert surveillance.",
+            "No pathogen engineering, biological attack planning, or contamination methods.",
+            "Syndromic surveillance is not pathogen-specific diagnosis.",
+            "Wastewater signal is not exact case count.",
+            "Hospital occupancy is not outbreak proof.",
+            "Provisional data may be revised.",
+            "Source dependency preserved; multiple dashboards using same data are not independent evidence.",
+            "Outbreak declaration and consequential actions require human public-health authority.",
+        ] + h.validation_errors,
+        "analyst_summary": summary,
+        "dual_ai_review": dual,
+        "health_graph": build_health_graph(h),
+        "source_graph": build_source_graph(h),
+        "source_dependency_graph": source_families,
+        "replay_manifest": replay_manifest,
+    }
+
+
+# =====================================================================
+# PIPELINES
+# =====================================================================
+
+def run_sample_pipeline() -> Dict[str, Any]:
+    h = build_sample_healthint()
+    return build_result(h, Status.PARTIAL)
+
+
+def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+    h = HealthInt(case)
+
+    h.gaps.append(KnowledgeGap(
+        id="GAP-NO-HEALTH-EVIDENCE",
+        gap_type=GapType.CASE_DEFINITION_UNCLEAR,
+        description=(
+            "No configured authorized/public aggregated public-health corpus is available. "
+            "No population signal, case count, rate, hospital capacity, laboratory summary, wastewater signal, "
+            "vaccination coverage, supply constraint, or outbreak candidate can be resolved."
+        ),
+        importance="HIGH",
+        recommended_source=(
+            "Provide authorized aggregated surveillance reports, laboratory summaries, hospital capacity dashboards, "
+            "wastewater data, vaccination coverage, supply notices, environmental data, and public-health guidance."
+        ),
+        specialist="HEALTHINT / ORGINT / SUPPLYCHAININT / LEGALINT",
+        expected_information_value=0.95,
+    ))
+
+    h.actions = [NextAction(
+        id="ACT-CONFIGURE-HEALTH-EVIDENCE",
+        description=(
+            "Configure lawful authorized/public aggregated health evidence or sanitized local corpus. "
+            "Do not diagnose individuals, access private records, reidentify patients, expose small cells, "
+            "conduct covert surveillance, or enable biological harm."
+        ),
+        priority=1,
+        privacy_impact="LOW",
+        expected_gain=0.95,
+        specialist=None,
+        requires_human_approval=False,
+    )]
+
+    h.handoffs = []
+    h.recommendations = []
+    h.hypotheses = []
+    h.contradictions = []
+    h.outbreak_state = OutbreakSignalState.UNKNOWN
+    h.data_quality = {
+        "as_of": h.as_of,
+        "observation_count": 0,
+        "suppressed_count": 0,
+        "provisional_count": 0,
+        "missing_denominator_count": 0,
+        "state": DataQualityState.MISSING.value,
+        "guardrails": ["No health evidence configured.", "No cases, deaths, outbreaks, capacities, or rates fabricated."],
+    }
+
+    dual = {
+        "primary_public_health_analyst": "No evidence available.",
+        "independent_epidemiology_skeptic_issues": [
+            "No authorized/public aggregated health corpus configured.",
+            "No population or case definition resolved.",
+            "No denominator validated.",
+            "No outbreak signal possible.",
+            "No individual health inference permitted.",
+        ],
+        "verdict": "INSUFFICIENT_EVIDENCE",
+        "note": "AI agreement is not independent epidemiological evidence.",
+    }
+
+    summary = (
+        "HEALTHINT UNRESOLVED: No configured authorized/public aggregated health corpus. "
+        "No cases, deaths, outbreaks, hospital capacities, vaccination rates, test positivities, wastewater signals, "
+        "environmental causal claims, or individual diagnoses were fabricated. "
+        "Provide lawful aggregated evidence or run sample mode."
+    )
+
+    result = build_result(h, Status.BLOCKED_CONFIGURATION)
+    result["analyst_summary"] = summary
+    result["dual_ai_review"] = dual
+    return result
+
+
+def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+    return {
+        "case_id": case.case_id,
+        "task_id": case.task_id,
+        "objective": case.objective,
+        "questions": case.questions,
+        "status": Status.BLOCKED_POLICY.value,
+        "policy_violations": violations,
+        "message": (
+            "Prohibited public-health intelligence request detected. HEALTHINT supports authorized, population-level, "
+            "privacy-first, evidence-first, human-governed public-health intelligence only. It does not diagnose individuals, "
+            "prescribe treatment, access private medical records, reidentify patients, expose small-cell sensitive health data, "
+            "conduct covert health surveillance, use health data for discrimination, engineer pathogens, optimize virulence/"
+            "transmissibility/immune evasion, or provide biological attack/contamination methods."
+        ),
+        "lawful_alternatives": [
+            "Analyze authorized aggregated surveillance counts/rates with population and case definitions.",
+            "Validate denominators and reporting-delay metadata.",
+            "Separate syndromic, probable, confirmed, lab-confirmed, and self-reported definitions.",
+            "Correlate laboratory, wastewater, hospital capacity, vaccination, supply, and environmental context defensively.",
+            "Suppress small cells and aggregate further when reidentification risk exists.",
+            "Route outbreak declaration, quarantine/isolation, rationing, and consequential actions to human public-health authority.",
+            "Hand supply dependencies to SUPPLYCHAININT and legal/privacy questions to LEGALINT/privacy officer.",
+        ],
+        "privacy_flags": [
+            PrivacyFlag.NO_INDIVIDUAL_DIAGNOSIS.value,
+            PrivacyFlag.NO_MEDICAL_RECORD_ACCESS.value,
+            PrivacyFlag.NO_REIDENTIFICATION.value,
+            PrivacyFlag.SMALL_CELL_SUPPRESSION.value,
+            PrivacyFlag.NO_COVERT_HEALTH_SURVEILLANCE.value,
+            PrivacyFlag.PURPOSE_LIMITATION.value,
+        ],
+        "biosecurity_flags": [
+            BiosecurityFlag.NO_PATHogen_ENGINEERING.value,
+            BiosecurityFlag.NO_VIRULENCE_OPTIMIZATION.value,
+            BiosecurityFlag.NO_TRANSMISSIBILITY_OPTIMIZATION.value,
+            BiosecurityFlag.NO_IMMUNE_EVASION_ENGINEERING.value,
+            BiosecurityFlag.NO_BIOLOGICAL_ATTACK_PLANNING.value,
+            BiosecurityFlag.NO_CONTAMINATION_METHODS.value,
+        ],
+        "limitations": [
+            "No public-health analysis performed.",
+            "No cases, deaths, outbreaks, capacities, vaccinations, rates, or individual health states fabricated.",
+            "No private records accessed and no biological harm enabled.",
+        ],
+    }
+
+
+def run_pipeline(case: Case) -> Dict[str, Any]:
+    text = " ".join(
+        [
+            case.objective,
+            *case.questions,
+            case.region or "",
+            case.population or "",
+            case.condition or "",
+            case.authorization or "",
+            " ".join(case.scope),
+        ]
+    )
+
+    violations = policy_guard(text)
+    if violations:
+        return blocked_policy_result(case, violations)
+
+    if case.sample:
+        return run_sample_pipeline()
+
+    return run_unconfigured_pipeline(case)
+
+
+# =====================================================================
+# CLI
+# =====================================================================
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "TRACEATLAS HEALTHINT local privacy-first public-health intelligence pipeline. "
+            "Sample mode uses synthetic authorized aggregated surveillance data."
+        )
+    )
+    parser.add_argument("--sample", action="store_true", help="Run built-in synthetic HEALTHINT sample.")
+    parser.add_argument("--objective", help="Authorized population-level public-health objective.")
+    parser.add_argument("--question", action="append", default=[], help="Public-health question. Repeatable.")
+    parser.add_argument("--region", help="Geographic region.")
+    parser.add_argument("--population", help="Population ID/name.")
+    parser.add_argument("--condition", help="Condition or syndrome category.")
+    parser.add_argument("--time-range", help="Time range hint.")
+    parser.add_argument("--as-of", default=DEFAULT_AS_OF, help="Analysis as-of timestamp.")
+
+    args = parser.parse_args()
+
+    if args.sample or not args.objective:
+        case = sample_case()
+    else:
+        case = Case(
+            case_id=new_id("CASE-", args.objective),
+            task_id=new_id("TASK-", args.objective),
+            objective=args.objective,
+            questions=args.question,
+            region=args.region,
+            population=args.population,
+            condition=args.condition,
+            time_range=args.time_range,
+            as_of=args.as_of,
+            sample=False,
+        )
+
+    result = run_pipeline(case)
+    print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+    

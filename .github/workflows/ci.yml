@@ -35,6 +35,8 @@ jobs:
         run: python scripts/check_python_structure.py
       - name: Verify the complete supplied archive source mappings
         run: python scripts/verify_archive_merge.py
+      - name: Verify intelligence suite source mappings and pinned entry points
+        run: python scripts/verify_intelligence_suite.py
       - name: Compile sources
         run: python -m compileall -q src tests api scripts *.py
       - name: Run regression suite
@@ -192,3 +194,9 @@ jobs:
         run: /usr/bin/python3 -m compileall -q integrations/standalone-panels tests/panels
       - name: Test all nine panels and real fixture media
         run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests/panels -v
+      - name: Compile the complete supplied intelligence suite
+        run: /usr/bin/python3 -m compileall -q src/traceatlas/addons/intelligence_v1 tests/intelligence
+      - name: Verify all module contracts, repair regressions, and native panels
+        env:
+          PYTHONPATH: src
+        run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests/intelligence -v

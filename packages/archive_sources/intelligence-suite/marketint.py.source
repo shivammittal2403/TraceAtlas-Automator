@@ -1,0 +1,4272 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS MARKETINT — Safe Python Starter Implementation
+
+Purpose:
+  Evidence-first market definition, sizing, competitor, pricing, demand/supply,
+  forecasting, and competitive ecosystem intelligence for lawful decision support.
+
+Hard boundaries enforced in code:
+  - Does NOT steal trade secrets or access private competitor systems.
+  - Does NOT use stolen credentials, phishing, social engineering, impersonation,
+    bribery, blackmail, or covert insider recruitment.
+  - Does NOT use MNPI/insider information for securities trading.
+  - Does NOT manipulate securities markets or spread false market information.
+  - Does NOT coordinate prices, bids, customers, territories, production, or cartels.
+  - Does NOT fabricate market size, sales, share, demand, competitor revenue, or forecasts.
+  - Treats market reports, websites, reviews, surveys, filings, and datasets as evidence,
+    not automatic truth.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+VERSION = "0.1.0-marketint-safe-starter"
+FAR_FUTURE = datetime(9999, 12, 31, tzinfo=timezone.utc)
+
+# --------------------------------------------------------------------
+# Policy / authorization constants
+# --------------------------------------------------------------------
+
+ALLOWED_SCOPES = {
+    "public_and_authorized_records",
+    "authorized_case_evidence",
+    "authorized_market_data",
+    "provided_records_only",
+}
+
+PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(
+            r"(?i)\b(steal|exfiltrate|acquire|obtain|copy|download|lift)\s+"
+            r"(trade\s+secret|confidential\s+customer\s+data|private\s+competitor\s+data|price\s+book|pipeline|customer\s+database)\b"
+        ),
+        "TRADE_SECRET_OR_CONFIDENTIAL_DATA_THEFT",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(hack|intrude|breach|access|break\s+into)\s+"
+            r"(competitor|private\s+system|internal\s+system|customer\s+database|vendor\s+portal)\b"
+        ),
+        "UNAUTHORIZED_SYSTEM_ACCESS",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(use|leverate|login\s+with|authenticate\s+with)\s+"
+            r"(stolen|leaked|shared|borrowed)\s+(credential|password|token|api\s+key|cookie|vpn)\b"
+        ),
+        "STOLEN_CREDENTIAL_USE",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(phish|social[- ]engineer|impersonate|pretend\s+to\s+be|masquerade)\s+"
+            r"(competitor\s+employee|customer|vendor|insider|buyer|procurement)\b"
+        ),
+        "PHISHING_OR_SOCIAL_ENGINEERING",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(bribe|blackmail|coerce|pay\s+off|induce)\s+"
+            r"(insider|employee|source|customer|vendor|procurement\s+official)\b"
+        ),
+        "BRIBERY_OR_COERCION",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(use|trade\s+on|act\s+on|profit\s+from)\s+"
+            r"(mnpi|material\s+non[- ]public\s+information|insider\s+information)\b"
+        ),
+        "MNPI_OR_INSIDER_TRADING",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(manipulat\w*\s+(securities|stock|market)|pump[- ]and[- ]dump|spoof|layering|wash\s+trade|spread\s+false\s+(market\s+)?information)\b"
+        ),
+        "SECURITIES_MARKET_MANIPULATION",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(coordinate|fix|rig|allocate|divide)\s+"
+            r"(price|pricing|bid|tender|customer|territory|market|production|output)\b"
+        ),
+        "ANTICOMPETITIVE_COLLUSION",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(fabricate|invent|make\s+up|fake|manufacture)\s+"
+            r"(market\s+data|sales|revenue|market\s+share|demand|competitor\s+revenue|forecast|customer\s+count)\b"
+        ),
+        "MARKET_DATA_FABRICATION",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(publish|spread|circulate)\s+(false|defamatory|misleading)\s+"
+            r"(allegation|claim|statement|report)\s+(about|against|on)\s+(competitor|company|firm)\b"
+        ),
+        "DEFAMATORY_OR_FALSE_MARKET_CLAIM",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(deceptive|undercover|covert)\s+(customer\s+research|survey|interview|call)\b.*"
+            r"\b(confidential|protected|trade\s+secret|pricing)\b"
+        ),
+        "DECEPTIVE_CONFIDENTIAL_RESEARCH",
+    ),
+]
+
+SOURCE_RELIABILITY: Dict[str, float] = {
+    "government_statistics": 0.90,
+    "regulator": 0.88,
+    "audited_filing": 0.88,
+    "transaction_data": 0.86,
+    "procurement_data": 0.84,
+    "company_filing": 0.82,
+    "trade_data": 0.80,
+    "market_research_provider": 0.70,
+    "industry_association": 0.68,
+    "survey": 0.65,
+    "marketplace": 0.62,
+    "company_website": 0.60,
+    "analyst_commentary": 0.58,
+    "news": 0.55,
+    "review_platform": 0.50,
+    "social_media": 0.35,
+    "unknown": 0.30,
+}
+
+METRIC_TYPES = {
+    "REVENUE",
+    "UNIT_VOLUME",
+    "CUSTOMERS",
+    "INSTALL_BASE",
+    "SHIPMENTS",
+    "CONTRACT_VALUE",
+    "TRANSACTION_VOLUME",
+    "ACTIVE_USERS",
+    "SUBSCRIPTIONS",
+    "SEATS",
+    "CAPACITY",
+    "OTHER",
+    "UNKNOWN",
+}
+
+SIZING_METHODS = {
+    "TOP_DOWN",
+    "BOTTOM_UP",
+    "SUPPLY_SIDE",
+    "DEMAND_SIDE",
+    "CONSOLIDATED",
+    "INSUFFICIENT_DATA",
+    "UNKNOWN",
+}
+
+TAM_STATES = {
+    "DIRECTLY_REPORTED",
+    "DERIVED",
+    "MODELLED",
+    "SCENARIO_BASED",
+    "INSUFFICIENT_DATA",
+    "UNKNOWN",
+}
+
+COMPETITOR_RELATIONSHIPS = {
+    "DIRECT",
+    "INDIRECT",
+    "SUBSTITUTE",
+    "ADJACENT",
+    "UNKNOWN",
+}
+
+SHARE_BASES = {
+    "REVENUE_SHARE",
+    "UNIT_SHARE",
+    "CUSTOMER_SHARE",
+    "SHIPMENT_SHARE",
+    "INSTALL_BASE_SHARE",
+    "CAPACITY_SHARE",
+    "OTHER",
+    "UNKNOWN",
+}
+
+PRICING_TYPES = {
+    "LIST_PRICE",
+    "OBSERVED_CONTRACT_PRICE",
+    "ESTIMATED_REALIZED_PRICE",
+    "PROMOTIONAL_PRICE",
+    "UNKNOWN",
+}
+
+DEMAND_SIGNAL_TYPES = {
+    "SALES",
+    "ORDERS",
+    "USAGE",
+    "SUBSCRIPTIONS",
+    "INSTALLATIONS",
+    "PROCUREMENT_TENDER",
+    "TRADE_SHIPMENT",
+    "PURCHASE_INTENT",
+    "SURVEY",
+    "REVIEW",
+    "SEARCH_INTEREST",
+    "SOCIAL_SENTIMENT",
+    "JOB_POSTING",
+    "PATENT",
+    "ACADEMIC",
+    "OTHER",
+    "UNKNOWN",
+}
+
+SUPPLY_SIGNAL_TYPES = {
+    "PRODUCTION",
+    "CAPACITY",
+    "SHIPMENTS",
+    "INVENTORY",
+    "VENDOR_COUNT",
+    "NEW_ENTRANT",
+    "DISTRIBUTION_COVERAGE",
+    "OTHER",
+    "UNKNOWN",
+}
+
+EVIDENCE_STATES = {
+    "DIRECTLY_REPORTED",
+    "MULTI_SOURCE_SUPPORTED",
+    "INFERRED",
+    "UNKNOWN",
+}
+
+DRIVER_TYPES = {
+    "REGULATORY",
+    "MACROECONOMIC",
+    "TECHNOLOGY",
+    "SEASONALITY",
+    "EVENT",
+    "OTHER",
+    "UNKNOWN",
+}
+
+DRIVER_STATUS = {
+    "PROPOSED",
+    "ADOPTED",
+    "EFFECTIVE",
+    "TRANSITION",
+    "ENFORCEMENT",
+    "UNKNOWN",
+}
+
+DRIVER_EFFECT = {
+    "EXPAND",
+    "CONSTRAIN",
+    "RESHAPE",
+    "UNKNOWN",
+}
+
+MATURITY_STAGES = {
+    "EMERGING",
+    "EARLY_GROWTH",
+    "HIGH_GROWTH",
+    "MATURING",
+    "MATURE",
+    "DECLINING",
+    "DISRUPTED",
+    "UNKNOWN",
+}
+
+FORECAST_METHODS = {
+    "TIME_SERIES",
+    "DRIVER_BASED",
+    "BOTTOM_UP",
+    "COHORT_ADOPTION",
+    "CAPACITY_BASED",
+    "SCENARIO_BASED",
+    "CONSENSUS",
+    "MECHANICAL_CAGR",
+    "UNKNOWN",
+}
+
+SCENARIOS = {
+    "DOWNSIDE",
+    "BASE",
+    "UPSIDE",
+    "CUSTOM",
+    "UNKNOWN",
+}
+
+KNOWLEDGE_STATES = {
+    "KNOWN",
+    "SUPPORTED",
+    "PARTIAL",
+    "DISPUTED",
+    "ESTIMATED",
+    "FORECAST",
+    "UNKNOWN",
+    "MISSING_EVIDENCE",
+    "STALE_EVIDENCE",
+    "METHOD_CONFLICT",
+    "DEFINITION_CONFLICT",
+}
+
+DEMAND_SIGNAL_WEIGHT: Dict[str, float] = {
+    "SALES": 0.95,
+    "ORDERS": 0.88,
+    "SUBSCRIPTIONS": 0.85,
+    "USAGE": 0.82,
+    "INSTALLATIONS": 0.78,
+    "PROCUREMENT_TENDER": 0.68,
+    "TRADE_SHIPMENT": 0.62,
+    "PURCHASE_INTENT": 0.52,
+    "SURVEY": 0.50,
+    "REVIEW": 0.42,
+    "JOB_POSTING": 0.36,
+    "SEARCH_INTEREST": 0.32,
+    "PATENT": 0.30,
+    "ACADEMIC": 0.30,
+    "SOCIAL_SENTIMENT": 0.25,
+    "OTHER": 0.20,
+    "UNKNOWN": 0.10,
+}
+
+LOW_WEIGHT_DEMAND_TYPES = {
+    "SEARCH_INTEREST",
+    "SOCIAL_SENTIMENT",
+    "JOB_POSTING",
+    "PATENT",
+    "ACADEMIC",
+    "REVIEW",
+    "UNKNOWN",
+}
+
+INTERNAL_CLASSIFICATIONS = {
+    "INTERNAL",
+    "CONFIDENTIAL",
+    "RESTRICTED",
+    "PRICE_BOOK",
+    "PIPELINE",
+    "CUSTOMER_DATABASE",
+    "INTERNAL_SALES",
+    "CONFIDENTIAL_COMPETITOR_MATERIAL",
+}
+
+
+# --------------------------------------------------------------------
+# Generic helpers
+# --------------------------------------------------------------------
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def stable_id(prefix: str, *parts: Any) -> str:
+    raw = "|".join(str(json_safe(p)) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def json_safe(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [json_safe(x) for x in obj]
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
+    if isinstance(obj, bytes):
+        return obj.hex()
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    return str(obj)
+
+
+def normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    s = unicodedata.normalize("NFKC", str(value))
+    s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+    return s.strip()
+
+
+def iso(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if isinstance(dt, datetime) else None
+
+
+def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, value))
+
+
+def unique_preserve(items: Iterable[Any]) -> List[Any]:
+    seen: Set[str] = set()
+    out = []
+    for item in items:
+        key = json_safe(item)
+        if isinstance(key, (dict, list)):
+            key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+        key = str(key)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def add_unique(lst: List[Any], item: Any) -> None:
+    if item is None:
+        return
+    key = json_safe(item)
+    if isinstance(key, (dict, list)):
+        key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+    key = str(key)
+    for existing in lst:
+        ex_key = json_safe(existing)
+        if isinstance(ex_key, (dict, list)):
+            ex_key = json.dumps(ex_key, sort_keys=True, ensure_ascii=False)
+        if str(ex_key) == key:
+            return
+    lst.append(item)
+
+
+def parse_time(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    s = normalize_text(value)
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y-%m",
+        "%Y",
+    ):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            continue
+    return None
+
+
+def parse_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = normalize_text(value).replace(",", "")
+    m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", s)
+    if not m:
+        return None
+    try:
+        return float(m.group())
+    except Exception:
+        return None
+
+
+def parse_int(value: Any) -> Optional[int]:
+    f = parse_float(value)
+    return int(f) if f is not None else None
+
+
+def sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def mask_value(value: Any, keep_prefix: int = 3, keep_suffix: int = 2) -> str:
+    s = normalize_text(value)
+    if not s:
+        return ""
+    if len(s) <= keep_prefix + keep_suffix:
+        return "*" * len(s)
+    return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+
+
+def source_list(*items: Any) -> List[str]:
+    out = []
+    for it in items:
+        if it is None:
+            continue
+        if isinstance(it, list):
+            out.extend(normalize_text(x) for x in it if normalize_text(x))
+        else:
+            s = normalize_text(it)
+            if s:
+                out.append(s)
+    return list(dict.fromkeys(out))
+
+
+def norm_enum(value: Any, allowed: Set[str], default: str = "UNKNOWN") -> str:
+    s = normalize_text(value).upper().replace("-", "_").replace(" ", "_")
+    return s if s in allowed else default
+
+
+def days_between(a: Optional[datetime], b: Optional[datetime]) -> Optional[int]:
+    if not a or not b:
+        return None
+    return (b - a).days
+
+
+def safe_mean(values: Iterable[float]) -> Optional[float]:
+    vals = [float(v) for v in values]
+    if not vals:
+        return None
+    return round(sum(vals) / float(len(vals)), 6)
+
+
+def median(values: Iterable[float]) -> Optional[float]:
+    vals = sorted(float(v) for v in values)
+    if not vals:
+        return None
+    n = len(vals)
+    mid = n // 2
+    if n % 2:
+        return round(vals[mid], 6)
+    return round((vals[mid - 1] + vals[mid]) / 2.0, 6)
+
+
+def relative_diff(a: Optional[float], b: Optional[float]) -> Optional[float]:
+    if a is None or b is None:
+        return None
+    denom = max(abs(a), abs(b), 1e-9)
+    return abs(a - b) / denom
+
+
+def to_percent_share(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    if 0.0 <= value <= 1.0:
+        return value * 100.0
+    if 0.0 <= value <= 100.0:
+        return value
+    return None
+
+
+# --------------------------------------------------------------------
+# Policy / authorization
+# --------------------------------------------------------------------
+
+def collect_intent_text(manifest: Dict[str, Any]) -> str:
+    parts = [
+        normalize_text(manifest.get("objective", "")),
+        " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+        " ".join(normalize_text(x) for x in manifest.get("requested_actions", []) or []),
+    ]
+    return " ".join(parts)
+
+
+def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+    blob = collect_intent_text(manifest)
+    blocked = []
+    for pat, label in PROHIBITED_PATTERNS:
+        if pat.search(blob):
+            blocked.append(label)
+    return list(dict.fromkeys(blocked))
+
+
+def has_internal_sensitive(manifest: Dict[str, Any]) -> bool:
+    if manifest.get("internal_sales_data") or manifest.get("customer_data"):
+        return True
+    if manifest.get("price_books") or manifest.get("pipeline_data"):
+        return True
+    if manifest.get("confidential_competitor_material"):
+        return True
+    for m in manifest.get("market_metrics", []) or []:
+        cls = normalize_text(m.get("data_classification", "")).upper()
+        stype = normalize_text(m.get("source_type", "")).lower()
+        if cls in INTERNAL_CLASSIFICATIONS or stype in {"internal_sales", "customer_database", "price_book", "pipeline"}:
+            return True
+    return False
+
+
+def detect_mnpi(manifest: Dict[str, Any]) -> bool:
+    if manifest.get("mnpi_candidate") is True:
+        return True
+    blob = collect_intent_text(manifest).lower()
+    if re.search(r"\b(mnpi|material\s+non[- ]public\s+information|insider\s+information)\b", blob):
+        return True
+    for bucket in (
+        "market_metrics",
+        "sizing_estimates",
+        "pricing_data",
+        "demand_signals",
+        "supply_signals",
+        "competitors",
+        "market_shares",
+        "forecasts",
+    ):
+        for item in manifest.get(bucket, []) or []:
+            if isinstance(item, dict) and item.get("mnpi_candidate") is True:
+                return True
+    return False
+
+
+def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    auth = manifest.get("authorization") or {}
+    reasons: List[str] = []
+
+    if not auth.get("approved"):
+        reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+
+    scope = auth.get("scope", "provided_records_only")
+    if scope not in ALLOWED_SCOPES:
+        reasons.append("UNSUPPORTED_SCOPE")
+
+    model_mode = auth.get("model_mode", "LOCAL_ONLY")
+    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+        reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+
+    if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+        reasons.append("UNKNOWN_MODEL_MODE")
+
+    if has_internal_sensitive(manifest) and not auth.get("private_data_approved"):
+        reasons.append("PRIVATE_OR_CONFIDENTIAL_MARKET_DATA_NOT_APPROVED")
+
+    if detect_mnpi(manifest) and not auth.get("mnpi_review_approved"):
+        reasons.append("MNPI_REVIEW_REQUIRED")
+
+    return (len(reasons) == 0), reasons
+
+
+# --------------------------------------------------------------------
+# Sources / pedigree / independence
+# --------------------------------------------------------------------
+
+def collect_referenced_source_ids(obj: Any) -> Set[str]:
+    ids: Set[str] = set()
+
+    def walk(x: Any) -> None:
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if k in ("source_id", "source_ids"):
+                    if isinstance(v, list):
+                        ids.update(normalize_text(i) for i in v if normalize_text(i))
+                    else:
+                        s = normalize_text(v)
+                        if s:
+                            ids.add(s)
+                walk(v)
+        elif isinstance(x, list):
+            for i in x:
+                walk(i)
+
+    walk(obj)
+    return ids
+
+
+def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    sources: Dict[str, Dict[str, Any]] = {}
+    for s in manifest.get("sources", []) or []:
+        sid = normalize_text(s.get("source_id"))
+        if not sid:
+            continue
+        stype = normalize_text(s.get("source_type", "unknown")).lower()
+        reliability = s.get("reliability")
+        if reliability is None:
+            reliability = SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"])
+        sources[sid] = {
+            "source_id": sid,
+            "source_type": stype,
+            "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+            "reliability": clamp(float(reliability)),
+            "observed_at": normalize_text(s.get("observed_at")) or None,
+            "url": s.get("url"),
+            "limitations": list(s.get("limitations", []) or []),
+        }
+
+    for sid in collect_referenced_source_ids(manifest):
+        if sid not in sources:
+            sources[sid] = {
+                "source_id": sid,
+                "source_type": "unknown",
+                "upstream_source_id": None,
+                "reliability": SOURCE_RELIABILITY["unknown"],
+                "observed_at": None,
+                "url": None,
+                "limitations": ["Source referenced but not defined in manifest."],
+            }
+    return sources
+
+
+def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+    if sid in memo:
+        return memo[sid]
+    if sid in visiting:
+        return sid
+    visiting.add(sid)
+    src = sources.get(sid)
+    if not src or not src.get("upstream_source_id"):
+        memo[sid] = sid
+        visiting.discard(sid)
+        return sid
+    root = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+    memo[sid] = root
+    visiting.discard(sid)
+    return root
+
+
+def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+    memo: Dict[str, str] = {}
+    for sid in sources:
+        resolve_source_root(sid, sources, memo, set())
+    return memo
+
+
+def source_family_ids(source_ids: List[str], source_roots: Dict[str, str]) -> List[str]:
+    roots = []
+    for sid in source_ids:
+        roots.append(source_roots.get(sid, sid))
+    return list(dict.fromkeys(roots))
+
+
+def source_quality(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> Tuple[float, float]:
+    vals = [float(sources.get(sid, {}).get("reliability", SOURCE_RELIABILITY["unknown"])) for sid in source_ids]
+    if not vals:
+        return SOURCE_RELIABILITY["unknown"], SOURCE_RELIABILITY["unknown"]
+    return max(vals), sum(vals) / len(vals)
+
+
+def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+    if not source_ids:
+        return "UNKNOWN"
+    if len(families) <= 1:
+        return "DEPENDENT"
+    types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+    rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+    if len(types) == 1 and max(rels) < 0.70:
+        return "PARTIALLY_DEPENDENT"
+    if max(rels) >= 0.70:
+        return "INDEPENDENT"
+    return "PARTIALLY_DEPENDENT"
+
+
+def collect_all_source_ids(*lists: Any) -> List[str]:
+    ids = []
+    for lst in lists:
+        if not isinstance(lst, list):
+            continue
+        for item in lst:
+            if isinstance(item, dict):
+                ids.extend(source_list(item.get("source_ids", []), item.get("source_id")))
+    return list(dict.fromkeys(ids))
+
+
+def overall_source_independence(
+    sources: Dict[str, Dict[str, Any]],
+    source_roots: Dict[str, str],
+    *lists: Any,
+) -> Dict[str, Any]:
+    ids = collect_all_source_ids(*lists)
+    fams = source_family_ids(ids, source_roots)
+    state = independence_state(fams, sources, ids)
+    max_rel, avg_rel = source_quality(ids, sources)
+    return {
+        "source_ids": ids,
+        "source_families": fams,
+        "state": state,
+        "max_reliability": round(max_rel, 4),
+        "avg_reliability": round(avg_rel, 4),
+        "limitations": [
+            "Multiple articles/blogs quoting one market-research report are one evidence family.",
+            "Independent sources can disagree; dependence does not automatically mean falsehood.",
+        ],
+    }
+
+
+# --------------------------------------------------------------------
+# Market definition / metrics / sizing
+# --------------------------------------------------------------------
+
+def ingest_market(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    md = manifest.get("market_definition") or manifest.get("market") or {}
+    market_id = normalize_text(md.get("market_id") or md.get("id") or "MARKET-1")
+    geographies = source_list(
+        md.get("geographies"),
+        md.get("geography"),
+        md.get("regions"),
+        md.get("countries"),
+    )
+    channels = source_list(md.get("channel_scope"), md.get("channels"))
+    time_window = md.get("time_window") or {}
+    currency = normalize_text(md.get("currency")).upper() or "UNKNOWN"
+    unit = normalize_text(md.get("measurement_unit") or md.get("unit")) or "UNKNOWN"
+
+    return {
+        "market_id": market_id,
+        "name": normalize_text(md.get("name")) or market_id,
+        "definition": normalize_text(md.get("definition")) or None,
+        "included_categories": source_list(md.get("included_categories"), md.get("in_scope_products")),
+        "excluded_categories": source_list(md.get("excluded_categories"), md.get("out_of_scope_products")),
+        "customer_scope": source_list(md.get("customer_scope"), md.get("in_scope_customers")),
+        "geographies": geographies,
+        "default_geography": geographies[0] if geographies else "GLOBAL",
+        "channel_scope": channels,
+        "time_window": {
+            "start": normalize_text(time_window.get("start")) or None,
+            "end": normalize_text(time_window.get("end")) or None,
+            "raw": time_window,
+        },
+        "currency": currency,
+        "measurement_unit": unit,
+        "assumptions": source_list(md.get("assumptions")),
+        "source_ids": source_list(md.get("source_ids"), md.get("source_id")),
+        "confidence": clamp(float(md.get("confidence", 0.65))),
+        "limitations": list(md.get("limitations", []) or []) + [
+            "Industry classification is not market definition.",
+            "Product category is not market; buyer need, substitutability, geography, and time matter.",
+            "TAM is not expected revenue.",
+        ],
+    }
+
+
+def ingest_metrics(manifest: Dict[str, Any], market: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, m in enumerate(manifest.get("market_metrics", []) or []):
+        metric_id = normalize_text(m.get("metric_id") or m.get("id") or f"MET-{idx}")
+        value = parse_float(m.get("value"))
+        metric_type = norm_enum(m.get("metric_type"), METRIC_TYPES)
+        currency = normalize_text(m.get("currency") or market.get("currency")).upper() or "UNKNOWN"
+        unit = normalize_text(m.get("unit") or market.get("measurement_unit")) or "UNKNOWN"
+        geography = normalize_text(m.get("geography") or m.get("region") or market.get("default_geography")) or "GLOBAL"
+        period_start = parse_time(m.get("period_start") or m.get("start"))
+        period_end = parse_time(m.get("period_end") or m.get("end") or m.get("year"))
+        denominator = parse_float(m.get("denominator"))
+        out.append({
+            "metric_id": metric_id,
+            "market_id": normalize_text(m.get("market_id")) or market.get("market_id"),
+            "segment_id": normalize_text(m.get("segment_id")) or None,
+            "geography": geography,
+            "metric_type": metric_type,
+            "value": value,
+            "unit": unit,
+            "currency": currency,
+            "denominator": denominator,
+            "period_start": period_start,
+            "period_end": period_end,
+            "method": normalize_text(m.get("method")) or None,
+            "data_classification": normalize_text(m.get("data_classification")).upper() or None,
+            "mnpi_candidate": bool(m.get("mnpi_candidate")),
+            "source_ids": source_list(m.get("source_ids"), m.get("source_id")),
+            "confidence": clamp(float(m.get("confidence", 0.65))),
+            "limitations": list(m.get("limitations", []) or []) + [
+                "Metric semantics must be preserved; revenue is not units, shipments are not sales.",
+                "Reported estimate is not observed fact unless source/method supports it.",
+            ],
+        })
+    return out
+
+
+def ingest_sizing(manifest: Dict[str, Any], market: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, s in enumerate(manifest.get("sizing_estimates", []) or []):
+        estimate_id = normalize_text(s.get("estimate_id") or s.get("id") or f"SIZE-{idx}")
+        low = parse_float(s.get("value_low"))
+        base = parse_float(s.get("value_base") or s.get("value"))
+        high = parse_float(s.get("value_high"))
+        derived_midpoint = False
+        if base is None and low is not None and high is not None:
+            base = round((low + high) / 2.0, 6)
+            derived_midpoint = True
+        method = norm_enum(s.get("method"), SIZING_METHODS)
+        metric_type = norm_enum(s.get("metric_type"), METRIC_TYPES)
+        currency = normalize_text(s.get("currency") or market.get("currency")).upper() or "UNKNOWN"
+        unit = normalize_text(s.get("unit") or market.get("measurement_unit")) or "UNKNOWN"
+        geography = normalize_text(s.get("geography") or market.get("default_geography")) or "GLOBAL"
+        period_start = parse_time(s.get("period_start") or s.get("start"))
+        period_end = parse_time(s.get("period_end") or s.get("end") or s.get("year"))
+        out.append({
+            "estimate_id": estimate_id,
+            "market_id": normalize_text(s.get("market_id")) or market.get("market_id"),
+            "segment_id": normalize_text(s.get("segment_id")) or None,
+            "geography": geography,
+            "method": method,
+            "metric_type": metric_type,
+            "value_low": low,
+            "value_base": base,
+            "value_high": high,
+            "unit": unit,
+            "currency": currency,
+            "period_start": period_start,
+            "period_end": period_end,
+            "assumptions": source_list(s.get("assumptions")),
+            "formula": normalize_text(s.get("formula")) or None,
+            "derived_midpoint": derived_midpoint,
+            "source_ids": source_list(s.get("source_ids"), s.get("source_id")),
+            "confidence": clamp(float(s.get("confidence", 0.60))),
+            "limitations": list(s.get("limitations", []) or []) + [
+                "Market size is definition-dependent; changing boundary can materially change estimate.",
+                "Do not average methods blindly; investigate methodology and definition differences.",
+            ],
+        })
+    return out
+
+
+def ingest_layer(manifest: Dict[str, Any], key: str, market: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    obj = manifest.get(key)
+    if not obj:
+        return None
+    low = parse_float(obj.get("value_low"))
+    base = parse_float(obj.get("value_base") or obj.get("value"))
+    high = parse_float(obj.get("value_high"))
+    if base is None and low is not None and high is not None:
+        base = round((low + high) / 2.0, 6)
+    return {
+        "layer": key.upper(),
+        "market_id": normalize_text(obj.get("market_id")) or market.get("market_id"),
+        "state": norm_enum(obj.get("state"), TAM_STATES),
+        "method": norm_enum(obj.get("method"), SIZING_METHODS),
+        "metric_type": norm_enum(obj.get("metric_type"), METRIC_TYPES),
+        "value_low": low,
+        "value_base": base,
+        "value_high": high,
+        "currency": normalize_text(obj.get("currency") or market.get("currency")).upper() or "UNKNOWN",
+        "unit": normalize_text(obj.get("unit") or market.get("measurement_unit")) or "UNKNOWN",
+        "period": normalize_text(obj.get("period")) or None,
+        "assumptions": source_list(obj.get("assumptions")),
+        "filters": obj.get("filters", {}) or {},
+        "source_ids": source_list(obj.get("source_ids"), obj.get("source_id")),
+        "confidence": clamp(float(obj.get("confidence", 0.55))),
+        "limitations": list(obj.get("limitations", []) or []) + [
+            "TAM is theoretically addressable demand under stated definition, not expected revenue.",
+            "SAM applies capability/geography/customer/regulatory/channel constraints.",
+            "SOM must reflect competition, distribution, capacity, pricing, and time; not arbitrary % of TAM.",
+        ],
+    }
+
+
+def triangulate_sizing(estimates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    by_method: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for e in estimates:
+        if e.get("value_base") is not None:
+            by_method[e.get("method", "UNKNOWN")].append(e)
+    if not by_method:
+        return {
+            "state": "INSUFFICIENT_DATA",
+            "methods": [],
+            "ranges": [],
+            "divergence": None,
+            "limitations": ["No base sizing estimates with usable values were provided."],
+        }
+
+    ranges = []
+    all_bases = []
+    all_lows = []
+    all_highs = []
+    for method, es in sorted(by_method.items()):
+        lows = [e["value_low"] for e in es if e.get("value_low") is not None]
+        bases = [e["value_base"] for e in es if e.get("value_base") is not None]
+        highs = [e["value_high"] for e in es if e.get("value_high") is not None]
+        all_bases.extend(bases)
+        all_lows.extend(lows)
+        all_highs.extend(highs)
+        ranges.append({
+            "method": method,
+            "estimate_count": len(es),
+            "low": min(lows) if lows else None,
+            "base_median": median(bases),
+            "high": max(highs) if highs else None,
+            "source_ids": collect_all_source_ids(es),
+        })
+
+    divergence = None
+    if all_bases:
+        denom = max(abs(max(all_bases)), abs(min(all_bases)), 1e-9)
+        divergence = round((max(all_bases) - min(all_bases)) / denom, 4)
+
+    return {
+        "state": "TRIANGULATED" if len(by_method) >= 2 else "SINGLE_METHOD",
+        "methods": sorted(by_method.keys()),
+        "ranges": ranges,
+        "combined_low": min(all_lows) if all_lows else (min(all_bases) if all_bases else None),
+        "combined_base_median": median(all_bases),
+        "combined_high": max(all_highs) if all_highs else (max(all_bases) if all_bases else None),
+        "divergence": divergence,
+        "limitations": [
+            "Triangulation compares methods; it does not average away definition differences.",
+            "Large divergence requires methodology/market-boundary investigation.",
+        ],
+    }
+
+
+# --------------------------------------------------------------------
+# Competitors / shares / pricing
+# --------------------------------------------------------------------
+
+def ingest_competitors(manifest: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    competitors: Dict[str, Dict[str, Any]] = {}
+    for idx, c in enumerate(manifest.get("competitors", []) or []):
+        cid = normalize_text(c.get("competitor_id") or c.get("id") or c.get("company") or f"COMP-{idx}")
+        competitors[cid] = {
+            "competitor_id": cid,
+            "legal_entity": normalize_text(c.get("legal_entity")) or None,
+            "brand": normalize_text(c.get("brand")) or cid,
+            "products": source_list(c.get("products")),
+            "segments": source_list(c.get("segments")),
+            "geographies": source_list(c.get("geographies"), c.get("geography")),
+            "channels": source_list(c.get("channels")),
+            "positioning": source_list(c.get("positioning")),
+            "capabilities": source_list(c.get("capabilities")),
+            "partnerships": source_list(c.get("partnerships")),
+            "signals": source_list(c.get("signals")),
+            "market_share_estimates": c.get("market_share_estimates", []) or [],
+            "source_ids": source_list(c.get("source_ids"), c.get("source_id")),
+            "confidence": clamp(float(c.get("confidence", 0.60))),
+            "limitations": list(c.get("limitations", []) or []) + [
+                "Brand is not legal company; resolve entity through CORPINT where material.",
+                "Total company revenue is not market-specific revenue without segment evidence.",
+                "Marketing claim is not demonstrated capability.",
+            ],
+        }
+
+    relationships = []
+    for idx, rel in enumerate(manifest.get("competitor_relationships", []) or []):
+        cid = normalize_text(rel.get("competitor_id"))
+        if not cid:
+            continue
+        relationships.append({
+            "relationship_id": normalize_text(rel.get("relationship_id")) or stable_id("CREL", cid, idx),
+            "competitor_id": cid,
+            "market_id": normalize_text(rel.get("market_id")) or None,
+            "segment_id": normalize_text(rel.get("segment_id")) or None,
+            "relationship_type": norm_enum(rel.get("relationship_type"), COMPETITOR_RELATIONSHIPS),
+            "overlap_evidence": normalize_text(rel.get("overlap_evidence")) or None,
+            "source_ids": source_list(rel.get("source_ids"), rel.get("source_id")),
+            "confidence": clamp(float(rel.get("confidence", 0.60))),
+            "limitations": [
+                "Direct competition requires material overlap in buyer, need, product, geography, and budget.",
+                "Substitute can reduce demand without being same category.",
+            ],
+        })
+
+    products = []
+    for idx, p in enumerate(manifest.get("competitor_products", []) or []):
+        products.append({
+            "product_id": normalize_text(p.get("product_id") or p.get("id") or f"PROD-{idx}"),
+            "competitor_id": normalize_text(p.get("competitor_id")) or None,
+            "name": normalize_text(p.get("name")) or None,
+            "category": normalize_text(p.get("category")) or None,
+            "features": source_list(p.get("features")),
+            "deployment": source_list(p.get("deployment")),
+            "target_segments": source_list(p.get("target_segments")),
+            "availability_state": norm_enum(p.get("availability_state"), {
+                "ANNOUNCED", "BETA", "LIMITED_AVAILABILITY", "GENERAL_AVAILABILITY", "DISCONTINUED", "UNKNOWN"
+            }),
+            "source_ids": source_list(p.get("source_ids"), p.get("source_id")),
+            "limitations": [
+                "Feature present is not feature quality.",
+                "Roadmap/announced capability is not currently available capability.",
+            ],
+        })
+
+    return competitors, relationships, products
+
+
+def ingest_market_shares(
+    manifest: Dict[str, Any],
+    metrics_by_id: Dict[str, Dict[str, Any]],
+    competitors: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    out = []
+    for idx, sh in enumerate(manifest.get("market_shares", []) or []):
+        cid = normalize_text(sh.get("competitor_id"))
+        numer_id = normalize_text(sh.get("numerator_metric_id"))
+        denom_id = normalize_text(sh.get("denominator_metric_id"))
+        basis = norm_enum(sh.get("basis"), SHARE_BASES)
+        reported_value = parse_float(sh.get("value"))
+        computed_value = None
+        formula = None
+        calc_conflict = None
+
+        numer = metrics_by_id.get(numer_id) if numer_id else None
+        denom = metrics_by_id.get(denom_id) if denom_id else None
+        if numer and denom and numer.get("value") is not None and denom.get("value") not in (None, 0):
+            computed_value = round(numer["value"] / denom["value"], 6)
+            formula = f"{numer_id} / {denom_id}"
+            if reported_value is not None:
+                rd = relative_diff(reported_value, computed_value)
+                if rd is not None and rd > 0.01:
+                    calc_conflict = {
+                        "reported_value": reported_value,
+                        "computed_value": computed_value,
+                        "relative_difference": round(rd, 4),
+                    }
+
+        value = reported_value if reported_value is not None else computed_value
+        period = normalize_text(sh.get("period")) or iso((denom or {}).get("period_end")) or None
+        out.append({
+            "share_id": normalize_text(sh.get("share_id")) or stable_id("SHARE", cid, basis, period, idx),
+            "competitor_id": cid,
+            "market_id": normalize_text(sh.get("market_id")) or None,
+            "basis": basis,
+            "value": value,
+            "reported_value": reported_value,
+            "computed_value": computed_value,
+            "formula": formula,
+            "numerator_metric_id": numer_id or None,
+            "denominator_metric_id": denom_id or None,
+            "period": period,
+            "calculation_conflict": calc_conflict,
+            "source_ids": source_list(sh.get("source_ids"), sh.get("source_id")),
+            "confidence": clamp(float(sh.get("confidence", 0.55))),
+            "limitations": list(sh.get("limitations", []) or []) + [
+                "Market share requires compatible numerator/denominator scope, period, geography, unit, and metric.",
+                "Market share is not profitability or competitive strength automatically.",
+                "Private-company share estimates require labeled proxies and uncertainty.",
+            ],
+        })
+        if cid and cid not in competitors:
+            competitors[cid] = {
+                "competitor_id": cid,
+                "legal_entity": None,
+                "brand": cid,
+                "products": [],
+                "segments": [],
+                "geographies": [],
+                "channels": [],
+                "positioning": [],
+                "capabilities": [],
+                "partnerships": [],
+                "signals": [],
+                "market_share_estimates": [],
+                "source_ids": source_list(sh.get("source_ids"), sh.get("source_id")),
+                "confidence": 0.35,
+                "limitations": ["Placeholder competitor inferred from share record; no company facts invented."],
+            }
+    return out
+
+
+def compute_hhi(shares: List[Dict[str, Any]], basis: str = "REVENUE_SHARE") -> Optional[float]:
+    vals = []
+    for s in shares:
+        if s.get("basis") != basis:
+            continue
+        p = to_percent_share(s.get("value"))
+        if p is not None:
+            vals.append(p)
+    if not vals:
+        return None
+    return round(sum((v * v) for v in vals), 4)
+
+
+def compute_top_n(shares: List[Dict[str, Any]], basis: str, n: int) -> Optional[float]:
+    vals = []
+    for s in shares:
+        if s.get("basis") != basis:
+            continue
+        p = to_percent_share(s.get("value"))
+        if p is not None:
+            vals.append(p)
+    if not vals:
+        return None
+    vals.sort(reverse=True)
+    return round(sum(vals[:n]), 4)
+
+
+def ingest_pricing(manifest: Dict[str, Any], market: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, p in enumerate(manifest.get("pricing_data", []) or manifest.get("pricing", []) or []):
+        point_id = normalize_text(p.get("price_id") or p.get("id") or f"PRICE-{idx}")
+        currency = normalize_text(p.get("currency") or market.get("currency")).upper() or "UNKNOWN"
+        out.append({
+            "price_id": point_id,
+            "market_id": normalize_text(p.get("market_id")) or market.get("market_id"),
+            "competitor_id": normalize_text(p.get("competitor_id")) or None,
+            "product_id": normalize_text(p.get("product_id")) or None,
+            "segment_id": normalize_text(p.get("segment_id")) or None,
+            "geography": normalize_text(p.get("geography") or market.get("default_geography")) or "GLOBAL",
+            "tier": normalize_text(p.get("tier")) or None,
+            "price_type": norm_enum(p.get("price_type"), PRICING_TYPES),
+            "list_price": parse_float(p.get("list_price")),
+            "observed_contract_price": parse_float(p.get("observed_contract_price")),
+            "estimated_realized_price": parse_float(p.get("estimated_realized_price")),
+            "promotional_price": parse_float(p.get("promotional_price")),
+            "currency": currency,
+            "unit": normalize_text(p.get("unit")) or "UNKNOWN",
+            "effective_date": parse_time(p.get("effective_date") or p.get("date")),
+            "promotion_start": parse_time(p.get("promotion_start")),
+            "promotion_end": parse_time(p.get("promotion_end")),
+            "source_ids": source_list(p.get("source_ids"), p.get("source_id")),
+            "confidence": clamp(float(p.get("confidence", 0.60))),
+            "limitations": list(p.get("limitations", []) or []) + [
+                "List price is not realized price.",
+                "Promotional price is not normal price.",
+                "Cheaper is not better value without capability/TCO/risk context.",
+            ],
+        })
+    return out
+
+
+def analyze_pricing(points: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    buckets: Dict[Tuple[str, Optional[str], str], List[float]] = defaultdict(list)
+    discounts = []
+
+    for p in points:
+        cur = p.get("currency") or "UNKNOWN"
+        tier = p.get("tier")
+        for typ in ("list_price", "observed_contract_price", "estimated_realized_price", "promotional_price"):
+            val = p.get(typ)
+            if val is not None:
+                buckets[(cur, tier, typ.upper())].append(float(val))
+
+        lp = p.get("list_price")
+        rp = p.get("estimated_realized_price") or p.get("observed_contract_price")
+        if lp and rp and lp > 0:
+            discounts.append({
+                "price_id": p.get("price_id"),
+                "competitor_id": p.get("competitor_id"),
+                "product_id": p.get("product_id"),
+                "currency": p.get("currency"),
+                "list_price": lp,
+                "realized_or_contract_price": rp,
+                "discount_pct": round((lp - rp) / lp, 4),
+                "note": "Discount is evidence-dependent and may reflect negotiation, bundling, promotion, or data quality.",
+            })
+
+    stats = []
+    for (cur, tier, typ), vals in sorted(buckets.items()):
+        stats.append({
+            "currency": cur,
+            "tier": tier,
+            "price_type": typ,
+            "count": len(vals),
+            "min": round(min(vals), 6),
+            "max": round(max(vals), 6),
+            "mean": safe_mean(vals),
+            "median": median(vals),
+        })
+    return stats, discounts
+
+
+# --------------------------------------------------------------------
+# Signals / customer intelligence / contexts / drivers
+# --------------------------------------------------------------------
+
+def ingest_signals(manifest: Dict[str, Any], buckets: Tuple[str, ...], kind: str) -> List[Dict[str, Any]]:
+    allowed = DEMAND_SIGNAL_TYPES if kind == "DEMAND" else SUPPLY_SIGNAL_TYPES
+    out = []
+    for bucket in buckets:
+        for idx, s in enumerate(manifest.get(bucket, []) or []):
+            sid = normalize_text(s.get("signal_id") or s.get("id") or f"{kind}-{bucket}-{idx}")
+            out.append({
+                "signal_id": sid,
+                "kind": kind,
+                "market_id": normalize_text(s.get("market_id")) or None,
+                "segment_id": normalize_text(s.get("segment_id")) or None,
+                "geography": normalize_text(s.get("geography")) or None,
+                "signal_type": norm_enum(s.get("signal_type"), allowed),
+                "value": parse_float(s.get("value")),
+                "unit": normalize_text(s.get("unit")) or None,
+                "period_start": parse_time(s.get("period_start")),
+                "period_end": parse_time(s.get("period_end")),
+                "evidence_text": normalize_text(s.get("evidence_text") or s.get("description")) or None,
+                "source_ids": source_list(s.get("source_ids"), s.get("source_id")),
+                "confidence": clamp(float(s.get("confidence", 0.55))),
+                "limitations": list(s.get("limitations", []) or []) + [
+                    "Signal type matters: attention is not demand, shipment is not end-user sale, tender is not purchase.",
+                ],
+            })
+    return out
+
+
+def analyze_signals(signals: List[Dict[str, Any]], kind: str) -> Dict[str, Any]:
+    counts = Counter(s.get("signal_type", "UNKNOWN") for s in signals)
+    strongest = None
+    if signals:
+        strongest = max(
+            signals,
+            key=lambda s: (
+                DEMAND_SIGNAL_WEIGHT.get(s.get("signal_type", "UNKNOWN"), 0.1) if kind == "DEMAND" else 0.5,
+                s.get("confidence", 0.0),
+            ),
+        )
+    return {
+        "kind": kind,
+        "count": len(signals),
+        "type_counts": dict(counts),
+        "strongest_signal_id": strongest.get("signal_id") if strongest else None,
+        "strongest_signal_type": strongest.get("signal_type") if strongest else None,
+        "limitations": [
+            "Demand and supply signals are not interchangeable.",
+            "Low-weight signals can support hypotheses but cannot alone prove market demand.",
+        ],
+    }
+
+
+def ingest_items(manifest: Dict[str, Any], bucket: str, text_keys: Tuple[str, ...]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, item in enumerate(manifest.get(bucket, []) or []):
+        text = None
+        for k in text_keys:
+            v = normalize_text(item.get(k))
+            if v:
+                text = v
+                break
+        if not text and isinstance(item, str):
+            text = item
+        out.append({
+            "item_id": normalize_text(item.get("id") if isinstance(item, dict) else None) or stable_id(bucket, idx, text),
+            "text": text,
+            "segment_id": normalize_text(item.get("segment_id")) if isinstance(item, dict) else None,
+            "evidence_state": norm_enum(item.get("evidence_state") if isinstance(item, dict) else None, EVIDENCE_STATES),
+            "source_ids": source_list(item.get("source_ids") if isinstance(item, dict) else None, item.get("source_id") if isinstance(item, dict) else None),
+            "confidence": clamp(float(item.get("confidence", 0.55))) if isinstance(item, dict) else 0.45,
+            "limitations": [
+                "Inferred needs/pain points are hypotheses unless directly reported or multi-source supported.",
+            ],
+        })
+    return out
+
+
+def ingest_generic_context(manifest: Dict[str, Any], bucket: str) -> List[Dict[str, Any]]:
+    out = []
+    for idx, item in enumerate(manifest.get(bucket, []) or []):
+        if not isinstance(item, dict):
+            item = {"description": item}
+        out.append({
+            "context_id": normalize_text(item.get("id")) or stable_id(bucket, idx, item.get("description")),
+            "type": bucket,
+            "description": normalize_text(item.get("description") or item.get("text") or item.get("name")) or None,
+            "sample_size": parse_int(item.get("sample_size")),
+            "method": normalize_text(item.get("method")) or None,
+            "population": normalize_text(item.get("population")) or None,
+            "field_dates": normalize_text(item.get("field_dates")) or None,
+            "response_rate": parse_float(item.get("response_rate")),
+            "rating": parse_float(item.get("rating")),
+            "volume": parse_int(item.get("volume")),
+            "platform": normalize_text(item.get("platform")) or None,
+            "source_ids": source_list(item.get("source_ids"), item.get("source_id")),
+            "confidence": clamp(float(item.get("confidence", 0.50))),
+            "limitations": list(item.get("limitations", []) or []) + [
+                "Context-specific bias and coverage limitations must be preserved.",
+            ],
+        })
+    return out
+
+
+def ingest_drivers(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    mappings = [
+        ("regulatory_drivers", "REGULATORY"),
+        ("macro_drivers", "MACROECONOMIC"),
+        ("technology_drivers", "TECHNOLOGY"),
+        ("market_events", "EVENT"),
+    ]
+    for bucket, default_type in mappings:
+        for idx, d in enumerate(manifest.get(bucket, []) or []):
+            out.append({
+                "driver_id": normalize_text(d.get("driver_id") or d.get("id") or f"DRV-{bucket}-{idx}"),
+                "type": norm_enum(d.get("type"), DRIVER_TYPES, default_type),
+                "description": normalize_text(d.get("description") or d.get("event") or d.get("name")) or None,
+                "status": norm_enum(d.get("status"), DRIVER_STATUS),
+                "effect": norm_enum(d.get("effect"), DRIVER_EFFECT),
+                "effective_date": parse_time(d.get("effective_date")),
+                "source_ids": source_list(d.get("source_ids"), d.get("source_id")),
+                "confidence": clamp(float(d.get("confidence", 0.55))),
+                "limitations": list(d.get("limitations", []) or []) + [
+                    "Announced regulation is not effective regulation.",
+                    "Macro correlation is not causation.",
+                    "Technology capability is not adoption.",
+                ],
+            })
+    return out
+
+
+# --------------------------------------------------------------------
+# Time series / growth / maturity / forecast
+# --------------------------------------------------------------------
+
+def build_time_series(metrics: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for m in metrics:
+        if m.get("value") is None or not m.get("period_end"):
+            continue
+        key = (
+            m.get("market_id"),
+            m.get("segment_id"),
+            m.get("geography"),
+            m.get("metric_type"),
+            m.get("currency"),
+            m.get("unit"),
+        )
+        groups[key].append(m)
+
+    series = []
+    for key, items in groups.items():
+        items.sort(key=lambda x: x["period_end"])
+        points = [
+            {
+                "metric_id": m["metric_id"],
+                "period_end": iso(m.get("period_end")),
+                "value": m.get("value"),
+                "method": m.get("method"),
+                "source_ids": m.get("source_ids", []),
+            }
+            for m in items
+        ]
+        yoy = []
+        for prev, curr in zip(items, items[1:]):
+            if prev.get("value") in (None, 0) or curr.get("value") is None:
+                continue
+            d = days_between(prev.get("period_end"), curr.get("period_end"))
+            years = d / 365.25 if d and d > 0 else None
+            growth = (curr["value"] - prev["value"]) / abs(prev["value"])
+            annualized = None
+            if years and years > 0 and growth > -1:
+                try:
+                    annualized = (1.0 + growth) ** (1.0 / years) - 1.0
+                except Exception:
+                    annualized = None
+            yoy.append({
+                "from_metric_id": prev["metric_id"],
+                "to_metric_id": curr["metric_id"],
+                "from_period": iso(prev.get("period_end")),
+                "to_period": iso(curr.get("period_end")),
+                "growth": round(growth, 6),
+                "annualized_growth": round(annualized, 6) if annualized is not None else None,
+                "years": round(years, 4) if years is not None else None,
+            })
+
+        cagr = None
+        if len(items) >= 2:
+            first, last = items[0], items[-1]
+            d = days_between(first.get("period_end"), last.get("period_end"))
+            years = d / 365.25 if d and d > 0 else None
+            if (
+                years is not None
+                and years > 0
+                and first.get("value") is not None
+                and first["value"] > 0
+                and last.get("value") is not None
+                and last["value"] > 0
+            ):
+                cagr = round((last["value"] / first["value"]) ** (1.0 / years) - 1.0, 6)
+
+        series.append({
+            "series_id": stable_id("SERIES", *key),
+            "market_id": key[0],
+            "segment_id": key[1],
+            "geography": key[2],
+            "metric_type": key[3],
+            "currency": key[4],
+            "unit": key[5],
+            "points": points,
+            "yoy": yoy,
+            "cagr": cagr,
+            "latest_value": items[-1].get("value") if items else None,
+            "limitations": [
+                "CAGR is smoothed growth, not yearly path.",
+                "Historical growth is not future growth without drivers/scenarios.",
+                "Series are only comparable if market boundary, metric, geography, period, currency, and unit match.",
+            ],
+        })
+    return series
+
+
+def analyze_maturity(manifest: Dict[str, Any], series: List[Dict[str, Any]]) -> Dict[str, Any]:
+    provided = norm_enum(manifest.get("market_maturity"), MATURITY_STAGES)
+    candidates = []
+    for s in series:
+        c = s.get("cagr")
+        if c is None:
+            continue
+        if c > 0.25:
+            candidates.append("HIGH_GROWTH_CANDIDATE")
+        elif c > 0.10:
+            candidates.append("EARLY_GROWTH_CANDIDATE")
+        elif c < -0.05:
+            candidates.append("DECLINING_CANDIDATE")
+        else:
+            candidates.append("STABLE_OR_MATURING_CANDIDATE")
+    return {
+        "state": provided,
+        "candidates": list(dict.fromkeys(candidates)),
+        "limitations": [
+            "Maturity requires penetration, competitor count, consolidation, pricing pressure, standardization, and replacement-demand evidence.",
+            "Growth rate alone is not maturity determination.",
+        ],
+    }
+
+
+def ingest_forecasts(manifest: Dict[str, Any], market: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, f in enumerate(manifest.get("forecasts", []) or []):
+        low = parse_float(f.get("value_low"))
+        base = parse_float(f.get("value_base") or f.get("value"))
+        high = parse_float(f.get("value_high"))
+        if base is None and low is not None and high is not None:
+            base = round((low + high) / 2.0, 6)
+        out.append({
+            "forecast_id": normalize_text(f.get("forecast_id") or f.get("id") or f"FC-{idx}"),
+            "market_id": normalize_text(f.get("market_id")) or market.get("market_id"),
+            "segment_id": normalize_text(f.get("segment_id")) or None,
+            "geography": normalize_text(f.get("geography") or market.get("default_geography")) or "GLOBAL",
+            "method": norm_enum(f.get("method"), FORECAST_METHODS),
+            "scenario": norm_enum(f.get("scenario"), SCENARIOS),
+            "metric_type": norm_enum(f.get("metric_type"), METRIC_TYPES),
+            "base_period": normalize_text(f.get("base_period")) or None,
+            "horizon": normalize_text(f.get("horizon")) or None,
+            "value_low": low,
+            "value_base": base,
+            "value_high": high,
+            "currency": normalize_text(f.get("currency") or market.get("currency")).upper() or "UNKNOWN",
+            "unit": normalize_text(f.get("unit") or market.get("measurement_unit")) or "UNKNOWN",
+            "assumptions": source_list(f.get("assumptions")),
+            "drivers": source_list(f.get("drivers")),
+            "actual_value": parse_float(f.get("actual_value")),
+            "source_ids": source_list(f.get("source_ids"), f.get("source_id")),
+            "confidence": clamp(float(f.get("confidence", 0.45))),
+            "limitations": list(f.get("limitations", []) or []) + [
+                "Forecast is not fact.",
+                "Scenario is not prediction.",
+                "Mechanical CAGR extension is weak unless drivers justify it.",
+            ],
+        })
+    return out
+
+
+def validate_forecasts(forecasts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    errors = []
+    abs_errors = []
+    pct_errors = []
+    for f in forecasts:
+        actual = f.get("actual_value")
+        pred = f.get("value_base")
+        if actual is None or pred is None:
+            continue
+        ae = abs(actual - pred)
+        abs_errors.append(ae)
+        row = {
+            "forecast_id": f.get("forecast_id"),
+            "actual_value": actual,
+            "forecast_base": pred,
+            "absolute_error": round(ae, 6),
+        }
+        if actual != 0:
+            pe = ae / abs(actual)
+            pct_errors.append(pe)
+            row["percentage_error"] = round(pe, 6)
+        errors.append(row)
+
+    return {
+        "validated_count": len(errors),
+        "mae": safe_mean(abs_errors),
+        "mape": safe_mean(pct_errors) if pct_errors else None,
+        "errors": errors,
+        "limitations": [
+            "MAPE behaves poorly near zero; choose metrics according to data.",
+            "Backtest requires comparable historical actuals and unchanged market definition.",
+        ],
+    }
+
+
+def ingest_sensitivity(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = []
+    for idx, s in enumerate(manifest.get("sensitivity_analysis", []) or []):
+        impact = parse_float(s.get("output_impact") or s.get("impact"))
+        out.append({
+            "sensitivity_id": normalize_text(s.get("sensitivity_id") or s.get("id") or f"SENS-{idx}"),
+            "input": normalize_text(s.get("input") or s.get("assumption")) or None,
+            "low": parse_float(s.get("low")),
+            "base": parse_float(s.get("base")),
+            "high": parse_float(s.get("high")),
+            "output_impact": impact,
+            "target_metric": normalize_text(s.get("target_metric")) or None,
+            "source_ids": source_list(s.get("source_ids"), s.get("source_id")),
+            "limitations": [
+                "Sensitivity identifies assumption leverage; it does not validate the assumption.",
+            ],
+        })
+    out.sort(key=lambda x: abs(x.get("output_impact") or 0.0), reverse=True)
+    return out
+
+
+# --------------------------------------------------------------------
+# Contradictions / hypotheses / ACH
+# --------------------------------------------------------------------
+
+def detect_contradictions(
+    metrics: List[Dict[str, Any]],
+    sizing: List[Dict[str, Any]],
+    shares: List[Dict[str, Any]],
+    pricing: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    contr = []
+
+    # Metric conflicts.
+    groups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for m in metrics:
+        if m.get("value") is None:
+            continue
+        key = (
+            m.get("market_id"),
+            m.get("segment_id"),
+            m.get("geography"),
+            m.get("metric_type"),
+            m.get("currency"),
+            m.get("unit"),
+            iso(m.get("period_start")),
+            iso(m.get("period_end")),
+        )
+        groups[key].append(m)
+    for key, items in groups.items():
+        vals = [float(x["value"]) for x in items]
+        if len(vals) < 2:
+            continue
+        vmin, vmax = min(vals), max(vals)
+        denom = max(abs(vmax), abs(vmin), 1e-9)
+        if (vmax - vmin) / denom > 0.05:
+            contr.append({
+                "contradiction_id": stable_id("CTR", "metric", *key),
+                "type": "METRIC_VALUE_CONFLICT",
+                "severity": "MATERIAL",
+                "detail": f"Same metric definition has divergent values: {sorted(set(vals))}.",
+                "items": [{"metric_id": x.get("metric_id"), "value": x.get("value"), "method": x.get("method"), "source_ids": x.get("source_ids", [])} for x in items],
+                "possible_causes": [
+                    "different market boundary",
+                    "different methodology",
+                    "revision/backfill",
+                    "currency or unit mismatch",
+                    "shipment vs sales confusion",
+                    "data error",
+                ],
+            })
+
+    # Sizing conflicts.
+    sgroups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for e in sizing:
+        if e.get("value_base") is None:
+            continue
+        key = (
+            e.get("market_id"),
+            e.get("method"),
+            e.get("metric_type"),
+            e.get("currency"),
+            e.get("unit"),
+            iso(e.get("period_start")),
+            iso(e.get("period_end")),
+        )
+        sgroups[key].append(e)
+    for key, items in sgroups.items():
+        vals = [float(x["value_base"]) for x in items]
+        if len(vals) < 2:
+            continue
+        vmin, vmax = min(vals), max(vals)
+        denom = max(abs(vmax), abs(vmin), 1e-9)
+        if (vmax - vmin) / denom > 0.10:
+            contr.append({
+                "contradiction_id": stable_id("CTR", "sizing", *key),
+                "type": "SIZING_METHOD_CONFLICT",
+                "severity": "MATERIAL",
+                "detail": f"Same sizing method/category has divergent base estimates: {sorted(set(vals))}.",
+                "items": [{"estimate_id": x.get("estimate_id"), "value_base": x.get("value_base"), "source_ids": x.get("source_ids", [])} for x in items],
+                "possible_causes": ["different multipliers", "different denominator", "stale source", "definition drift"],
+            })
+
+    # Share conflicts.
+    shgroups: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for s in shares:
+        if s.get("value") is None:
+            continue
+        key = (s.get("competitor_id"), s.get("market_id"), s.get("basis"), s.get("period"))
+        shgroups[key].append(s)
+    for key, items in shgroups.items():
+        vals = [float(x["value"]) for x in items]
+        if len(vals) < 2:
+            continue
+        vmin, vmax = min(vals), max(vals)
+        denom = max(abs(vmax), abs(vmin), 1e-9)
+        if (vmax - vmin) / denom > 0.05:
+            contr.append({
+                "contradiction_id": stable_id("CTR", "share", *key),
+                "type": "MARKET_SHARE_CONFLICT",
+                "severity": "MATERIAL",
+                "detail": f"Same competitor/share basis/period has divergent share values: {sorted(set(vals))}.",
+                "items": [{"share_id": x.get("share_id"), "value": x.get("value"), "source_ids": x.get("source_ids", [])} for x in items],
+                "possible_causes": ["different denominator scope", "private revenue estimate", "segment vs total company confusion"],
+            })
+
+    # Price conflicts.
+    pgroups: Dict[Tuple[Any, ...], List[Tuple[str, float]]] = defaultdict(list)
+    for p in pricing:
+        for typ in ("list_price", "observed_contract_price", "estimated_realized_price", "promotional_price"):
+            val = p.get(typ)
+            if val is None:
+                continue
+            key = (
+                p.get("market_id"),
+                p.get("competitor_id"),
+                p.get("product_id"),
+                p.get("tier"),
+                p.get("currency"),
+                typ.upper(),
+                iso(p.get("effective_date")),
+            )
+            pgroups[key].append((p.get("price_id"), float(val)))
+    for key, items in pgroups.items():
+        vals = [v for _, v in items]
+        if len(vals) < 2:
+            continue
+        vmin, vmax = min(vals), max(vals)
+        denom = max(abs(vmax), abs(vmin), 1e-9)
+        if (vmax - vmin) / denom > 0.05:
+            contr.append({
+                "contradiction_id": stable_id("CTR", "price", *key),
+                "type": "PRICE_CONFLICT",
+                "severity": "MATERIAL",
+                "detail": f"Same price type/date/tier has divergent values: {sorted(set(vals))}.",
+                "items": [{"price_id": pid, "value": val} for pid, val in items],
+                "possible_causes": ["promotion", "different geography", "bundle", "currency", "list vs realized confusion", "data error"],
+            })
+
+    return unique_preserve(contr)
+
+
+def build_hypotheses(
+    series: List[Dict[str, Any]],
+    metrics: List[Dict[str, Any]],
+    demand_signals: List[Dict[str, Any]],
+    supply_signals: List[Dict[str, Any]],
+    pricing_stats: List[Dict[str, Any]],
+    competitors: Dict[str, Dict[str, Any]],
+    shares: List[Dict[str, Any]],
+    forecasts: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    source_indep: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    hyp: List[Dict[str, Any]] = []
+
+    def add(subject_type: str, subject_id: str, category: str, statement: str,
+            support: List[str], opposition: List[str], unknowns: List[str],
+            falsification: List[str]) -> None:
+        hyp.append({
+            "hypothesis_id": stable_id("HYP", subject_type, subject_id, category, statement),
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "category": category,
+            "statement": statement,
+            "support": support,
+            "opposition": opposition,
+            "unknowns": unknowns,
+            "falsification_conditions": falsification,
+            "status": "CANDIDATE",
+        })
+
+    demand_counts = Counter(s.get("signal_type") for s in demand_signals)
+    supply_counts = Counter(s.get("signal_type") for s in supply_signals)
+    price_types = {s.get("price_type") for s in pricing_stats}
+
+    for s in series:
+        if s.get("metric_type") != "REVENUE" or s.get("cagr") is None:
+            continue
+        if s["cagr"] <= 0.05:
+            continue
+        sid = s["series_id"]
+        unit_series = [
+            x for x in series
+            if x.get("market_id") == s.get("market_id")
+            and x.get("segment_id") == s.get("segment_id")
+            and x.get("geography") == s.get("geography")
+            and x.get("metric_type") == "UNIT_VOLUME"
+        ]
+        unit_cagr = unit_series[0].get("cagr") if unit_series else None
+
+        add("REVENUE_SERIES", sid, "NEW_ADOPTION",
+            "Revenue growth may be driven by new customer/unit adoption.",
+            [f"revenue_cagr={s.get('cagr')}"],
+            ["Revenue can grow from price increases or category redefinition."],
+            ["unit volume trend", "customer count trend", "penetration"],
+            [f"Unit/customer series flat or declining while revenue rises. unit_cagr={unit_cagr}"])
+        add("REVENUE_SERIES", sid, "PRICE_INFLATION",
+            "Revenue growth may reflect price increases/inflation rather than real volume growth.",
+            [f"revenue_cagr={s.get('cagr')}", "pricing intelligence available" if price_types else "no price evidence yet"],
+            ["Unit growth is strong and price stable."],
+            ["realized price trend", "nominal vs real basis"],
+            ["Unit volume grows at similar rate and prices remain stable."])
+        add("REVENUE_SERIES", sid, "CATEGORY_REDEFINITION",
+            "Apparent growth may reflect widened market definition or included categories.",
+            ["market boundary sensitivity is material"],
+            ["definition remained constant and source methodology verified"],
+            ["included/excluded category history"],
+            ["Restating prior periods under current definition removes growth spike."])
+        if demand_counts.get("TRADE_SHIPMENT", 0) > 0 and demand_counts.get("SALES", 0) == 0:
+            add("REVENUE_SERIES", sid, "CHANNEL_INVENTORY",
+                "Growth may reflect channel inventory/shipments rather than end-user sales.",
+                ["shipment/trade signal present without sales signal"],
+                ["sales/orders/usage signals corroborate demand"],
+                ["channel inventory", "sell-through"],
+                ["Sell-through data confirms end-user purchases."])
+        if source_indep.get("state") != "INDEPENDENT":
+            add("REVENUE_SERIES", sid, "SOURCE_DEPENDENCY",
+                "Apparent corroboration may derive from dependent sources.",
+                [f"source_independence={source_indep.get('state')}"],
+                ["Independent government/transaction/procurement sources exist."],
+                ["upstream source pedigree"],
+                ["Independent primary sources confirm trend."])
+
+    if demand_counts.get("SEARCH_INTEREST", 0) > 0 or demand_counts.get("SOCIAL_SENTIMENT", 0) > 0:
+        add("DEMAND_SIGNALS", "ATTENTION", "ATTENTION_NOT_DEMAND",
+            "Search/social interest may reflect attention, news, or controversy rather than purchase demand.",
+            ["low-weight attention signals present"],
+            ["sales/orders/procurement/usage signals corroborate"],
+            ["conversion", "purchase intent quality"],
+            ["Transaction or procurement evidence shows no corresponding demand."])
+
+    if demand_counts.get("PROCUREMENT_TENDER", 0) > 0:
+        add("DEMAND_SIGNALS", "PROCUREMENT", "INSTITUTIONAL_DEMAND_CANDIDATE",
+            "Procurement tenders may indicate institutional demand, but tender is not purchase.",
+            ["procurement tender signals present"],
+            ["tenders may be exploratory, cancelled, or unfunded"],
+            ["award", "contract", "deployment"],
+            ["Awards/deployments do not follow tenders or budgets are withdrawn."])
+
+    if demand_counts.get("JOB_POSTING", 0) > 0:
+        add("SUPPLY_OR_CAPABILITY_SIGNALS", "JOB_POSTING", "CAPABILITY_INTENT_CANDIDATE",
+            "Job postings may indicate hiring/capability intent, not completed expansion.",
+            ["job posting signals present"],
+            ["postings may remain unfilled or re-scoped"],
+            ["hires", "product launches", "geographic expansion"],
+            ["No hires/launches/expansion materialize."])
+
+    if demand_counts.get("PATENT", 0) > 0 or demand_counts.get("ACADEMIC", 0) > 0:
+        add("TECHNOLOGY_SIGNALS", "RESEARCH_IP", "TECHNOLOGY_MATURITY_CANDIDATE",
+            "Patent/academic activity may indicate technical interest, not commercial adoption.",
+            ["patent/academic signals present"],
+            ["research may not become product or demand"],
+            ["standards", "cost curves", "productization"],
+            ["No productization or adoption evidence emerges."])
+
+    if not competitors:
+        add("COMPETITIVE_LANDSCAPE", "EMPTY", "WHITE_SPACE_DATA_INCOMPLETE",
+            "Absence of identified competitors may indicate white space or incomplete data.",
+            ["no competitor records provided"],
+            ["coverage may be incomplete"],
+            ["private entrants", "substitutes", "adjacent solutions"],
+            ["Independent discovery reveals active competitors/substitutes."])
+
+    if competitors and not shares:
+        add("MARKET_SHARE", "MISSING", "PRIVATE_REVENUE_UNRESOLVED",
+            "Market share may be unresolved due to missing private-company segment revenue or denominator.",
+            [f"competitor_count={len(competitors)}", "share_records=0"],
+            ["public filings or transaction data may resolve shares"],
+            ["segment revenue", "denominator scope"],
+            ["Independent segment revenue and denominator resolve shares."])
+
+    for f in forecasts:
+        fid = f["forecast_id"]
+        if not f.get("assumptions") or f.get("method") == "MECHANICAL_CAGR":
+            add("FORECAST", fid, "FORECAST_DRIVER_WEAK",
+                "Forecast may be weak if it mechanically extends history without explicit drivers.",
+                [f"method={f.get('method')}", f"assumptions_count={len(f.get('assumptions', []))}"],
+                ["Driver-based or bottom-up model with validated inputs exists."],
+                ["adoption", "price", "capacity", "regulation"],
+                ["Backtest and driver sensitivity show robust range."])
+
+    for c in contradictions:
+        cid = c["contradiction_id"]
+        add("CONTRADICTION", cid, "RESOLUTION",
+            "Contradiction may be resolved by market-definition, methodology, period, currency, or metric-semantics reconciliation.",
+            [c.get("type", "")],
+            ["One source may simply be wrong"],
+            ["primary transaction data", "audited filings", "definition history"],
+            ["Authoritative independent source reconciles conflict."])
+
+    return hyp[:2000]
+
+
+def build_ach(hypotheses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    matrix = []
+    for h in hypotheses[:100]:
+        matrix.append({
+            "hypothesis_id": h["hypothesis_id"],
+            "statement": h.get("statement"),
+            "evidence_rows": [
+                {
+                    "evidence": "Diagnostic evidence required",
+                    "state": "UNKNOWN",
+                    "note": "Starter does not fetch live evidence; populate with authorized sources before decision use.",
+                }
+            ],
+            "diagnostic_tests": h.get("falsification_conditions", []),
+            "limitations": [
+                "ACH should use evidence that differentiates hypotheses, not merely confirms preferred narrative.",
+            ],
+        })
+    return matrix
+
+
+# --------------------------------------------------------------------
+# Gaps / actions / handoffs
+# --------------------------------------------------------------------
+
+def build_gaps(
+    market: Dict[str, Any],
+    metrics: List[Dict[str, Any]],
+    sizing: List[Dict[str, Any]],
+    triangulation: Dict[str, Any],
+    tam: Optional[Dict[str, Any]],
+    sam: Optional[Dict[str, Any]],
+    som: Optional[Dict[str, Any]],
+    competitors: Dict[str, Dict[str, Any]],
+    shares: List[Dict[str, Any]],
+    pricing_stats: List[Dict[str, Any]],
+    demand_signals: List[Dict[str, Any]],
+    supply_signals: List[Dict[str, Any]],
+    surveys: List[Dict[str, Any]],
+    reviews: List[Dict[str, Any]],
+    forecasts: List[Dict[str, Any]],
+    drivers: List[Dict[str, Any]],
+    source_indep: Dict[str, Any],
+    mnpi_detected: bool,
+) -> List[Dict[str, Any]]:
+    gaps = []
+
+    if not market.get("definition"):
+        gaps.append({
+            "gap_id": stable_id("GAP", "definition"),
+            "type": "MARKET_DEFINITION_UNRESOLVED",
+            "importance": "HIGH",
+            "recommended_source": "Explicit product/customer/geography/time/channel definition.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Prevent sizing on undefined boundary.",
+        })
+
+    if not market.get("included_categories") or not market.get("excluded_categories"):
+        gaps.append({
+            "gap_id": stable_id("GAP", "boundary"),
+            "type": "MARKET_BOUNDARY_INCOMPLETE",
+            "importance": "HIGH",
+            "recommended_source": "Inclusion/exclusion criteria and boundary sensitivity.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Make estimate reproducible and comparable.",
+        })
+
+    if not metrics and not sizing:
+        gaps.append({
+            "gap_id": stable_id("GAP", "no_size"),
+            "type": "MARKET_SIZE_UNRESOLVED",
+            "importance": "HIGH",
+            "recommended_source": "Government statistics, filings, procurement, trade, transaction, or transparent bottom-up inputs.",
+            "specialist": "MARKETINT / FININT / TRADEINT / PROCUREMENTINT",
+            "expected_information_value": "Enable defensible sizing.",
+        })
+
+    if triangulation.get("state") != "TRIANGULATED":
+        gaps.append({
+            "gap_id": stable_id("GAP", "triangulation"),
+            "type": "SIZING_TRIANGULATION_INCOMPLETE",
+            "importance": "HIGH" if sizing else "MEDIUM",
+            "recommended_source": "Independent top-down and bottom-up/supply/demand methods.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Reduce single-method bias.",
+        })
+
+    for layer, obj in (("TAM", tam), ("SAM", sam), ("SOM", som)):
+        if not obj:
+            gaps.append({
+                "gap_id": stable_id("GAP", layer.lower()),
+                "type": f"{layer}_UNRESOLVED",
+                "importance": "MEDIUM",
+                "recommended_source": f"Explicit {layer} definition, filters, assumptions, and period.",
+                "specialist": "MARKETINT",
+                "expected_information_value": f"Prevent {layer} confusion.",
+            })
+        elif obj.get("state") in {"INSUFFICIENT_DATA", "UNKNOWN"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", layer.lower(), "state"),
+                "type": f"{layer}_STATE_UNRESOLVED",
+                "importance": "MEDIUM",
+                "recommended_source": "Methodology and source documentation.",
+                "specialist": "MARKETINT",
+                "expected_information_value": f"Clarify whether {layer} is reported, derived, modelled, or scenario-based.",
+            })
+
+    if source_indep.get("state") in {"DEPENDENT", "PARTIALLY_DEPENDENT", "UNKNOWN"}:
+        gaps.append({
+            "gap_id": stable_id("GAP", "source_independence"),
+            "type": "SOURCE_INDEPENDENCE_UNRESOLVED",
+            "importance": "HIGH",
+            "recommended_source": "Upstream source pedigree, original datasets, filings, transaction data.",
+            "specialist": "MARKETINT / DATAINT",
+            "expected_information_value": "Prevent copied reports from being treated as independent corroboration.",
+        })
+
+    if competitors and not shares:
+        gaps.append({
+            "gap_id": stable_id("GAP", "shares"),
+            "type": "MARKET_SHARE_UNRESOLVED",
+            "importance": "HIGH",
+            "recommended_source": "Segment filings, transaction data, procurement awards, channel sell-through, licensed provider data.",
+            "specialist": "MARKETINT / FININT / CORPINT",
+            "expected_information_value": "Avoid false competitive ranking.",
+        })
+
+    for s in shares:
+        if s.get("value") is not None and not s.get("denominator_metric_id"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "share_denominator", s["share_id"]),
+                "type": "MARKET_SHARE_DENOMINATOR_UNCERTAIN",
+                "importance": "HIGH",
+                "recommended_source": "Compatible market denominator with same scope/period/unit.",
+                "specialist": "MARKETINT",
+                "expected_information_value": "Ensure share formula is apples-to-apples.",
+            })
+
+    price_types = {s.get("price_type") for s in pricing_stats}
+    if "LIST_PRICE" in price_types and "ESTIMATED_REALIZED_PRICE" not in price_types and "OBSERVED_CONTRACT_PRICE" not in price_types:
+        gaps.append({
+            "gap_id": stable_id("GAP", "realized_price"),
+            "type": "REALIZED_PRICE_UNKNOWN",
+            "importance": "MEDIUM",
+            "recommended_source": "Authorized contract evidence, public procurement prices, transaction data.",
+            "specialist": "MARKETINT / PROCUREMENTINT",
+            "expected_information_value": "Avoid list-price-based competitive conclusions.",
+        })
+
+    demand_types = {s.get("signal_type") for s in demand_signals}
+    if demand_signals and demand_types <= LOW_WEIGHT_DEMAND_TYPES:
+        gaps.append({
+            "gap_id": stable_id("GAP", "demand_weak"),
+            "type": "DEMAND_EVIDENCE_WEAK",
+            "importance": "HIGH",
+            "recommended_source": "Sales, orders, usage, subscriptions, procurement awards, transaction data.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Separate attention from demand.",
+        })
+
+    if supply_signals and not demand_signals:
+        gaps.append({
+            "gap_id": stable_id("GAP", "demand_missing"),
+            "type": "DEMAND_SIGNALS_MISSING",
+            "importance": "MEDIUM",
+            "recommended_source": "Customer/sales/procurement/usage evidence.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Avoid supply-only market conclusion.",
+        })
+
+    for sv in surveys:
+        if sv.get("description") and not sv.get("sample_size"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "survey_sample", sv["context_id"]),
+                "type": "SURVEY_METHODOLOGY_MISSING",
+                "importance": "MEDIUM",
+                "recommended_source": "Sample size, sampling method, population, field dates, response rate.",
+                "specialist": "MARKET_RESEARCH",
+                "expected_information_value": "Avoid unrepresentative survey claims.",
+            })
+
+    if reviews and not demand_types.intersection({"SALES", "ORDERS", "USAGE", "SUBSCRIPTIONS", "PROCUREMENT_TENDER"}):
+        gaps.append({
+            "gap_id": stable_id("GAP", "review_bias"),
+            "type": "REVIEW_SELECTION_BIAS",
+            "importance": "MEDIUM",
+            "recommended_source": "Representative survey/transaction evidence.",
+            "specialist": "MARKETINT",
+            "expected_information_value": "Avoid treating reviews as representative demand.",
+        })
+
+    for f in forecasts:
+        if not f.get("assumptions"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "forecast_assumptions", f["forecast_id"]),
+                "type": "FORECAST_ASSUMPTIONS_MISSING",
+                "importance": "HIGH",
+                "recommended_source": "Driver-based assumptions, scenario definitions, backtest.",
+                "specialist": "MARKETINT",
+                "expected_information_value": "Prevent forecast-as-fact.",
+            })
+
+    for d in drivers:
+        if d.get("type") == "REGULATORY" and d.get("status") == "UNKNOWN":
+            gaps.append({
+                "gap_id": stable_id("GAP", "reg_status", d["driver_id"]),
+                "type": "REGULATORY_STATUS_UNRESOLVED",
+                "importance": "MEDIUM",
+                "recommended_source": "Official regulation/standard text, effective date, transition period.",
+                "specialist": "LEGALINT / REGULATORY",
+                "expected_information_value": "Distinguish announced vs effective requirements.",
+            })
+
+    if mnpi_detected:
+        gaps.append({
+            "gap_id": stable_id("GAP", "mnpi"),
+            "type": "MNPI_REVIEW_REQUIRED",
+            "importance": "HIGH",
+            "recommended_source": "Compliance/legal review before any use; restrict processing.",
+            "specialist": "LEGALINT / COMPLIANCE",
+            "expected_information_value": "Prevent insider trading or unlawful use.",
+        })
+
+    return gaps[:1000]
+
+
+def build_next_actions(gaps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    actions = []
+    priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    for g in gaps:
+        t = g.get("type")
+        if t == "MARKET_DEFINITION_UNRESOLVED":
+            action = "Define product/customer/geography/time/channel boundary before sizing; do not use industry taxonomy as market automatically."
+        elif t == "MARKET_BOUNDARY_INCOMPLETE":
+            action = "Document inclusion/exclusion criteria and run boundary sensitivity."
+        elif t == "MARKET_SIZE_UNRESOLVED":
+            action = "Retrieve authorized public statistics, filings, procurement, trade, or transparent bottom-up inputs."
+        elif t == "SIZING_TRIANGULATION_INCOMPLETE":
+            action = "Add independent top-down and bottom-up/supply/demand methods; investigate divergence."
+        elif t.endswith("_UNRESOLVED") and any(x in t for x in ("TAM", "SAM", "SOM")):
+            action = f"Specify {t.split('_')[0]} definition, filters, assumptions, period, and method."
+        elif t == "SOURCE_INDEPENDENCE_UNRESOLVED":
+            action = "Trace source pedigree to original datasets; do not count copied reports as independent estimates."
+        elif t == "MARKET_SHARE_UNRESOLVED":
+            action = "Resolve competitor segment revenue and compatible denominator before ranking shares."
+        elif t == "MARKET_SHARE_DENOMINATOR_UNCERTAIN":
+            action = "Verify share denominator scope, period, geography, metric, and unit."
+        elif t == "REALIZED_PRICE_UNKNOWN":
+            action = "Use authorized contract/procurement/transaction evidence; do not solicit confidential pricing deceptively."
+        elif t == "DEMAND_EVIDENCE_WEAK":
+            action = "Seek sales/orders/usage/procurement/transaction evidence; treat search/social as attention only."
+        elif t == "DEMAND_SIGNALS_MISSING":
+            action = "Add demand-side evidence before concluding market attractiveness."
+        elif t == "SURVEY_METHODOLOGY_MISSING":
+            action = "Retrieve survey sample size, method, population, field dates, and response rate."
+        elif t == "REVIEW_SELECTION_BIAS":
+            action = "Corroborate review themes with representative surveys or transaction evidence."
+        elif t == "FORECAST_ASSUMPTIONS_MISSING":
+            action = "Replace mechanical CAGR with driver-based scenarios and explicit assumptions."
+        elif t == "REGULATORY_STATUS_UNRESOLVED":
+            action = "Verify official regulation status, effective date, transition, and enforcement."
+        elif t == "MNPI_REVIEW_REQUIRED":
+            action = "Escalate to compliance/legal; restrict processing and do not use for trading."
+        else:
+            action = "Gather additional authorized market evidence."
+
+        actions.append({
+            "action": action,
+            "gap_id": g.get("gap_id"),
+            "priority": g.get("importance", "MEDIUM"),
+            "expected_information_value": g.get("expected_information_value"),
+            "prohibited_alternatives": [
+                "Do not steal trade secrets or access private competitor systems.",
+                "Do not use stolen credentials, phishing, impersonation, bribery, or blackmail.",
+                "Do not use MNPI for trading or facilitate insider trading.",
+                "Do not coordinate prices, bids, customers, territories, production, or cartels.",
+                "Do not fabricate market data, sales, share, demand, or forecasts.",
+            ],
+        })
+    actions.sort(key=lambda x: priority_map.get(x.get("priority", "LOW"), 9))
+    return actions[:300]
+
+
+def build_handoffs(
+    market: Dict[str, Any],
+    competitors: Dict[str, Dict[str, Any]],
+    shares: List[Dict[str, Any]],
+    pricing: List[Dict[str, Any]],
+    demand_signals: List[Dict[str, Any]],
+    supply_signals: List[Dict[str, Any]],
+    contexts: Dict[str, List[Dict[str, Any]]],
+    drivers: List[Dict[str, Any]],
+    hhi: Optional[float],
+    mnpi_detected: bool,
+    internal_sensitive: bool,
+) -> List[Dict[str, Any]]:
+    hands = []
+    seen = set()
+
+    def add(spec: str, reason: str, payload: Dict[str, Any]) -> None:
+        key = (spec, json_safe(payload))
+        if key in seen:
+            return
+        seen.add(key)
+        hands.append({"specialist": spec, "reason": reason, "payload": payload})
+
+    if competitors or shares:
+        add("CORPINT / OWNERSHIPINT", "Legal entity, brand, subsidiary, M&A, and ownership resolution may be material.", {
+            "competitor_ids": list(competitors.keys())[:100],
+        })
+    if contexts.get("financial_data"):
+        add("FININT", "Detailed financial statement analysis requires finance specialist.", {
+            "context_count": len(contexts.get("financial_data", [])),
+        })
+    if contexts.get("trade_data") or any(s.get("signal_type") == "TRADE_SHIPMENT" for s in demand_signals + supply_signals):
+        add("TRADEINT", "Import/export/shipment flow analysis requires trade specialist.", {
+            "signal_count": sum(1 for s in demand_signals + supply_signals if s.get("signal_type") == "TRADE_SHIPMENT"),
+        })
+    if contexts.get("procurement_data") or any(s.get("signal_type") == "PROCUREMENT_TENDER" for s in demand_signals):
+        add("PROCUREMENTINT", "Tender/RFP/contract award analysis requires procurement specialist.", {
+            "signal_count": sum(1 for s in demand_signals if s.get("signal_type") == "PROCUREMENT_TENDER"),
+        })
+    if supply_signals or contexts.get("supply_chain_context"):
+        add("SUPPLYCHAININT", "Capacity/vendor dependency/resilience requires supply-chain specialist.", {
+            "supply_signal_count": len(supply_signals),
+        })
+    if contexts.get("academic_data") or any(s.get("signal_type") == "ACADEMIC" for s in demand_signals):
+        add("ACADEMICINT", "Research ecosystem/publication trend analysis requires academic specialist.", {
+            "context_count": len(contexts.get("academic_data", [])),
+        })
+    if contexts.get("patent_data") or any(s.get("signal_type") == "PATENT" for s in demand_signals):
+        add("TECHINT / IP_SPECIALIST", "Patent/technical capability analysis requires technology/IP specialist.", {
+            "context_count": len(contexts.get("patent_data", [])),
+        })
+    if hhi is not None and hhi >= 2500:
+        add("LEGALINT / COMPETITION_COUNSEL", "High concentration may raise competition-law questions; concentration is not collusion.", {
+            "hhi": hhi,
+            "market_id": market.get("market_id"),
+        })
+    if mnpi_detected:
+        add("LEGALINT / COMPLIANCE", "MNPI candidate requires compliance/legal review and restricted handling.", {
+            "market_id": market.get("market_id"),
+        })
+    if internal_sensitive:
+        add("PRIVACY_REVIEW / DATA_GOVERNANCE", "Internal/confidential market data requires purpose limitation and access controls.", {
+            "market_id": market.get("market_id"),
+        })
+    if pricing:
+        add("PRICING_STRATEGY / LEGALINT", "Pricing strategy conclusions may require legal review to avoid antitrust-sensitive coordination.", {
+            "pricing_point_count": len(pricing),
+        })
+    return hands
+
+
+# --------------------------------------------------------------------
+# Graph memory
+# --------------------------------------------------------------------
+
+class GraphMemory:
+    def __init__(self) -> None:
+        self.nodes: List[Dict[str, Any]] = []
+        self.edges: List[Dict[str, Any]] = []
+        self._node_ids: Set[str] = set()
+
+    def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if not node_id or node_id in self._node_ids:
+            return
+        self._node_ids.add(node_id)
+        self.nodes.append({"type": node_type, "id": node_id, "properties": properties or {}})
+
+    def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if not from_id or not to_id:
+            return
+        self.edges.append({
+            "from": from_id,
+            "to": to_id,
+            "type": edge_type,
+            "properties": properties or {},
+        })
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "nodes": self.nodes[:3000],
+            "edges": self.edges[:6000],
+            "note": "Market graph preserves definitions, estimates, source dependence, uncertainty, and assumptions. It does not prove market size, share, demand, or forecast.",
+        }
+
+
+def build_graph_memory(
+    market: Dict[str, Any],
+    metrics: List[Dict[str, Any]],
+    sizing: List[Dict[str, Any]],
+    tam: Optional[Dict[str, Any]],
+    sam: Optional[Dict[str, Any]],
+    som: Optional[Dict[str, Any]],
+    competitors: Dict[str, Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    products: List[Dict[str, Any]],
+    shares: List[Dict[str, Any]],
+    pricing: List[Dict[str, Any]],
+    demand_signals: List[Dict[str, Any]],
+    supply_signals: List[Dict[str, Any]],
+    drivers: List[Dict[str, Any]],
+    forecasts: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    hypotheses: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> GraphMemory:
+    g = GraphMemory()
+    mid = market.get("market_id")
+    g.add_node("Market", mid, {
+        "name": market.get("name"),
+        "definition": market.get("definition"),
+        "currency": market.get("currency"),
+        "unit": market.get("measurement_unit"),
+    })
+
+    for geo in market.get("geographies", []) or []:
+        g.add_node("Geography", geo, {})
+        g.add_edge(mid, geo, "SERVES_GEOGRAPHY", {})
+    for seg in market.get("customer_scope", []) or []:
+        g.add_node("CustomerSegment", seg, {})
+        g.add_edge(mid, seg, "TARGETS_SEGMENT", {})
+    for cat in market.get("included_categories", []) or []:
+        g.add_node("ProductCategory", cat, {"scope": "INCLUDED"})
+        g.add_edge(mid, cat, "PART_OF_MARKET", {})
+    for cat in market.get("excluded_categories", []) or []:
+        g.add_node("ProductCategory", cat, {"scope": "EXCLUDED"})
+        g.add_edge(mid, cat, "EXCLUDED_FROM_MARKET", {})
+
+    for m in metrics:
+        g.add_node("Metric", m["metric_id"], {
+            "metric_type": m.get("metric_type"),
+            "value": m.get("value"),
+            "currency": m.get("currency"),
+            "unit": m.get("unit"),
+            "period_end": iso(m.get("period_end")),
+        })
+        g.add_edge(m["metric_id"], mid, "MEASURES_MARKET", {})
+        for sid in m.get("source_ids", []) or []:
+            g.add_node("Source", sid, {"source_type": sources.get(sid, {}).get("source_type")})
+            g.add_edge(m["metric_id"], sid, "SUPPORTED_BY_SOURCE", {})
+
+    for e in sizing:
+        g.add_node("SizingEstimate", e["estimate_id"], {
+            "method": e.get("method"),
+            "value_base": e.get("value_base"),
+            "currency": e.get("currency"),
+        })
+        g.add_edge(e["estimate_id"], mid, "ESTIMATES_MARKET_SIZE", {})
+
+    for layer in (tam, sam, som):
+        if layer:
+            lid = f"{layer['layer']}:{mid}"
+            g.add_node(layer["layer"], lid, {
+                "state": layer.get("state"),
+                "value_base": layer.get("value_base"),
+                "currency": layer.get("currency"),
+            })
+            g.add_edge(lid, mid, "LAYER_OF_MARKET", {})
+
+    for cid, c in competitors.items():
+        g.add_node("Competitor", cid, {
+            "brand": c.get("brand"),
+            "legal_entity": c.get("legal_entity"),
+        })
+        g.add_edge(cid, mid, "COMPETES_IN", {})
+    for rel in relationships:
+        cid = rel.get("competitor_id")
+        if cid:
+            g.add_edge(cid, rel.get("market_id") or mid, rel.get("relationship_type", "UNKNOWN"), {
+                "relationship_id": rel.get("relationship_id"),
+            })
+    for p in products:
+        pid = p.get("product_id")
+        cid = p.get("competitor_id")
+        if pid:
+            g.add_node("Product", pid, {"name": p.get("name"), "availability_state": p.get("availability_state")})
+        if cid and pid:
+            g.add_edge(cid, pid, "OFFERS_PRODUCT", {})
+
+    for s in shares:
+        sid = s["share_id"]
+        g.add_node("MarketShare", sid, {
+            "basis": s.get("basis"),
+            "value": s.get("value"),
+            "period": s.get("period"),
+        })
+        if s.get("competitor_id"):
+            g.add_edge(s["competitor_id"], sid, "HAS_MARKET_SHARE", {})
+        if s.get("denominator_metric_id"):
+            g.add_edge(sid, s["denominator_metric_id"], "USES_DENOMINATOR", {})
+
+    for p in pricing:
+        pid = p["price_id"]
+        g.add_node("PricePoint", pid, {
+            "price_type": p.get("price_type"),
+            "list_price": p.get("list_price"),
+            "estimated_realized_price": p.get("estimated_realized_price"),
+            "currency": p.get("currency"),
+        })
+        if p.get("competitor_id"):
+            g.add_edge(p["competitor_id"], pid, "PRICED_AT", {})
+
+    for sig in demand_signals + supply_signals:
+        g.add_node("Signal", sig["signal_id"], {
+            "kind": sig.get("kind"),
+            "signal_type": sig.get("signal_type"),
+            "value": sig.get("value"),
+        })
+        g.add_edge(sig["signal_id"], mid, "SIGNAL_FOR_MARKET", {})
+
+    for d in drivers:
+        g.add_node("Driver", d["driver_id"], {
+            "type": d.get("type"),
+            "status": d.get("status"),
+            "effect": d.get("effect"),
+        })
+        g.add_edge(d["driver_id"], mid, "AFFECTS_MARKET", {})
+
+    for f in forecasts:
+        g.add_node("Forecast", f["forecast_id"], {
+            "method": f.get("method"),
+            "scenario": f.get("scenario"),
+            "value_base": f.get("value_base"),
+        })
+        g.add_edge(f["forecast_id"], mid, "FORECASTS_MARKET", {})
+
+    for c in contradictions[:500]:
+        g.add_node("Contradiction", c["contradiction_id"], {"type": c.get("type"), "severity": c.get("severity")})
+    for h in hypotheses[:500]:
+        g.add_node("Hypothesis", h["hypothesis_id"], {"category": h.get("category"), "statement": h.get("statement")})
+    for gap in gaps[:500]:
+        g.add_node("Gap", gap["gap_id"], {"type": gap.get("type"), "importance": gap.get("importance")})
+
+    return g
+
+
+def dual_ai_review_stub(
+    contradictions: List[Dict[str, Any]],
+    hypotheses: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    source_indep: Dict[str, Any],
+    forecasts: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    review = {
+        "status": "INSUFFICIENT_EVIDENCE",
+        "primary_conclusions": [],
+        "skeptic_challenges": [],
+        "comparison": "NO_SECOND_MODEL_CONFIGURED",
+        "notes": [
+            "This starter does not call an independent second model.",
+            "AI agreement is not market corroboration.",
+            "Human review is required for consequential investment, market entry, pricing, antitrust, or public financial guidance decisions.",
+        ],
+    }
+    if contradictions:
+        review["primary_conclusions"].append(f"{len(contradictions)} market contradiction candidate(s) detected.")
+        review["skeptic_challenges"].append("Contradictions may be definition, methodology, period, currency, metric-semantics, or revision differences.")
+    if source_indep.get("state") != "INDEPENDENT":
+        review["primary_conclusions"].append("Source independence is not fully established.")
+        review["skeptic_challenges"].append("Do not count multiple articles quoting one market report as independent estimates.")
+    if any(h.get("category") in {"PRICE_INFLATION", "CHANNEL_INVENTORY", "ATTENTION_NOT_DEMAND"} for h in hypotheses):
+        review["primary_conclusions"].append("Alternative explanations for growth/demand remain active.")
+        review["skeptic_challenges"].append("Separate revenue growth from unit growth, price effects, channel inventory, and attention signals.")
+    if forecasts:
+        review["primary_conclusions"].append(f"{len(forecasts)} forecast record(s) present; forecasts are not facts.")
+        review["skeptic_challenges"].append("Require explicit drivers, scenarios, ranges, and backtest before decision use.")
+    if review["primary_conclusions"]:
+        review["status"] = "PARTIAL_AGREEMENT"
+    return review
+
+
+# --------------------------------------------------------------------
+# Result assembly
+# --------------------------------------------------------------------
+
+def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+        "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+        "objective": manifest.get("objective", ""),
+        "questions": manifest.get("questions", []) or [],
+        "generated_at": utc_now(),
+        "version": VERSION,
+        "source_ids": [],
+        "evidence_ids": [],
+        "market": {},
+        "market_definition": None,
+        "market_boundaries": {},
+        "included_categories": [],
+        "excluded_categories": [],
+        "geographies": [],
+        "customer_segments": [],
+        "product_segments": [],
+        "channels": [],
+        "market_metrics": [],
+        "tam": None,
+        "sam": None,
+        "som": None,
+        "sizing_methods": [],
+        "top_down_estimates": [],
+        "bottom_up_estimates": [],
+        "supply_side_estimates": [],
+        "demand_side_estimates": [],
+        "triangulated_market_size": {},
+        "market_size_range": {},
+        "historical_growth": [],
+        "yoy_growth": [],
+        "cagr": [],
+        "market_maturity": {},
+        "adoption": {},
+        "penetration": [],
+        "competitors": [],
+        "direct_competitors": [],
+        "indirect_competitors": [],
+        "substitutes": [],
+        "competitor_products": [],
+        "market_shares": [],
+        "market_share_basis": [],
+        "pricing": [],
+        "price_history": [],
+        "discount_context": [],
+        "tco_context": [],
+        "customer_needs": [],
+        "pain_points": [],
+        "purchase_criteria": [],
+        "switching_factors": [],
+        "reviews_context": [],
+        "survey_context": [],
+        "search_interest_context": [],
+        "web_traffic_context": [],
+        "job_posting_signals": [],
+        "patent_signals": [],
+        "academic_signals": [],
+        "procurement_demand": [],
+        "trade_signals": [],
+        "distribution": [],
+        "partner_ecosystem": [],
+        "market_concentration": {},
+        "hhi": None,
+        "entry_barriers": [],
+        "exit_barriers": [],
+        "technology_drivers": [],
+        "regulatory_drivers": [],
+        "macro_drivers": [],
+        "seasonality": {},
+        "trends": [],
+        "market_events": [],
+        "adjacent_markets": [],
+        "white_space_candidates": [],
+        "scenarios": [],
+        "forecasts": [],
+        "forecast_ranges": [],
+        "forecast_metrics": {},
+        "sensitivity_analysis": [],
+        "uncertainty_drivers": [],
+        "timeline_updates": [],
+        "observations": [],
+        "candidate_facts": [],
+        "supported_facts": [],
+        "partial_facts": [],
+        "disputed_facts": [],
+        "estimates": [],
+        "source_reliability": [],
+        "source_bias": [],
+        "source_limitations": [],
+        "source_pedigree": [],
+        "source_independence": {},
+        "contradictions": [],
+        "hypotheses": [],
+        "ach_matrix": [],
+        "falsification_results": [],
+        "knowledge_gaps": [],
+        "recommended_next_actions": [],
+        "specialist_handoffs": [],
+        "limitations": [],
+        "dual_ai_review": {},
+        "graph_memory": {},
+        "status": "PARTIAL",
+    }
+
+
+def compute_source_bias(sources: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out = []
+    for sid, src in sources.items():
+        st = normalize_text(src.get("source_type", "unknown")).lower()
+        bias = []
+        if st in {"market_research_provider", "industry_association", "analyst_commentary"}:
+            bias.append("commercial/association bias; methodology may be opaque or sales-driven")
+        if st in {"company_website", "company_filing"}:
+            bias.append("self-reporting/marketing bias; segment scope may differ from market")
+        if st in {"review_platform", "social_media"}:
+            bias.append("selection/vocal-user bias; not representative demand")
+        if st in {"survey"}:
+            bias.append("sampling/question-wording/response-rate bias")
+        if st in {"marketplace"}:
+            bias.append("platform visibility/listing bias; listings are not sales")
+        if st in {"government_statistics", "regulator", "audited_filing", "transaction_data"}:
+            bias.append("coverage/definition bias; still requires market-boundary alignment")
+        out.append({
+            "source_id": sid,
+            "source_type": st,
+            "potential_bias": bias,
+            "limitations": src.get("limitations", []),
+        })
+    return out
+
+
+def analyze_adoption_penetration(metrics: List[Dict[str, Any]], signals: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    adoption_types = {"USAGE", "SUBSCRIPTIONS", "INSTALLATIONS", "ACTIVE_USERS", "SEATS"}
+    adoption_signals = [s for s in signals if s.get("signal_type") in adoption_types]
+    penetration = []
+    for m in metrics:
+        if m.get("value") is not None and m.get("denominator") not in (None, 0):
+            penetration.append({
+                "metric_id": m["metric_id"],
+                "market_id": m.get("market_id"),
+                "segment_id": m.get("segment_id"),
+                "geography": m.get("geography"),
+                "metric_type": m.get("metric_type"),
+                "numerator": m.get("value"),
+                "denominator": m.get("denominator"),
+                "penetration": round(m["value"] / m["denominator"], 6),
+                "period_end": iso(m.get("period_end")),
+                "limitations": ["Penetration denominator must be explicitly defined and compatible."],
+            })
+    return {
+        "signal_count": len(adoption_signals),
+        "signal_types": dict(Counter(s.get("signal_type") for s in adoption_signals)),
+        "limitations": [
+            "Adoption is not retention.",
+            "Downloads/traffic/awareness are not paid use or renewal.",
+        ],
+    }, penetration
+
+
+def finalize_status(
+    result: Dict[str, Any],
+    market: Dict[str, Any],
+    metrics: List[Dict[str, Any]],
+    sizing: List[Dict[str, Any]],
+    auth_ok: bool,
+    policy_blocked: List[str],
+    mnpi_detected: bool,
+) -> str:
+    if policy_blocked:
+        return "POLICY_BLOCKED"
+    if not auth_ok:
+        return "BLOCKED_PERMISSION"
+    if not market.get("definition"):
+        return "MARKET_DEFINITION_UNRESOLVED"
+    if not metrics and not sizing:
+        return "MARKET_SIZE_UNRESOLVED"
+    if result.get("contradictions"):
+        return "PARTIAL"
+    if any(g.get("importance") == "HIGH" for g in result.get("knowledge_gaps", [])):
+        return "PARTIAL"
+    if mnpi_detected:
+        return "HUMAN_REVIEW_REQUIRED"
+    if result.get("knowledge_gaps"):
+        return "PARTIAL"
+    return "SUCCEEDED"
+
+
+def analyze_marketint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    result = empty_result(manifest)
+
+    policy_blocked = policy_screen(manifest)
+    if policy_blocked:
+        result["status"] = "POLICY_BLOCKED"
+        result["violations"] = policy_blocked
+        result["limitations"] = [
+            "MARKETINT does not steal trade secrets, access private competitor systems, use stolen credentials, phish/impersonate/bribe/blackmail, use MNPI for trading, manipulate markets, coordinate collusion, or fabricate market data."
+        ]
+        return result
+
+    auth_ok, auth_reasons = authorization_check(manifest)
+    mnpi_detected = detect_mnpi(manifest)
+    internal_sensitive = has_internal_sensitive(manifest)
+    if not auth_ok:
+        result["status"] = "BLOCKED_PERMISSION"
+        result["limitations"] = auth_reasons
+        return result
+
+    sources = ingest_sources(manifest)
+    source_roots = build_source_roots(sources)
+
+    market = ingest_market(manifest)
+    metrics = ingest_metrics(manifest, market)
+    metrics_by_id = {m["metric_id"]: m for m in metrics}
+    sizing = ingest_sizing(manifest, market)
+    tam = ingest_layer(manifest, "tam", market)
+    sam = ingest_layer(manifest, "sam", market)
+    som = ingest_layer(manifest, "som", market)
+    triangulation = triangulate_sizing(sizing)
+
+    competitors, relationships, products = ingest_competitors(manifest)
+    shares = ingest_market_shares(manifest, metrics_by_id, competitors)
+    hhi = compute_hhi(shares, "REVENUE_SHARE")
+    if hhi is None:
+        hhi = compute_hhi(shares, "UNIT_SHARE")
+    top3 = compute_top_n(shares, "REVENUE_SHARE", 3)
+    if top3 is None:
+        top3 = compute_top_n(shares, "UNIT_SHARE", 3)
+    top5 = compute_top_n(shares, "REVENUE_SHARE", 5)
+    if top5 is None:
+        top5 = compute_top_n(shares, "UNIT_SHARE", 5)
+
+    pricing_points = ingest_pricing(manifest, market)
+    pricing_stats, discounts = analyze_pricing(pricing_points)
+
+    demand_signals = ingest_signals(manifest, ("demand_signals", "demand_signal_data"), "DEMAND")
+    supply_signals = ingest_signals(manifest, ("supply_signals", "supply_signal_data"), "SUPPLY")
+    demand_summary = analyze_signals(demand_signals, "DEMAND")
+    supply_summary = analyze_signals(supply_signals, "SUPPLY")
+
+    needs = ingest_items(manifest, "customer_needs", ("need", "description", "text"))
+    pain_points = ingest_items(manifest, "pain_points", ("pain_point", "description", "text"))
+    purchase_criteria = ingest_items(manifest, "purchase_criteria", ("criterion", "description", "text"))
+    switching_factors = ingest_items(manifest, "switching_factors", ("factor", "description", "text"))
+
+    surveys = ingest_generic_context(manifest, "survey_data")
+    reviews = ingest_generic_context(manifest, "review_data")
+    search_interest = ingest_generic_context(manifest, "search_interest_data")
+    web_traffic = ingest_generic_context(manifest, "web_traffic_data")
+    job_postings = ingest_generic_context(manifest, "job_posting_data")
+    patents = ingest_generic_context(manifest, "patent_data")
+    academic = ingest_generic_context(manifest, "academic_data")
+    procurement = ingest_generic_context(manifest, "procurement_data")
+    trade = ingest_generic_context(manifest, "trade_data")
+    financial = ingest_generic_context(manifest, "financial_data")
+    contexts = {
+        "survey_data": surveys,
+        "review_data": reviews,
+        "search_interest_data": search_interest,
+        "web_traffic_data": web_traffic,
+        "job_posting_data": job_postings,
+        "patent_data": patents,
+        "academic_data": academic,
+        "procurement_data": procurement,
+        "trade_data": trade,
+        "financial_data": financial,
+    }
+
+    drivers = ingest_drivers(manifest)
+    series = build_time_series(metrics)
+    maturity = analyze_maturity(manifest, series)
+    forecasts = ingest_forecasts(manifest, market)
+    forecast_validation = validate_forecasts(forecasts)
+    scenarios = manifest.get("scenarios", []) or []
+    sensitivities = ingest_sensitivity(manifest)
+    adoption, penetration = analyze_adoption_penetration(metrics, demand_signals + supply_signals)
+
+    source_indep = overall_source_independence(
+        sources,
+        source_roots,
+        metrics,
+        sizing,
+        [tam, sam, som],
+        list(competitors.values()),
+        relationships,
+        products,
+        shares,
+        pricing_points,
+        demand_signals,
+        supply_signals,
+        drivers,
+        forecasts,
+        [market],
+    )
+
+    contradictions = detect_contradictions(metrics, sizing, shares, pricing_points)
+    hypotheses = build_hypotheses(
+        series, metrics, demand_signals, supply_signals, pricing_stats,
+        competitors, shares, forecasts, contradictions, source_indep
+    )
+    ach = build_ach(hypotheses)
+    gaps = build_gaps(
+        market, metrics, sizing, triangulation, tam, sam, som,
+        competitors, shares, pricing_stats, demand_signals, supply_signals,
+        surveys, reviews, forecasts, drivers, source_indep, mnpi_detected
+    )
+    actions = build_next_actions(gaps)
+    handoffs = build_handoffs(
+        market, competitors, shares, pricing_points, demand_signals,
+        supply_signals, contexts, drivers, hhi, mnpi_detected, internal_sensitive
+    )
+    graph = build_graph_memory(
+        market, metrics, sizing, tam, sam, som, competitors, relationships,
+        products, shares, pricing_points, demand_signals, supply_signals,
+        drivers, forecasts, contradictions, hypotheses, gaps, sources
+    )
+    dual_review = dual_ai_review_stub(contradictions, hypotheses, gaps, source_indep, forecasts)
+
+    observations = [
+        f"Market definition ingested: {bool(market.get('definition'))}.",
+        f"Market metrics ingested: {len(metrics)}.",
+        f"Sizing estimates ingested: {len(sizing)}; methods={triangulation.get('methods', [])}.",
+        f"TAM/SAM/SOM present: tam={bool(tam)}, sam={bool(sam)}, som={bool(som)}.",
+        f"Competitors ingested: {len(competitors)}; relationships={len(relationships)}; products={len(products)}.",
+        f"Market shares ingested: {len(shares)}; HHI={hhi}.",
+        f"Pricing points ingested: {len(pricing_points)}; stats={len(pricing_stats)}; discounts={len(discounts)}.",
+        f"Demand signals: {len(demand_signals)}; supply signals: {len(supply_signals)}.",
+        f"Time series built: {len(series)}.",
+        f"Forecasts ingested: {len(forecasts)}; validated={forecast_validation.get('validated_count', 0)}.",
+        f"Contradiction candidates: {len(contradictions)}.",
+        f"Competing hypotheses: {len(hypotheses)}.",
+        "No trade-secret theft, private system access, stolen credentials, phishing, impersonation, bribery, blackmail, MNPI trading, market manipulation, collusion, or data fabrication was performed.",
+        "Market definition precedes sizing; TAM is not expected revenue; SOM is not arbitrary % of TAM.",
+        "Revenue, units, customers, shipments, install base, bookings, and GMV semantics are preserved separately.",
+        "Attention signals are not treated as demand.",
+        "Forecasts are labeled as scenarios/estimates, not facts.",
+    ]
+
+    unknowns = []
+    if not market.get("definition"):
+        unknowns.append("Market definition unresolved.")
+    if not sizing:
+        unknowns.append("Market size unresolved.")
+    if triangulation.get("state") != "TRIANGULATED":
+        unknowns.append("Market size triangulation incomplete.")
+    if competitors and not shares:
+        unknowns.append("Market share unresolved.")
+    if source_indep.get("state") != "INDEPENDENT":
+        unknowns.append("Source independence unresolved.")
+    if forecasts:
+        unknowns.append("Forecast outcomes remain uncertain and assumption-dependent.")
+    unknowns.append("Private-company segment revenue may remain unknown without authorized primary evidence.")
+    result["unknowns"] = list(dict.fromkeys(unknowns))[:500]
+
+    result["market"] = market
+    result["market_definition"] = market.get("definition")
+    result["market_boundaries"] = {
+        "included_categories": market.get("included_categories", []),
+        "excluded_categories": market.get("excluded_categories", []),
+        "customer_scope": market.get("customer_scope", []),
+        "geographies": market.get("geographies", []),
+        "channel_scope": market.get("channel_scope", []),
+        "time_window": market.get("time_window", {}),
+    }
+    result["included_categories"] = market.get("included_categories", [])
+    result["excluded_categories"] = market.get("excluded_categories", [])
+    result["geographies"] = market.get("geographies", [])
+    result["customer_segments"] = market.get("customer_scope", [])
+    result["product_segments"] = market.get("included_categories", [])
+    result["channels"] = market.get("channel_scope", [])
+    result["market_metrics"] = metrics
+    result["tam"] = tam
+    result["sam"] = sam
+    result["som"] = som
+    result["sizing_methods"] = sorted({e.get("method") for e in sizing if e.get("method")})
+    result["top_down_estimates"] = [e for e in sizing if e.get("method") == "TOP_DOWN"]
+    result["bottom_up_estimates"] = [e for e in sizing if e.get("method") == "BOTTOM_UP"]
+    result["supply_side_estimates"] = [e for e in sizing if e.get("method") == "SUPPLY_SIDE"]
+    result["demand_side_estimates"] = [e for e in sizing if e.get("method") == "DEMAND_SIDE"]
+    result["triangulated_market_size"] = triangulation
+    result["market_size_range"] = {
+        "low": triangulation.get("combined_low"),
+        "base": triangulation.get("combined_base_median"),
+        "high": triangulation.get("combined_high"),
+        "currency": market.get("currency"),
+        "unit": market.get("measurement_unit"),
+    }
+    result["historical_growth"] = series
+    result["yoy_growth"] = [g for s in series for g in s.get("yoy", [])]
+    result["cagr"] = [{"series_id": s["series_id"], "metric_type": s.get("metric_type"), "cagr": s.get("cagr")} for s in series if s.get("cagr") is not None]
+    result["market_maturity"] = maturity
+    result["adoption"] = adoption
+    result["penetration"] = penetration
+    result["competitors"] = list(competitors.values())
+    result["direct_competitors"] = [r for r in relationships if r.get("relationship_type") == "DIRECT"]
+    result["indirect_competitors"] = [r for r in relationships if r.get("relationship_type") == "INDIRECT"]
+    result["substitutes"] = [r for r in relationships if r.get("relationship_type") == "SUBSTITUTE"]
+    result["competitor_products"] = products
+    result["market_shares"] = shares
+    result["market_share_basis"] = sorted({s.get("basis") for s in shares if s.get("basis")})
+    result["pricing"] = pricing_stats
+    result["price_history"] = pricing_points
+    result["discount_context"] = discounts
+    result["tco_context"] = manifest.get("tco_context", []) or []
+    result["customer_needs"] = needs
+    result["pain_points"] = pain_points
+    result["purchase_criteria"] = purchase_criteria
+    result["switching_factors"] = switching_factors
+    result["reviews_context"] = reviews
+    result["survey_context"] = surveys
+    result["search_interest_context"] = search_interest
+    result["web_traffic_context"] = web_traffic
+    result["job_posting_signals"] = [s for s in demand_signals if s.get("signal_type") == "JOB_POSTING"] + job_postings
+    result["patent_signals"] = [s for s in demand_signals if s.get("signal_type") == "PATENT"] + patents
+    result["academic_signals"] = [s for s in demand_signals if s.get("signal_type") == "ACADEMIC"] + academic
+    result["procurement_demand"] = [s for s in demand_signals if s.get("signal_type") == "PROCUREMENT_TENDER"] + procurement
+    result["trade_signals"] = [s for s in demand_signals + supply_signals if s.get("signal_type") == "TRADE_SHIPMENT"] + trade
+    result["distribution"] = manifest.get("distribution_data", []) or []
+    result["partner_ecosystem"] = manifest.get("partnerships", []) or []
+    result["market_concentration"] = {
+        "hhi": hhi,
+        "top3_share": top3,
+        "top5_share": top5,
+        "share_count": len(shares),
+        "limitations": [
+            "HHI and top-n shares require compatible share basis and denominator coverage.",
+            "Concentration is not collusion.",
+        ],
+    }
+    result["hhi"] = hhi
+    result["entry_barriers"] = manifest.get("entry_barriers", []) or []
+    result["exit_barriers"] = manifest.get("exit_barriers", []) or []
+    result["technology_drivers"] = [d for d in drivers if d.get("type") == "TECHNOLOGY"]
+    result["regulatory_drivers"] = [d for d in drivers if d.get("type") == "REGULATORY"]
+    result["macro_drivers"] = [d for d in drivers if d.get("type") == "MACROECONOMIC"]
+    result["seasonality"] = {
+        "state": "NOT_COMPUTED",
+        "notes": "Seasonality requires multiple comparable cycles and consistent definitions.",
+    }
+    result["trends"] = series
+    result["market_events"] = [d for d in drivers if d.get("type") == "EVENT"]
+    result["adjacent_markets"] = manifest.get("adjacent_markets", []) or []
+    result["white_space_candidates"] = manifest.get("white_space_candidates", []) or []
+    if not competitors and not result["white_space_candidates"]:
+        result["white_space_candidates"].append({
+            "candidate_id": stable_id("WS", "no_competitors"),
+            "statement": "No competitors provided; possible white space or incomplete coverage.",
+            "state": "UNKNOWN",
+            "limitations": ["Absence of known competitors is not proof of white space."],
+        })
+    result["scenarios"] = scenarios
+    result["forecasts"] = forecasts
+    result["forecast_ranges"] = [
+        {
+            "forecast_id": f["forecast_id"],
+            "scenario": f.get("scenario"),
+            "low": f.get("value_low"),
+            "base": f.get("value_base"),
+            "high": f.get("value_high"),
+            "currency": f.get("currency"),
+            "unit": f.get("unit"),
+        }
+        for f in forecasts
+    ]
+    result["forecast_metrics"] = forecast_validation
+    result["sensitivity_analysis"] = sensitivities
+    result["uncertainty_drivers"] = [
+        {"input": s.get("input"), "output_impact": s.get("output_impact")}
+        for s in sensitivities
+    ] + [
+        {"gap_id": g.get("gap_id"), "type": g.get("type"), "importance": g.get("importance")}
+        for g in gaps if g.get("importance") == "HIGH"
+    ]
+    result["timeline_updates"] = [
+        {"series_id": s["series_id"], "points": s.get("points", [])}
+        for s in series
+    ]
+    result["observations"] = observations
+    result["source_independence"] = source_indep
+    result["contradictions"] = contradictions
+    result["hypotheses"] = hypotheses
+    result["ach_matrix"] = ach
+    result["falsification_results"] = [
+        {
+            "hypothesis_id": h["hypothesis_id"],
+            "category": h.get("category"),
+            "opposition": h.get("opposition", []),
+            "falsification_conditions": h.get("falsification_conditions", []),
+        }
+        for h in hypotheses
+    ]
+    result["knowledge_gaps"] = gaps
+    result["recommended_next_actions"] = actions
+    result["specialist_handoffs"] = handoffs
+    result["dual_ai_review"] = dual_review
+    result["graph_memory"] = graph.to_dict()
+
+    for sid, src in sources.items():
+        result["source_ids"].append(sid)
+        result["source_reliability"].append({
+            "source_id": sid,
+            "source_type": src.get("source_type"),
+            "reliability": src.get("reliability"),
+        })
+        result["source_limitations"].append({
+            "source_id": sid,
+            "limitations": src.get("limitations", []),
+        })
+        result["source_pedigree"].append({
+            "source_id": sid,
+            "upstream_source_id": src.get("upstream_source_id"),
+            "root_source_id": source_roots.get(sid, sid),
+        })
+    result["source_bias"] = compute_source_bias(sources)
+
+    for e in sizing:
+        result["estimates"].append({
+            "estimate_id": e["estimate_id"],
+            "kind": "SIZING",
+            "method": e.get("method"),
+            "value_base": e.get("value_base"),
+            "currency": e.get("currency"),
+            "state": "ESTIMATED",
+        })
+    for f in forecasts:
+        result["estimates"].append({
+            "estimate_id": f["forecast_id"],
+            "kind": "FORECAST",
+            "method": f.get("method"),
+            "scenario": f.get("scenario"),
+            "value_base": f.get("value_base"),
+            "currency": f.get("currency"),
+            "state": "FORECAST",
+        })
+
+    if market.get("definition"):
+        result["supported_facts"].append({
+            "market_id": market.get("market_id"),
+            "statement": "Market definition was explicitly provided in authorized manifest.",
+        })
+    for m in metrics:
+        if m.get("value") is not None:
+            result["candidate_facts"].append({
+                "metric_id": m["metric_id"],
+                "statement": f"Source reports {m.get('metric_type')} = {m.get('value')} {m.get('currency') or ''} {m.get('unit') or ''} for period {iso(m.get('period_end'))}.",
+            })
+    for c in contradictions:
+        result["disputed_facts"].append({
+            "contradiction_id": c["contradiction_id"],
+            "statement": c.get("detail", "Market contradiction candidate."),
+        })
+
+    base_limits = [
+        "MARKETINT starter uses only provided/local authorized records; no live search, private system access, or credential use was performed.",
+        "Market definition must precede sizing; industry/category labels are not market definitions.",
+        "TAM is not expected revenue; SAM is not SOM; SOM is not arbitrary percentage of TAM.",
+        "Revenue is not units; shipments are not sales; install base is not annual sales; bookings are not revenue; GMV is not platform revenue.",
+        "Total company revenue is not market-specific revenue without segment evidence.",
+        "Search interest, social sentiment, website traffic, app downloads, job postings, patents, and academic activity are signals, not direct demand.",
+        "List price is not realized price; promotional price is not normal price.",
+        "Reviews and surveys require methodology and bias context.",
+        "Forecasts and scenarios are not facts.",
+        "Market concentration is not collusion.",
+        "Multiple reports quoting one source are one evidence family.",
+        "No trade-secret theft, competitor infiltration, phishing, impersonation, bribery, blackmail, MNPI trading, market manipulation, collusion, or fabrication was performed.",
+    ]
+    if auth_reasons:
+        base_limits.extend(auth_reasons)
+    if mnpi_detected:
+        base_limits.append("MNPI candidate detected; processing restricted and compliance/legal review required.")
+    if internal_sensitive:
+        base_limits.append("Internal/confidential market data requires purpose limitation, access control, and no external cloud export without approval.")
+    result["limitations"] = list(dict.fromkeys(base_limits))
+
+    result["status"] = finalize_status(result, market, metrics, sizing, auth_ok, policy_blocked, mnpi_detected)
+    return result
+
+
+# --------------------------------------------------------------------
+# Report generation
+# --------------------------------------------------------------------
+
+def generate_report(result: Dict[str, Any]) -> str:
+    lines = []
+    lines.append("# MARKETINT Evidence-Linked Market Intelligence Report")
+    lines.append("")
+    lines.append(f"- Case ID: `{result.get('case_id')}`")
+    lines.append(f"- Task ID: `{result.get('task_id')}`")
+    lines.append(f"- Generated: `{result.get('generated_at')}`")
+    lines.append(f"- Version: `{result.get('version')}`")
+    lines.append(f"- Status: `{result.get('status')}`")
+    lines.append("")
+
+    if result.get("status") == "POLICY_BLOCKED":
+        lines.append("## POLICY BLOCKED")
+        lines.append("The request violated MARKETINT hard restrictions:")
+        for v in result.get("violations", []):
+            lines.append(f"- `{v}`")
+        lines.append("")
+        lines.append("No market intelligence was performed.")
+        return "\n".join(lines)
+
+    lines.append("## Objective")
+    lines.append(str(result.get("objective", "")))
+    lines.append("")
+
+    lines.append("## Required Analyst Summary")
+    for s in result.get("observations", [])[:100]:
+        lines.append(f"- {s}")
+    lines.append("")
+
+    lines.append("## Lawful / Competition / Privacy Boundaries")
+    lines.append("- No trade-secret theft, private competitor system access, stolen credentials, phishing, impersonation, bribery, or blackmail.")
+    lines.append("- No MNPI use for trading, insider trading facilitation, securities manipulation, or false market information.")
+    lines.append("- No price fixing, bid rigging, customer/territory allocation, production coordination, or cartel facilitation.")
+    lines.append("- Market definition first; TAM ≠ expected revenue; SAM ≠ SOM.")
+    lines.append("- Revenue ≠ units; shipments ≠ sales; list price ≠ realized price; attention ≠ demand.")
+    lines.append("- Forecast ≠ fact; scenario ≠ prediction; concentration ≠ collusion.")
+    lines.append("")
+
+    market = result.get("market", {})
+    lines.append("## Market Definition")
+    lines.append(f"- Market ID: `{market.get('market_id')}`")
+    lines.append(f"- Name: `{market.get('name')}`")
+    lines.append(f"- Definition: {market.get('definition')}")
+    lines.append(f"- Currency/unit: `{market.get('currency')}` / `{market.get('measurement_unit')}`")
+    lines.append(f"- Geographies: {', '.join(market.get('geographies', [])[:30]) or 'None'}")
+    lines.append(f"- Customer scope: {', '.join(market.get('customer_scope', [])[:30]) or 'None'}")
+    lines.append(f"- Included categories: {', '.join(market.get('included_categories', [])[:30]) or 'None'}")
+    lines.append(f"- Excluded categories: {', '.join(market.get('excluded_categories', [])[:30]) or 'None'}")
+    lines.append(f"- Channel scope: {', '.join(market.get('channel_scope', [])[:30]) or 'None'}")
+    lines.append(f"- Time window: `{json.dumps(market.get('time_window', {}), ensure_ascii=False, default=str)}`")
+    lines.append("")
+
+    lines.append("## Market Sizing / TAM / SAM / SOM")
+    tri = result.get("triangulated_market_size", {})
+    lines.append(f"- Triangulation state: `{tri.get('state')}`")
+    lines.append(f"- Methods: `{tri.get('methods', [])}`")
+    lines.append(f"- Combined range: low=`{tri.get('combined_low')}` base=`{tri.get('combined_base_median')}` high=`{tri.get('combined_high')}`")
+    lines.append(f"- Divergence: `{tri.get('divergence')}`")
+    for r in tri.get("ranges", [])[:100]:
+        lines.append(f"  - `{r.get('method')}` count={r.get('estimate_count')} low={r.get('low')} base_median={r.get('base_median')} high={r.get('high')}")
+    for layer in ("tam", "sam", "som"):
+        obj = result.get(layer)
+        if obj:
+            lines.append(f"- {layer.upper()}: state=`{obj.get('state')}` method=`{obj.get('method')}` base=`{obj.get('value_base')}` currency=`{obj.get('currency')}` assumptions={obj.get('assumptions', [])[:10]}")
+        else:
+            lines.append(f"- {layer.upper()}: not provided")
+    lines.append("")
+
+    lines.append("## Market Metrics / Historical Growth")
+    for m in result.get("market_metrics", [])[:300]:
+        lines.append(f"- Metric `{m.get('metric_id')}` type=`{m.get('metric_type')}` value=`{m.get('value')}` currency=`{m.get('currency')}` unit=`{m.get('unit')}` geography=`{m.get('geography')}` period_end=`{m.get('period_end')}` method=`{m.get('method')}`")
+    for s in result.get("historical_growth", [])[:200]:
+        lines.append(f"- Series `{s.get('series_id')}` type=`{s.get('metric_type')}` cagr=`{s.get('cagr')}` latest=`{s.get('latest_value')}`")
+        for y in s.get("yoy", [])[:20]:
+            lines.append(f"  - YoY {y.get('from_period')} → {y.get('to_period')}: growth={y.get('growth')} annualized={y.get('annualized_growth')}")
+    lines.append("")
+
+    lines.append("## Competitors / Products / Relationships")
+    for c in result.get("competitors", [])[:200]:
+        lines.append(f"### `{c.get('competitor_id')}`")
+        lines.append(f"- Brand/legal entity: `{c.get('brand')}` / `{c.get('legal_entity')}`")
+        lines.append(f"- Products: {', '.join(c.get('products', [])[:20]) or 'None'}")
+        lines.append(f"- Segments: {', '.join(c.get('segments', [])[:20]) or 'None'}")
+        lines.append(f"- Channels: {', '.join(c.get('channels', [])[:20]) or 'None'}")
+        lines.append(f"- Positioning: {', '.join(c.get('positioning', [])[:20]) or 'None'}")
+    for rel in result.get("direct_competitors", []) + result.get("indirect_competitors", []) + result.get("substitutes", [])[:200]:
+        lines.append(f"- Relationship `{rel.get('relationship_id')}` competitor=`{rel.get('competitor_id')}` type=`{rel.get('relationship_type')}` evidence={rel.get('overlap_evidence')}")
+    for p in result.get("competitor_products", [])[:200]:
+        lines.append(f"- Product `{p.get('product_id')}` competitor=`{p.get('competitor_id')}` availability=`{p.get('availability_state')}` features={p.get('features', [])[:10]}")
+    lines.append("")
+
+    lines.append("## Market Share / Concentration")
+    conc = result.get("market_concentration", {})
+    lines.append(f"- HHI: `{conc.get('hhi')}` top3=`{conc.get('top3_share')}` top5=`{conc.get('top5_share')}`")
+    for s in result.get("market_shares", [])[:300]:
+        lines.append(f"- Share `{s.get('share_id')}` competitor=`{s.get('competitor_id')}` basis=`{s.get('basis')}` value=`{s.get('value')}` computed=`{s.get('computed_value')}` formula=`{s.get('formula')}` period=`{s.get('period')}`")
+        if s.get("calculation_conflict"):
+            lines.append(f"  - calculation conflict: `{json.dumps(s['calculation_conflict'], ensure_ascii=False, default=str)}`")
+    lines.append("")
+
+    lines.append("## Pricing / Discounts / TCO")
+    for stat in result.get("pricing", [])[:200]:
+        lines.append(f"- Price stat currency=`{stat.get('currency')}` tier=`{stat.get('tier')}` type=`{stat.get('price_type')}` count={stat.get('count')} min={stat.get('min')} median={stat.get('median')} max={stat.get('max')}")
+    for d in result.get("discount_context", [])[:200]:
+        lines.append(f"- Discount `{d.get('price_id')}` list={d.get('list_price')} realized/contract={d.get('realized_or_contract_price')} discount_pct={d.get('discount_pct')}")
+    for t in result.get("tco_context", [])[:100]:
+        lines.append(f"- TCO context: `{json.dumps(t, ensure_ascii=False, default=str)}`"[:500])
+    lines.append("")
+
+    lines.append("## Demand / Supply / Adoption / Penetration")
+    lines.append(f"- Demand summary: `{json.dumps(result.get('adoption', {}), ensure_ascii=False, default=str)}`"[:1000])
+    # Actually demand summary not stored separately; reconstruct from signals? We'll list signals.
+    for s in result.get("procurement_demand", [])[:100]:
+        lines.append(f"- Procurement signal `{s.get('signal_id') or s.get('context_id')}` type=`{s.get('signal_type') or 'PROCUREMENT_CONTEXT'}` value={s.get('value')}")
+    for s in result.get("trade_signals", [])[:100]:
+        lines.append(f"- Trade signal `{s.get('signal_id') or s.get('context_id')}` type=`{s.get('signal_type') or 'TRADE_CONTEXT'}` value={s.get('value')}")
+    for p in result.get("penetration", [])[:200]:
+        lines.append(f"- Penetration `{p.get('metric_id')}` = {p.get('penetration')} numerator={p.get('numerator')} denominator={p.get('denominator')}")
+    lines.append("")
+
+    lines.append("## Customer Needs / Pain Points / Switching Factors")
+    for n in result.get("customer_needs", [])[:200]:
+        lines.append(f"- Need `{n.get('item_id')}` state=`{n.get('evidence_state')}`: {n.get('text')}")
+    for p in result.get("pain_points", [])[:200]:
+        lines.append(f"- Pain `{p.get('item_id')}` state=`{p.get('evidence_state')}`: {p.get('text')}")
+    for s in result.get("switching_factors", [])[:200]:
+        lines.append(f"- Switching `{s.get('item_id')}` state=`{s.get('evidence_state')}`: {s.get('text')}")
+    lines.append("")
+
+    lines.append("## Reviews / Surveys / Attention Signals")
+    for sv in result.get("survey_context", [])[:100]:
+        lines.append(f"- Survey `{sv.get('context_id')}` sample={sv.get('sample_size')} method={sv.get('method')} population={sv.get('population')} response_rate={sv.get('response_rate')}")
+    for rv in result.get("reviews_context", [])[:100]:
+        lines.append(f"- Review `{rv.get('context_id')}` platform={rv.get('platform')} rating={rv.get('rating')} volume={rv.get('volume')}")
+    for se in result.get("search_interest_context", [])[:100]:
+        lines.append(f"- Search interest `{se.get('context_id')}`: {se.get('description')}")
+    for wt in result.get("web_traffic_context", [])[:100]:
+        lines.append(f"- Web traffic estimate `{wt.get('context_id')}`: {wt.get('description')}")
+    lines.append("")
+
+    lines.append("## Technology / Regulatory / Macro Drivers")
+    for d in result.get("technology_drivers", [])[:100]:
+        lines.append(f"- Technology `{d.get('driver_id')}` status=`{d.get('status')}` effect=`{d.get('effect')}`: {d.get('description')}")
+    for d in result.get("regulatory_drivers", [])[:100]:
+        lines.append(f"- Regulatory `{d.get('driver_id')}` status=`{d.get('status')}` effect=`{d.get('effect')}` effective={d.get('effective_date')}: {d.get('description')}")
+    for d in result.get("macro_drivers", [])[:100]:
+        lines.append(f"- Macro `{d.get('driver_id')}` status=`{d.get('status')}` effect=`{d.get('effect')}`: {d.get('description')}")
+    lines.append("")
+
+    lines.append("## Forecasts / Scenarios / Sensitivity")
+    mat = result.get("market_maturity", {})
+    lines.append(f"- Maturity state: `{mat.get('state')}` candidates={mat.get('candidates', [])}")
+    for f in result.get("forecasts", [])[:200]:
+        lines.append(f"- Forecast `{f.get('forecast_id')}` method=`{f.get('method')}` scenario=`{f.get('scenario')}` base={f.get('value_base')} low={f.get('value_low')} high={f.get('value_high')} assumptions={f.get('assumptions', [])[:10]}")
+    fv = result.get("forecast_metrics", {})
+    lines.append(f"- Forecast validation: validated={fv.get('validated_count')} MAE={fv.get('mae')} MAPE={fv.get('mape')}")
+    for s in result.get("sensitivity_analysis", [])[:200]:
+        lines.append(f"- Sensitivity `{s.get('sensitivity_id')}` input={s.get('input')} impact={s.get('output_impact')} low/base/high={s.get('low')}/{s.get('base')}/{s.get('high')}")
+    lines.append("")
+
+    lines.append("## Source Reliability / Independence / Bias")
+    si = result.get("source_independence", {})
+    lines.append(f"- Source independence state: `{si.get('state')}`")
+    lines.append(f"- Source families: {si.get('source_families', [])[:50]}")
+    lines.append(f"- Max/avg reliability: `{si.get('max_reliability')}` / `{si.get('avg_reliability')}`")
+    for b in result.get("source_bias", [])[:200]:
+        lines.append(f"- Source `{b.get('source_id')}` type=`{b.get('source_type')}` bias={b.get('potential_bias')}")
+    lines.append("")
+
+    lines.append("## Contradictions")
+    for c in result.get("contradictions", [])[:300]:
+        lines.append(f"- `{c.get('contradiction_id')}` [{c.get('severity')}] {c.get('type')}: {c.get('detail')}")
+        if c.get("possible_causes"):
+            lines.append(f"  - possible causes: {'; '.join(c['possible_causes'][:10])}")
+    lines.append("")
+
+    lines.append("## Competing Hypotheses / Falsification")
+    for h in result.get("hypotheses", [])[:500]:
+        lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('category')}] {h.get('subject_type')} `{h.get('subject_id')}`: {h.get('statement')}")
+        if h.get("support"):
+            lines.append(f"  - support: {'; '.join(map(str, h['support'][:5]))}")
+        if h.get("falsification_conditions"):
+            lines.append(f"  - falsify if: {'; '.join(map(str, h['falsification_conditions'][:5]))}")
+    lines.append("")
+
+    lines.append("## Knowledge Gaps")
+    for g in result.get("knowledge_gaps", [])[:500]:
+        lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+    lines.append("")
+
+    lines.append("## Recommended Next Actions")
+    for a in result.get("recommended_next_actions", [])[:500]:
+        lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+    lines.append("")
+
+    lines.append("## Specialist Handoffs")
+    for h in result.get("specialist_handoffs", []):
+        lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+        lines.append(f"  - payload: `{json.dumps(h.get('payload', {}), ensure_ascii=False, default=str)}`"[:1000])
+    lines.append("")
+
+    lines.append("## Dual-AI Review Stub")
+    dr = result.get("dual_ai_review", {})
+    lines.append(f"- Status: `{dr.get('status')}`")
+    lines.append(f"- Comparison: `{dr.get('comparison')}`")
+    for n in dr.get("notes", []):
+        lines.append(f"- {n}")
+        for c in dr.get("primary_conclusions", [])[:50]:
+        lines.append(f"- Primary: {c}")
+    for c in dr.get("skeptic_challenges", [])[:50]:
+        lines.append(f"- Skeptic: {c}")
+    lines.append("")
+
+    lines.append("## Limitations")
+    for lim in result.get("limitations", []):
+        lines.append(f"- {lim}")
+    lines.append("")
+
+    lines.append("## Non-Negotiable Boundary")
+    lines.append("- Define the market first.")
+    lines.append("- Define the denominator.")
+    lines.append("- Preserve the metric.")
+    lines.append("- Separate demand from attention.")
+    lines.append("- Separate shipments from sales.")
+    lines.append("- Separate list price from realized price.")
+    lines.append("- Triangulate market size.")
+    lines.append("- Show the TAM/SAM/SOM math.")
+    lines.append("- Show the forecast assumptions.")
+    lines.append("- Measure uncertainty.")
+    lines.append("- Forecast last.")
+
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TRACEATLAS MARKETINT safe starter")
+    parser.add_argument("--manifest", required=True, help="Path to MARKETINT manifest JSON")
+    parser.add_argument("--output", default="marketint_result.json", help="Output JSON path")
+    parser.add_argument("--report", default="marketint_report.md", help="Output Markdown report path")
+    args = parser.parse_args()
+
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+        return 2
+
+    result = analyze_marketint_manifest(manifest)
+
+    Path(args.output).write_text(
+        json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    Path(args.report).write_text(generate_report(result), encoding="utf-8")
+
+    print(f"Wrote: {args.output}")
+    print(f"Wrote: {args.report}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+
+{
+  "case_id": "MKT-CASE-001",
+  "task_id": "MKT-TASK-001",
+  "objective": "Assess a lawful public/authorized market-intelligence question for a generic SMB managed endpoint-security services market, without using confidential competitor data, insider information, deceptive research, or anticompetitive coordination.",
+  "questions": [
+    "Is the market definition sufficiently bounded for sizing?",
+    "Do independent sizing methods support a plausible market-size range?",
+    "Which competitors are direct, indirect, or substitutes?",
+    "What pricing and demand evidence is strong versus weak?",
+    "What forecast assumptions and uncertainty drivers matter most?"
+  ],
+  "authorization": {
+    "approved": true,
+    "scope": "public_and_authorized_records",
+    "model_mode": "LOCAL_ONLY",
+    "cloud_approved": false,
+    "private_data_approved": false,
+    "mnpi_review_approved": false
+  },
+  "sources": [
+    {
+      "source_id": "SGOV",
+      "source_type": "government_statistics",
+      "reliability": 0.90,
+      "observed_at": "2026-10-01T00:00:00Z"
+    },
+    {
+      "source_id": "SAUDIT",
+      "source_type": "audited_filing",
+      "reliability": 0.88,
+      "observed_at": "2026-09-15T00:00:00Z"
+    },
+    {
+      "source_id": "SPROC",
+      "source_type": "procurement_data",
+      "reliability": 0.84,
+      "observed_at": "2026-10-05T00:00:00Z"
+    },
+    {
+      "source_id": "STRADE",
+      "source_type": "trade_data",
+      "reliability": 0.80,
+      "observed_at": "2026-10-05T00:00:00Z"
+    },
+    {
+      "source_id": "SMRP",
+      "source_type": "market_research_provider",
+      "reliability": 0.70,
+      "observed_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "source_id": "SBLOG",
+      "source_type": "news",
+      "upstream_source_id": "SMRP",
+      "reliability": 0.55,
+      "observed_at": "2026-08-10T00:00:00Z"
+    }
+  ],
+  "market_definition": {
+    "market_id": "MKT-SMB-ENDPOINT-SVC",
+    "name": "SMB Managed Endpoint Security Services",
+    "definition": "Recurring managed endpoint-security services sold to organizations with 20-500 employees in Region R, covering monitoring, response, and basic compliance reporting; excludes one-time product licenses, large enterprise contracts, and unrelated network-security services.",
+    "included_categories": [
+      "managed_endpoint_detection_response",
+      "managed_antivirus",
+      "endpoint_compliance_reporting"
+    ],
+    "excluded_categories": [
+      "one_time_endpoint_license",
+      "enterprise_security_operations_center",
+      "network_firewall_management"
+    ],
+    "customer_scope": [
+      "SMB_20_500_employees"
+    ],
+    "geographies": [
+      "R"
+    ],
+    "channel_scope": [
+      "direct",
+      "reseller",
+      "MSP"
+    ],
+    "time_window": {
+      "start": "2026-01-01",
+      "end": "2026-12-31"
+    },
+    "currency": "USD",
+    "measurement_unit": "USD_revenue",
+    "assumptions": [
+      "Region R has comparable regulatory environment across the analyzed period.",
+      "Service revenue is recognized annually for subscription-like contracts."
+    ],
+    "source_ids": ["SGOV", "SAUDIT", "SPROC"],
+    "confidence": 0.78
+  },
+  "market_metrics": [
+    {
+      "metric_id": "M2024_TOTAL_REV",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "REVENUE",
+      "value": 950000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2024-01-01",
+      "period_end": "2024-12-31",
+      "method": "SUPPLY_SIDE_AGGREGATION",
+      "source_ids": ["SAUDIT", "SMRP"],
+      "confidence": 0.72
+    },
+    {
+      "metric_id": "M2025_TOTAL_REV",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "REVENUE",
+      "value": 1120000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "method": "SUPPLY_SIDE_AGGREGATION",
+      "source_ids": ["SAUDIT", "SMRP"],
+      "confidence": 0.74
+    },
+    {
+      "metric_id": "M2026_TOTAL_REV_BASE",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "REVENUE",
+      "value": 1290000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "method": "BOTTOM_UP_MODEL",
+      "source_ids": ["SGOV", "SPROC"],
+      "confidence": 0.68
+    },
+    {
+      "metric_id": "M2026_UNITS",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "UNIT_VOLUME",
+      "value": 185000,
+      "currency": "USD",
+      "unit": "managed_endpoints",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "method": "DEVICE_INSTALLED_BASE_COUNT",
+      "source_ids": ["SPROC", "STRADE"],
+      "confidence": 0.66
+    },
+    {
+      "metric_id": "M2026_CUSTOMERS",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "CUSTOMERS",
+      "value": 42000,
+      "currency": "USD",
+      "unit": "organizations",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "method": "CUSTOMER_ACCOUNT_COUNT",
+      "source_ids": ["SPROC"],
+      "confidence": 0.64
+    },
+    {
+      "metric_id": "M2026_ELIGIBLE_ORGS",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "metric_type": "OTHER",
+      "value": 210000,
+      "currency": "USD",
+      "unit": "organizations",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "method": "BUSINESS_REGISTRY_DENOMINATOR",
+      "source_ids": ["SGOV"],
+      "confidence": 0.82
+    }
+  ],
+  "sizing_estimates": [
+    {
+      "estimate_id": "SIZE-TD-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "TOP_DOWN",
+      "metric_type": "REVENUE",
+      "value_low": 1180000000,
+      "value_base": 1290000000,
+      "value_high": 1420000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "formula": "eligible_organizations * estimated_penetration * average_annual_spend",
+      "assumptions": [
+        "penetration=20%",
+        "average_annual_spend=USD 3,071"
+      ],
+      "source_ids": ["SGOV", "SMRP"],
+      "confidence": 0.66
+    },
+    {
+      "estimate_id": "SIZE-BU-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "BOTTOM_UP",
+      "metric_type": "REVENUE",
+      "value_low": 1210000000,
+      "value_base": 1305000000,
+      "value_high": 1390000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "formula": "customer_accounts * average_revenue_per_customer",
+      "assumptions": [
+        "customer_accounts=42,000",
+        "average_revenue_per_customer=USD 31,071"
+      ],
+      "source_ids": ["SPROC", "SAUDIT"],
+      "confidence": 0.70
+    },
+    {
+      "estimate_id": "SIZE-SS-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "SUPPLY_SIDE",
+      "metric_type": "REVENUE",
+      "value_low": 1240000000,
+      "value_base": 1310000000,
+      "value_high": 1380000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "formula": "sum_known_vendor_service_revenue + estimated_private_vendor_revenue",
+      "assumptions": [
+        "known_vendor_revenue covers approximately 78% of market",
+        "private vendors scaled using channel and procurement proxies"
+      ],
+      "source_ids": ["SAUDIT", "SPROC", "STRADE"],
+      "confidence": 0.68
+    }
+  ],
+  "tam": {
+    "market_id": "MKT-SMB-ENDPOINT-SVC",
+    "state": "DERIVED",
+    "method": "TOP_DOWN",
+    "metric_type": "REVENUE",
+    "value_low": 1450000000,
+    "value_base": 1580000000,
+    "value_high": 1730000000,
+    "currency": "USD",
+    "unit": "USD_revenue",
+    "period": "2026",
+    "assumptions": [
+      "All eligible SMB organizations could theoretically purchase managed endpoint-security services.",
+      "No capability, channel, or regulatory exclusion applied."
+    ],
+    "source_ids": ["SGOV", "SMRP"],
+    "confidence": 0.62
+  },
+  "sam": {
+    "market_id": "MKT-SMB-ENDPOINT-SVC",
+    "state": "DERIVED",
+    "method": "BOTTOM_UP",
+    "metric_type": "REVENUE",
+    "value_low": 1260000000,
+    "value_base": 1370000000,
+    "value_high": 1490000000,
+    "currency": "USD",
+    "unit": "USD_revenue",
+    "period": "2026",
+    "filters": {
+      "excluded_regions": ["outside_R"],
+      "excluded_customer_categories": ["enterprise_gt_500_employees"],
+      "capability_constraints": ["managed_service_only"]
+    },
+    "assumptions": [
+      "Service providers can cover most SMBs in Region R through direct/reseller/MSP channels."
+    ],
+    "source_ids": ["SGOV", "SPROC"],
+    "confidence": 0.66
+  },
+  "som": {
+    "market_id": "MKT-SMB-ENDPOINT-SVC",
+    "state": "SCENARIO_BASED",
+    "method": "BOTTOM_UP",
+    "metric_type": "REVENUE",
+    "value_low": 85000000,
+    "value_base": 132000000,
+    "value_high": 189000000,
+    "currency": "USD",
+    "unit": "USD_revenue",
+    "period": "2026",
+    "filters": {
+      "hypothetical_new_entrant": true,
+      "sales_capacity": "regional_channel_plus_direct",
+      "product_fit": "SMB_endpoint_services"
+    },
+    "assumptions": [
+      "A well-funded entrant can acquire 6%-14% of SAM within 12 months under base conditions.",
+      "SOM is not a fixed percentage of TAM."
+    ],
+    "source_ids": ["SPROC", "SAUDIT"],
+    "confidence": 0.55
+  },
+  "competitors": [
+    {
+      "competitor_id": "COMP-A",
+      "legal_entity": "Company A Legal Entity",
+      "brand": "A Shield",
+      "products": ["A Endpoint Protect"],
+      "segments": ["SMB_20_500_employees"],
+      "geographies": ["R"],
+      "channels": ["direct", "MSP"],
+      "positioning": ["SMB-focused", "managed-response"],
+      "capabilities": ["24x7_monitoring", "compliance_reporting"],
+      "partnerships": ["Regional MSP Network"],
+      "signals": ["public_filing", "procurement_award"],
+      "source_ids": ["SAUDIT", "SPROC"],
+      "confidence": 0.78
+    },
+    {
+      "competitor_id": "COMP-B",
+      "legal_entity": "Company B Legal Entity",
+      "brand": "B Secure",
+      "products": ["B Managed EDR"],
+      "segments": ["SMB_20_500_employees", "mid_market"],
+      "geographies": ["R", "Global"],
+      "channels": ["reseller", "direct"],
+      "positioning": ["platform_extension", "enterprise_grade_claim"],
+      "capabilities": ["endpoint_agent", "cloud_console"],
+      "partnerships": ["Value-added resellers"],
+      "signals": ["company_website", "analyst_commentary"],
+      "source_ids": ["SAUDIT", "SMRP"],
+      "confidence": 0.72
+    },
+    {
+      "competitor_id": "COMP-C",
+      "legal_entity": "Company C Legal Entity",
+      "brand": "C Guard",
+      "products": ["C Basic Endpoint Service"],
+      "segments": ["micro_business", "SMB_20_500_employees"],
+      "geographies": ["R"],
+      "channels": ["MSP", "marketplace"],
+      "positioning": ["low_cost", "basic_protection"],
+      "capabilities": ["antivirus", "patch_reporting"],
+      "partnerships": ["Local MSPs"],
+      "signals": ["procurement_award", "review_platform"],
+      "source_ids": ["SPROC", "SMRP"],
+      "confidence": 0.68
+    }
+  ],
+  "competitor_relationships": [
+    {
+      "relationship_id": "REL-A-DIRECT",
+      "competitor_id": "COMP-A",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "relationship_type": "DIRECT",
+      "overlap_evidence": "Targets same SMB size band, same region, managed endpoint-service scope.",
+      "source_ids": ["SAUDIT", "SPROC"],
+      "confidence": 0.80
+    },
+    {
+      "relationship_id": "REL-B-DIRECT",
+      "competitor_id": "COMP-B",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "relationship_type": "DIRECT",
+      "overlap_evidence": "Offers managed endpoint detection and response to SMBs in Region R.",
+      "source_ids": ["SMRP", "SAUDIT"],
+      "confidence": 0.74
+    },
+    {
+      "relationship_id": "REL-C-INDIRECT",
+      "competitor_id": "COMP-C",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "relationship_type": "INDIRECT",
+      "overlap_evidence": "Solves endpoint-protection need with lower service depth and different buyer budget.",
+      "source_ids": ["SPROC", "SMRP"],
+      "confidence": 0.66
+    },
+    {
+      "relationship_id": "REL-SUB-DIY",
+      "competitor_id": "SUB-DIY",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "relationship_type": "SUBSTITUTE",
+      "overlap_evidence": "Customer may choose unmanaged antivirus plus internal IT time instead of managed service.",
+      "source_ids": ["SGOV", "SPROC"],
+      "confidence": 0.60
+    }
+  ],
+  "competitor_products": [
+    {
+      "product_id": "PROD-A1",
+      "competitor_id": "COMP-A",
+      "name": "A Endpoint Protect",
+      "category": "managed_endpoint_detection_response",
+      "features": ["24x7_monitoring", "incident_response", "compliance_report"],
+      "deployment": ["SaaS"],
+      "target_segments": ["SMB_20_500_employees"],
+      "availability_state": "GENERAL_AVAILABILITY",
+      "source_ids": ["SAUDIT"]
+    },
+    {
+      "product_id": "PROD-B1",
+      "competitor_id": "COMP-B",
+      "name": "B Managed EDR",
+      "category": "managed_endpoint_detection_response",
+      "features": ["endpoint_agent", "cloud_console", "basic_response"],
+      "deployment": ["SaaS", "hybrid"],
+      "target_segments": ["SMB_20_500_employees", "mid_market"],
+      "availability_state": "GENERAL_AVAILABILITY",
+      "source_ids": ["SMRP"]
+    },
+    {
+      "product_id": "PROD-C1",
+      "competitor_id": "COMP-C",
+      "name": "C Basic Endpoint Service",
+      "category": "managed_antivirus",
+      "features": ["antivirus", "patch_reporting"],
+      "deployment": ["SaaS"],
+      "target_segments": ["micro_business", "SMB_20_500_employees"],
+      "availability_state": "GENERAL_AVAILABILITY",
+      "source_ids": ["SPROC"]
+    }
+  ],
+  "market_shares": [
+    {
+      "share_id": "SHARE-A-2026-REV",
+      "competitor_id": "COMP-A",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "basis": "REVENUE_SHARE",
+      "value": 0.18,
+      "period": "2026",
+      "source_ids": ["SAUDIT", "SMRP"],
+      "confidence": 0.68
+    },
+    {
+      "share_id": "SHARE-B-2026-REV",
+      "competitor_id": "COMP-B",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "basis": "REVENUE_SHARE",
+      "value": 0.14,
+      "period": "2026",
+      "source_ids": ["SAUDIT", "SMRP"],
+      "confidence": 0.64
+    },
+    {
+      "share_id": "SHARE-C-2026-REV",
+      "competitor_id": "COMP-C",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "basis": "REVENUE_SHARE",
+      "value": 0.09,
+      "period": "2026",
+      "source_ids": ["SPROC", "SMRP"],
+      "confidence": 0.60
+    }
+  ],
+  "pricing_data": [
+    {
+      "price_id": "PRICE-A-LIST",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "competitor_id": "COMP-A",
+      "product_id": "PROD-A1",
+      "tier": "SMB_standard",
+      "price_type": "LIST_PRICE",
+      "list_price": 360,
+      "currency": "USD",
+      "unit": "USD_per_endpoint_per_year",
+      "geography": "R",
+      "effective_date": "2026-01-01",
+      "source_ids": ["SAUDIT"],
+      "confidence": 0.78
+    },
+    {
+      "price_id": "PRICE-A-REALIZED",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "competitor_id": "COMP-A",
+      "product_id": "PROD-A1",
+      "tier": "SMB_standard",
+      "price_type": "ESTIMATED_REALIZED_PRICE",
+      "estimated_realized_price": 312,
+      "currency": "USD",
+      "unit": "USD_per_endpoint_per_year",
+      "geography": "R",
+      "effective_date": "2026-06-30",
+      "source_ids": ["SPROC"],
+      "confidence": 0.66
+    },
+    {
+      "price_id": "PRICE-B-LIST",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "competitor_id": "COMP-B",
+      "product_id": "PROD-B1",
+      "tier": "SMB_platform",
+      "price_type": "LIST_PRICE",
+      "list_price": 330,
+      "currency": "USD",
+      "unit": "USD_per_endpoint_per_year",
+      "geography": "R",
+      "effective_date": "2026-01-01",
+      "source_ids": ["SMRP"],
+      "confidence": 0.70
+    },
+    {
+      "price_id": "PRICE-C-PROMO",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "competitor_id": "COMP-C",
+      "product_id": "PROD-C1",
+      "tier": "SMB_basic",
+      "price_type": "PROMOTIONAL_PRICE",
+      "promotional_price": 180,
+      "list_price": 240,
+      "currency": "USD",
+      "unit": "USD_per_endpoint_per_year",
+      "geography": "R",
+      "effective_date": "2026-03-01",
+      "promotion_start": "2026-03-01",
+      "promotion_end": "2026-05-31",
+      "source_ids": ["SPROC"],
+      "confidence": 0.62
+    }
+  ],
+  "demand_signals": [
+    {
+      "signal_id": "DEM-SALES-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "SALES",
+      "value": 1290000000,
+      "unit": "USD_revenue",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Aggregated authorized sales/filing evidence supports service revenue level.",
+      "source_ids": ["SAUDIT", "SPROC"],
+      "confidence": 0.76
+    },
+    {
+      "signal_id": "DEM-PROC-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "PROCUREMENT_TENDER",
+      "value": 145000000,
+      "unit": "USD_contract_value",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Public procurement tenders indicate institutional SMB-sector demand, but tender is not purchase.",
+      "source_ids": ["SPROC"],
+      "confidence": 0.68
+    },
+    {
+      "signal_id": "DEM-SEARCH-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "SEARCH_INTEREST",
+      "value": 1.18,
+      "unit": "index_yoy",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Search interest increased modestly; treated as attention signal, not demand.",
+      "source_ids": ["SMRP"],
+      "confidence": 0.45
+    },
+    {
+      "signal_id": "DEM-JOB-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "JOB_POSTING",
+      "value": 320,
+      "unit": "postings",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Public job postings indicate hiring/capability intent, not completed expansion.",
+      "source_ids": ["SMRP"],
+      "confidence": 0.42
+    }
+  ],
+  "supply_signals": [
+    {
+      "signal_id": "SUP-CAPACITY-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "CAPACITY",
+      "value": 220000,
+      "unit": "managed_endpoints_serviceable",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Known vendor service capacity estimate; capacity is not production or sales.",
+      "source_ids": ["SAUDIT", "SPROC"],
+      "confidence": 0.62
+    },
+    {
+      "signal_id": "SUP-VENDORS-2026",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "signal_type": "VENDOR_COUNT",
+      "value": 18,
+      "unit": "active_vendors",
+      "geography": "R",
+      "period_start": "2026-01-01",
+      "period_end": "2026-12-31",
+      "evidence_text": "Count of vendors with public/authorized evidence of active SMB managed endpoint services.",
+      "source_ids": ["SMRP", "SPROC"],
+      "confidence": 0.60
+    }
+  ],
+  "customer_needs": [
+    {
+      "id": "NEED-1",
+      "need": "Reduce endpoint incident response workload for small IT teams.",
+      "evidence_state": "DIRECTLY_REPORTED",
+      "source_ids": ["SPROC", "SMRP"]
+    },
+    {
+      "id": "NEED-2",
+      "need": "Provide compliance reporting without dedicated security staff.",
+      "evidence_state": "MULTI_SOURCE_SUPPORTED",
+      "source_ids": ["SPROC", "SGOV"]
+    }
+  ],
+  "pain_points": [
+    {
+      "id": "PAIN-1",
+      "pain_point": "Limited in-house staff to monitor alerts continuously.",
+      "evidence_state": "DIRECTLY_REPORTED",
+      "source_ids": ["SPROC", "SMRP"]
+    },
+    {
+      "id": "PAIN-2",
+      "pain_point": "Complex pricing and service-level opacity in reseller channels.",
+      "evidence_state": "INFERRED",
+      "source_ids": ["SMRP"]
+    }
+  ],
+  "purchase_criteria": [
+    {
+      "id": "CRIT-1",
+      "criterion": "Predictable annual cost per endpoint.",
+      "evidence_state": "DIRECTLY_REPORTED",
+      "source_ids": ["SPROC"]
+    },
+    {
+      "id": "CRIT-2",
+      "criterion": "Local-language support and onboarding.",
+      "evidence_state": "MULTI_SOURCE_SUPPORTED",
+      "source_ids": ["SMRP", "SPROC"]
+    }
+  ],
+  "switching_factors": [
+    {
+      "id": "SWITCH-1",
+      "factor": "Agent migration effort and endpoint downtime risk.",
+      "evidence_state": "INFERRED",
+      "source_ids": ["SMRP"]
+    },
+    {
+      "id": "SWITCH-2",
+      "factor": "Existing MSP relationship and bundled service discount.",
+      "evidence_state": "DIRECTLY_REPORTED",
+      "source_ids": ["SPROC"]
+    }
+  ],
+  "survey_data": [
+    {
+      "id": "SURVEY-1",
+      "description": "Authorized SMB IT decision-maker survey on managed security adoption.",
+      "sample_size": 620,
+      "method": "stratified_online_panel",
+      "population": "organizations_with_20_500_employees_in_R",
+      "field_dates": "2026-04",
+      "response_rate": 0.31,
+      "source_ids": ["SMRP"],
+      "confidence": 0.62
+    }
+  ],
+  "review_data": [
+    {
+      "id": "REVIEW-1",
+      "description": "Aggregated public review themes for managed endpoint services.",
+      "platform": "review_platform",
+      "rating": 4.2,
+      "volume": 1850,
+      "source_ids": ["SMRP"],
+      "confidence": 0.48
+    }
+  ],
+  "search_interest_data": [
+    {
+      "id": "SEARCH-1",
+      "description": "Search interest for managed endpoint security terms in Region R.",
+      "volume": 118,
+      "platform": "search_engine",
+      "source_ids": ["SMRP"],
+      "confidence": 0.40
+    }
+  ],
+  "web_traffic_data": [
+    {
+      "id": "WEB-1",
+      "description": "Third-party traffic estimate for leading vendor SMB pages.",
+      "volume": 940000,
+      "platform": "traffic_estimator",
+      "source_ids": ["SMRP"],
+      "confidence": 0.38
+    }
+  ],
+  "job_posting_data": [
+    {
+      "id": "JOB-1",
+      "description": "Public job postings for SOC analysts and endpoint engineers in Region R.",
+      "volume": 320,
+      "source_ids": ["SMRP"],
+      "confidence": 0.42
+    }
+  ],
+  "patent_data": [
+    {
+      "id": "PATENT-1",
+      "description": "Public patent filings related to endpoint telemetry correlation.",
+      "volume": 14,
+      "source_ids": ["SMRP"],
+      "confidence": 0.35
+    }
+  ],
+  "academic_data": [
+    {
+      "id": "ACAD-1",
+      "description": "Peer-reviewed research on detection efficacy in constrained IT environments.",
+      "volume": 9,
+      "source_ids": ["SMRP"],
+      "confidence": 0.45
+    }
+  ],
+  "procurement_data": [
+    {
+      "id": "PROC-1",
+      "description": "Public tenders for SMB endpoint managed services.",
+      "volume": 145000000,
+      "source_ids": ["SPROC"],
+      "confidence": 0.68
+    }
+  ],
+  "trade_data": [
+    {
+      "id": "TRADE-1",
+      "description": "Hardware/appliance trade flows indirectly related to endpoint security deployments.",
+      "volume": 28000000,
+      "source_ids": ["STRADE"],
+      "confidence": 0.50
+    }
+  ],
+  "financial_data": [
+    {
+      "id": "FIN-1",
+      "description": "Audited segment revenue disclosures for public vendors in managed endpoint services.",
+      "source_ids": ["SAUDIT"],
+      "confidence": 0.82
+    }
+  ],
+  "regulatory_drivers": [
+    {
+      "driver_id": "REG-1",
+      "type": "REGULATORY",
+      "description": "New SMB cyber-incidence reporting guidance increases demand for monitored endpoint services.",
+      "status": "EFFECTIVE",
+      "effect": "EXPAND",
+      "effective_date": "2026-01-01",
+      "source_ids": ["SGOV"],
+      "confidence": 0.78
+    }
+  ],
+  "macro_drivers": [
+    {
+      "driver_id": "MACRO-1",
+      "type": "MACROECONOMIC",
+      "description": "Interest-rate pressure may lengthen SMB procurement cycles.",
+      "status": "EFFECTIVE",
+      "effect": "CONSTRAIN",
+      "source_ids": ["SGOV"],
+      "confidence": 0.60
+    }
+  ],
+  "technology_drivers": [
+    {
+      "driver_id": "TECH-1",
+      "type": "TECHNOLOGY",
+      "description": "Cloud-delivered endpoint agents reduce on-premise deployment friction.",
+      "status": "EFFECTIVE",
+      "effect": "EXPAND",
+      "source_ids": ["SMRP", "SAUDIT"],
+      "confidence": 0.66
+    }
+  ],
+  "market_events": [
+    {
+      "driver_id": "EVENT-1",
+      "type": "EVENT",
+      "description": "Major regional MSP announced managed endpoint service bundle.",
+      "status": "EFFECTIVE",
+      "effect": "RESHAPE",
+      "effective_date": "2026-05-01",
+      "source_ids": ["SMRP"],
+      "confidence": 0.58
+    }
+  ],
+  "forecasts": [
+    {
+      "forecast_id": "FC-2027-BASE",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "DRIVER_BASED",
+      "scenario": "BASE",
+      "metric_type": "REVENUE",
+      "base_period": "2026",
+      "horizon": "2027",
+      "value_low": 1390000000,
+      "value_base": 1490000000,
+      "value_high": 1610000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "drivers": [
+        "REG-1",
+        "TECH-1",
+        "MACRO-1"
+      ],
+      "assumptions": [
+        "Penetration increases from 20% to 22%.",
+        "Average realized price remains broadly stable in real terms.",
+        "No major regulatory reversal."
+      ],
+      "source_ids": ["SGOV", "SPROC", "SAUDIT"],
+      "confidence": 0.58
+    },
+    {
+      "forecast_id": "FC-2027-DOWNSIDE",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "SCENARIO_BASED",
+      "scenario": "DOWNSIDE",
+      "metric_type": "REVENUE",
+      "base_period": "2026",
+      "horizon": "2027",
+      "value_low": 1280000000,
+      "value_base": 1340000000,
+      "value_high": 1410000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "drivers": [
+        "MACRO-1"
+      ],
+      "assumptions": [
+        "Procurement cycles lengthen.",
+        "Substitution to unmanaged tools increases.",
+        "Realized prices soften."
+      ],
+      "source_ids": ["SGOV", "SPROC"],
+      "confidence": 0.52
+    },
+    {
+      "forecast_id": "FC-2027-UPSIDE",
+      "market_id": "MKT-SMB-ENDPOINT-SVC",
+      "method": "SCENARIO_BASED",
+      "scenario": "UPSIDE",
+      "metric_type": "REVENUE",
+      "base_period": "2026",
+      "horizon": "2027",
+      "value_low": 1540000000,
+      "value_base": 1630000000,
+      "value_high": 1740000000,
+      "currency": "USD",
+      "unit": "USD_revenue",
+      "drivers": [
+        "REG-1",
+        "TECH-1",
+        "EVENT-1"
+      ],
+      "assumptions": [
+        "Regulatory pressure accelerates adoption.",
+        "Channel bundles expand reach.",
+        "Realized prices hold or increase modestly."
+      ],
+      "source_ids": ["SGOV", "SPROC", "SMRP"],
+      "confidence": 0.50
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "SCEN-BASE",
+      "name": "Base",
+      "assumptions": [
+        "Moderate adoption growth",
+        "stable regulation",
+        "no major substitute breakthrough"
+      ]
+    },
+    {
+      "scenario_id": "SCEN-DOWN",
+      "name": "Downside",
+      "assumptions": [
+        "longer procurement cycles",
+        "price softening",
+        "higher DIY substitution"
+      ]
+    },
+    {
+      "scenario_id": "SCEN-UP",
+      "name": "Upside",
+      "assumptions": [
+        "stronger regulatory pull",
+        "channel expansion",
+        "stable or rising realized price"
+      ]
+    }
+  ],
+  "sensitivity_analysis": [
+    {
+      "sensitivity_id": "SENS-PENETRATION",
+      "input": "penetration_rate",
+      "low": 0.18,
+      "base": 0.20,
+      "high": 0.23,
+      "output_impact": 0.42,
+      "target_metric": "2026_market_size"
+    },
+    {
+      "sensitivity_id": "SENS-PRICE",
+      "input": "average_realized_price",
+      "low": 285,
+      "base": 312,
+      "high": 345,
+      "output_impact": 0.31,
+      "target_metric": "2026_market_size"
+    },
+    {
+      "sensitivity_id": "SENS-CUSTOMERS",
+      "input": "customer_accounts",
+      "low": 39000,
+      "base": 42000,
+      "high": 45500,
+      "output_impact": 0.27,
+      "target_metric": "2026_market_size"
+    }
+  ],
+  "known_facts": []
+}

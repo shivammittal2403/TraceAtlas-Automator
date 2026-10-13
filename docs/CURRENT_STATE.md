@@ -1,3 +1,26 @@
+# Supplied intelligence suite integration — 2026-10-10
+
+All 135 Python modules from the supplied ZIP have maintained copies in
+`traceatlas.addons.intelligence_v1`, behind fixed, hash-pinned offline adapters.
+The 136 source members are retained inert, with potential credential-shaped
+sample strings redacted in two files. Original and stored hashes are distinct.
+Existing canonical case/evidence stores, admission controls, RLS and legacy
+entry points are preserved. Source identity checks compile the checked module
+bytes directly and ignore mutable Python bytecode caches.
+
+Execution modes: 68 supplied-record analysis entries, 53 planning entries and
+14 unconfigured scope-check pipelines. None of these counts is a live-source
+integration count. Canonical reviews require an approved local submission,
+reject cross-case/tenant/embedded authority inputs, retain original input bytes
+and mark all results as human-reviewed drafts. See
+[INTELLIGENCE_SUITE.md](INTELLIGENCE_SUITE.md) and
+[INTELLIGENCE_DELIVERY_LEDGER.md](INTELLIGENCE_DELIVERY_LEDGER.md).
+
+CODED / local test verification is tracked in the delivery ledger. Remote CI,
+native GUI verification and remote merge verification are pending at initial
+commit creation. No provider/hosted/operations qualification or vendor parity
+claim follows from this integration.
+
 # Imported workspace quality follow-up — 2026-10-08
 
 The merged investigation fixes at `967d87953088446168e7aee25c10ee169cd660f3`

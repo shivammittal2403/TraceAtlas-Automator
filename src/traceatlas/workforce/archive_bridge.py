@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import stat
 import tempfile
+from uuid import NAMESPACE_URL, uuid5
 
 from ..evidence import EvidenceStore, sha256_file
 from ..models import Finding
@@ -144,11 +145,26 @@ class ArchiveBridge:
             raise PolicyError('Custody did not verify after preservation')
         run_id = self.engine.db.start_run(case_id, 0, 'archive-input', digest)
         try:
-            added = self.engine.db.add_findings(case_id, run_id, [Finding(
+            # Imported engines can generate fresh UUIDs/times on every review.
+            # Canonical effects use case/input/code identity, not those labels.
+            identity = {}
+            if action == 'intelligence':
+                key = [SCHEMA, case_id, action, digest, result['module'],
+                       result['module_sha256'], result['execution_profile_sha256']]
+                identity['id'] = str(uuid5(NAMESPACE_URL, json.dumps(key)))
+            finding = Finding(
                 title=f'Archive analysis draft: {action}', source=f'archive:{action}',
                 value=value, confidence=0,
                 observation='Offline analysis of submitted evidence; reviewer decision required. '
-                            'Hash integrity does not prove authenticity, entailment or identity.')])
+                            'Hash integrity does not prove authenticity, entailment or identity.',
+                **identity)
+            added = self.engine.db.add_findings(case_id, run_id, [finding])
+            if not added and action == 'intelligence':
+                # Return the retained canonical draft, rather than regenerated
+                # source-local IDs that were never stored as case evidence.
+                retained = next(row for row in self.engine.db.findings(case_id)
+                                if row['id'] == finding.id)
+                value = retained['value']
             self.engine.db.end_run(run_id, 'completed')
         except Exception:
             self.engine.db.end_run(run_id, 'failed', 'Archive draft persistence failed')
@@ -157,9 +173,10 @@ class ArchiveBridge:
 
 
 def add_archive_parser(sub):
-    root = sub.add_parser('archive', help='Compatible offline actions from the two supplied source archives')
+    root = sub.add_parser('archive', help='Compatible offline actions from the supplied source archives')
     commands = root.add_subparsers(dest='archive_command', required=True)
     commands.add_parser('actions', help='List graduated actions and their truth boundaries')
+    commands.add_parser('modules', help='List supplied intelligence modules and execution modes')
     analyze = commands.add_parser('analyze', help='Analyze an approved file in an existing local case')
     analyze.add_argument('--case', required=True)
     analyze.add_argument('--action', required=True, choices=tuple(ACTION_DETAILS))
@@ -171,4 +188,7 @@ def run_archive(args, engine):
     bridge = ArchiveBridge(engine)
     if args.archive_command == 'actions':
         return bridge.catalog()
+    if args.archive_command == 'modules':
+        from ..addons.intelligence_v1.registry import catalog
+        return catalog()
     return bridge.analyze(args.case, args.action, args.input, approved_inputs=args.authorized)

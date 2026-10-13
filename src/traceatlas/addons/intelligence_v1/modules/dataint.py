@@ -1,0 +1,4322 @@
+#!/usr/bin/env python3
+"""
+TRACEATLAS DATAINT — Safe Python Starter Implementation
+
+Purpose:
+  Evidence-first dataset identity, provenance, lineage, quality, privacy,
+  contamination, and fitness-for-purpose intelligence.
+
+Hard boundaries enforced in code:
+  - Does NOT steal datasets or access unauthorized databases.
+  - Does NOT use stolen/leaked credentials.
+  - Does NOT purchase or collect unnecessary stolen personal data.
+  - Does NOT deanonymize or reidentify individuals without explicit lawful authorization.
+  - Does NOT poison, tamper with, silently delete, or fabricate dataset records.
+  - Does NOT execute macros, scripts, notebooks, SQL dumps, or binaries from datasets.
+  - Does NOT upload private/sensitive datasets to external/cloud models without approval.
+  - Treats dataset rows as records/claims, not automatic ground truth.
+  - Treats column names as metadata, not verified semantics.
+  - Treats multiple copies/mirrors as dependent evidence, not independent corroboration.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import io
+import json
+import math
+import re
+import sys
+import unicodedata
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+VERSION = "0.1.0-dataint-safe-starter"
+FAR_FUTURE = datetime(9999, 12, 31, tzinfo=timezone.utc)
+MASK64 = (1 << 64) - 1
+
+# --------------------------------------------------------------------
+# Policy / authorization constants
+# --------------------------------------------------------------------
+
+ALLOWED_SCOPES = {
+    "public_and_authorized_records",
+    "authorized_case_evidence",
+    "authorized_internal_data",
+    "authorized_open_data",
+    "provided_records_only",
+}
+
+PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"(?i)\b(steal|exfiltrate|download|copy|lift)\s+(dataset|database|private\s+data|stolen\s+data|full\s+dump)\b"),
+        "DATASET_THEFT_OR_EXFILTRATION",
+    ),
+    (
+        re.compile(r"(?i)\b(access|query|dump|open|read)\s+(private|internal|unauthorized)\s+(database|dataset|table|store)\b"),
+        "UNAUTHORIZED_DATABASE_ACCESS",
+    ),
+    (
+        re.compile(r"(?i)\b(use|leverate|login|authenticate|connect)\s+(stolen|leaked|exposed|found)\s+(credential|token|password|cookie|api\s+key)\b"),
+        "STOLEN_CREDENTIAL_USE",
+    ),
+    (
+        re.compile(r"(?i)\b(purchase|buy|obtain|acquire)\s+stolen\s+(personal\s+)?(data|dataset|records)\b"),
+        "STOLEN_PERSONAL_DATA_ACQUISITION",
+    ),
+    (
+        re.compile(r"(?i)\b(deanonymi[sz]e|reidentify|re-identify|unmask|identify)\s+(individual|person|user|participant|private\s+person)\b"),
+        "DEANONYMIZATION_OR_REIDENTIFICATION",
+    ),
+    (
+        re.compile(r"(?i)\b(poison|inject|tamper|backdoor)\s+(dataset|label|training\s+data|ground\s+truth|benchmark)\b"),
+        "DATASET_POISONING_OR_TAMPERING",
+    ),
+    (
+        re.compile(r"(?i)\b(bypass|circumvent|evade|defeat)\s+(privacy|access\s+control|anonymization|consent|licensing|usage\s+restriction)\b"),
+        "PRIVACY_OR_CONTROL_BYPASS",
+    ),
+    (
+        re.compile(r"(?i)\b(scrape|crawl|harvest|collect)\b.*\b(without\s+authorization|ignore\s+robots|bypass\s+auth|mass\s+personal)\b"),
+        "UNAUTHORIZED_SCRAPING_OR_HARVESTING",
+    ),
+    (
+        re.compile(r"(?i)\b(generate|build|create)\s+(personal\s+profile|dossier)\s+(on|of|about)\s+(individual|person|employee|user)\b"),
+        "UNAUTHORIZED_PERSONAL_PROFILE_GENERATION",
+    ),
+    (
+        re.compile(r"(?i)\b(upload|send|transmit|share)\s+(private|sensitive|pii|confidential|internal)\s+(dataset|data|records)\s+(to\s+)?(cloud|external|third[- ]party)\b"),
+        "UNAUTHORIZED_SENSITIVE_DATA_EXPORT",
+    ),
+    (
+        re.compile(r"(?i)\b(execute|run|enable|import)\s+(macro|script|code|notebook|sql\s+dump|binary)\b.*\b(dataset|spreadsheet|archive|file)\b"),
+        "UNTRUSTED_DATASET_CODE_EXECUTION",
+    ),
+]
+
+SOURCE_RELIABILITY: Dict[str, float] = {
+    "official_registry": 0.92,
+    "primary_source": 0.90,
+    "government_api": 0.90,
+    "authorized_internal_export": 0.86,
+    "licensed_provider": 0.78,
+    "research_repository": 0.76,
+    "vendor_feed": 0.68,
+    "public_open_data": 0.66,
+    "authorized_api": 0.80,
+    "public_web": 0.45,
+    "community_report": 0.40,
+    "anonymous_post": 0.18,
+    "stolen": 0.05,
+    "leaked": 0.05,
+    "unknown": 0.30,
+}
+
+HIGH_AUTHORITY_SOURCE_TYPES = {
+    "official_registry",
+    "primary_source",
+    "government_api",
+    "authorized_internal_export",
+    "licensed_provider",
+    "authorized_api",
+}
+
+PRIVATE_VISIBILITY = {"PRIVATE", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"}
+STOLEN_OR_LEAKED_SOURCE_TYPES = {"stolen", "leaked", "black_market", "unauthorized_dump"}
+
+NULL_TOKENS = {
+    "null",
+    "none",
+    "nan",
+    "na",
+    "n/a",
+    "not_available",
+    "not available",
+    "not_collected",
+    "not collected",
+    "unknown",
+    "redacted",
+}
+
+LABEL_KEYWORDS = ["label", "class", "target", "outcome", "verdict", "category", "sentiment"]
+SPLIT_KEYWORDS = ["split", "partition", "fold", "train_test", "dataset_split"]
+
+SEMANTIC_KEYWORDS: List[Tuple[List[str], str, bool, str]] = [
+    (["email", "e_mail"], "email", True, "MODERATE"),
+    (["phone", "mobile", "telephone", "tel"], "phone", True, "MODERATE"),
+    (["ip_address", "client_ip", "ipv4", "ipv6", "ip"], "ip", True, "MODERATE"),
+    (["url", "uri", "link"], "url", False, "NONE"),
+    (["domain", "hostname", "host"], "domain", False, "NONE"),
+    (["latitude", "lat"], "latitude", True, "HIGH"),
+    (["longitude", "lon", "lng"], "longitude", True, "HIGH"),
+    (["address", "street", "home_address", "postal", "zip", "postcode"], "address", True, "MODERATE"),
+    (["dob", "birth_date", "birthdate", "date_of_birth"], "date_of_birth", True, "HIGH"),
+    (["gender", "sex"], "gender", True, "MODERATE"),
+    (["ssn", "social_security", "passport", "national_id", "tax_id", "nin"], "government_identifier", True, "HIGH"),
+    (["credit_card", "card_number", "pan"], "credit_card", True, "HIGH"),
+    (["iban", "bic", "swift", "routing_number", "account_number"], "financial_identifier", True, "HIGH"),
+    (["health", "medical", "diagnosis", "condition", "treatment"], "health_data", True, "HIGH"),
+    (["biometric", "fingerprint", "face", "iris", "voiceprint"], "biometric_data", True, "HIGH"),
+    (["password", "passwd", "secret", "token", "api_key", "private_key", "ssh_key", "credential"], "authentication_secret", True, "HIGH"),
+    (["message", "chat", "dm", "email_body", "transcript"], "private_communication", True, "HIGH"),
+    (["minor", "child", "age_under_18"], "minor_related", True, "HIGH"),
+    (["user_id", "customer_id", "account_id", "subscriber_id"], "account_identifier", True, "MODERATE"),
+    (["transaction_id", "payment_id", "invoice_id"], "transaction_identifier", False, "MODERATE"),
+    (["cve"], "cve", False, "NONE"),
+    (["package", "purl", "artifact"], "package", False, "NONE"),
+    (["hash", "sha256", "md5"], "hash", False, "NONE"),
+    (["uuid", "guid"], "uuid", False, "NONE"),
+]
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+URL_RE = re.compile(r"https?://\S+", re.I)
+DOMAIN_RE = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b", re.I)
+HASH_RE = re.compile(r"\b[0-9a-f]{32,64}\b", re.I)
+CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
+UUID_RE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
+CC_RE = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
+IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
+SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+
+# --------------------------------------------------------------------
+# Generic helpers
+# --------------------------------------------------------------------
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def stable_id(prefix: str, *parts: Any) -> str:
+    raw = "|".join(str(json_safe(p)) for p in parts)
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def json_safe(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [json_safe(x) for x in obj]
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
+    if isinstance(obj, bytes):
+        return obj.hex()
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    return str(obj)
+
+
+def canonical_json(obj: Any) -> str:
+    return json.dumps(json_safe(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    s = unicodedata.normalize("NFKC", str(value))
+    s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+    return s.strip()
+
+
+def collapse_ws(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def iso(dt: Optional[datetime]) -> Optional[str]:
+    return dt.isoformat() if isinstance(dt, datetime) else None
+
+
+def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(hi, value))
+
+
+def unique_preserve(items: Iterable[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        key = json_safe(item)
+        if isinstance(key, (dict, list)):
+            key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def add_unique(lst: List[Any], item: Any) -> None:
+    if item is None:
+        return
+    key = json_safe(item)
+    if isinstance(key, (dict, list)):
+        key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+    for existing in lst:
+        ex_key = json_safe(existing)
+        if isinstance(ex_key, (dict, list)):
+            ex_key = json.dumps(ex_key, sort_keys=True, ensure_ascii=False)
+        if ex_key == key:
+            return
+    lst.append(item)
+
+
+def parse_time(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    s = normalize_text(value)
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%Y-%m",
+        "%Y",
+    ):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            continue
+    return None
+
+
+def parse_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = normalize_text(value).replace(",", "")
+    m = re.search(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", s)
+    if not m:
+        return None
+    try:
+        return float(m.group())
+    except Exception:
+        return None
+
+
+def safe_mean(xs: Iterable[float]) -> float:
+    vals = [float(x) for x in xs]
+    return sum(vals) / len(vals) if vals else 0.0
+
+
+def safe_stdev(xs: Iterable[float]) -> float:
+    vals = [float(x) for x in xs]
+    if len(vals) < 2:
+        return 0.0
+    m = safe_mean(vals)
+    return math.sqrt(sum((x - m) ** 2 for x in vals) / (len(vals) - 1))
+
+
+def sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def normalize_hash(value: Any) -> str:
+    s = normalize_text(value).lower()
+    if s.startswith("sha256:"):
+        s = s[7:]
+    return s
+
+
+def mask_value(value: Any, keep_prefix: int = 2, keep_suffix: int = 2) -> str:
+    s = normalize_text(value)
+    if not s:
+        return ""
+    if len(s) <= keep_prefix + keep_suffix:
+        return "*" * len(s)
+    return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+
+
+def is_missing(value: Any) -> bool:
+    return value is None or normalize_text(value) == ""
+
+
+def is_null_token(value: Any) -> bool:
+    if is_missing(value):
+        return False
+    return normalize_text(value).lower() in NULL_TOKENS
+
+
+def token_set(text: Any) -> Set[str]:
+    return set(re.findall(r"[a-z0-9_]+", normalize_text(text).lower()))
+
+
+def splitmix64(x: int) -> int:
+    x = (x + 0x9E3779B97F4A7C15) & MASK64
+    z = x
+    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
+    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK64
+    return z ^ (z >> 31)
+
+
+def row_tokens(row: Dict[str, Any]) -> Set[str]:
+    tokens = set()
+    for k, v in row.items():
+        vv = json_safe(v)
+        if isinstance(vv, (dict, list)):
+            vv = canonical_json(vv)
+        tokens.add(f"{normalize_text(k).lower()}={normalize_text(vv).lower()}")
+    return tokens
+
+
+def minhash_signature(token_sets: Iterable[Set[str]], num_perm: int = 64) -> Optional[List[int]]:
+    sig = [MASK64] * num_perm
+    any_token = False
+    for tokens in token_sets:
+        if not tokens:
+            continue
+        any_token = True
+        for token in tokens:
+            h0 = int.from_bytes(hashlib.sha256(token.encode("utf-8")).digest()[:8], "big")
+            for i in range(num_perm):
+                h = splitmix64(h0 + i)
+                if h < sig[i]:
+                    sig[i] = h
+    if not any_token:
+        return None
+    return sig
+
+
+def jaccard_estimate(sig1: Optional[List[int]], sig2: Optional[List[int]]) -> Optional[float]:
+    if not sig1 or not sig2 or len(sig1) != len(sig2):
+        return None
+    agree = sum(1 for a, b in zip(sig1, sig2) if a == b)
+    return round(agree / float(len(sig1)), 4)
+
+
+# --------------------------------------------------------------------
+# Policy / authorization
+# --------------------------------------------------------------------
+
+def collect_intent_text(manifest: Dict[str, Any]) -> str:
+    parts = [
+        normalize_text(manifest.get("objective", "")),
+        " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+        " ".join(normalize_text(x) for x in manifest.get("requested_actions", []) or []),
+    ]
+    return " ".join(parts)
+
+
+def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+    blob = collect_intent_text(manifest)
+    blocked = []
+    for pat, label in PROHIBITED_PATTERNS:
+        if pat.search(blob):
+            blocked.append(label)
+    return list(dict.fromkeys(blocked))
+
+
+def has_private_dataset(manifest: Dict[str, Any]) -> bool:
+    for ds in manifest.get("datasets", []) or []:
+        vis = normalize_text(ds.get("visibility", "")).upper()
+        if vis in PRIVATE_VISIBILITY:
+            return True
+    return False
+
+
+def has_stolen_or_leaked_source(manifest: Dict[str, Any]) -> bool:
+    for src in manifest.get("sources", []) or []:
+        if normalize_text(src.get("source_type", "")).lower() in STOLEN_OR_LEAKED_SOURCE_TYPES:
+            return True
+    for ds in manifest.get("datasets", []) or []:
+        if normalize_text(ds.get("source_type", "")).lower() in STOLEN_OR_LEAKED_SOURCE_TYPES:
+            return True
+    return False
+
+
+def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    auth = manifest.get("authorization") or {}
+    reasons: List[str] = []
+
+    if not auth.get("approved"):
+        reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+
+    scope = auth.get("scope", "provided_records_only")
+    if scope not in ALLOWED_SCOPES:
+        reasons.append("UNSUPPORTED_SCOPE")
+
+    model_mode = auth.get("model_mode", "LOCAL_ONLY")
+    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+        reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+
+    if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+        reasons.append("UNKNOWN_MODEL_MODE")
+
+    if has_private_dataset(manifest) and not auth.get("private_access_approved"):
+        reasons.append("PRIVATE_DATASET_ACCESS_NOT_APPROVED")
+
+    if has_stolen_or_leaked_source(manifest) and not auth.get("authorized_breach_metadata_only"):
+        reasons.append("STOLEN_OR_LEAKED_DATASET_SOURCE_NOT_PERMITTED")
+
+    return (len(reasons) == 0), reasons
+
+
+# --------------------------------------------------------------------
+# Sources / pedigree / independence
+# --------------------------------------------------------------------
+
+def collect_referenced_source_ids(manifest: Dict[str, Any]) -> Set[str]:
+    ids = set()
+    for s in manifest.get("sources", []) or []:
+        sid = normalize_text(s.get("source_id"))
+        if sid:
+            ids.add(sid)
+    for ds in manifest.get("datasets", []) or []:
+        for sid in ds.get("source_ids", []) or []:
+            sid = normalize_text(sid)
+            if sid:
+                ids.add(sid)
+        sid = normalize_text(ds.get("source_id"))
+        if sid:
+            ids.add(sid)
+    for rel in manifest.get("dataset_relationships", []) or []:
+        for sid in rel.get("source_ids", []) or []:
+            sid = normalize_text(sid)
+            if sid:
+                ids.add(sid)
+    return ids
+
+
+def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    sources: Dict[str, Dict[str, Any]] = {}
+    for s in manifest.get("sources", []) or []:
+        sid = normalize_text(s.get("source_id"))
+        if not sid:
+            continue
+        stype = normalize_text(s.get("source_type", "unknown")).lower()
+        reliability = s.get("reliability")
+        if reliability is None:
+            reliability = SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"])
+        sources[sid] = {
+            "source_id": sid,
+            "source_type": stype,
+            "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+            "reliability": clamp(float(reliability)),
+            "observed_at": normalize_text(s.get("observed_at")) or None,
+            "url": s.get("url"),
+            "limitations": list(s.get("limitations", []) or []),
+        }
+
+    for sid in collect_referenced_source_ids(manifest):
+        if sid not in sources:
+            sources[sid] = {
+                "source_id": sid,
+                "source_type": "unknown",
+                "upstream_source_id": None,
+                "reliability": SOURCE_RELIABILITY["unknown"],
+                "observed_at": None,
+                "url": None,
+                "limitations": ["Source referenced but not defined in manifest."],
+            }
+    return sources
+
+
+def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+    if sid in memo:
+        return memo[sid]
+    if sid in visiting:
+        return sid
+    visiting.add(sid)
+    src = sources.get(sid)
+    if not src or not src.get("upstream_source_id"):
+        memo[sid] = sid
+        visiting.discard(sid)
+        return sid
+    root = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+    memo[sid] = root
+    visiting.discard(sid)
+    return root
+
+
+def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+    memo: Dict[str, str] = {}
+    for sid in sources:
+        resolve_source_root(sid, sources, memo, set())
+    return memo
+
+
+def source_family_ids(source_ids: List[str], source_roots: Dict[str, str]) -> List[str]:
+    roots = []
+    for sid in source_ids:
+        roots.append(source_roots.get(sid, sid))
+    return list(dict.fromkeys(roots))
+
+
+def source_quality(source_ids: List[str], sources: Dict[str, Dict[str, Any]]) -> Tuple[float, float]:
+    vals = [float(sources.get(sid, {}).get("reliability", SOURCE_RELIABILITY["unknown"])) for sid in source_ids]
+    if not vals:
+        return SOURCE_RELIABILITY["unknown"], SOURCE_RELIABILITY["unknown"]
+    return max(vals), sum(vals) / len(vals)
+
+
+def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+    if not source_ids:
+        return "UNKNOWN"
+    if len(families) <= 1:
+        return "DEPENDENT"
+    types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+    rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+    if len(types) == 1 and max(rels) < 0.70:
+        return "PARTIALLY_DEPENDENT"
+    if max(rels) >= 0.70:
+        return "INDEPENDENT"
+    return "PARTIALLY_DEPENDENT"
+
+
+# --------------------------------------------------------------------
+# Parsing / dictionaries / contracts / relationships
+# --------------------------------------------------------------------
+
+def parse_records(raw: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+    records = raw.get("records")
+    content = raw.get("content")
+    fmt = normalize_text(raw.get("format")).lower()
+
+    if records is not None:
+        if isinstance(records, dict):
+            recs = [records]
+        elif isinstance(records, list):
+            recs = []
+            for item in records:
+                if isinstance(item, dict):
+                    recs.append(item)
+                else:
+                    recs.append({"value": item})
+        else:
+            recs = []
+        return recs, fmt or "inline_records"
+
+    if not content:
+        return [], fmt or "unknown"
+
+    s = normalize_text(content)
+    if not s:
+        return [], fmt or "empty"
+
+    first_line = s.splitlines()[0].strip() if s.splitlines() else ""
+
+    if fmt == "csv" or (not fmt and "," in first_line and not first_line.startswith(("{", "["))):
+        try:
+            reader = csv.DictReader(io.StringIO(s))
+            return [dict(r) for r in reader], "csv"
+        except Exception:
+            return [], "csv_parse_failed"
+
+    if fmt == "jsonl" or (
+        not fmt
+        and "\n" in s
+        and all(line.strip().startswith("{") for line in s.splitlines() if line.strip())
+    ):
+        recs = []
+        for line in s.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                recs.append(obj if isinstance(obj, dict) else {"value": obj})
+            except Exception:
+                continue
+        return recs, "jsonl"
+
+    if fmt == "json" or s.lstrip().startswith(("[", "{")):
+        try:
+            obj = json.loads(s)
+            if isinstance(obj, list):
+                return [x if isinstance(x, dict) else {"value": x} for x in obj], "json"
+            if isinstance(obj, dict):
+                if isinstance(obj.get("records"), list):
+                    return [x if isinstance(x, dict) else {"value": x} for x in obj["records"]], "json"
+                return [obj], "json"
+        except Exception:
+            pass
+
+    return [], fmt or "unknown_parse_failed"
+
+
+def ingest_dictionaries(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = defaultdict(dict)
+    for dd in manifest.get("data_dictionaries", []) or []:
+        did = normalize_text(dd.get("dataset_id"))
+        if not did:
+            continue
+        fields = dd.get("fields", {}) or {}
+        for field, definition in fields.items():
+            out[did][normalize_text(field)] = definition if isinstance(definition, dict) else {"definition": definition}
+    return dict(out)
+
+
+def ingest_contracts(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for c in manifest.get("data_contracts", []) or []:
+        did = normalize_text(c.get("dataset_id"))
+        if did:
+            out[did] = c
+    return out
+
+
+def ingest_relationships(manifest: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Set[str]]:
+    allowed = {
+        "DERIVED_FROM",
+        "COLLECTED_FROM",
+        "PUBLISHED_BY",
+        "PRODUCED_BY",
+        "HOSTED_BY",
+        "USES_SCHEMA",
+        "SUPERSEDES",
+        "SUBSET_OF",
+        "SUPERSET_OF",
+        "OVERLAPS_WITH",
+        "DUPLICATE_OF",
+        "NEAR_DUPLICATE_OF",
+        "TRANSFORMED_BY",
+        "LABELED_BY",
+        "GENERATED_BY",
+        "CONTAMINATES_CANDIDATE",
+    }
+    out = []
+    missing = set()
+    for idx, rel in enumerate(manifest.get("dataset_relationships", []) or []):
+        from_id = normalize_text(
+            rel.get("from_dataset")
+            or rel.get("from")
+            or rel.get("source_dataset")
+            or rel.get("dataset_id")
+        )
+        to_id = normalize_text(
+            rel.get("to_dataset")
+            or rel.get("to")
+            or rel.get("target_dataset")
+        )
+        rel_type = normalize_text(rel.get("relationship_type") or rel.get("type")).upper()
+        if not from_id or not to_id:
+            continue
+        if rel_type not in allowed:
+            rel_type = "UNKNOWN"
+        out.append({
+            "relationship_id": normalize_text(rel.get("relationship_id")) or stable_id("REL", from_id, to_id, rel_type, idx),
+            "from_dataset": from_id,
+            "to_dataset": to_id,
+            "relationship_type": rel_type,
+            "evidence": normalize_text(rel.get("evidence")) or None,
+            "transform": rel.get("transform") or {},
+            "source_ids": [normalize_text(x) for x in rel.get("source_ids", []) or [] if normalize_text(x)],
+            "limitations": list(rel.get("limitations", []) or []) + [
+                "Lineage does not automatically establish independence; derived datasets are dependent on parents.",
+            ],
+        })
+        missing.add(from_id)
+        missing.add(to_id)
+    return out, missing
+
+
+# --------------------------------------------------------------------
+# Semantic typing / validation
+# --------------------------------------------------------------------
+
+def infer_semantic(field: str, values: List[Any], dict_entry: Dict[str, Any]) -> Dict[str, Any]:
+    name = normalize_text(field).lower()
+    samples: List[Any] = []
+    numeric = 0
+    dt = 0
+    bools = 0
+    total = 0
+
+    for v in values[:100]:
+        if is_missing(v):
+            continue
+        total += 1
+        if len(samples) < 20:
+            samples.append(v)
+        if parse_float(v) is not None:
+            numeric += 1
+        if parse_time(v) is not None:
+            dt += 1
+        if normalize_text(v).lower() in {"true", "false"}:
+            bools += 1
+
+    observed = "string"
+    if total:
+        if numeric / float(total) >= 0.8:
+            observed = "numeric"
+        elif bools / float(total) >= 0.8:
+            observed = "boolean"
+        elif dt / float(total) >= 0.5:
+            observed = "timestamp" if any(":" in normalize_text(s) for s in samples) else "date"
+
+    semantic = observed
+    pii = False
+    sensitivity = "NONE"
+    confidence = 0.45
+    declared_type = dict_entry.get("type") if dict_entry else None
+
+    if dict_entry:
+        if dict_entry.get("semantic_type"):
+            semantic = normalize_text(dict_entry["semantic_type"]).lower()
+            confidence = 0.90
+        if dict_entry.get("pii") is True:
+            pii = True
+        if dict_entry.get("sensitivity"):
+            sensitivity = normalize_text(dict_entry["sensitivity"]).upper()
+
+    for keywords, sem, is_pii, sens in SEMANTIC_KEYWORDS:
+        if any(k in name for k in keywords):
+            semantic = sem
+            pii = pii or is_pii
+            if sens != "NONE":
+                sensitivity = sens
+            confidence = max(confidence, 0.85)
+            break
+
+    joined = " ".join(normalize_text(s) for s in samples[:20])
+    if joined:
+        if EMAIL_RE.search(joined):
+            semantic = "email"
+            pii = True
+            sensitivity = "MODERATE"
+            confidence = max(confidence, 0.80)
+        elif IPV4_RE.search(joined) and ("ip" in name or semantic in {"string", "numeric"}):
+            semantic = "ip"
+            pii = True
+            sensitivity = "MODERATE"
+            confidence = max(confidence, 0.75)
+        elif URL_RE.search(joined):
+            semantic = "url"
+            confidence = max(confidence, 0.70)
+        elif DOMAIN_RE.search(joined) and "domain" in name:
+            semantic = "domain"
+            confidence = max(confidence, 0.70)
+
+        if CVE_RE.search(joined):
+            semantic = "cve"
+            confidence = max(confidence, 0.85)
+        if UUID_RE.search(joined) and semantic in {"string", "uuid"}:
+            semantic = "uuid"
+            confidence = max(confidence, 0.75)
+        if HASH_RE.search(joined) and "hash" in name:
+            semantic = "hash"
+            confidence = max(confidence, 0.75)
+        if CC_RE.search(joined) and ("card" in name or "credit" in name):
+            semantic = "credit_card"
+            pii = True
+            sensitivity = "HIGH"
+            confidence = 0.90
+        if IBAN_RE.search(joined) and ("iban" in name or "account" in name):
+            semantic = "iban"
+            pii = True
+            sensitivity = "HIGH"
+            confidence = 0.90
+        if SSN_RE.search(joined) and ("ssn" in name or "social" in name):
+            semantic = "government_identifier"
+            pii = True
+            sensitivity = "HIGH"
+            confidence = 0.90
+
+    if any(k in name for k in LABEL_KEYWORDS) or (dict_entry and dict_entry.get("label")):
+        semantic = "label"
+        confidence = max(confidence, 0.80)
+    if any(k in name for k in SPLIT_KEYWORDS):
+        semantic = "split"
+        confidence = max(confidence, 0.80)
+
+    if semantic in {
+        "authentication_secret",
+        "health_data",
+        "biometric_data",
+        "government_identifier",
+        "credit_card",
+        "iban",
+        "financial_identifier",
+        "private_communication",
+        "minor_related",
+    }:
+        sensitivity = "HIGH"
+        pii = True
+    elif semantic in {
+        "email",
+        "phone",
+        "ip",
+        "address",
+        "date_of_birth",
+        "gender",
+        "account_identifier",
+        "latitude",
+        "longitude",
+    }:
+        if sensitivity == "NONE":
+            sensitivity = "MODERATE"
+        pii = True
+
+    sample_display = []
+    for s in samples[:5]:
+        if pii or sensitivity in {"HIGH", "MODERATE"}:
+            sample_display.append(mask_value(s))
+        else:
+            sample_display.append(normalize_text(s)[:80])
+
+    return {
+        "field": field,
+        "declared_type": normalize_text(declared_type) or None,
+        "observed_type": observed,
+        "semantic_type": semantic,
+        "pii": bool(pii),
+        "sensitivity": sensitivity,
+        "confidence": round(clamp(float(confidence)), 4),
+        "dictionary": dict_entry or {},
+        "sample_masked": sample_display,
+        "limitations": [
+            "Column name is not verified semantics; data dictionary/context is preferred.",
+            "Semantic typing is heuristic unless supported by dictionary or deterministic validation.",
+        ],
+    }
+
+
+def analyze_missingness(records: List[Dict[str, Any]], columns: List[str]) -> Dict[str, Any]:
+    rows = len(records)
+    per_field = {}
+    total_missing = 0
+    total_null_like = 0
+    total_empty_string = 0
+    total_cells = rows * len(columns)
+
+    for col in columns:
+        missing = 0
+        null_like = 0
+        empty_string = 0
+        for r in records:
+            v = r.get(col, None)
+            if v is None:
+                missing += 1
+            elif normalize_text(v) == "":
+                empty_string += 1
+                missing += 1
+            elif is_null_token(v):
+                null_like += 1
+        per_field[col] = {
+            "missing": missing,
+            "null_like": null_like,
+            "empty_string": empty_string,
+            "missing_rate": round(missing / float(rows), 4) if rows else None,
+        }
+        total_missing += missing
+        total_null_like += null_like
+        total_empty_string += empty_string
+
+    return {
+        "rows": rows,
+        "columns": len(columns),
+        "total_cells": total_cells,
+        "total_missing": total_missing,
+        "total_null_like": total_null_like,
+        "total_empty_string": total_empty_string,
+        "overall_missing_rate": round(total_missing / float(total_cells), 4) if total_cells else None,
+        "per_field": per_field,
+        "limitations": [
+            "Missing, null-like, empty string, zero, and redacted are not automatically equivalent.",
+            "Missing does not mean negative/absent in the real world.",
+        ],
+    }
+
+
+def infer_candidate_keys(
+    records: List[Dict[str, Any]],
+    semantic: Dict[str, Dict[str, Any]],
+    contract: Optional[Dict[str, Any]],
+    dictionary: Dict[str, Any],
+) -> List[List[str]]:
+    keys: List[List[str]] = []
+
+    if contract and contract.get("unique_keys"):
+        for k in contract["unique_keys"]:
+            if isinstance(k, str):
+                keys.append([k])
+            elif isinstance(k, list):
+                keys.append([normalize_text(x) for x in k if normalize_text(x)])
+
+    for field, defn in (dictionary or {}).items():
+        if isinstance(defn, dict) and (defn.get("primary_key") or defn.get("unique")):
+            keys.append([field])
+
+    normalized = []
+    for k in keys:
+        k = [normalize_text(x) for x in k if normalize_text(x)]
+        if k and all(c in semantic for c in k):
+            normalized.append(k)
+    normalized = unique_preserve(normalized)
+    if normalized:
+        return normalized[:5]
+
+    rows = len(records)
+    if rows == 0:
+        return []
+
+    for col, sem in semantic.items():
+        if (
+            sem.get("semantic_type") in {"uuid", "account_identifier", "transaction_identifier", "hash"}
+            or col.lower().endswith("_id")
+            or col.lower() in {"id", "uuid", "guid"}
+        ):
+            vals = [normalize_text(r.get(col)).lower() for r in records if not is_missing(r.get(col))]
+            if len(vals) >= max(5, int(rows * 0.5)):
+                uniq = len(set(vals)) / float(len(vals))
+                if uniq >= 0.95:
+                    normalized.append([col])
+    return unique_preserve(normalized)[:5]
+
+
+def analyze_keys(records: List[Dict[str, Any]], candidate_keys: List[List[str]], semantic: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    rows = len(records)
+    row_hashes = [sha256_hex(canonical_json(r)) for r in records]
+    exact_counter = Counter(row_hashes)
+    exact_duplicate_rows = sum(c - 1 for c in exact_counter.values() if c > 1)
+    unique_physical = len(exact_counter)
+
+    key_results = []
+    conflicts = []
+    unique_logical = unique_physical
+
+    for key in candidate_keys:
+        map_key = Counter()
+        key_values = defaultdict(set)
+        complete = 0
+        for r in records:
+            if any(is_missing(r.get(c)) for c in key):
+                continue
+            complete += 1
+            kt = tuple(normalize_text(r.get(c)).lower() for c in key)
+            map_key[kt] += 1
+            payload = {k: v for k, v in r.items() if k not in key}
+            key_values[kt].add(canonical_json(payload))
+
+        unique_count = len(map_key)
+        dup = sum(c - 1 for c in map_key.values() if c > 1)
+        conflict_count = sum(1 for vals in key_values.values() if len(vals) > 1)
+        key_results.append({
+            "key_fields": key,
+            "complete_records": complete,
+            "unique_keys": unique_count,
+            "duplicate_records": dup,
+            "conflicting_key_records": conflict_count,
+            "duplicate_rate": round(1.0 - (unique_count / float(complete)), 4) if complete else None,
+        })
+        if complete:
+            unique_logical = min(unique_logical, unique_count)
+
+        for kt, vals in key_values.items():
+            if len(vals) > 1:
+                masked = []
+                for i, val in enumerate(kt):
+                    field = key[i] if i < len(key) else ""
+                    if semantic.get(field, {}).get("pii"):
+                        masked.append(mask_value(val))
+                    else:
+                        masked.append(val)
+                conflicts.append({
+                    "key_fields": key,
+                    "key_values": masked,
+                    "distinct_payload_count": len(vals),
+                })
+
+    exact_dup_rate = round(exact_duplicate_rows / float(rows), 4) if rows else None
+    best_key_dup_rate = max([kr["duplicate_rate"] or 0.0 for kr in key_results], default=exact_dup_rate or 0.0)
+
+    return {
+        "candidate_keys": candidate_keys,
+        "physical_rows": rows,
+        "unique_physical_rows": unique_physical,
+        "unique_logical_records": unique_logical,
+        "exact_duplicate_rows": exact_duplicate_rows,
+        "exact_duplicate_rate": exact_dup_rate,
+        "key_analysis": key_results,
+        "best_key_duplicate_rate": round(best_key_dup_rate, 4),
+        "key_conflicts": conflicts[:200],
+        "limitations": [
+            "Duplicate records may be meaningful in event/sighting datasets; semantics matter.",
+            "Deduplication is not performed automatically; originals are preserved.",
+        ],
+    }
+
+
+def analyze_temporal(records: List[Dict[str, Any]], semantic: Dict[str, Dict[str, Any]], raw: Dict[str, Any], as_of: datetime) -> Dict[str, Any]:
+    time_cols = [
+        c for c, s in semantic.items()
+        if s.get("semantic_type") in {"timestamp", "date"} or normalize_text(c).lower() in {"event_time", "timestamp", "updated_at", "created_at"}
+    ]
+    event_times = []
+    for c in time_cols:
+        for r in records:
+            t = parse_time(r.get(c))
+            if t:
+                event_times.append(t)
+
+    earliest = min(event_times) if event_times else None
+    latest = max(event_times) if event_times else None
+    snapshot = parse_time(raw.get("snapshot_time"))
+    collection_start = parse_time(raw.get("collection_start"))
+    collection_end = parse_time(raw.get("collection_end"))
+    published = parse_time(raw.get("published_at"))
+    retrieved = parse_time(raw.get("retrieved_at"))
+
+    delta_days = (as_of - latest).days if latest else None
+    if delta_days is None:
+        state = "UNKNOWN"
+    elif delta_days <= 7:
+        state = "CURRENT"
+    elif delta_days <= 30:
+        state = "RECENT"
+    elif delta_days <= 180:
+        state = "AGING"
+    elif delta_days <= 730:
+        state = "STALE"
+    else:
+        state = "HISTORICAL"
+
+    conflicts = []
+    if latest and snapshot and latest > snapshot:
+        conflicts.append({"type": "EVENT_AFTER_SNAPSHOT", "detail": "Latest event time is after declared snapshot time."})
+    if latest and collection_end and latest > collection_end:
+        conflicts.append({"type": "EVENT_AFTER_COLLECTION_END", "detail": "Latest event time is after declared collection end."})
+    if published and latest and latest > published:
+        conflicts.append({"type": "EVENT_AFTER_PUBLICATION", "detail": "Latest event time is after publication time."})
+
+    return {
+        "time_fields": time_cols,
+        "earliest_event": earliest,
+        "latest_event": latest,
+        "snapshot_time": snapshot,
+        "collection_start": collection_start,
+        "collection_end": collection_end,
+        "published_at": published,
+        "retrieved_at": retrieved,
+        "age_days_from_latest_event": delta_days,
+        "freshness_state": state,
+        "conflicts": conflicts,
+        "limitations": [
+            "Publication date is not data/event date.",
+            "Freshness is relative to objective and update cadence.",
+        ],
+    }
+
+
+def analyze_privacy(semantic: Dict[str, Dict[str, Any]], records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    pii_fields = []
+    sensitive_fields = []
+    high_fields = []
+    moderate_fields = []
+    quasi_fields = []
+
+    quasi_types = {"date_of_birth", "gender", "jurisdiction", "postal_code", "ip", "email", "account_identifier", "address"}
+
+    for field, sem in semantic.items():
+        if sem.get("pii"):
+            pii_fields.append(field)
+        if sem.get("sensitivity") in {"HIGH", "MODERATE"}:
+            sensitive_fields.append(field)
+        if sem.get("sensitivity") == "HIGH":
+            high_fields.append(field)
+        elif sem.get("sensitivity") == "MODERATE":
+            moderate_fields.append(field)
+        if sem.get("semantic_type") in quasi_types or normalize_text(field).lower() in {"jurisdiction", "country", "postal_code", "zip", "postcode"}:
+            quasi_fields.append(field)
+
+    if high_fields:
+        classification = "HIGH_SENSITIVITY"
+    elif moderate_fields:
+        classification = "MODERATE_PII"
+    elif pii_fields:
+        classification = "LOW_PII"
+    else:
+        classification = "NON_PII"
+
+    reidentification_risk = "ELEVATED" if len(set(quasi_fields)) >= 3 else "UNKNOWN" if pii_fields else "LOW"
+
+    redaction = []
+    if high_fields:
+        redaction = ["FIELD_REMOVAL_OR_TOKENIZATION", "NO_RAW_EXPORT", "LOCAL_ONLY_RECOMMENDED", "HUMAN_PRIVACY_REVIEW"]
+    elif moderate_fields:
+        redaction = ["MASKING", "TOKENIZATION", "PURPOSE_LIMITATION", "MINIMIZE_RETENTION"]
+
+    return {
+        "classification": classification,
+        "pii_fields": pii_fields,
+        "sensitive_fields": sensitive_fields,
+        "high_sensitivity_fields": high_fields,
+        "moderate_sensitivity_fields": moderate_fields,
+        "quasi_identifier_fields": list(dict.fromkeys(quasi_fields)),
+        "reidentification_risk": reidentification_risk,
+        "redaction_requirements": redaction,
+        "limitations": [
+            "PII detection is heuristic; data dictionary and legal/privacy review are authoritative.",
+            "HASHED PII is not automatically anonymous.",
+            "DATAINT does not attempt deanonymization or reidentification.",
+        ],
+    }
+
+
+def analyze_synthetic(records: List[Dict[str, Any]], raw: Dict[str, Any]) -> Dict[str, Any]:
+    syn_meta = raw.get("synthetic", {}) or {}
+    flags = []
+    for r in records:
+        v = r.get("synthetic")
+        if v is True or normalize_text(v).lower() in {"true", "1", "yes", "synthetic"}:
+            flags.append(True)
+        else:
+            flags.append(False)
+
+    synth_count = sum(1 for x in flags if x)
+    if syn_meta.get("all") or (records and synth_count == len(records)):
+        state = "FULLY_SYNTHETIC"
+    elif synth_count > 0:
+        state = "PARTIALLY_SYNTHETIC"
+    elif syn_meta.get("augmented"):
+        state = "AUGMENTED"
+    elif syn_meta:
+        state = "UNKNOWN"
+    else:
+        state = "REAL_DATA"
+
+    return {
+        "state": state,
+        "synthetic_record_count": synth_count,
+        "generator": normalize_text(syn_meta.get("generator")) or None,
+        "model": normalize_text(syn_meta.get("model")) or None,
+        "version": normalize_text(syn_meta.get("version")) or None,
+        "seed": syn_meta.get("seed"),
+        "limitations": [
+            "Synthetic data is not automatically fake/useless, but cannot substitute real-world validation.",
+            "Mixed synthetic/real data requires record-level provenance where possible.",
+        ],
+    }
+
+
+def analyze_labels(semantic: Dict[str, Dict[str, Any]], dictionary: Dict[str, Any], raw: Dict[str, Any]) -> Dict[str, Any]:
+    label_fields = [f for f, s in semantic.items() if s.get("semantic_type") == "label"]
+    annot = raw.get("annotation", {}) or {}
+    method = normalize_text(annot.get("method")).lower()
+    model_generated = method in {"model", "ai", "llm", "automatic", "weak_supervision", "weak supervision"} or any(
+        "score" in f.lower() or "probability" in f.lower() for f in label_fields
+    )
+    ground_truth_state = (
+        "SUPPORTED"
+        if annot.get("ground_truth") and annot.get("verification_procedure")
+        else "REFERENCE_LABEL"
+        if label_fields
+        else "UNKNOWN"
+    )
+    return {
+        "label_fields": label_fields,
+        "annotation_method": normalize_text(annot.get("method")) or None,
+        "annotators": annot.get("annotators", []) or [],
+        "inter_annotator_agreement": annot.get("inter_annotator_agreement"),
+        "adjudication": normalize_text(annot.get("adjudication")) or None,
+        "model_generated_labels": bool(model_generated),
+        "ground_truth_state": ground_truth_state,
+        "limitations": [
+            "Label is not automatically ground truth.",
+            "Model-generated labels must not be presented as human verified truth.",
+        ],
+    }
+
+
+def analyze_split_leakage(records: List[Dict[str, Any]], semantic: Dict[str, Dict[str, Any]], candidate_keys: List[List[str]]) -> Dict[str, Any]:
+    split_col = next((f for f, s in semantic.items() if s.get("semantic_type") == "split"), None)
+    if not split_col or not records:
+        return {
+            "state": "NOT_APPLICABLE",
+            "split_field": None,
+            "overlap_count": 0,
+            "temporal_leakage_candidate": False,
+            "limitations": ["No split field provided; train/test leakage not tested."],
+        }
+
+    key_fields = candidate_keys[0] if candidate_keys else None
+    groups = defaultdict(set)
+    for r in records:
+        sp = normalize_text(r.get(split_col)).lower()
+        if not sp:
+            continue
+        if key_fields:
+            if any(is_missing(r.get(c)) for c in key_fields):
+                continue
+            key = tuple(normalize_text(r.get(c)).lower() for c in key_fields)
+        else:
+            key = sha256_hex(canonical_json(r))
+        groups[key].add(sp)
+
+    overlap = [k for k, v in groups.items() if len(v) > 1]
+
+    temporal_leak = False
+    event_col = next((f for f, s in semantic.items() if s.get("semantic_type") in {"timestamp", "date"}), None)
+    if event_col:
+        train_times = []
+        test_times = []
+        for r in records:
+            t = parse_time(r.get(event_col))
+            sp = normalize_text(r.get(split_col)).lower()
+            if not t:
+                continue
+            if "train" in sp:
+                train_times.append(t)
+            elif any(x in sp for x in ("test", "validation", "dev")):
+                test_times.append(t)
+        if train_times and test_times and min(train_times) > max(test_times):
+            temporal_leak = True
+
+    state = "LEAKAGE_CANDIDATE" if overlap or temporal_leak else "NO_LEAKAGE_EVIDENCE"
+    return {
+        "state": state,
+        "split_field": split_col,
+        "key_fields_used": key_fields,
+        "overlap_count": len(overlap),
+        "temporal_leakage_candidate": temporal_leak,
+        "limitations": [
+            "Random split is not automatically independent; entity/temporal leakage must be checked.",
+            "Leakage candidate does not prove benchmark invalidation without evaluation context.",
+        ],
+    }
+
+
+def analyze_benchmark(row_token_sets: List[Set[str]], records: List[Dict[str, Any]], examples: List[Any]) -> Dict[str, Any]:
+    if not examples:
+        return {
+            "state": "NOT_TESTED",
+            "matched_count": 0,
+            "matches": [],
+            "limitations": ["No benchmark examples provided; contamination not tested."],
+        }
+
+    matches = []
+    for ex in examples:
+        if isinstance(ex, dict):
+            text = ex.get("text") or ex.get("id")
+            ex_id = ex.get("id")
+        else:
+            text = ex
+            ex_id = None
+        tokens = token_set(text)
+        if not tokens:
+            continue
+        for i, rt in enumerate(row_token_sets):
+            if not rt:
+                continue
+            jac = len(tokens & rt) / float(len(tokens | rt)) if (tokens | rt) else 0.0
+            id_match = False
+            if ex_id and i < len(records):
+                row_id = normalize_text(records[i].get("id") or records[i].get("benchmark_id") or records[i].get("example_id"))
+                if row_id and row_id.lower() == normalize_text(ex_id).lower():
+                    id_match = True
+            if jac >= 0.75 or id_match:
+                matches.append({
+                    "example_masked": mask_value(text),
+                    "row_index": i,
+                    "jaccard": round(jac, 3),
+                    "id_match": id_match,
+                })
+
+    state = "CONTAMINATION_CANDIDATE" if matches else "NO_CONTAMINATION_EVIDENCE"
+    return {
+        "state": state,
+        "matched_count": len(matches),
+        "matches": matches[:100],
+        "limitations": [
+            "Benchmark contamination candidate does not prove performance inflation without model evaluation context.",
+            "Examples are synthetic/masked; no real victim/benchmark data is required.",
+        ],
+    }
+
+
+def analyze_validity(records: List[Dict[str, Any]], semantic: Dict[str, Dict[str, Any]], contract: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    violations = []
+    invalid_cells = 0
+    formula_count = 0
+    required = []
+    allowed = {}
+    if contract:
+        required = [normalize_text(x) for x in contract.get("required_fields", []) or [] if normalize_text(x)]
+        allowed = {normalize_text(k): [normalize_text(x).lower() for x in v] for k, v in (contract.get("allowed_values", {}) or {}).items()}
+
+    for idx, row in enumerate(records):
+        for col, sem in semantic.items():
+            val = row.get(col, None)
+            if is_missing(val):
+                if col in required:
+                    violations.append({
+                        "type": "MISSING_REQUIRED_FIELD",
+                        "row_index": idx,
+                        "field": col,
+                        "severity": "MATERIAL",
+                    })
+                continue
+
+            sval = normalize_text(val)
+            fval = parse_float(val)
+
+            if sem.get("observed_type") == "numeric" and fval is None:
+                invalid_cells += 1
+                violations.append({
+                    "type": "TYPE_VIOLATION",
+                    "row_index": idx,
+                    "field": col,
+                    "value_masked": mask_value(sval) if sem.get("pii") else sval[:80],
+                    "severity": "MATERIAL",
+                })
+
+            if sem.get("semantic_type") in {"timestamp", "date"} and parse_time(val) is None:
+                invalid_cells += 1
+                violations.append({
+                    "type": "TYPE_VIOLATION",
+                    "row_index": idx,
+                    "field": col,
+                    "value_masked": mask_value(sval) if sem.get("pii") else sval[:80],
+                    "severity": "MATERIAL",
+                })
+
+            if sem.get("semantic_type") == "email" and not EMAIL_RE.search(sval):
+                invalid_cells += 1
+                violations.append({
+                    "type": "FORMAT_VIOLATION",
+                    "row_index": idx,
+                    "field": col,
+                    "value_masked": mask_value(sval),
+                    "severity": "LOW",
+                })
+
+            if sem.get("semantic_type") == "latitude":
+                if fval is None or fval < -90 or fval > 90:
+                    invalid_cells += 1
+                    violations.append({"type": "RANGE_VIOLATION", "row_index": idx, "field": col, "severity": "MATERIAL"})
+            if sem.get("semantic_type") == "longitude":
+                if fval is None or fval < -180 or fval > 180:
+                    invalid_cells += 1
+                    violations.append({"type": "RANGE_VIOLATION", "row_index": idx, "field": col, "severity": "MATERIAL"})
+            if "port" in col.lower() and fval is not None and (fval < 0 or fval > 65535):
+                invalid_cells += 1
+                violations.append({"type": "RANGE_VIOLATION", "row_index": idx, "field": col, "severity": "MATERIAL"})
+
+            if col in allowed and sval.lower() not in allowed[col]:
+                invalid_cells += 1
+                violations.append({
+                    "type": "SEMANTIC_VIOLATION",
+                    "row_index": idx,
+                    "field": col,
+                    "value_masked": mask_value(sval) if sem.get("pii") else sval[:80],
+                    "allowed_values": allowed[col],
+                    "severity": "MATERIAL",
+                })
+
+            if isinstance(val, str) and val.strip()[:1] in {"=", "+", "@"} and "(" in val:
+                formula_count += 1
+                violations.append({
+                    "type": "FORMULA_INJECTION_CANDIDATE",
+                    "row_index": idx,
+                    "field": col,
+                    "value_masked": mask_value(val),
+                    "severity": "MATERIAL",
+                    "note": "Cell treated as untrusted data; not executed.",
+                })
+
+    material = [v for v in violations if v.get("severity") == "MATERIAL"]
+    return {
+        "invalid_cells": invalid_cells,
+        "formula_injection_candidates": formula_count,
+        "violation_count": len(violations),
+        "material_violation_count": len(material),
+        "violations": violations[:300],
+        "contract_violations": [v for v in violations if v.get("type") in {"MISSING_REQUIRED_FIELD", "TYPE_VIOLATION", "RANGE_VIOLATION", "SEMANTIC_VIOLATION"}][:300],
+        "limitations": [
+            "Valid format does not prove factual truth.",
+            "Formula/script-like cells are flagged defensively and never executed.",
+        ],
+    }
+
+
+# --------------------------------------------------------------------
+# Higher-level dataset analysis
+# --------------------------------------------------------------------
+
+def compute_provenance(raw: Dict[str, Any], sources: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    source_ids = [normalize_text(x) for x in raw.get("source_ids", []) or [] if normalize_text(x)]
+    sid = normalize_text(raw.get("source_id"))
+    if sid:
+        source_ids.append(sid)
+    source_ids = list(dict.fromkeys(source_ids))
+    max_rel, avg_rel = source_quality(source_ids, sources)
+
+    producer = normalize_text(raw.get("producer")) or None
+    publisher = normalize_text(raw.get("publisher")) or None
+    collector = normalize_text(raw.get("collector")) or None
+    source = normalize_text(raw.get("source")) or None
+    method = normalize_text(raw.get("collection_method")) or None
+
+    if producer and collector and source:
+        status = "PRIMARY_PROVENANCE_KNOWN"
+    elif publisher and not collector:
+        status = "SECONDARY_ONLY"
+    elif raw.get("self_reported"):
+        status = "SELF_REPORTED_PROVENANCE"
+    elif producer or publisher or source or collector:
+        status = "PARTIAL_PROVENANCE"
+    else:
+        status = "UNKNOWN_PROVENANCE"
+
+    return {
+        "producer": producer,
+        "publisher": publisher,
+        "collector": collector,
+        "source": source,
+        "collection_method": method,
+        "status": status,
+        "source_ids": source_ids,
+        "source_max_reliability": round(max_rel, 4),
+        "source_avg_reliability": round(avg_rel, 4),
+        "limitations": [
+            "Publisher is not automatically collector.",
+            "Hosting platform is not automatically dataset author.",
+            "Downstream copies are not independent provenance.",
+        ],
+    }
+
+
+def compute_license(raw: Dict[str, Any]) -> Dict[str, Any]:
+    licenses = []
+    if raw.get("license"):
+        licenses.append(normalize_text(raw["license"]))
+    for lic in raw.get("licenses", []) or []:
+        licenses.append(normalize_text(lic))
+    distinct = [x for x in dict.fromkeys(licenses) if x]
+    if not distinct:
+        state = "LICENSE_UNKNOWN"
+    elif len(distinct) > 1:
+        state = "LICENSE_CONFLICT"
+    else:
+        state = "LICENSE_KNOWN"
+    return {
+        "license": distinct[0] if distinct else None,
+        "licenses": distinct,
+        "state": state,
+        "usage_restrictions": raw.get("usage_restrictions", []) or [],
+        "limitations": [
+            "No license does not mean public domain.",
+            "License does not automatically eliminate privacy/contract/regulatory restrictions.",
+        ],
+    }
+
+
+def compute_coverage(raw: Dict[str, Any]) -> Dict[str, Any]:
+    cov = raw.get("coverage", {}) or {}
+    state = normalize_text(cov.get("state")).upper()
+    if not state:
+        if cov.get("population") and cov.get("geography"):
+            state = "MODERATE_COVERAGE"
+        else:
+            state = "UNKNOWN_COVERAGE"
+    return {
+        "state": state,
+        "population": normalize_text(cov.get("population")) or None,
+        "geography": cov.get("geography", []) or [],
+        "time": cov.get("time", []) or [],
+        "entity_types": cov.get("entity_types", []) or [],
+        "known_exclusions": cov.get("known_exclusions", []) or [],
+        "limitations": [
+            "Coverage is not completeness.",
+            "Completeness claims require a defined population/reference registry.",
+        ],
+    }
+
+
+def compute_sampling(raw: Dict[str, Any]) -> Dict[str, Any]:
+    samp = raw.get("sampling", {}) or {}
+    method = normalize_text(samp.get("method")).upper() or "UNKNOWN"
+    return {
+        "method": method,
+        "notes": normalize_text(samp.get("notes")) or None,
+        "frame": samp.get("frame", []) or [],
+        "limitations": [
+            "Sample is not population unless sampling design supports generalization.",
+        ],
+    }
+
+
+def compute_representation(
+    categorical_freq: Dict[str, Dict[str, int]],
+    semantic: Dict[str, Dict[str, Any]],
+    labels: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    rep = []
+    fields = set(categorical_freq.keys()) | set(labels.get("label_fields", []) or [])
+    for col in sorted(fields):
+        freq = categorical_freq.get(col)
+        if not freq:
+            continue
+        total = sum(freq.values())
+        if total < 5:
+            continue
+        top_val, top_count = max(freq.items(), key=lambda x: x[1])
+        rep.append({
+            "field": col,
+            "category_count": len(freq),
+            "top_value_masked": mask_value(top_val) if semantic.get(col, {}).get("pii") else top_val,
+            "top_share": round(top_count / float(total), 4),
+            "total": total,
+        })
+    return rep
+
+
+def compute_bias_signals(
+    coverage: Dict[str, Any],
+    sampling: Dict[str, Any],
+    representation: List[Dict[str, Any]],
+    semantic: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    signals = []
+    if sampling.get("method") in {"CONVENIENCE", "CRAWLER", "SELF_SELECTED", "EVENT_DRIVEN", "UNKNOWN"}:
+        signals.append({
+            "type": "SAMPLING_BIAS_CANDIDATE",
+            "detail": f"Sampling method {sampling.get('method')} may limit representativeness.",
+            "severity": "MEDIUM",
+        })
+    if coverage.get("state") in {"LIMITED_COVERAGE", "UNKNOWN_COVERAGE"}:
+        signals.append({
+            "type": "COVERAGE_BIAS_CANDIDATE",
+            "detail": f"Coverage state {coverage.get('state')} may bias population inference.",
+            "severity": "MEDIUM",
+        })
+    for rep in representation:
+        if rep.get("top_share", 0) >= 0.80:
+            signals.append({
+                "type": "OVERREPRESENTATION_CANDIDATE",
+                "field": rep["field"],
+                "detail": f"Top category share {rep['top_share']} in field {rep['field']}.",
+                "severity": "LOW",
+            })
+    if any(s.get("semantic_type") == "label" for s in semantic.values()):
+        label_rep = [r for r in representation if r["field"] in [f for f, s in semantic.items() if s.get("semantic_type") == "label"]]
+        for lr in label_rep:
+            if lr.get("top_share", 0) >= 0.95:
+                signals.append({
+                    "type": "CLASS_IMBALANCE_CANDIDATE",
+                    "field": lr["field"],
+                    "detail": f"Label field {lr['field']} is highly imbalanced.",
+                    "severity": "MEDIUM",
+                })
+    return signals
+
+
+def compute_quality(
+    rows: int,
+    cols: int,
+    missingness: Dict[str, Any],
+    duplicates: Dict[str, Any],
+    validity: Dict[str, Any],
+    temporal: Dict[str, Any],
+    provenance: Dict[str, Any],
+    coverage: Dict[str, Any],
+    sampling: Dict[str, Any],
+    contradictions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    total_cells = rows * cols
+    missing_rate = missingness.get("overall_missing_rate")
+    exact_dup_rate = duplicates.get("exact_duplicate_rate")
+    invalid_rate = round(validity.get("invalid_cells", 0) / float(total_cells), 4) if total_cells else None
+
+    freshness_map = {
+        "CURRENT": 1.0,
+        "RECENT": 0.85,
+        "AGING": 0.55,
+        "STALE": 0.25,
+        "HISTORICAL": 0.45,
+        "MIXED": 0.50,
+        "UNKNOWN": None,
+    }
+    provenance_map = {
+        "PRIMARY_PROVENANCE_KNOWN": 1.0,
+        "PARTIAL_PROVENANCE": 0.75,
+        "SECONDARY_ONLY": 0.60,
+        "SELF_REPORTED_PROVENANCE": 0.50,
+        "UNKNOWN_PROVENANCE": 0.35,
+        "DISPUTED_PROVENANCE": 0.20,
+    }
+    coverage_map = {
+        "HIGH_COVERAGE": 0.90,
+        "MODERATE_COVERAGE": 0.70,
+        "LIMITED_COVERAGE": 0.40,
+        "UNKNOWN_COVERAGE": None,
+    }
+    sampling_map = {
+        "RANDOM": 0.90,
+        "STRATIFIED": 0.85,
+        "REGISTRY_SNAPSHOT": 0.80,
+        "OFFICIAL_EXPORT": 0.80,
+        "CONVENIENCE": 0.40,
+        "CRAWLER": 0.35,
+        "SELF_SELECTED": 0.30,
+        "EVENT_DRIVEN": 0.45,
+        "UNKNOWN": None,
+    }
+
+    completeness_score = round(1.0 - missing_rate, 4) if missing_rate is not None else None
+    uniqueness_score = round(1.0 - exact_dup_rate, 4) if exact_dup_rate is not None else None
+    validity_score = round(1.0 - invalid_rate, 4) if invalid_rate is not None else None
+    timeliness_score = freshness_map.get(temporal.get("freshness_state", "UNKNOWN"))
+    traceability_score = provenance_map.get(provenance.get("status", "UNKNOWN_PROVENANCE"))
+    if traceability_score is not None and provenance.get("source_avg_reliability"):
+        traceability_score = round(clamp(traceability_score * (0.6 + 0.4 * float(provenance["source_avg_reliability"]))), 4)
+    coverage_score = coverage_map.get(coverage.get("state", "UNKNOWN_COVERAGE"))
+    sampling_score = sampling_map.get(sampling.get("method", "UNKNOWN"))
+    representativeness_score = None
+    if coverage_score is not None and sampling_score is not None:
+        representativeness_score = round((coverage_score + sampling_score) / 2.0, 4)
+    elif coverage_score is not None:
+        representativeness_score = coverage_score
+    elif sampling_score is not None:
+        representativeness_score = sampling_score
+
+    consistency_score = None
+    if rows:
+        consistency_score = round(1.0 - min(1.0, len(contradictions) / float(rows)), 4)
+
+    return {
+        "completeness": completeness_score,
+        "uniqueness": uniqueness_score,
+        "validity": validity_score,
+        "timeliness": timeliness_score,
+        "traceability": traceability_score,
+        "consistency": consistency_score,
+        "representativeness": representativeness_score,
+        "coverage": coverage_score,
+        "sampling": sampling_score,
+        "notes": [
+            "Quality is multidimensional; no single opaque score is emitted.",
+            "Accuracy requires comparison to trusted reference/primary source, not internal consistency alone.",
+        ],
+    }
+
+
+def detect_purposes(objective: str, questions: List[str]) -> Set[str]:
+    blob = (normalize_text(objective) + " " + " ".join(normalize_text(q) for q in questions)).lower()
+    purposes = set()
+    if any(w in blob for w in ["current", "live", "latest", "monitor", "status", "today", "now"]):
+        purposes.add("CURRENT_STATE")
+    if any(w in blob for w in ["historical", "history", "trend", "archive"]):
+        purposes.add("HISTORICAL")
+    if any(w in blob for w in ["train", "model", "ml", "fine-tune", "fine tune", "learning"]):
+        purposes.add("ML_TRAINING")
+    if "benchmark" in blob or "evaluate" in blob or "eval" in blob:
+        purposes.add("BENCHMARK")
+    if any(w in blob for w in ["join", "link", "entity", "identity", "resolve"]):
+        purposes.add("ENTITY_RESOLUTION")
+    if any(w in blob for w in ["personal", "pii", "user", "customer", "individual"]):
+        purposes.add("PRIVACY_SENSITIVE")
+    if any(w in blob for w in ["license", "commercial", "redistribute", "publish"]):
+        purposes.add("LEGAL_LICENSE")
+    if not purposes:
+        purposes.add("GENERAL_ANALYSIS")
+    return purposes
+
+
+def compute_fitness(
+    raw: Dict[str, Any],
+    objective: str,
+    questions: List[str],
+    auth: Dict[str, Any],
+    temporal: Dict[str, Any],
+    privacy: Dict[str, Any],
+    provenance: Dict[str, Any],
+    license_info: Dict[str, Any],
+    coverage: Dict[str, Any],
+    quality: Dict[str, Any],
+    poisoning_signals: List[Dict[str, Any]],
+    benchmark: Dict[str, Any],
+    split_leakage: Dict[str, Any],
+    contradictions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    purposes = detect_purposes(objective, questions)
+    rows = int(raw.get("_row_count_for_fitness", 0) or 0)
+    reasons = []
+    state_rank = {"NOT_FIT": 0, "PARTIALLY_FIT": 1, "FIT_WITH_LIMITATIONS": 2, "FIT": 3, "UNKNOWN": -1}
+    state = "FIT"
+
+    def downgrade(new_state: str, reason: str) -> None:
+        nonlocal state
+        if state_rank.get(new_state, -1) < state_rank.get(state, 99):
+            state = new_state
+        add_unique(reasons, reason)
+
+    if rows == 0:
+        downgrade("NOT_FIT", "No usable records provided.")
+
+    if any(s.get("severity") == "HIGH" for s in poisoning_signals):
+        downgrade("NOT_FIT", "High-severity poisoning/contamination/integrity candidate present.")
+    elif poisoning_signals:
+        downgrade("PARTIALLY_FIT", "Poisoning/contamination candidate signals require review.")
+
+    if benchmark.get("state") == "CONTAMINATION_CANDIDATE" and ("BENCHMARK" in purposes or "ML_TRAINING" in purposes):
+        downgrade("NOT_FIT", "Benchmark contamination candidate makes dataset unsuitable for benchmark/training without remediation.")
+
+    if split_leakage.get("state") == "LEAKAGE_CANDIDATE" and ("ML_TRAINING" in purposes or "BENCHMARK" in purposes):
+        downgrade("NOT_FIT", "Train/test leakage candidate makes dataset unsuitable for evaluation/training without split repair.")
+
+    if provenance.get("status") == "UNKNOWN_PROVENANCE" and ("CURRENT_STATE" in purposes or "ENTITY_RESOLUTION" in purposes):
+        downgrade("PARTIALLY_FIT", "Unknown provenance limits evidentiary/current-state use.")
+
+    if temporal.get("freshness_state") == "STALE" and "CURRENT_STATE" in purposes:
+        downgrade("NOT_FIT", "Dataset is stale for current-state purpose.")
+    elif temporal.get("freshness_state") == "AGING" and "CURRENT_STATE" in purposes:
+        downgrade("PARTIALLY_FIT", "Dataset aging may limit current-state purpose.")
+
+    if coverage.get("state") in {"LIMITED_COVERAGE", "UNKNOWN_COVERAGE"} and ("ENTITY_RESOLUTION" in purposes or "GENERAL_ANALYSIS" in purposes):
+        downgrade("PARTIALLY_FIT", f"Coverage state {coverage.get('state')} limits population inference.")
+
+    if license_info.get("state") == "LICENSE_UNKNOWN" and "LEGAL_LICENSE" in purposes:
+        downgrade("PARTIALLY_FIT", "License unknown requires legal review before consequential reuse.")
+    elif license_info.get("state") == "LICENSE_CONFLICT":
+        downgrade("PARTIALLY_FIT", "License conflict requires legal review.")
+
+    if privacy.get("classification") == "HIGH_SENSITIVITY":
+        if not auth.get("privacy_approved"):
+            downgrade("NOT_FIT", "High-sensitivity data present without explicit privacy approval.")
+        if auth.get("model_mode") == "CLOUD" and not auth.get("cloud_approved"):
+            downgrade("NOT_FIT", "High-sensitivity data must not be routed to cloud without approval.")
+        elif "PRIVACY_SENSITIVE" in purposes:
+            downgrade("FIT_WITH_LIMITATIONS", "High-sensitivity data requires redaction/minimization and privacy review.")
+
+    if quality.get("completeness") is not None and quality["completeness"] < 0.50:
+        downgrade("PARTIALLY_FIT", "Completeness is low.")
+    if quality.get("validity") is not None and quality["validity"] < 0.50:
+        downgrade("PARTIALLY_FIT", "Validity is low.")
+    if contradictions:
+        downgrade("PARTIALLY_FIT", f"{len(contradictions)} contradiction candidate(s) require resolution.")
+
+    if state == "FIT" and reasons:
+        state = "FIT_WITH_LIMITATIONS"
+
+    return {
+        "state": state,
+        "purposes": sorted(purposes),
+        "reasons": reasons,
+        "limitations": [
+            "Fitness is purpose-specific; a dataset can be fit for one task and unfit for another.",
+            "FIT_WITH_LIMITATIONS does not mean unrestricted use.",
+        ],
+    }
+
+
+def analyze_poisoning(
+    integrity_status: str,
+    expected_record_count: Optional[int],
+    physical_rows: int,
+    duplicates: Dict[str, Any],
+    validity: Dict[str, Any],
+    synthetic: Dict[str, Any],
+    benchmark: Dict[str, Any],
+    split_leakage: Dict[str, Any],
+    missingness: Dict[str, Any],
+    key_conflicts: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    signals = []
+
+    if integrity_status == "MISMATCH":
+        signals.append({
+            "signal_id": stable_id("POIS", "integrity"),
+            "type": "INTEGRITY_MISMATCH",
+            "severity": "HIGH",
+            "detail": "Declared/expected content hash does not match computed hash.",
+            "alternatives": ["mirror corruption", "rebuild", "metadata error", "tampering"],
+        })
+
+    if expected_record_count is not None and physical_rows != expected_record_count:
+        signals.append({
+            "signal_id": stable_id("POIS", "count"),
+            "type": "RECORD_COUNT_MISMATCH",
+            "severity": "MEDIUM",
+            "detail": f"Expected {expected_record_count} records, observed {physical_rows}.",
+            "alternatives": ["partial extract", "filtering", "collection change", "metadata error"],
+        })
+
+    if duplicates.get("exact_duplicate_rate") is not None and duplicates["exact_duplicate_rate"] > 0.20:
+        signals.append({
+            "signal_id": stable_id("POIS", "dup"),
+            "type": "HIGH_DUPLICATION",
+            "severity": "MEDIUM",
+            "detail": f"Exact duplicate rate {duplicates['exact_duplicate_rate']}.",
+            "alternatives": ["event repetition", "ingestion bug", "copied source", "padding"],
+        })
+
+    if key_conflicts:
+        signals.append({
+            "signal_id": stable_id("POIS", "keyconflict"),
+            "type": "KEY_CONFLICT_CLUSTER",
+            "severity": "MEDIUM",
+            "detail": f"{len(key_conflicts)} candidate key(s) have conflicting payloads.",
+            "alternatives": ["temporal updates", "source disagreement", "data error", "manipulation"],
+        })
+
+    if validity.get("material_violation_count", 0) > 0:
+        signals.append({
+            "signal_id": stable_id("POIS", "invalid"),
+            "type": "IMPOSSIBLE_OR_INVALID_VALUES",
+            "severity": "MEDIUM",
+            "detail": f"{validity['material_violation_count']} material validity violation(s).",
+            "alternatives": ["parser bug", "schema drift", "bad upstream", "tampering"],
+        })
+
+    if validity.get("formula_injection_candidates", 0) > 0:
+        signals.append({
+            "signal_id": stable_id("POIS", "formula"),
+            "type": "FORMULA_INJECTION_CANDIDATE",
+            "severity": "MEDIUM",
+            "detail": f"{validity['formula_injection_candidates']} spreadsheet formula-like cell(s) detected.",
+            "alternatives": ["benign formula", "export artifact", "malicious spreadsheet payload"],
+        })
+
+    if synthetic.get("state") == "PARTIALLY_SYNTHETIC" and not synthetic.get("generator"):
+        signals.append({
+            "signal_id": stable_id("POIS", "synthetic"),
+            "type": "UNLABELLED_SYNTHETIC_MIX",
+            "severity": "MEDIUM",
+            "detail": "Partial synthetic records detected without generator provenance.",
+            "alternatives": ["augmentation", "test data", "contamination", "metadata omission"],
+        })
+
+    if benchmark.get("state") == "CONTAMINATION_CANDIDATE":
+        signals.append({
+            "signal_id": stable_id("POIS", "benchmark"),
+            "type": "BENCHMARK_CONTAMINATION_CANDIDATE",
+            "severity": "HIGH",
+            "detail": f"{benchmark.get('matched_count', 0)} benchmark example match(es).",
+            "alternatives": ["shared public example", "duplicate corpus", "actual contamination"],
+        })
+
+    if split_leakage.get("state") == "LEAKAGE_CANDIDATE":
+        signals.append({
+            "signal_id": stable_id("POIS", "leakage"),
+            "type": "TRAIN_TEST_LEAKAGE_CANDIDATE",
+            "severity": "HIGH",
+            "detail": f"Split overlap count {split_leakage.get('overlap_count', 0)}; temporal leakage={split_leakage.get('temporal_leakage_candidate')}.",
+            "alternatives": ["split bug", "entity recurrence", "actual leakage"],
+        })
+
+    if missingness.get("overall_missing_rate") is not None and missingness["overall_missing_rate"] > 0.50:
+        signals.append({
+            "signal_id": stable_id("POIS", "missing"),
+            "type": "SYSTEMATIC_MISSINGNESS",
+            "severity": "MEDIUM",
+            "detail": f"Overall missing rate {missingness['overall_missing_rate']}.",
+            "alternatives": ["collection gap", "optional fields", "redaction", "pipeline failure"],
+        })
+
+    return signals
+
+
+def profile_contradictions(
+    integrity_status: str,
+    expected_record_count: Optional[int],
+    physical_rows: int,
+    license_info: Dict[str, Any],
+    temporal: Dict[str, Any],
+    validity: Dict[str, Any],
+    key_conflicts: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    contr = []
+
+    if integrity_status == "MISMATCH":
+        contr.append({
+            "contradiction_id": stable_id("CTR", "integrity"),
+            "type": "INTEGRITY_MISMATCH",
+            "severity": "MATERIAL",
+            "detail": "Expected/content hash mismatch.",
+            "possible_causes": ["tampering", "mirror corruption", "rebuild", "metadata error"],
+        })
+
+    if expected_record_count is not None and physical_rows != expected_record_count:
+        contr.append({
+            "contradiction_id": stable_id("CTR", "record_count"),
+            "type": "RECORD_COUNT_CONTRADICTION",
+            "severity": "MATERIAL",
+            "detail": f"Expected {expected_record_count}, observed {physical_rows}.",
+            "possible_causes": ["partial extract", "filtering", "collection change", "metadata error"],
+        })
+
+    if license_info.get("state") == "LICENSE_CONFLICT":
+        contr.append({
+            "contradiction_id": stable_id("CTR", "license"),
+            "type": "LICENSE_CONFLICT",
+            "severity": "MATERIAL",
+            "detail": f"Multiple distinct license declarations: {license_info.get('licenses')}.",
+            "possible_causes": ["dual licensing", "stale metadata", "mixed components"],
+            "handoff": "LEGALINT",
+        })
+
+    for c in temporal.get("conflicts", []) or []:
+        contr.append({
+            "contradiction_id": stable_id("CTR", c.get("type", "temporal")),
+            "type": c.get("type", "TEMPORAL_CONFLICT"),
+            "severity": "MATERIAL",
+            "detail": c.get("detail"),
+            "possible_causes": ["late arrivals", "clock/timezone issue", "snapshot mismatch", "collection metadata error"],
+        })
+
+    if validity.get("material_violation_count", 0) > 0:
+        contr.append({
+            "contradiction_id": stable_id("CTR", "validity"),
+            "type": "CONTRACT_OR_RANGE_VIOLATION",
+            "severity": "MATERIAL",
+            "detail": f"{validity['material_violation_count']} material validity violation(s).",
+            "possible_causes": ["schema drift", "parser bug", "bad upstream", "tampering"],
+        })
+
+    if key_conflicts:
+        contr.append({
+            "contradiction_id": stable_id("CTR", "key_conflict"),
+            "type": "VALUE_CONFLICT_UNDER_SAME_KEY",
+            "severity": "MATERIAL",
+            "detail": f"{len(key_conflicts)} key(s) map to conflicting payloads.",
+            "possible_causes": ["temporal updates", "source disagreement", "duplicate ingestion", "data error"],
+        })
+
+    return contr
+
+
+def profile_dataset(
+    raw: Dict[str, Any],
+    idx: int,
+    dictionary: Dict[str, Any],
+    contract: Optional[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+    as_of: datetime,
+    benchmark_examples: List[Any],
+    objective: str,
+    questions: List[str],
+    auth: Dict[str, Any],
+) -> Dict[str, Any]:
+    did = normalize_text(raw.get("dataset_id") or raw.get("id") or f"DATASET-{idx}")
+    records, fmt = parse_records(raw)
+    columns = sorted({k for r in records for k in r.keys()})
+    rows = len(records)
+
+    dict_fields = dictionary or {}
+    semantic: Dict[str, Dict[str, Any]] = {}
+    field_value_sets: Dict[str, Set[str]] = defaultdict(set)
+    numeric_stats: Dict[str, Dict[str, Any]] = {}
+    categorical_freq: Dict[str, Dict[str, int]] = {}
+
+    for col in columns:
+        vals = [r.get(col) for r in records if col in r]
+        field_value_sets[col] = {normalize_text(v).lower() for v in vals if not is_missing(v)}
+        sem = infer_semantic(col, vals, dict_fields.get(col, {}) or {})
+        semantic[col] = sem
+
+        nums = [parse_float(v) for v in vals if not is_missing(v)]
+        nums = [x for x in nums if x is not None]
+        if len(nums) >= max(3, int(len(vals) * 0.5)):
+            numeric_stats[col] = {
+                "mean": round(safe_mean(nums), 6),
+                "std": round(safe_stdev(nums), 6),
+                "min": min(nums),
+                "max": max(nums),
+                "count": len(nums),
+            }
+
+        if sem.get("observed_type") != "numeric" and not sem.get("pii"):
+            cats = [normalize_text(v).lower() for v in vals if not is_missing(v)]
+            if cats:
+                categorical_freq[col] = dict(Counter(cats).most_common(20))
+
+    missingness = analyze_missingness(records, columns)
+    row_hashes = [sha256_hex(canonical_json(r)) for r in records]
+    row_token_sets = [row_tokens(r) for r in records]
+    signature = minhash_signature(row_token_sets)
+    content_hash = sha256_hex(canonical_json(sorted(row_hashes))) if row_hashes else sha256_hex("")
+    ordered_hash = sha256_hex(canonical_json(row_hashes)) if row_hashes else sha256_hex("")
+    schema_fingerprint = sha256_hex(canonical_json({
+        "columns": columns,
+        "semantic": {c: semantic[c]["semantic_type"] for c in columns},
+    }))
+    dataset_fingerprint = sha256_hex(canonical_json({
+        "schema": schema_fingerprint,
+        "rows": rows,
+        "sketch": signature[:8] if signature else None,
+    }))
+
+    expected_hash = normalize_hash(raw.get("content_hash") or (contract or {}).get("expected_hash")) or None
+    if expected_hash:
+        integrity_status = "MATCH" if expected_hash == content_hash else "MISMATCH"
+    else:
+        integrity_status = "UNKNOWN"
+
+    candidate_keys = infer_candidate_keys(records, semantic, contract, dict_fields)
+    duplicates = analyze_keys(records, candidate_keys, semantic)
+    temporal = analyze_temporal(records, semantic, raw, as_of)
+    privacy = analyze_privacy(semantic, records)
+    synthetic = analyze_synthetic(records, raw)
+    labels = analyze_labels(semantic, dict_fields, raw)
+    split_leakage = analyze_split_leakage(records, semantic, duplicates["candidate_keys"])
+    benchmark = analyze_benchmark(row_token_sets, records, benchmark_examples)
+    validity = analyze_validity(records, semantic, contract)
+    provenance = compute_provenance(raw, sources)
+    license_info = compute_license(raw)
+    coverage = compute_coverage(raw)
+    sampling = compute_sampling(raw)
+    representation = compute_representation(categorical_freq, semantic, labels)
+    bias_signals = compute_bias_signals(coverage, sampling, representation, semantic)
+
+    expected_record_count = None
+    if contract and contract.get("expected_record_count") is not None:
+        try:
+            expected_record_count = int(contract["expected_record_count"])
+        except Exception:
+            expected_record_count = None
+    if raw.get("expected_record_count") is not None and expected_record_count is None:
+        try:
+            expected_record_count = int(raw["expected_record_count"])
+        except Exception:
+            expected_record_count = None
+
+    poisoning_signals = analyze_poisoning(
+        integrity_status=integrity_status,
+        expected_record_count=expected_record_count,
+        physical_rows=rows,
+        duplicates=duplicates,
+        validity=validity,
+        synthetic=synthetic,
+        benchmark=benchmark,
+        split_leakage=split_leakage,
+        missingness=missingness,
+        key_conflicts=duplicates.get("key_conflicts", []),
+    )
+
+    contradictions = profile_contradictions(
+        integrity_status=integrity_status,
+        expected_record_count=expected_record_count,
+        physical_rows=rows,
+        license_info=license_info,
+        temporal=temporal,
+        validity=validity,
+        key_conflicts=duplicates.get("key_conflicts", []),
+    )
+
+    raw_for_fitness = dict(raw)
+    raw_for_fitness["_row_count_for_fitness"] = rows
+    quality = compute_quality(
+        rows=rows,
+        cols=len(columns),
+        missingness=missingness,
+        duplicates=duplicates,
+        validity=validity,
+        temporal=temporal,
+        provenance=provenance,
+        coverage=coverage,
+        sampling=sampling,
+        contradictions=contradictions,
+    )
+    fitness = compute_fitness(
+        raw=raw_for_fitness,
+        objective=objective,
+        questions=questions,
+        auth=auth,
+        temporal=temporal,
+        privacy=privacy,
+        provenance=provenance,
+        license_info=license_info,
+        coverage=coverage,
+        quality=quality,
+        poisoning_signals=poisoning_signals,
+        benchmark=benchmark,
+        split_leakage=split_leakage,
+        contradictions=contradictions,
+    )
+
+    if rows == 0:
+        quality_status = "UNKNOWN"
+    elif integrity_status == "MISMATCH" or (quality.get("validity") is not None and quality["validity"] < 0.5) or (quality.get("completeness") is not None and quality["completeness"] < 0.5):
+        quality_status = "POOR"
+    elif (quality.get("completeness") is not None and quality["completeness"] < 0.8) or (quality.get("validity") is not None and quality["validity"] < 0.95) or (duplicates.get("exact_duplicate_rate") or 0) > 0.1:
+        quality_status = "MODERATE"
+    else:
+        quality_status = "GOOD"
+
+    confidence = compute_confidence(provenance, integrity_status, quality_status)
+
+    lineage_status = "UNKNOWN"
+    # Updated later by relationships.
+
+    profile = {
+        "dataset_id": did,
+        "name": normalize_text(raw.get("name")) or did,
+        "description": normalize_text(raw.get("description")) or None,
+        "producer": provenance.get("producer"),
+        "publisher": provenance.get("publisher"),
+        "collector": provenance.get("collector"),
+        "source": provenance.get("source"),
+        "collection_method": provenance.get("collection_method"),
+        "format": fmt,
+        "version": normalize_text(raw.get("version")) or "UNVERSIONED",
+        "version_id": stable_id("VER", did, raw.get("version", ""), content_hash),
+        "snapshot_time": temporal.get("snapshot_time"),
+        "collection_start": temporal.get("collection_start"),
+        "collection_end": temporal.get("collection_end"),
+        "published_at": temporal.get("published_at"),
+        "retrieved_at": temporal.get("retrieved_at"),
+        "license": license_info.get("license"),
+        "licenses": license_info.get("licenses", []),
+        "license_state": license_info.get("state"),
+        "usage_restrictions": license_info.get("usage_restrictions", []),
+        "record_count": rows,
+        "unique_record_count": duplicates.get("unique_logical_records"),
+        "unique_physical_count": duplicates.get("unique_physical_rows"),
+        "field_count": len(columns),
+        "columns": columns,
+        "schema_id": stable_id("SCHEMA", schema_fingerprint),
+        "content_hash": content_hash,
+        "ordered_hash": ordered_hash,
+        "schema_fingerprint": schema_fingerprint,
+        "dataset_fingerprint": dataset_fingerprint,
+        "integrity_status": integrity_status,
+        "provenance_status": provenance.get("status"),
+        "lineage_status": lineage_status,
+        "quality_status": quality_status,
+        "privacy_classification": privacy.get("classification"),
+        "sensitivity": privacy.get("classification"),
+        "synthetic_state": synthetic.get("state"),
+        "coverage_state": coverage.get("state"),
+        "sampling_method": sampling.get("method"),
+        "freshness_state": temporal.get("freshness_state"),
+        "fitness_for_purpose": fitness.get("state"),
+        "fitness_reasons": fitness.get("reasons", []),
+        "fitness_purposes": fitness.get("purposes", []),
+        "confidence": confidence,
+        "schema": semantic,
+        "missingness": missingness,
+        "duplicates": duplicates,
+        "candidate_keys": duplicates.get("candidate_keys", []),
+        "key_analysis": duplicates.get("key_analysis", []),
+        "temporal_scope": temporal,
+        "privacy": privacy,
+        "labels": labels,
+        "synthetic": synthetic,
+        "contamination": benchmark,
+        "poisoning_signals": poisoning_signals,
+        "train_test_leakage": split_leakage,
+        "quality_dimensions": quality,
+        "representation": representation,
+        "bias_signals": bias_signals,
+        "validity": validity,
+        "contract_violations": validity.get("contract_violations", []),
+        "contradictions": contradictions,
+        "source_ids": provenance.get("source_ids", []),
+        "source_reliability": {
+            "max": provenance.get("source_max_reliability"),
+            "avg": provenance.get("source_avg_reliability"),
+        },
+        "foreign_keys": raw.get("foreign_keys", []) or [],
+        "limitations": list(raw.get("limitations", []) or []) + [
+            "Dataset is not automatically ground truth.",
+            "Row is not automatically fact; preserve record semantics.",
+            "Column name is not verified semantics.",
+            "No unauthorized access, no deanonymization, no poisoning, no code execution was performed.",
+        ],
+        "_row_hashes": row_hashes,
+        "_signature": signature,
+        "_field_value_sets": dict(field_value_sets),
+        "_numeric_stats": numeric_stats,
+        "_categorical_freq": categorical_freq,
+        "_row_token_sets": row_token_sets,
+    }
+    return profile
+
+
+def compute_confidence(provenance: Dict[str, Any], integrity_status: str, quality_status: str) -> float:
+    base = float(provenance.get("source_avg_reliability") or SOURCE_RELIABILITY["unknown"])
+    prov_map = {
+        "PRIMARY_PROVENANCE_KNOWN": 1.0,
+        "PARTIAL_PROVENANCE": 0.75,
+        "SECONDARY_ONLY": 0.60,
+        "SELF_REPORTED_PROVENANCE": 0.50,
+        "UNKNOWN_PROVENANCE": 0.35,
+        "DISPUTED_PROVENANCE": 0.20,
+    }
+    integrity_map = {"MATCH": 1.0, "UNKNOWN": 0.80, "MISMATCH": 0.20}
+    quality_map = {"GOOD": 1.0, "MODERATE": 0.80, "POOR": 0.50, "UNKNOWN": 0.60}
+    conf = base * prov_map.get(provenance.get("status", "UNKNOWN_PROVENANCE"), 0.35)
+    conf *= integrity_map.get(integrity_status, 0.80)
+    conf *= quality_map.get(quality_status, 0.60)
+    return round(clamp(conf, 0.05, 0.95), 4)
+
+
+# --------------------------------------------------------------------
+# Pairwise dataset relationship / overlap / drift
+# --------------------------------------------------------------------
+
+def pairwise_analysis(
+    profiles: List[Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+    source_roots: Dict[str, str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    by_id = {p["dataset_id"]: p for p in profiles}
+    parents: Dict[str, Set[str]] = defaultdict(set)
+    children: Dict[str, Set[str]] = defaultdict(set)
+    rel_types_pair: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+
+    lineage_rel_types = {
+        "DERIVED_FROM",
+        "SUBSET_OF",
+        "TRANSFORMED_BY",
+        "COLLECTED_FROM",
+        "SUPERSEDES",
+    }
+
+    for rel in relationships:
+        a = normalize_text(rel.get("from_dataset"))
+        b = normalize_text(rel.get("to_dataset"))
+        t = normalize_text(rel.get("relationship_type")).upper()
+        if a in by_id and b in by_id:
+            rel_types_pair[tuple(sorted((a, b)))].add(t)
+            if t in lineage_rel_types:
+                parents[a].add(b)
+                children[b].add(a)
+
+    overlaps: List[Dict[str, Any]] = []
+    independence: List[Dict[str, Any]] = []
+    drifts: List[Dict[str, Any]] = []
+    contradictions: List[Dict[str, Any]] = []
+
+    ids = sorted(by_id.keys())
+
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            a_id, b_id = ids[i], ids[j]
+            a = by_id[a_id]
+            b = by_id[b_id]
+
+            set_a = set(a.get("_row_hashes", []) or [])
+            set_b = set(b.get("_row_hashes", []) or [])
+            inter = len(set_a & set_b)
+            minlen = min(len(set_a), len(set_b))
+            overlap_ratio = round(inter / float(minlen), 4) if minlen else None
+            jac = jaccard_estimate(a.get("_signature"), b.get("_signature"))
+
+            pair_key = tuple(sorted((a_id, b_id)))
+            rel_types = rel_types_pair.get(pair_key, set())
+
+            if a["content_hash"] == b["content_hash"]:
+                state = "EXACT_SAME_DATASET"
+            elif (
+                a_id in parents[b_id]
+                or b_id in parents[a_id]
+                or "DERIVED_FROM" in rel_types
+                or "SUBSET_OF" in rel_types
+                or "TRANSFORMED_BY" in rel_types
+            ):
+                state = "DERIVED_DATASET"
+            elif jac is not None and jac >= 0.95:
+                state = "NEAR_DUPLICATE"
+            elif overlap_ratio is not None and overlap_ratio >= 0.95:
+                state = "SUBSET" if len(set_a) <= len(set_b) else "SUPERSET"
+            elif overlap_ratio is not None and overlap_ratio >= 0.50:
+                state = "PARTIAL_EXTRACT"
+            elif overlap_ratio is not None and overlap_ratio > 0:
+                state = "OVERLAPPING"
+            else:
+                fam_a = source_family_ids(a.get("source_ids", []) or [], source_roots)
+                fam_b = source_family_ids(b.get("source_ids", []) or [], source_roots)
+                if not (set(fam_a) & set(fam_b)) and not (a_id in parents[b_id] or b_id in parents[a_id]):
+                    state = "INDEPENDENT_CANDIDATE"
+                else:
+                    state = "DISTINCT" if overlap_ratio == 0 else "UNKNOWN"
+
+            overlaps.append({
+                "overlap_id": stable_id("OVLP", a_id, b_id),
+                "dataset_a": a_id,
+                "dataset_b": b_id,
+                "state": state,
+                "shared_record_count": inter,
+                "overlap_ratio_min_side": overlap_ratio,
+                "minhash_jaccard_estimate": jac,
+                "relationship_types": sorted(rel_types),
+                "limitations": [
+                    "Overlap ratio is computed against the smaller dataset side.",
+                    "High overlap does not automatically prove same provenance; lineage/source pedigree also matter.",
+                ],
+            })
+
+            fam_a = source_family_ids(a.get("source_ids", []) or [], source_roots)
+            fam_b = source_family_ids(b.get("source_ids", []) or [], source_roots)
+            shared_families = sorted(set(fam_a) & set(fam_b))
+
+            if state in {"EXACT_SAME_DATASET", "DERIVED_DATASET", "NEAR_DUPLICATE", "SUBSET", "SUPERSET"}:
+                indep = "DEPENDENT"
+            elif shared_families:
+                indep = "DEPENDENT"
+            elif state == "INDEPENDENT_CANDIDATE":
+                indep = "INDEPENDENT"
+            elif state in {"PARTIAL_EXTRACT", "OVERLAPPING"}:
+                indep = "PARTIALLY_DEPENDENT"
+            else:
+                indep = "UNKNOWN"
+
+            independence.append({
+                "independence_id": stable_id("IND", a_id, b_id),
+                "dataset_a": a_id,
+                "dataset_b": b_id,
+                "state": indep,
+                "source_families_a": fam_a,
+                "source_families_b": fam_b,
+                "shared_source_families": shared_families,
+                "overlap_state": state,
+                "limitations": [
+                    "Shared upstream source family means dependent evidence for fields originating from that source.",
+                    "Independent datasets can still agree; dependence does not automatically mean falsehood.",
+                ],
+            })
+
+            cols_a = set(a.get("columns", []) or [])
+            cols_b = set(b.get("columns", []) or [])
+            added = sorted(cols_b - cols_a)
+            removed = sorted(cols_a - cols_b)
+            common = sorted(cols_a & cols_b)
+
+            type_changes = []
+            declared_type_changes = []
+            for col in common:
+                sa = a.get("schema", {}).get(col, {})
+                sb = b.get("schema", {}).get(col, {})
+                if sa.get("semantic_type") != sb.get("semantic_type"):
+                    type_changes.append(col)
+                if sa.get("declared_type") != sb.get("declared_type"):
+                    declared_type_changes.append(col)
+
+            numeric_drift = []
+            categorical_drift = []
+            missing_drift = []
+
+            for col in common:
+                na = a.get("_numeric_stats", {}).get(col)
+                nb = b.get("_numeric_stats", {}).get(col)
+                if na and nb:
+                    denom = max(abs(float(na.get("mean", 0.0))), abs(float(nb.get("mean", 0.0))), 1e-9)
+                    mean_diff = abs(float(na.get("mean", 0.0)) - float(nb.get("mean", 0.0))) / denom
+                    std_denom = max(float(na.get("std", 0.0)), float(nb.get("std", 0.0)), 1e-9)
+                    std_diff = abs(float(na.get("std", 0.0)) - float(nb.get("std", 0.0))) / std_denom
+                    if mean_diff > 0.50 or std_diff > 0.50:
+                        numeric_drift.append(col)
+
+                ca = a.get("_categorical_freq", {}).get(col)
+                cb = b.get("_categorical_freq", {}).get(col)
+                if ca and cb:
+                    ta = sum(ca.values())
+                    tb = sum(cb.values())
+                    if ta and tb:
+                        keys = list((set(ca) | set(cb)))[:30]
+                        for k in keys:
+                            pa = ca.get(k, 0) / float(ta)
+                            pb = cb.get(k, 0) / float(tb)
+                            if abs(pa - pb) > 0.30:
+                                categorical_drift.append(col)
+                                break
+
+                ma = a.get("missingness", {}).get("per_field", {}).get(col, {}).get("missing_rate")
+                mb = b.get("missingness", {}).get("per_field", {}).get(col, {}).get("missing_rate")
+                if ma is not None and mb is not None and abs(float(ma) - float(mb)) > 0.20:
+                    missing_drift.append(col)
+
+            if added or removed or type_changes or declared_type_changes or numeric_drift or categorical_drift or missing_drift:
+                drifts.append({
+                    "drift_id": stable_id("DRIFT", a_id, b_id),
+                    "dataset_a": a_id,
+                    "dataset_b": b_id,
+                    "schema_drift": bool(added or removed or type_changes or declared_type_changes),
+                    "distribution_drift": bool(numeric_drift or categorical_drift or missing_drift),
+                    "added_columns": added,
+                    "removed_columns": removed,
+                    "semantic_type_changes": type_changes,
+                    "declared_type_changes": declared_type_changes,
+                    "numeric_drift_columns": numeric_drift,
+                    "categorical_drift_columns": categorical_drift,
+                    "missingness_drift_columns": missing_drift,
+                    "limitations": [
+                        "Drift is not automatically error; it may reflect real-world change, collection change, schema change, or parser change.",
+                    ],
+                })
+
+            if state == "EXACT_SAME_DATASET":
+                if a.get("license") and b.get("license") and a["license"] != b["license"]:
+                    contradictions.append({
+                        "contradiction_id": stable_id("CTR", "pair_license", a_id, b_id),
+                        "type": "LICENSE_METADATA_CONFLICT",
+                        "severity": "MATERIAL",
+                        "dataset_a": a_id,
+                        "dataset_b": b_id,
+                        "detail": f"Byte-identical datasets declare different licenses: {a.get('license')} vs {b.get('license')}.",
+                        "possible_causes": ["dual licensing", "stale metadata", "publisher error", "mixed components"],
+                        "handoff": "LEGALINT",
+                    })
+                if a.get("version") and b.get("version") and a["version"] != b["version"]:
+                    contradictions.append({
+                        "contradiction_id": stable_id("CTR", "pair_version", a_id, b_id),
+                        "type": "VERSION_METADATA_CONFLICT",
+                        "severity": "MATERIAL",
+                        "dataset_a": a_id,
+                        "dataset_b": b_id,
+                        "detail": f"Byte-identical datasets declare different versions: {a.get('version')} vs {b.get('version')}.",
+                        "possible_causes": ["re-labelling", "mirror metadata error", "snapshot naming inconsistency"],
+                    })
+                if a.get("provenance_status") != b.get("provenance_status"):
+                    contradictions.append({
+                        "contradiction_id": stable_id("CTR", "pair_provenance", a_id, b_id),
+                        "type": "PROVENANCE_METADATA_CONFLICT",
+                        "severity": "MATERIAL",
+                        "dataset_a": a_id,
+                        "dataset_b": b_id,
+                        "detail": f"Byte-identical datasets have different provenance status: {a.get('provenance_status')} vs {b.get('provenance_status')}.",
+                        "possible_causes": ["secondary publisher metadata", "copy without provenance", "metadata loss"],
+                    })
+
+            if "DERIVED_FROM" in rel_types and state == "INDEPENDENT_CANDIDATE":
+                contradictions.append({
+                    "contradiction_id": stable_id("CTR", "lineage_overlap", a_id, b_id),
+                    "type": "LINEAGE_OVERLAP_CONFLICT",
+                    "severity": "MATERIAL",
+                    "dataset_a": a_id,
+                    "dataset_b": b_id,
+                    "detail": "Declared lineage suggests derivation, but record/source analysis suggests independent candidate.",
+                    "possible_causes": ["relationship metadata wrong", "partial re-collection", "coincidental overlap", "lineage not recorded"],
+                })
+
+    return overlaps, independence, drifts, contradictions
+
+
+def apply_relationships(
+    profiles: List[Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    overlaps: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    by_id = {p["dataset_id"]: p for p in profiles}
+    parents: Dict[str, Set[str]] = defaultdict(set)
+    children: Dict[str, Set[str]] = defaultdict(set)
+    superseded: Dict[str, Set[str]] = defaultdict(set)
+    supersedes: Dict[str, Set[str]] = defaultdict(set)
+
+    for p in profiles:
+        p.setdefault("transformations", [])
+        p.setdefault("lineage_status", "NO_KNOWN_LINEAGE")
+
+    for rel in relationships:
+        a = normalize_text(rel.get("from_dataset"))
+        b = normalize_text(rel.get("to_dataset"))
+        t = normalize_text(rel.get("relationship_type")).upper()
+        if a in by_id and b in by_id:
+            if t in {"DERIVED_FROM", "SUBSET_OF", "TRANSFORMED_BY", "COLLECTED_FROM"}:
+                parents[a].add(b)
+                children[b].add(a)
+            if t == "SUPERSEDES":
+                supersedes[a].add(b)
+                superseded[b].add(a)
+            if rel.get("transform"):
+                by_id[a]["transformations"].append({
+                    "relationship_id": rel.get("relationship_id"),
+                    "type": t,
+                    "target_dataset": b,
+                    "transform": rel.get("transform"),
+                    "source_ids": rel.get("source_ids", []),
+                })
+
+    for p in profiles:
+        did = p["dataset_id"]
+        if parents[did]:
+            p["lineage_status"] = "DERIVED_FROM_KNOWN_PARENT"
+        elif children[did]:
+            p["lineage_status"] = "PARENT_OF_KNOWN_DERIVED"
+        elif superseded[did]:
+            p["lineage_status"] = "SUPERSEDED"
+        elif supersedes[did]:
+            p["lineage_status"] = "SUPERSEDES_OTHER"
+        else:
+            p["lineage_status"] = "NO_KNOWN_LINEAGE"
+
+    overlap_by_pair = {
+        (normalize_text(o.get("dataset_a")), normalize_text(o.get("dataset_b"))): o
+        for o in overlaps
+    }
+
+    for rel in relationships:
+        a = normalize_text(rel.get("from_dataset"))
+        b = normalize_text(rel.get("to_dataset"))
+        t = normalize_text(rel.get("relationship_type")).upper()
+        key = tuple(sorted((a, b)))
+        ov = overlap_by_pair.get(key) or overlap_by_pair.get((b, a))
+        if not ov:
+            continue
+        state = ov.get("state")
+        if t == "DUPLICATE_OF" and state not in {"EXACT_SAME_DATASET", "NEAR_DUPLICATE"}:
+            contradictions.append({
+                "contradiction_id": stable_id("CTR", "duplicate_rel", a, b),
+                "type": "DUPLICATE_RELATIONSHIP_NOT_SUPPORTED_BY_OVERLAP",
+                "severity": "MATERIAL",
+                "dataset_a": a,
+                "dataset_b": b,
+                "detail": f"Relationship declares duplicate, but overlap state is {state}.",
+                "possible_causes": ["relationship metadata wrong", "partial extract", "normalization difference"],
+            })
+        if t == "NEAR_DUPLICATE_OF" and state not in {"NEAR_DUPLICATE", "EXACT_SAME_DATASET", "SUBSET", "SUPERSET", "PARTIAL_EXTRACT", "OVERLAPPING"}:
+            contradictions.append({
+                "contradiction_id": stable_id("CTR", "near_dup_rel", a, b),
+                "type": "NEAR_DUPLICATE_RELATIONSHIP_NOT_SUPPORTED_BY_OVERLAP",
+                "severity": "LOW",
+                "dataset_a": a,
+                "dataset_b": b,
+                "detail": f"Relationship declares near duplicate, but overlap state is {state}.",
+            })
+
+    return profiles, contradictions
+
+
+# --------------------------------------------------------------------
+# Hypotheses / gaps / actions / handoffs
+# --------------------------------------------------------------------
+
+def build_hypotheses(
+    profiles: List[Dict[str, Any]],
+    overlaps: List[Dict[str, Any]],
+    independence: List[Dict[str, Any]],
+    drifts: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    hyp: List[Dict[str, Any]] = []
+
+    def add(
+        subject_type: str,
+        subject_id: str,
+        category: str,
+        statement: str,
+        support: List[str],
+        opposition: List[str],
+        unknowns: List[str],
+        falsification: List[str],
+    ) -> None:
+        hyp.append({
+            "hypothesis_id": stable_id("HYP", subject_type, subject_id, category, statement),
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "category": category,
+            "statement": statement,
+            "support": support,
+            "opposition": opposition,
+            "unknowns": unknowns,
+            "falsification_conditions": falsification,
+            "status": "CANDIDATE",
+        })
+
+    for p in profiles:
+        did = p["dataset_id"]
+
+        if p.get("provenance_status") in {"UNKNOWN_PROVENANCE", "SECONDARY_ONLY", "SELF_REPORTED_PROVENANCE", "PARTIAL_PROVENANCE"}:
+            add("DATASET", did, "PROVENANCE",
+                "Dataset may be a secondary copy or self-reported provenance rather than primary collection.",
+                [f"provenance_status={p.get('provenance_status')}"],
+                ["Publisher metadata may be incomplete but records may still be primary."],
+                ["Original collector identity", "collection method", "upstream API/registry"],
+                ["Primary registry/export confirms original collection by this dataset producer."])
+
+        if p.get("license_state") in {"LICENSE_UNKNOWN", "LICENSE_CONFLICT"}:
+            add("DATASET", did, "LICENSE",
+                "License status may be unresolved or conflicting, requiring legal/contract review before consequential reuse.",
+                [f"license_state={p.get('license_state')}"],
+                ["Accessibility does not imply public domain or unrestricted use."],
+                ["publisher terms", "dataset card", "contract"],
+                ["Authoritative license text or publisher terms resolve a single applicable license."])
+
+        if p.get("synthetic_state") in {"PARTIALLY_SYNTHETIC", "AUGMENTED", "UNKNOWN"}:
+            add("DATASET", did, "SYNTHETIC",
+                "Dataset may contain synthetic/augmented records that require provenance separation from real records.",
+                [f"synthetic_state={p.get('synthetic_state')}"],
+                ["Synthetic records can be legitimate for testing/augmentation."],
+                ["generator", "seed/procedure", "record-level synthetic flag"],
+                ["Record-level provenance confirms all rows are real or synthetic labels are complete."])
+
+        if p.get("labels", {}).get("label_fields"):
+            add("DATASET", did, "LABEL_QUALITY",
+                "Labels may be provider-generated, model-generated, or weakly supervised rather than verified ground truth.",
+                [f"label_fields={p.get('labels', {}).get('label_fields')}", f"annotation_method={p.get('labels', {}).get('annotation_method')}"],
+                ["Some labels may be expert-verified."],
+                ["annotator agreement", "adjudication", "verification procedure"],
+                ["Independent annotation audit supports ground-truth claim."])
+
+        if p.get("poisoning_signals"):
+            add("DATASET", did, "INTEGRITY",
+                "Observed anomalies may indicate tampering, poisoning, or integrity failure.",
+                [s.get("type", "") for s in p.get("poisoning_signals", [])][:10],
+                ["Benign explanations exist: pipeline bug, new source, real-world change, parser error."],
+                ["immutable logs", "checksum history", "collection method change"],
+                ["Independent integrity evidence shows no unauthorized modification."])
+            add("DATASET", did, "BENIGN_EXPLANATION",
+                "Anomalies may be caused by pipeline bug, collection expansion, schema drift, or real-world change.",
+                ["Multiple benign explanations are common in dataset operations."],
+                ["Integrity mismatch or coordinated anomalous clusters strengthen tampering hypothesis."],
+                ["parser version", "source configuration", "time window"],
+                ["Reprocessing with known-good pipeline reproduces anomaly without external change."])
+
+        if p.get("train_test_leakage", {}).get("state") == "LEAKAGE_CANDIDATE":
+            add("DATASET", did, "LEAKAGE",
+                "Train/test split may leak entities, temporal information, or duplicate records.",
+                [f"overlap_count={p.get('train_test_leakage', {}).get('overlap_count')}", f"temporal={p.get('train_test_leakage', {}).get('temporal_leakage_candidate')}"],
+                ["Split assignment bug may create false leakage signal."],
+                ["split code", "entity grouping", "time ordering"],
+                ["Regenerated grouped/temporal split removes overlap."])
+
+        if p.get("contamination", {}).get("state") == "CONTAMINATION_CANDIDATE":
+            add("DATASET", did, "BENCHMARK",
+                "Dataset may contain benchmark examples or derived answer keys, risking evaluation contamination.",
+                [f"matched_count={p.get('contamination', {}).get('matched_count')}"],
+                ["Shared public examples can produce false-positive contamination signals."],
+                ["benchmark source", "derivation path", "answer key provenance"],
+                ["Examples are confirmed unrelated or removed without affecting evaluation validity."])
+
+        if p.get("integrity_status") == "MISMATCH":
+            add("DATASET", did, "TAMPERING",
+                "Content hash mismatch may indicate tampering, rebuild, mirror corruption, or metadata error.",
+                ["Declared/expected hash does not match computed hash."],
+                ["Benign rebuild or incorrect expected hash is common."],
+                ["signing key", "immutable object version", "publisher announcement"],
+                ["Authoritative publisher confirms expected hash was wrong or artifact was intentionally rebuilt."])
+
+    for ov in overlaps:
+        a = ov["dataset_a"]
+        b = ov["dataset_b"]
+        sid = ov["overlap_id"]
+        if ov.get("state") in {"UNKNOWN", "PARTIAL_EXTRACT", "OVERLAPPING", "NEAR_DUPLICATE", "SUBSET", "SUPERSET"}:
+            add("OVERLAP", sid, "IDENTITY",
+                f"Datasets {a} and {b} may be different versions, partial extracts, derivatives, or overlapping independent collections.",
+                [f"state={ov.get('state')}", f"overlap_ratio={ov.get('overlap_ratio_min_side')}", f"jaccard={ov.get('minhash_jaccard_estimate')}"],
+                ["High overlap can arise from shared upstream source without direct derivation."],
+                ["lineage records", "source pedigree", "schema mapping"],
+                ["Authoritative lineage or byte/hash evidence resolves exact relationship."])
+
+    for ind in independence:
+        if ind.get("state") == "UNKNOWN":
+            add("INDEPENDENCE", ind["independence_id"], "SOURCE_INDEPENDENCE",
+                f"Independence between {ind['dataset_a']} and {ind['dataset_b']} is unresolved.",
+                [f"shared_source_families={ind.get('shared_source_families')}"],
+                ["Absence of known shared source does not prove independence."],
+                ["upstream APIs", "collection mechanism", "publisher relationship"],
+                ["Source pedigree demonstrates distinct upstream collection."])
+
+    for dr in drifts:
+        add("DRIFT", dr["drift_id"], "DRIFT_CAUSE",
+            f"Drift between {dr['dataset_a']} and {dr['dataset_b']} may reflect real-world change, collection change, schema change, or error.",
+            [f"schema_drift={dr.get('schema_drift')}", f"distribution_drift={dr.get('distribution_drift')}"],
+            ["A single cause is not established by drift alone."],
+            ["parser version", "source configuration", "event time window"],
+            ["Controlled re-collection with same pipeline isolates cause."])
+
+    for c in contradictions:
+        add("CONTRADICTION", c["contradiction_id"], "RESOLUTION",
+            "Contradiction may be resolved by authoritative source, temporal context, or lineage evidence.",
+            [c.get("type", "")],
+            ["Majority or repeated copies are not automatically truth."],
+            ["primary source", "version time", "independent corroboration"],
+            ["Authoritative evidence selects one claim and explains the other as stale/derived/wrong."])
+
+    return hyp[:2000]
+
+
+def build_gaps(
+    profiles: List[Dict[str, Any]],
+    overlaps: List[Dict[str, Any]],
+    independence: List[Dict[str, Any]],
+    drifts: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    gaps: List[Dict[str, Any]] = []
+
+    for p in profiles:
+        did = p["dataset_id"]
+
+        if p.get("record_count", 0) == 0:
+            gaps.append({
+                "gap_id": stable_id("GAP", "empty", did),
+                "type": "DATASET_EMPTY_OR_UNPARSEABLE",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Re-ingest authorized file/export or provide inline records.",
+                "specialist": "DATAINT / INGESTION",
+                "expected_information_value": "Enable actual dataset assessment.",
+            })
+
+        if p.get("provenance_status") in {"UNKNOWN_PROVENANCE", "SECONDARY_ONLY", "SELF_REPORTED_PROVENANCE"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "provenance", did),
+                "type": "PROVENANCE_UNRESOLVED",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Primary registry, producer statement, collection logs, data dictionary, dataset card.",
+                "specialist": "DATAINT / DOCINT",
+                "expected_information_value": "Distinguish primary collection from secondary copy.",
+            })
+
+        if p.get("license_state") == "LICENSE_UNKNOWN":
+            gaps.append({
+                "gap_id": stable_id("GAP", "license_unknown", did),
+                "type": "LICENSE_UNKNOWN",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Publisher terms, LICENSE file, dataset card, contract.",
+                "specialist": "LEGALINT / DATA_GOVERNANCE",
+                "expected_information_value": "Avoid assuming public domain or unrestricted use.",
+            })
+        elif p.get("license_state") == "LICENSE_CONFLICT":
+            gaps.append({
+                "gap_id": stable_id("GAP", "license_conflict", did),
+                "type": "LICENSE_CONFLICT",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Authoritative license text and publisher clarification.",
+                "specialist": "LEGALINT",
+                "expected_information_value": "Resolve conflicting usage restrictions.",
+            })
+
+        if p.get("coverage_state") in {"UNKNOWN_COVERAGE", "LIMITED_COVERAGE"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "coverage", did),
+                "type": "COVERAGE_UNRESOLVED",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Population definition, registry denominator, collection scope docs.",
+                "specialist": "DATAINT / DOMAIN_SPECIALIST",
+                "expected_information_value": "Avoid equating coverage with completeness.",
+            })
+
+        if p.get("sampling_method") in {"UNKNOWN", "CONVENIENCE", "CRAWLER", "SELF_SELECTED"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "sampling", did),
+                "type": "SAMPLING_BIAS_UNRESOLVED",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Collection methodology, sampling frame, crawler policy.",
+                "specialist": "DATAINT / STATISTICS",
+                "expected_information_value": "Limit unsupported population generalization.",
+            })
+
+        if p.get("freshness_state") in {"UNKNOWN", "STALE"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "freshness", did),
+                "type": "FRESHNESS_UNRESOLVED_OR_STALE",
+                "importance": "HIGH" if p.get("freshness_state") == "STALE" else "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Update cadence, latest primary registry snapshot, event-time metadata.",
+                "specialist": "DATAINT / DOMAIN_SPECIALIST",
+                "expected_information_value": "Determine suitability for current-state tasks.",
+            })
+
+        if p.get("privacy", {}).get("classification") == "HIGH_SENSITIVITY":
+            gaps.append({
+                "gap_id": stable_id("GAP", "privacy_high", did),
+                "type": "PRIVACY_REVIEW_REQUIRED",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Privacy impact assessment, data dictionary, legal basis, retention policy.",
+                "specialist": "PRIVACY_REVIEW / DPO / LEGALINT",
+                "expected_information_value": "Ensure minimization, purpose limitation, and safe handling.",
+            })
+
+        if p.get("privacy", {}).get("reidentification_risk") == "ELEVATED":
+            gaps.append({
+                "gap_id": stable_id("GAP", "reid_risk", did),
+                "type": "QUASI_IDENTIFIER_RISK_UNRESOLVED",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Privacy review, aggregation thresholds, k-anonymity/l-diversity assessment where authorized.",
+                "specialist": "PRIVACY_REVIEW / DPO",
+                "expected_information_value": "Avoid unsupported anonymity claims without attempting reidentification.",
+            })
+
+        if p.get("synthetic_state") == "PARTIALLY_SYNTHETIC" and not p.get("synthetic", {}).get("generator"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "synthetic_prov", did),
+                "type": "SYNTHETIC_PROVENANCE_MISSING",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Generator metadata, augmentation logs, record-level synthetic flags.",
+                "specialist": "DATAINT / ML_PIPELINE",
+                "expected_information_value": "Separate synthetic from real records.",
+            })
+
+        if p.get("labels", {}).get("label_fields") and not p.get("labels", {}).get("annotation_method"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "label_prov", did),
+                "type": "LABEL_PROVENANCE_UNKNOWN",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Annotation guide, annotator roster, label generation procedure.",
+                "specialist": "DATAINT / ML_EVALUATION",
+                "expected_information_value": "Avoid treating labels as ground truth automatically.",
+            })
+
+        if p.get("labels", {}).get("ground_truth_state") != "SUPPORTED" and p.get("labels", {}).get("label_fields"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "ground_truth", did),
+                "type": "GROUND_TRUTH_UNSUPPORTED",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Verification procedure, expert audit, authoritative outcome records.",
+                "specialist": "DATAINT / DOMAIN_SPECIALIST",
+                "expected_information_value": "Distinguish reference label from verified truth.",
+            })
+
+        if p.get("contamination", {}).get("state") == "CONTAMINATION_CANDIDATE":
+            gaps.append({
+                "gap_id": stable_id("GAP", "benchmark_contam", did),
+                "type": "BENCHMARK_CONTAMINATION_CANDIDATE",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Benchmark provenance, example IDs, derivation logs, held-out private set.",
+                "specialist": "ML_EVALUATION / DATAINT",
+                "expected_information_value": "Assess whether evaluation results are trustworthy.",
+            })
+
+        if p.get("train_test_leakage", {}).get("state") == "LEAKAGE_CANDIDATE":
+            gaps.append({
+                "gap_id": stable_id("GAP", "split_leak", did),
+                "type": "TRAIN_TEST_LEAKAGE_CANDIDATE",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Split code, entity grouping, temporal ordering, duplicate graph.",
+                "specialist": "ML_EVALUATION / DATAINT",
+                "expected_information_value": "Repair splits before trusting performance claims.",
+            })
+
+        if p.get("poisoning_signals"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "poisoning", did),
+                "type": "POISONING_OR_INTEGRITY_SIGNAL_UNRESOLVED",
+                "importance": "HIGH" if any(s.get("severity") == "HIGH" for s in p.get("poisoning_signals", [])) else "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Immutable logs, checksum history, collection pipeline config, publisher advisory.",
+                "specialist": "DATA_GOVERNANCE / INCIDENTINT / HUMAN_REVIEW",
+                "expected_information_value": "Distinguish tampering from benign operational change.",
+            })
+
+        if p.get("integrity_status") == "MISMATCH":
+            gaps.append({
+                "gap_id": stable_id("GAP", "integrity", did),
+                "type": "INTEGRITY_MISMATCH",
+                "importance": "HIGH",
+                "dataset_id": did,
+                "recommended_source": "Signed artifact, object-store version ID, publisher checksum, transmission log.",
+                "specialist": "DATA_GOVERNANCE / MALINT_IF_CODE_ARTIFACT",
+                "expected_information_value": "Confirm whether dataset bytes are authentic.",
+            })
+
+        if p.get("contract_violations"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "contract", did),
+                "type": "DATA_CONTRACT_VIOLATION",
+                "importance": "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Schema registry, producer contract, upstream validation logs.",
+                "specialist": "DATA_GOVERNANCE / DATAINT",
+                "expected_information_value": "Determine whether dataset meets expected contract.",
+            })
+
+        if p.get("fitness_for_purpose") in {"NOT_FIT", "PARTIALLY_FIT", "UNKNOWN"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "fitness", did),
+                "type": "FITNESS_FOR_PURPOSE_UNRESOLVED",
+                "importance": "HIGH" if p.get("fitness_for_purpose") == "NOT_FIT" else "MEDIUM",
+                "dataset_id": did,
+                "recommended_source": "Objective-specific reference data, coverage denominator, freshness requirement.",
+                "specialist": "DATAINT / DOMAIN_SPECIALIST",
+                "expected_information_value": "Clarify permitted and unsafe uses.",
+            })
+
+    for ov in overlaps:
+        if ov.get("state") in {"UNKNOWN", "PARTIAL_EXTRACT", "OVERLAPPING"}:
+            gaps.append({
+                "gap_id": stable_id("GAP", "overlap", ov["overlap_id"]),
+                "type": "DATASET_OVERLAP_UNRESOLVED",
+                "importance": "MEDIUM",
+                "overlap_id": ov["overlap_id"],
+                "recommended_source": "Lineage records, source pedigree, schema mapping, record key comparison.",
+                "specialist": "DATAINT",
+                "expected_information_value": "Avoid double-counting overlapping evidence.",
+            })
+
+    for ind in independence:
+        if ind.get("state") == "UNKNOWN":
+            gaps.append({
+                "gap_id": stable_id("GAP", "independence", ind["independence_id"]),
+                "type": "SOURCE_INDEPENDENCE_UNRESOLVED",
+                "importance": "HIGH",
+                "independence_id": ind["independence_id"],
+                "recommended_source": "Upstream API logs, publisher relationship, collection mechanism, record fingerprints.",
+                "specialist": "DATAINT / CTI / SOURCE_GOVERNANCE",
+                "expected_information_value": "Prevent copied feeds from being treated as corroboration.",
+            })
+
+    for dr in drifts:
+        if dr.get("schema_drift"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "schema_drift", dr["drift_id"]),
+                "type": "SCHEMA_DRIFT_UNRESOLVED",
+                "importance": "MEDIUM",
+                "drift_id": dr["drift_id"],
+                "recommended_source": "Schema registry, API version docs, parser changelog.",
+                "specialist": "DATAINT / ENGINEERING",
+                "expected_information_value": "Distinguish semantic change from cosmetic rename.",
+            })
+        if dr.get("distribution_drift"):
+            gaps.append({
+                "gap_id": stable_id("GAP", "dist_drift", dr["drift_id"]),
+                "type": "DISTRIBUTION_DRIFT_UNRESOLVED",
+                "importance": "MEDIUM",
+                "drift_id": dr["drift_id"],
+                "recommended_source": "Time-window controls, collection method change, real-world event calendar.",
+                "specialist": "DATAINT / STATISTICS",
+                "expected_information_value": "Determine whether drift is real change or artifact.",
+            })
+
+    for c in contradictions:
+        gaps.append({
+            "gap_id": stable_id("GAP", "contradiction", c["contradiction_id"]),
+            "type": "DATASET_CONTRADICTION_UNRESOLVED",
+            "importance": "HIGH" if c.get("severity") == "MATERIAL" else "MEDIUM",
+            "contradiction_id": c["contradiction_id"],
+            "recommended_source": "Authoritative primary source, versioned snapshot, lineage evidence.",
+            "specialist": "DATAINT / HUMAN_REVIEW",
+            "expected_information_value": "Resolve conflicting dataset claims without silent overwrite.",
+        })
+
+    return gaps[:1000]
+
+
+def build_next_actions(gaps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    actions: List[Dict[str, Any]] = []
+    priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+
+    for g in gaps:
+        t = g.get("type")
+        if t == "DATASET_EMPTY_OR_UNPARSEABLE":
+            action = "Re-ingest an authorized readable dataset or provide inline records; do not guess schema or contents."
+        elif t == "PROVENANCE_UNRESOLVED":
+            action = "Retrieve primary source/producer documentation and collection logs before treating dataset as independent evidence."
+        elif t == "LICENSE_UNKNOWN":
+            action = "Obtain license/terms from publisher; do not assume accessible data is public domain."
+        elif t == "LICENSE_CONFLICT":
+            action = "Handoff license conflict to legal/data-governance review before consequential reuse."
+        elif t == "COVERAGE_UNRESOLVED":
+            action = "Define target population and denominator before making completeness or prevalence claims."
+        elif t == "SAMPLING_BIAS_UNRESOLVED":
+            action = "Document sampling frame/method; restrict population generalization until representative basis exists."
+        elif t == "FRESHNESS_UNRESOLVED_OR_STALE":
+            action = "Compare against authorized current primary source before using for current-state decisions."
+        elif t == "PRIVACY_REVIEW_REQUIRED":
+            action = "Apply data minimization, redaction/tokenization, and privacy review; do not export raw sensitive fields externally."
+        elif t == "QUASI_IDENTIFIER_RISK_UNRESOLVED":
+            action = "Assess aggregate privacy risk through authorized review; do not attempt reidentification."
+        elif t == "SYNTHETIC_PROVENANCE_MISSING":
+            action = "Attach record-level synthetic provenance before mixing synthetic and real data in evaluation/training."
+        elif t == "LABEL_PROVENANCE_UNKNOWN":
+            action = "Retrieve annotation procedure and auditor info; present labels as reference labels unless verified."
+        elif t == "GROUND_TRUTH_UNSUPPORTED":
+            action = "Avoid ground-truth language; seek authoritative verification or expert audit."
+        elif t == "BENCHMARK_CONTAMINATION_CANDIDATE":
+            action = "Use private/rotating held-out evaluation or remove contaminated examples before trusting benchmark performance."
+        elif t == "TRAIN_TEST_LEAKAGE_CANDIDATE":
+            action = "Regenerate grouped/temporal splits and rerun evaluation before trusting model performance."
+        elif t == "POISONING_OR_INTEGRITY_SIGNAL_UNRESOLVED":
+            action = "Correlate with immutable logs/checksums/pipeline changes; escalate to human governance before deletion or correction."
+        elif t == "INTEGRITY_MISMATCH":
+            action = "Verify signed artifact/object version; quarantine if code/executable content is present."
+        elif t == "DATA_CONTRACT_VIOLATION":
+            action = "Compare against schema registry and producer contract; preserve violating records for review rather than silent deletion."
+        elif t == "FITNESS_FOR_PURPOSE_UNRESOLVED":
+            action = "Restrict use to supported purposes and obtain additional reference data for unsupported purposes."
+        elif t == "DATASET_OVERLAP_UNRESOLVED":
+            action = "Compute record/key overlap and lineage evidence before counting datasets as independent corroboration."
+        elif t == "SOURCE_INDEPENDENCE_UNRESOLVED":
+            action = "Trace source pedigree/upstream APIs; treat dependent copies as one evidence family."
+        elif t == "SCHEMA_DRIFT_UNRESOLVED":
+            action = "Map old-to-new schema and verify semantic equivalence before joining or trending."
+        elif t == "DISTRIBUTION_DRIFT_UNRESOLVED":
+            action = "Separate real-world change from collection/parser change using time-matched controls."
+        elif t == "DATASET_CONTRADICTION_UNRESOLVED":
+            action = "Preserve both claims and seek authoritative primary-source resolution; do not overwrite by majority."
+        else:
+            action = "Gather additional authorized dataset evidence."
+
+        actions.append({
+            "action": action,
+            "gap_id": g.get("gap_id"),
+            "priority": g.get("importance", "MEDIUM"),
+            "expected_information_value": g.get("expected_information_value"),
+            "prohibited_alternatives": [
+                "Do not access unauthorized databases.",
+                "Do not use stolen credentials.",
+                "Do not purchase or collect unnecessary stolen personal data.",
+                "Do not deanonymize or reidentify individuals without explicit lawful authorization.",
+                "Do not poison, silently delete, or fabricate records.",
+                "Do not execute macros/scripts/binaries from datasets.",
+                "Do not upload private/sensitive datasets to cloud models without approval.",
+            ],
+        })
+
+    actions.sort(key=lambda x: priority_map.get(x.get("priority", "LOW"), 9))
+    return actions[:300]
+
+
+def build_handoffs(
+    profiles: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    hands: List[Dict[str, Any]] = []
+    seen = set()
+
+    def add(spec: str, reason: str, payload: Dict[str, Any]) -> None:
+        key = (spec, json_safe(payload))
+        if key in seen:
+            return
+        seen.add(key)
+        hands.append({"specialist": spec, "reason": reason, "payload": payload})
+
+    if any(p.get("license_state") in {"LICENSE_UNKNOWN", "LICENSE_CONFLICT"} for p in profiles):
+        add("LEGALINT / DATA_GOVERNANCE", "License unknown/conflict requires legal and governance review.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("license_state") in {"LICENSE_UNKNOWN", "LICENSE_CONFLICT"}][:100],
+        })
+
+    if any(p.get("privacy", {}).get("classification") == "HIGH_SENSITIVITY" for p in profiles):
+        add("PRIVACY_REVIEW / DPO", "High-sensitivity/PII fields require privacy review and minimization.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("privacy", {}).get("classification") == "HIGH_SENSITIVITY"][:100],
+            "handling": ["LOCAL_ONLY_RECOMMENDED", "REDACT_BEFORE_EXPORT", "NO_DEANONYMIZATION"],
+        })
+
+    if any(p.get("validity", {}).get("formula_injection_candidates", 0) for p in profiles):
+        add("MALINT / SECURE_ANALYTICS", "Formula/script-like cells detected; treat as untrusted and do not execute.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("validity", {}).get("formula_injection_candidates", 0)][:100],
+        })
+
+    if any(p.get("poisoning_signals") for p in profiles):
+        add("DATA_GOVERNANCE / HUMAN_REVIEW", "Poisoning/integrity signals require governed review before correction/deletion.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("poisoning_signals")][:100],
+        })
+
+    if any(p.get("integrity_status") == "MISMATCH" for p in profiles):
+        add("DATA_GOVERNANCE / INCIDENTINT", "Integrity mismatch may indicate corruption/tampering; preserve evidence and review.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("integrity_status") == "MISMATCH"][:100],
+        })
+
+    if any(p.get("contamination", {}).get("state") == "CONTAMINATION_CANDIDATE" for p in profiles):
+        add("ML_EVALUATION / MODEL_TEAM", "Benchmark contamination candidate affects evaluation trustworthiness.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("contamination", {}).get("state") == "CONTAMINATION_CANDIDATE"][:100],
+        })
+
+    if any(p.get("train_test_leakage", {}).get("state") == "LEAKAGE_CANDIDATE" for p in profiles):
+        add("ML_EVALUATION / MODEL_TEAM", "Train/test leakage candidate requires split repair before performance claims.", {
+            "dataset_ids": [p["dataset_id"] for p in profiles if p.get("train_test_leakage", {}).get("state") == "LEAKAGE_CANDIDATE"][:100],
+        })
+
+    if any(normalize_text(src.get("source_type", "")).lower() in STOLEN_OR_LEAKED_SOURCE_TYPES for src in sources.values()):
+        add("BREACHINT / LEGAL / PRIVACY", "Stolen/leaked source metadata only may be handled under strict authorization; no unnecessary personal data retention.", {
+            "source_ids": [sid for sid, src in sources.items() if normalize_text(src.get("source_type", "")).lower() in STOLEN_OR_LEAKED_SOURCE_TYPES][:100],
+        })
+
+    semantic_domains = set()
+    for p in profiles:
+        for sem in p.get("schema", {}).values():
+            st = normalize_text(sem.get("semantic_type")).lower()
+            if st in {"cve"}:
+                semantic_domains.add("VULNINT")
+            elif st in {"package", "purl", "artifact"}:
+                semantic_domains.add("PACKAGEINT")
+            elif st in {"domain", "url", "ip", "asn"}:
+                semantic_domains.add("NETINT / INFRAINT")
+            elif st in {"organization", "company"}:
+                semantic_domains.add("CORPINT / ORGINT")
+            elif st in {"transaction_identifier", "financial_identifier", "credit_card", "iban"}:
+                semantic_domains.add("FININT / FRAUDINT / PRIVACY_REVIEW")
+
+    if semantic_domains:
+        add("DOMAIN_SPECIALISTS", "Dataset fields suggest domain-specific claims requiring specialist validation.", {
+            "specialists": sorted(semantic_domains),
+        })
+
+    if contradictions:
+        add("HUMAN_REVIEW", "Material dataset contradictions require human governance before silent resolution.", {
+            "contradiction_ids": [c["contradiction_id"] for c in contradictions[:100]],
+        })
+
+    return hands
+
+
+# --------------------------------------------------------------------
+# Graph memory
+# --------------------------------------------------------------------
+
+class GraphMemory:
+    def __init__(self) -> None:
+        self.nodes: List[Dict[str, Any]] = []
+        self.edges: List[Dict[str, Any]] = []
+        self._node_ids: Set[str] = set()
+
+    def add_node(self, node_type: str, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if not node_id or node_id in self._node_ids:
+            return
+        self._node_ids.add(node_id)
+        self.nodes.append({"type": node_type, "id": node_id, "properties": properties or {}})
+
+    def add_edge(self, from_id: str, to_id: str, edge_type: str, properties: Optional[Dict[str, Any]] = None) -> None:
+        if not from_id or not to_id:
+            return
+        self.edges.append({
+            "from": from_id,
+            "to": to_id,
+            "type": edge_type,
+            "properties": properties or {},
+        })
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "nodes": self.nodes[:3000],
+            "edges": self.edges[:6000],
+            "note": "Dataset graph preserves identity, lineage, overlap, uncertainty, privacy flags, and provenance. It does not prove ground truth, independence, or legality.",
+        }
+
+
+def build_graph_memory(
+    profiles: List[Dict[str, Any]],
+    relationships: List[Dict[str, Any]],
+    overlaps: List[Dict[str, Any]],
+    independence: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    sources: Dict[str, Dict[str, Any]],
+) -> GraphMemory:
+    g = GraphMemory()
+
+    for p in profiles:
+        did = p["dataset_id"]
+        g.add_node("Dataset", did, {
+            "name": p.get("name"),
+            "format": p.get("format"),
+            "version": p.get("version"),
+            "record_count": p.get("record_count"),
+            "provenance_status": p.get("provenance_status"),
+            "license_state": p.get("license_state"),
+            "privacy_classification": p.get("privacy_classification"),
+            "fitness_for_purpose": p.get("fitness_for_purpose"),
+            "integrity_status": p.get("integrity_status"),
+        })
+        g.add_node("DatasetVersion", p.get("version_id", stable_id("VER", did, p.get("version", ""))), {
+            "dataset_id": did,
+            "version": p.get("version"),
+            "content_hash": p.get("content_hash"),
+            "record_count": p.get("record_count"),
+        })
+        g.add_edge(did, p.get("version_id", stable_id("VER", did, p.get("version", ""))), "HAS_VERSION", {})
+
+        for field, sem in (p.get("schema", {}) or {}).items():
+            fid = stable_id("FIELD", did, field)
+            g.add_node("Field", fid, {
+                "dataset_id": did,
+                "field": field,
+                "semantic_type": sem.get("semantic_type"),
+                "pii": sem.get("pii"),
+                "sensitivity": sem.get("sensitivity"),
+            })
+            g.add_edge(did, fid, "HAS_FIELD", {})
+
+        for sid in p.get("source_ids", []) or []:
+            g.add_node("Source", sid, {"source_type": sources.get(sid, {}).get("source_type")})
+            g.add_edge(did, sid, "COLLECTED_FROM_CANDIDATE", {})
+
+        if p.get("producer"):
+            g.add_node("Producer", p["producer"], {})
+            g.add_edge(did, p["producer"], "PRODUCED_BY", {})
+        if p.get("publisher"):
+            g.add_node("Publisher", p["publisher"], {})
+            g.add_edge(did, p["publisher"], "PUBLISHED_BY", {})
+        if p.get("collector"):
+            g.add_node("Collector", p["collector"], {})
+            g.add_edge(did, p["collector"], "COLLECTED_BY", {})
+        if p.get("license"):
+            lic_id = stable_id("LICENSE", p["license"])
+            g.add_node("License", lic_id, {"identifier": p["license"], "state": p.get("license_state")})
+            g.add_edge(did, lic_id, "HAS_LICENSE_CLAIM", {})
+
+        for trans in p.get("transformations", []) or []:
+            tid = trans.get("relationship_id") or stable_id("TRANS", did, trans.get("target_dataset", ""))
+            g.add_node("Transformation", tid, {
+                "from_dataset": did,
+                "to_dataset": trans.get("target_dataset"),
+                "type": trans.get("type"),
+                "transform": trans.get("transform"),
+            })
+            if trans.get("target_dataset"):
+                g.add_edge(did, tid, "TRANSFORMED_BY", {})
+                g.add_edge(tid, trans["target_dataset"], "PRODUCED_DATASET", {})
+
+    for rel in relationships:
+        a = rel.get("from_dataset")
+        b = rel.get("to_dataset")
+        t = rel.get("relationship_type")
+        if a and b:
+            g.add_edge(a, b, t, {
+                "relationship_id": rel.get("relationship_id"),
+                "evidence": rel.get("evidence"),
+            })
+
+    for ov in overlaps:
+        a = ov.get("dataset_a")
+        b = ov.get("dataset_b")
+        t = ov.get("state")
+        if a and b:
+            edge = {
+                "EXACT_SAME_DATASET": "DUPLICATE_OF",
+                "NEAR_DUPLICATE": "NEAR_DUPLICATE_OF",
+                "SUBSET": "SUBSET_OF",
+                "SUPERSET": "SUPERSET_OF",
+                "OVERLAPPING": "OVERLAPS_WITH",
+                "PARTIAL_EXTRACT": "OVERLAPS_WITH",
+                "DERIVED_DATASET": "DERIVED_FROM_CANDIDATE",
+            }.get(t, "OVERLAPS_WITH")
+            g.add_edge(a, b, edge, {
+                "overlap_id": ov.get("overlap_id"),
+                "overlap_ratio": ov.get("overlap_ratio_min_side"),
+                "jaccard": ov.get("minhash_jaccard_estimate"),
+            })
+
+    for ind in independence:
+        a = ind.get("dataset_a")
+        b = ind.get("dataset_b")
+        if a and b:
+            g.add_edge(a, b, f"SOURCE_INDEPENDENCE_{ind.get('state', 'UNKNOWN')}", {
+                "independence_id": ind.get("independence_id"),
+                "shared_source_families": ind.get("shared_source_families", []),
+            })
+
+    for c in contradictions:
+        cid = c.get("contradiction_id")
+        g.add_node("Contradiction", cid, {
+            "type": c.get("type"),
+            "severity": c.get("severity"),
+            "detail": c.get("detail"),
+            "dataset_a": c.get("dataset_a"),
+            "dataset_b": c.get("dataset_b"),
+        })
+        for key in ("dataset_a", "dataset_b", "dataset_id"):
+            if c.get(key):
+                g.add_edge(cid, c[key], "CONTRADICTS", {})
+
+    for gap in gaps[:1000]:
+        gid = gap.get("gap_id")
+        g.add_node("Gap", gid, {
+            "type": gap.get("type"),
+            "importance": gap.get("importance"),
+            "dataset_id": gap.get("dataset_id"),
+        })
+        if gap.get("dataset_id"):
+            g.add_edge(gap["dataset_id"], gid, "HAS_GAP", {})
+
+    return g
+
+
+def dual_ai_review_stub(
+    profiles: List[Dict[str, Any]],
+    contradictions: List[Dict[str, Any]],
+    gaps: List[Dict[str, Any]],
+    independence: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    review = {
+        "status": "INSUFFICIENT_EVIDENCE",
+        "primary_conclusions": [],
+        "skeptic_challenges": [],
+        "comparison": "NO_SECOND_MODEL_CONFIGURED",
+        "notes": [
+            "This starter does not call an independent second model.",
+            "AI agreement is not independent dataset evidence.",
+            "Human review is required for privacy, licensing, poisoning, deletion/correction, or consequential dataset use.",
+        ],
+    }
+    if profiles:
+        review["primary_conclusions"].append(f"{len(profiles)} dataset profile(s) generated from provided authorized records.")
+        review["skeptic_challenges"].append("Check whether column names were treated as semantics without data dictionary.")
+    if contradictions:
+        review["primary_conclusions"].append(f"{len(contradictions)} dataset contradiction candidate(s) detected.")
+        review["skeptic_challenges"].append("Contradictions may be benign: versioning, partial extracts, dual licensing, stale metadata, or collection-window differences.")
+    if any(i.get("state") == "DEPENDENT" for i in independence):
+        review["primary_conclusions"].append("Some dataset pairs are dependent evidence families.")
+        review["skeptic_challenges"].append("Do not count mirrored/copied datasets as independent corroboration.")
+    if any(g.get("type") in {"PRIVACY_REVIEW_REQUIRED", "QUASI_IDENTIFIER_RISK_UNRESOLVED"} for g in gaps):
+        review["primary_conclusions"].append("Privacy-sensitive fields or quasi-identifier risk detected.")
+        review["skeptic_challenges"].append("Do not attempt reidentification; apply minimization and authorized privacy review.")
+    if review["primary_conclusions"]:
+        review["status"] = "PARTIAL_AGREEMENT"
+    return review
+
+
+# --------------------------------------------------------------------
+# Result assembly
+# --------------------------------------------------------------------
+
+def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+        "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+        "objective": manifest.get("objective", ""),
+        "questions": manifest.get("questions", []) or [],
+        "generated_at": utc_now(),
+        "version": VERSION,
+        "source_ids": [],
+        "evidence_ids": [],
+        "datasets": [],
+        "dataset_versions": [],
+        "formats": [],
+        "hashes": [],
+        "fingerprints": [],
+        "producers": [],
+        "publishers": [],
+        "collectors": [],
+        "licenses": [],
+        "usage_restrictions": [],
+        "schemas": [],
+        "tables": [],
+        "fields": [],
+        "semantic_types": [],
+        "data_dictionaries": [],
+        "record_counts": [],
+        "unique_record_counts": [],
+        "candidate_keys": [],
+        "foreign_keys": [],
+        "referential_integrity": [],
+        "missingness": [],
+        "duplicates": [],
+        "near_duplicates": [],
+        "dataset_overlap": [],
+        "dataset_lineage": [],
+        "transformations": [],
+        "source_pedigree": [],
+        "source_independence": [],
+        "coverage": [],
+        "completeness": [],
+        "sampling": [],
+        "representation": [],
+        "bias": [],
+        "label_quality": [],
+        "annotation_provenance": [],
+        "ground_truth_status": [],
+        "temporal_scope": [],
+        "freshness": [],
+        "staleness": [],
+        "schema_drift": [],
+        "distribution_drift": [],
+        "concept_drift_context": [],
+        "outliers": [],
+        "integrity_status": [],
+        "tampering_context": [],
+        "privacy_classification": [],
+        "pii_fields": [],
+        "sensitive_fields": [],
+        "redaction_requirements": [],
+        "synthetic_data_context": [],
+        "contamination_context": [],
+        "poisoning_context": [],
+        "train_test_leakage": [],
+        "benchmark_contamination": [],
+        "fitness_for_purpose": [],
+        "quality_dimensions": [],
+        "observations": [],
+        "candidate_facts": [],
+        "supported_facts": [],
+        "partial_facts": [],
+        "disputed_facts": [],
+        "source_reliability": [],
+        "source_bias": [],
+        "source_limitations": [],
+        "contradictions": [],
+        "hypotheses": [],
+        "falsification_results": [],
+        "unknowns": [],
+        "knowledge_gaps": [],
+        "recommended_next_actions": [],
+        "specialist_handoffs": [],
+        "limitations": [],
+        "dual_ai_review": {},
+        "graph_memory": {},
+        "status": "PARTIAL",
+    }
+
+
+def summarize_profile(p: Dict[str, Any]) -> Dict[str, Any]:
+    out = {k: v for k, v in p.items() if not str(k).startswith("_")}
+    # Remove bulky internal-only fields if present.
+    for k in ("_row_hashes", "_signature", "_field_value_sets", "_numeric_stats", "_categorical_freq", "_row_token_sets"):
+        out.pop(k, None)
+    return out
+
+
+def compute_source_bias(sources: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out = []
+    for sid, src in sources.items():
+        st = normalize_text(src.get("source_type", "unknown")).lower()
+        bias = []
+        if st in {"public_web", "community_report", "anonymous_post"}:
+            bias.append("selection/reporting bias; visibility and self-selection may distort coverage")
+        if st in {"vendor_feed", "licensed_provider"}:
+            bias.append("vendor coverage/commercial bias; detection/collection priorities may differ")
+        if st in {"research_repository"}:
+            bias.append("publication/selection bias; curated datasets may not represent population")
+        if st in {"government_api", "official_registry", "primary_source"}:
+            bias.append("registry/administrative bias; records reflect filing/registration behavior, not necessarily real-world activity")
+        out.append({
+            "source_id": sid,
+            "source_type": st,
+            "potential_bias": bias,
+            "limitations": src.get("limitations", []),
+        })
+    return out
+
+
+def finalize_status(
+    result: Dict[str, Any],
+    profiles: List[Dict[str, Any]],
+    auth_ok: bool,
+    policy_blocked: List[str],
+) -> str:
+    if policy_blocked:
+        return "POLICY_BLOCKED"
+    if not auth_ok:
+        return "BLOCKED_PERMISSION"
+    if not profiles:
+        return "INSUFFICIENT_INPUT"
+    if any(p.get("integrity_status") == "MISMATCH" for p in profiles):
+        return "PARTIAL"
+    if any(p.get("poisoning_signals") for p in profiles):
+        return "PARTIAL"
+    if any(p.get("privacy_classification") == "HIGH_SENSITIVITY" for p in profiles):
+        return "PARTIAL"
+    if result.get("contradictions"):
+        return "PARTIAL"
+    if result.get("knowledge_gaps"):
+        return "PARTIAL"
+    return "SUCCEEDED"
+
+
+def analyze_dataint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    result = empty_result(manifest)
+
+    policy_blocked = policy_screen(manifest)
+    if policy_blocked:
+        result["status"] = "POLICY_BLOCKED"
+        result["violations"] = policy_blocked
+        result["limitations"] = [
+            "DATAINT does not steal datasets, access unauthorized databases, use stolen credentials, purchase/collect unnecessary stolen personal data, deanonymize without lawful authorization, poison/tamper datasets, or execute untrusted dataset code."
+        ]
+        return result
+
+    auth_ok, auth_reasons = authorization_check(manifest)
+    if not auth_ok:
+        result["status"] = "BLOCKED_PERMISSION"
+        result["limitations"] = auth_reasons
+        return result
+
+    as_of = parse_time(manifest.get("as_of")) or datetime.now(timezone.utc)
+    objective = normalize_text(manifest.get("objective", ""))
+    questions = [normalize_text(q) for q in manifest.get("questions", []) or [] if normalize_text(q)]
+    auth = manifest.get("authorization", {}) or {}
+
+    sources = ingest_sources(manifest)
+    source_roots = build_source_roots(sources)
+
+    dictionaries = ingest_dictionaries(manifest)
+    contracts = ingest_contracts(manifest)
+    relationships, missing_relationship_dataset_ids = ingest_relationships(manifest)
+
+    dataset_raws = list(manifest.get("datasets", []) or [])
+    present_ids = set()
+    for d in dataset_raws:
+        did = normalize_text(d.get("dataset_id") or d.get("id"))
+        if did:
+            present_ids.add(did)
+
+    for did in sorted(missing_relationship_dataset_ids):
+        if did and did not in present_ids:
+            dataset_raws.append({
+                "dataset_id": did,
+                "name": did,
+                "description": "Placeholder dataset referenced by relationship but not provided in manifest.",
+                "records": [],
+                "source_ids": [],
+                "limitations": ["Placeholder only; no records were invented."],
+            })
+            present_ids.add(did)
+
+    benchmark_examples = manifest.get("benchmark_examples", []) or []
+
+    profiles: List[Dict[str, Any]] = []
+    for idx, raw in enumerate(dataset_raws):
+        did = normalize_text(raw.get("dataset_id") or raw.get("id") or f"DATASET-{idx}")
+        raw = dict(raw)
+        raw.setdefault("dataset_id", did)
+        profiles.append(profile_dataset(
+            raw=raw,
+            idx=idx,
+            dictionary=dictionaries.get(did, {}),
+            contract=contracts.get(did),
+            sources=sources,
+            as_of=as_of,
+            benchmark_examples=benchmark_examples,
+            objective=objective,
+            questions=questions,
+            auth=auth,
+        ))
+
+    contradictions: List[Dict[str, Any]] = []
+    for p in profiles:
+        contradictions.extend(p.get("contradictions", []) or [])
+
+    profiles, rel_contradictions = apply_relationships(profiles, relationships, [], contradictions)
+    contradictions.extend(rel_contradictions)
+
+    overlaps, independence, drifts, pair_contradictions = pairwise_analysis(profiles, relationships, sources, source_roots)
+    contradictions.extend(pair_contradictions)
+    contradictions = unique_preserve(contradictions)
+
+    hypotheses = build_hypotheses(profiles, overlaps, independence, drifts, contradictions)
+    gaps = build_gaps(profiles, overlaps, independence, drifts, contradictions)
+    actions = build_next_actions(gaps)
+    handoffs = build_handoffs(profiles, gaps, contradictions, sources)
+    graph = build_graph_memory(profiles, relationships, overlaps, independence, contradictions, gaps, sources)
+    dual_review = dual_ai_review_stub(profiles, contradictions, gaps, independence)
+
+    observations = [
+        f"Datasets profiled from provided authorized records: {len(profiles)}.",
+        f"Total physical rows observed: {sum(p.get('record_count', 0) for p in profiles)}.",
+        f"Dataset relationship/overlap pairs assessed: {len(overlaps)}.",
+        f"Source-independence pair assessments: {len(independence)}.",
+        f"Schema/distribution drift candidates: {len(drifts)}.",
+        f"Contradiction candidates: {len(contradictions)}.",
+        f"Privacy-sensitive datasets: {sum(1 for p in profiles if p.get('privacy_classification') == 'HIGH_SENSITIVITY')}.",
+        f"Integrity mismatches: {sum(1 for p in profiles if p.get('integrity_status') == 'MISMATCH')}.",
+        "No unauthorized database access, no stolen credential use, no deanonymization, no dataset poisoning, and no execution of dataset code/macros/binaries were performed.",
+        "Dataset rows are treated as records/claims, not automatic ground truth.",
+        "Column names are treated as metadata, not verified semantics.",
+        "Copied/mirrored datasets are treated as dependent evidence unless source pedigree supports independence.",
+    ]
+
+    unknowns = []
+    for p in profiles:
+        if p.get("provenance_status") in {"UNKNOWN_PROVENANCE", "SECONDARY_ONLY", "SELF_REPORTED_PROVENANCE"}:
+            unknowns.append(f"Dataset {p['dataset_id']} provenance unresolved.")
+        if p.get("license_state") in {"LICENSE_UNKNOWN", "LICENSE_CONFLICT"}:
+            unknowns.append(f"Dataset {p['dataset_id']} license unresolved/conflicting.")
+        if p.get("coverage_state") == "UNKNOWN_COVERAGE":
+            unknowns.append(f"Dataset {p['dataset_id']} coverage unresolved.")
+        if p.get("freshness_state") == "UNKNOWN":
+            unknowns.append(f"Dataset {p['dataset_id']} freshness unresolved.")
+        if p.get("privacy_classification") == "HIGH_SENSITIVITY":
+            unknowns.append(f"Dataset {p['dataset_id']} contains high-sensitivity fields requiring privacy review.")
+        if p.get("integrity_status") == "MISMATCH":
+            unknowns.append(f"Dataset {p['dataset_id']} integrity mismatch unresolved.")
+    for ind in independence:
+        if ind.get("state") == "UNKNOWN":
+            unknowns.append(f"Source independence between {ind['dataset_a']} and {ind['dataset_b']} unresolved.")
+    unknowns.append("Ground truth is not established unless authoritative verification procedure exists.")
+    unknowns.append("Dataset accessibility does not imply public domain, legal reuse, or privacy authorization.")
+    result["unknowns"] = list(dict.fromkeys(unknowns))[:500]
+
+    for p in profiles:
+        if p.get("integrity_status") == "MATCH":
+            result["supported_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": "Computed content hash matches declared/expected hash.",
+            })
+        if p.get("provenance_status") == "PRIMARY_PROVENANCE_KNOWN":
+            result["supported_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": "Primary provenance fields are present; still requires source-quality validation.",
+            })
+        if p.get("license_state") == "LICENSE_KNOWN":
+            result["partial_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": f"Dataset declares license '{p.get('license')}'; legal interpretation requires LEGALINT.",
+            })
+        if p.get("fitness_for_purpose") == "FIT":
+            result["supported_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": f"Dataset assessed FIT for detected purposes: {', '.join(p.get('fitness_purposes', []))}.",
+            })
+        elif p.get("fitness_for_purpose") == "FIT_WITH_LIMITATIONS":
+            result["partial_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": f"Dataset assessed FIT_WITH_LIMITATIONS for detected purposes: {', '.join(p.get('fitness_purposes', []))}.",
+            })
+        elif p.get("fitness_for_purpose") == "NOT_FIT":
+            result["disputed_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": f"Dataset assessed NOT_FIT for detected purposes: {', '.join(p.get('fitness_purposes', []))}.",
+            })
+        if p.get("poisoning_signals"):
+            result["candidate_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": "Poisoning/integrity candidate signals detected; benign explanations not exhausted.",
+            })
+        if p.get("privacy_classification") == "HIGH_SENSITIVITY":
+            result["candidate_facts"].append({
+                "dataset_id": p["dataset_id"],
+                "statement": "High-sensitivity/PII fields detected; minimization and privacy review required.",
+            })
+
+    for c in contradictions:
+        result["disputed_facts"].append({
+            "contradiction_id": c["contradiction_id"],
+            "statement": c.get("detail", "Dataset contradiction candidate."),
+        })
+
+    result["datasets"] = [summarize_profile(p) for p in profiles]
+    result["dataset_versions"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "version_id": p.get("version_id"),
+            "version_label": p.get("version"),
+            "snapshot_time": p.get("snapshot_time"),
+            "hash": p.get("content_hash"),
+            "record_count": p.get("record_count"),
+            "schema_version": p.get("schema_id"),
+            "producer": p.get("producer"),
+            "source_ids": p.get("source_ids", []),
+        }
+        for p in profiles
+    ]
+    result["formats"] = [{"dataset_id": p["dataset_id"], "format": p.get("format")} for p in profiles]
+    result["hashes"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "content_hash": p.get("content_hash"),
+            "ordered_hash": p.get("ordered_hash"),
+            "integrity_status": p.get("integrity_status"),
+        }
+        for p in profiles
+    ]
+    result["fingerprints"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "schema_fingerprint": p.get("schema_fingerprint"),
+            "dataset_fingerprint": p.get("dataset_fingerprint"),
+        }
+        for p in profiles
+    ]
+    result["producers"] = [{"dataset_id": p["dataset_id"], "producer": p.get("producer")} for p in profiles if p.get("producer")]
+    result["publishers"] = [{"dataset_id": p["dataset_id"], "publisher": p.get("publisher")} for p in profiles if p.get("publisher")]
+    result["collectors"] = [{"dataset_id": p["dataset_id"], "collector": p.get("collector")} for p in profiles if p.get("collector")]
+    result["licenses"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "license": p.get("license"),
+            "licenses": p.get("licenses", []),
+            "state": p.get("license_state"),
+        }
+        for p in profiles
+    ]
+    result["usage_restrictions"] = [{"dataset_id": p["dataset_id"], "restrictions": p.get("usage_restrictions", [])} for p in profiles]
+    result["schemas"] = [{"dataset_id": p["dataset_id"], "schema_id": p.get("schema_id"), "columns": p.get("columns", [])} for p in profiles]
+    result["tables"] = [{"dataset_id": p["dataset_id"], "table": p["dataset_id"], "row_count": p.get("record_count")} for p in profiles]
+    result["fields"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "field": field,
+            "semantic_type": sem.get("semantic_type"),
+            "observed_type": sem.get("observed_type"),
+            "declared_type": sem.get("declared_type"),
+            "pii": sem.get("pii"),
+            "sensitivity": sem.get("sensitivity"),
+        }
+        for p in profiles
+        for field, sem in (p.get("schema", {}) or {}).items()
+    ]
+    result["semantic_types"] = result["fields"]
+    result["data_dictionaries"] = [
+        {"dataset_id": did, "fields": fields}
+        for did, fields in dictionaries.items()
+    ]
+    result["record_counts"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "physical_rows": p.get("record_count"),
+            "unique_physical_rows": p.get("unique_physical_count"),
+            "unique_logical_records": p.get("unique_record_count"),
+        }
+        for p in profiles
+    ]
+    result["unique_record_counts"] = [{"dataset_id": p["dataset_id"], "unique_logical_records": p.get("unique_record_count")} for p in profiles]
+    result["candidate_keys"] = [{"dataset_id": p["dataset_id"], "candidate_keys": p.get("candidate_keys", [])} for p in profiles]
+    result["foreign_keys"] = [{"dataset_id": p["dataset_id"], "foreign_keys": p.get("foreign_keys", [])} for p in profiles]
+    result["referential_integrity"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "state": "UNKNOWN",
+            "notes": "Full foreign-key referential integrity validation not performed in starter unless explicit parent datasets are supplied.",
+        }
+        for p in profiles
+    ]
+    result["missingness"] = [{"dataset_id": p["dataset_id"], "missingness": p.get("missingness", {})} for p in profiles]
+    result["duplicates"] = [{"dataset_id": p["dataset_id"], "duplicates": p.get("duplicates", {})} for p in profiles]
+    result["near_duplicates"] = [ov for ov in overlaps if ov.get("state") == "NEAR_DUPLICATE" or (ov.get("minhash_jaccard_estimate") is not None and ov.get("minhash_jaccard_estimate") >= 0.95)]
+    result["dataset_overlap"] = overlaps
+    result["dataset_lineage"] = relationships
+    result["transformations"] = [rel for rel in relationships if rel.get("transform") or normalize_text(rel.get("relationship_type")).upper() in {"TRANSFORMED_BY", "DERIVED_FROM"}]
+    result["source_pedigree"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "source_ids": p.get("source_ids", []),
+            "root_source_ids": source_family_ids(p.get("source_ids", []), source_roots),
+        }
+        for p in profiles
+    ]
+    result["source_independence"] = independence
+    result["coverage"] = [{"dataset_id": p["dataset_id"], "coverage": p.get("coverage_state"), "details": p.get("temporal_scope", {})} for p in profiles]
+    result["completeness"] = [{"dataset_id": p["dataset_id"], "completeness_score": p.get("quality_dimensions", {}).get("completeness")} for p in profiles]
+    result["sampling"] = [{"dataset_id": p["dataset_id"], "method": p.get("sampling_method")} for p in profiles]
+    result["representation"] = [{"dataset_id": p["dataset_id"], "representation": p.get("representation", [])} for p in profiles]
+    result["bias"] = [{"dataset_id": p["dataset_id"], "bias_signals": p.get("bias_signals", [])} for p in profiles]
+    result["label_quality"] = [{"dataset_id": p["dataset_id"], "labels": p.get("labels", {})} for p in profiles]
+    result["annotation_provenance"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "annotation_method": p.get("labels", {}).get("annotation_method"),
+            "annotators": p.get("labels", {}).get("annotators", []),
+            "inter_annotator_agreement": p.get("labels", {}).get("inter_annotator_agreement"),
+            "adjudication": p.get("labels", {}).get("adjudication"),
+            "model_generated_labels": p.get("labels", {}).get("model_generated_labels"),
+        }
+        for p in profiles
+    ]
+    result["ground_truth_status"] = [{"dataset_id": p["dataset_id"], "state": p.get("labels", {}).get("ground_truth_state")} for p in profiles]
+    result["temporal_scope"] = [{"dataset_id": p["dataset_id"], "temporal_scope": p.get("temporal_scope", {})} for p in profiles]
+    result["freshness"] = [{"dataset_id": p["dataset_id"], "state": p.get("freshness_state")} for p in profiles]
+    result["staleness"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "state": p.get("freshness_state"),
+            "age_days_from_latest_event": p.get("temporal_scope", {}).get("age_days_from_latest_event"),
+        }
+        for p in profiles
+    ]
+    result["schema_drift"] = [d for d in drifts if d.get("schema_drift")]
+    result["distribution_drift"] = [d for d in drifts if d.get("distribution_drift")]
+    result["concept_drift_context"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "state": "NOT_ASSESSED",
+            "notes": "Concept drift requires labelled outcome time series and model performance context.",
+        }
+        for p in profiles
+    ]
+    result["outliers"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "state": "NOT_COMPUTED_RECORD_LEVEL",
+            "notes": "Starter computes aggregate validity/drift signals, not full record-level outlier removal.",
+        }
+        for p in profiles
+    ]
+    result["integrity_status"] = [{"dataset_id": p["dataset_id"], "state": p.get("integrity_status")} for p in profiles]
+    result["tampering_context"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "integrity_status": p.get("integrity_status"),
+            "signals": [s for s in p.get("poisoning_signals", []) if s.get("type") in {"INTEGRITY_MISMATCH", "RECORD_COUNT_MISMATCH", "HIGH_DUPLICATION", "IMPOSSIBLE_OR_INVALID_VALUES"}],
+        }
+        for p in profiles
+    ]
+    result["privacy_classification"] = [{"dataset_id": p["dataset_id"], "classification": p.get("privacy_classification")} for p in profiles]
+    result["pii_fields"] = [{"dataset_id": p["dataset_id"], "fields": p.get("privacy", {}).get("pii_fields", [])} for p in profiles]
+    result["sensitive_fields"] = [{"dataset_id": p["dataset_id"], "fields": p.get("privacy", {}).get("sensitive_fields", [])} for p in profiles]
+    result["redaction_requirements"] = [{"dataset_id": p["dataset_id"], "requirements": p.get("privacy", {}).get("redaction_requirements", [])} for p in profiles]
+    result["synthetic_data_context"] = [{"dataset_id": p["dataset_id"], "synthetic": p.get("synthetic", {})} for p in profiles]
+    result["contamination_context"] = [{"dataset_id": p["dataset_id"], "contamination": p.get("contamination", {})} for p in profiles]
+    result["poisoning_context"] = [{"dataset_id": p["dataset_id"], "signals": p.get("poisoning_signals", [])} for p in profiles]
+    result["train_test_leakage"] = [{"dataset_id": p["dataset_id"], "leakage": p.get("train_test_leakage", {})} for p in profiles]
+    result["benchmark_contamination"] = [{"dataset_id": p["dataset_id"], "contamination": p.get("contamination", {})} for p in profiles]
+    result["fitness_for_purpose"] = [
+        {
+            "dataset_id": p["dataset_id"],
+            "state": p.get("fitness_for_purpose"),
+            "purposes": p.get("fitness_purposes", []),
+            "reasons": p.get("fitness_reasons", []),
+        }
+        for p in profiles
+    ]
+    result["quality_dimensions"] = [{"dataset_id": p["dataset_id"], "quality": p.get("quality_dimensions", {})} for p in profiles]
+    result["contradictions"] = contradictions
+    result["hypotheses"] = hypotheses
+    result["falsification_results"] = [
+        {
+            "hypothesis_id": h["hypothesis_id"],
+            "subject_type": h.get("subject_type"),
+            "subject_id": h.get("subject_id"),
+            "opposition": h.get("opposition", []),
+            "falsification_conditions": h.get("falsification_conditions", []),
+        }
+        for h in hypotheses
+    ]
+    result["knowledge_gaps"] = gaps
+    result["recommended_next_actions"] = actions
+    result["specialist_handoffs"] = handoffs
+    result["dual_ai_review"] = dual_review
+    result["graph_memory"] = graph.to_dict()
+    result["observations"] = observations
+
+    for sid, src in sources.items():
+        result["source_ids"].append(sid)
+        result["source_reliability"].append({
+            "source_id": sid,
+            "source_type": src.get("source_type"),
+            "reliability": src.get("reliability"),
+        })
+        result["source_limitations"].append({
+            "source_id": sid,
+            "limitations": src.get("limitations", []),
+        })
+    result["source_bias"] = compute_source_bias(sources)
+
+    base_limits = [
+        "DATAINT starter uses only provided/local authorized records; no network access, unauthorized database access, or credential use was performed.",
+        "Dataset is not automatically ground truth; rows may be observations, claims, estimates, labels, aggregates, or synthetic records.",
+        "Column names are not verified semantics; data dictionary/context is preferred.",
+        "Hash integrity proves byte identity relative to a reference, not truth, legality, or independence.",
+        "Publisher is not automatically collector; hosting platform is not automatically author.",
+        "Multiple copies/mirrors/downstream feeds are not independent corroboration.",
+        "Coverage is not completeness; sample is not population.",
+        "Missing does not mean negative/absent; zero does not mean missing.",
+        "Duplicates may be meaningful in event/sighting datasets.",
+        "Label is not automatically ground truth; model-generated labels must not be presented as human verified truth.",
+        "Synthetic data is not automatically fake/useless, but cannot substitute real-world validation.",
+        "Poisoning/contamination/leakage signals are candidates requiring benign-explanation testing and human governance.",
+        "No deanonymization or reidentification was attempted; privacy-sensitive fields are flagged for minimization/review only.",
+        "No dataset poisoning, silent deletion, fabrication, or unauthorized correction was performed.",
+        "No macros, scripts, notebooks, SQL dumps, binaries, or executable dataset content were run.",
+        "No private/sensitive dataset was uploaded to external/cloud models without approval.",
+    ]
+    if auth_reasons:
+        base_limits.extend(auth_reasons)
+    result["limitations"] = list(dict.fromkeys(base_limits))
+
+    result["status"] = finalize_status(result, profiles, auth_ok, policy_blocked)
+    return result
+
+
+# --------------------------------------------------------------------
+# Report generation
+# --------------------------------------------------------------------
+
+def generate_report(result: Dict[str, Any]) -> str:
+    lines = []
+    lines.append("# DATAINT Evidence-Linked Dataset Report")
+    lines.append("")
+    lines.append(f"- Case ID: `{result.get('case_id')}`")
+    lines.append(f"- Task ID: `{result.get('task_id')}`")
+    lines.append(f"- Generated: `{result.get('generated_at')}`")
+    lines.append(f"- Version: `{result.get('version')}`")
+    lines.append(f"- Status: `{result.get('status')}`")
+    lines.append("")
+
+    if result.get("status") == "POLICY_BLOCKED":
+        lines.append("## POLICY BLOCKED")
+        lines.append("The request violated DATAINT hard restrictions:")
+        for v in result.get("violations", []):
+            lines.append(f"- `{v}`")
+        lines.append("")
+        lines.append("No dataset intelligence was performed.")
+        return "\n".join(lines)
+
+    lines.append("## Objective")
+    lines.append(str(result.get("objective", "")))
+    lines.append("")
+
+    lines.append("## Required Analyst Summary")
+    for s in result.get("observations", [])[:80]:
+        lines.append(f"- {s}")
+    lines.append("")
+
+    lines.append("## Privacy / Authorization Boundaries")
+    lines.append("- No unauthorized database access, stolen credentials, or dataset theft.")
+    lines.append("- No purchasing/collecting unnecessary stolen personal data.")
+    lines.append("- No deanonymization or reidentification attempts.")
+    lines.append("- No dataset poisoning, silent deletion, fabrication, or unauthorized correction.")
+    lines.append("- No execution of macros/scripts/binaries/notebooks/SQL dumps from datasets.")
+    lines.append("- Dataset ≠ ground truth; row ≠ fact; column name ≠ verified semantics.")
+    lines.append("- Copies/mirrors are not independent corroboration.")
+    lines.append("")
+
+    lines.append("## Dataset Inventory")
+    for p in result.get("datasets", [])[:200]:
+        lines.append(f"### `{p.get('dataset_id')}`")
+        lines.append(f"- Name: `{p.get('name')}` format=`{p.get('format')}` version=`{p.get('version')}`")
+        lines.append(f"- Records: physical={p.get('record_count')} unique_logical={p.get('unique_record_count')} fields={p.get('field_count')}")
+        lines.append(f"- Producer/publisher/collector: `{p.get('producer')}` / `{p.get('publisher')}` / `{p.get('collector')}`")
+        lines.append(f"- Provenance: `{p.get('provenance_status')}` lineage=`{p.get('lineage_status')}`")
+        lines.append(f"- License: `{p.get('license')}` state=`{p.get('license_state')}`")
+        lines.append(f"- Coverage: `{p.get('coverage_state')}` sampling=`{p.get('sampling_method')}`")
+        lines.append(f"- Freshness: `{p.get('freshness_state')}` integrity=`{p.get('integrity_status')}`")
+        lines.append(f"- Privacy: `{p.get('privacy_classification')}` synthetic=`{p.get('synthetic_state')}`")
+        lines.append(f"- Fitness: `{p.get('fitness_for_purpose')}` purposes={p.get('fitness_purposes', [])}")
+        lines.append(f"- Quality: {json.dumps(p.get('quality_dimensions', {}), ensure_ascii=False, default=str)}"[:700])
+        if p.get("fitness_reasons"):
+            lines.append("- Fitness reasons:")
+            for r in p["fitness_reasons"][:20]:
+                lines.append(f"  - {r}")
+        if p.get("poisoning_signals"):
+            lines.append("- Poisoning/integrity signals:")
+            for s in p["poisoning_signals"][:20]:
+                lines.append(f"  - `{s.get('type')}` [{s.get('severity')}] {s.get('detail')}")
+        lines.append("")
+
+    lines.append("## Schemas / Semantic Types")
+    for f in result.get("fields", [])[:500]:
+        lines.append(f"- `{f.get('dataset_id')}` field=`{f.get('field')}` semantic=`{f.get('semantic_type')}` observed=`{f.get('observed_type')}` pii={f.get('pii')} sensitivity=`{f.get('sensitivity')}`")
+    lines.append("")
+
+    lines.append("## Missingness / Duplicates / Keys")
+    for p in result.get("datasets", [])[:200]:
+        miss = p.get("missingness", {})
+        dup = p.get("duplicates", {})
+        lines.append(f"### `{p.get('dataset_id')}`")
+        lines.append(f"- Overall missing rate: `{miss.get('overall_missing_rate')}`")
+        lines.append(f"- Exact duplicate rows: `{dup.get('exact_duplicate_rows')}` rate=`{dup.get('exact_duplicate_rate')}`")
+        lines.append(f"- Candidate keys: `{json.dumps(dup.get('candidate_keys', []), ensure_ascii=False, default=str)}`"[:500])
+        for ka in dup.get("key_analysis", [])[:10]:
+            lines.append(f"  - key={ka.get('key_fields')} unique={ka.get('unique_keys')} dup={ka.get('duplicate_records')} conflicts={ka.get('conflicting_key_records')}")
+        lines.append("")
+
+    lines.append("## Temporal Scope / Freshness / Drift")
+    for p in result.get("datasets", [])[:200]:
+        ts = p.get("temporal_scope", {})
+        lines.append(f"- `{p.get('dataset_id')}` earliest=`{ts.get('earliest_event')}` latest=`{ts.get('latest_event')}` snapshot=`{ts.get('snapshot_time')}` published=`{ts.get('published_at')}` freshness=`{p.get('freshness_state')}`")
+    for d in result.get("schema_drift", [])[:200]:
+        lines.append(f"- Schema drift `{d.get('drift_id')}` {d.get('dataset_a')} ↔ {d.get('dataset_b')} added={d.get('added_columns')} removed={d.get('removed_columns')} type_changes={d.get('semantic_type_changes')}")
+    for d in result.get("distribution_drift", [])[:200]:
+        lines.append(f"- Distribution drift `{d.get('drift_id')}` {d.get('dataset_a')} ↔ {d.get('dataset_b')} numeric={d.get('numeric_drift_columns')} categorical={d.get('categorical_drift_columns')} missing={d.get('missingness_drift_columns')}")
+    lines.append("")
+
+    lines.append("## Overlap / Lineage / Source Independence")
+    for ov in result.get("dataset_overlap", [])[:300]:
+        lines.append(f"- Overlap `{ov.get('overlap_id')}`: `{ov.get('dataset_a')}` ↔ `{ov.get('dataset_b')}` state=`{ov.get('state')}` ratio={ov.get('overlap_ratio_min_side')} jaccard={ov.get('minhash_jaccard_estimate')}")
+    for rel in result.get("dataset_lineage", [])[:300]:
+        lines.append(f"- Lineage `{rel.get('relationship_id')}`: `{rel.get('from_dataset')}` --`{rel.get('relationship_type')}`--> `{rel.get('to_dataset')}`")
+    for ind in result.get("source_independence", [])[:300]:
+        lines.append(f"- Independence `{ind.get('independence_id')}`: `{ind.get('dataset_a')}` ↔ `{ind.get('dataset_b')}` state=`{ind.get('state')}` shared_families={ind.get('shared_source_families')}")
+    lines.append("")
+
+    lines.append("## Privacy / PII / Synthetic / Labels")
+    for p in result.get("datasets", [])[:200]:
+        priv = p.get("privacy", {})
+        lines.append(f"### `{p.get('dataset_id')}`")
+        lines.append(f"- Classification: `{priv.get('classification')}` reidentification_risk=`{priv.get('reidentification_risk')}`")
+        lines.append(f"- PII fields: {', '.join(priv.get('pii_fields', [])[:50]) or 'None'}")
+        lines.append(f"- High-sensitivity fields: {', '.join(priv.get('high_sensitivity_fields', [])[:50]) or 'None'}")
+        lines.append(f"- Redaction requirements: {', '.join(priv.get('redaction_requirements', [])[:20]) or 'None'}")
+        lines.append(f"- Synthetic state: `{p.get('synthetic_state')}`")
+        lines.append(f"- Labels: {json.dumps(p.get('labels', {}), ensure_ascii=False, default=str)}"[:700])
+        lines.append("")
+
+    lines.append("## Contamination / Leakage / Poisoning")
+    for p in result.get("datasets", [])[:200]:
+        lines.append(f"### `{p.get('dataset_id')}`")
+        lines.append(f"- Benchmark contamination: `{p.get('contamination', {}).get('state')}` matched={p.get('contamination', {}).get('matched_count')}")
+        lines.append(f"- Train/test leakage: `{p.get('train_test_leakage', {}).get('state')}` overlap={p.get('train_test_leakage', {}).get('overlap_count')} temporal={p.get('train_test_leakage', {}).get('temporal_leakage_candidate')}")
+        lines.append(f"- Poisoning signals: {len(p.get('poisoning_signals', []))}")
+        for s in p.get("poisoning_signals", [])[:20]:
+            lines.append(f"  - `{s.get('type')}` [{s.get('severity')}] {s.get('detail')}")
+        lines.append("")
+
+    lines.append("## Contradictions")
+    for c in result.get("contradictions", [])[:300]:
+        lines.append(f"- `{c.get('contradiction_id')}` [{c.get('severity')}] {c.get('type')}: {c.get('detail')}")
+        if c.get("possible_causes"):
+            lines.append(f"  - possible causes: {'; '.join(c['possible_causes'][:10])}")
+    lines.append("")
+
+    lines.append("## Hypotheses / Falsification")
+    for h in result.get("hypotheses", [])[:500]:
+        lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('category')}] {h.get('subject_type')} `{h.get('subject_id')}`: {h.get('statement')}")
+        if h.get("support"):
+            lines.append(f"  - support: {'; '.join(map(str, h['support'][:5]))}")
+        if h.get("falsification_conditions"):
+            lines.append(f"  - falsify if: {'; '.join(map(str, h['falsification_conditions'][:5]))}")
+    lines.append("")
+
+    lines.append("## Knowledge Gaps")
+    for g in result.get("knowledge_gaps", [])[:500]:
+        lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+    lines.append("")
+
+    lines.append("## Recommended Next Actions")
+    for a in result.get("recommended_next_actions", [])[:500]:
+        lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+    lines.append("")
+
+    lines.append("## Specialist Handoffs")
+    for h in result.get("specialist_handoffs", []):
+        lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+        lines.append(f"  - payload: `{json.dumps(h.get('payload', {}), ensure_ascii=False, default=str)}`"[:1000])
+    lines.append("")
+
+    lines.append("## Dual-AI Review Stub")
+    dr = result.get("dual_ai_review", {})
+    lines.append(f"- Status: `{dr.get('status')}`")
+    lines.append(f"- Comparison: `{dr.get('comparison')}`")
+    for n in dr.get("notes", []):
+        lines.append(f"- {n}")
+    for c in dr.get("primary_conclusions", [])[:50]:
+        lines.append(f"- Primary: {c}")
+    for c in dr.get("skeptic_challenges", [])[:50]:
+        lines.append(f"- Skeptic: {c}")
+    lines.append("")
+
+    lines.append("## Limitations")
+    for lim in result.get("limitations", []):
+        lines.append(f"- {lim}")
+    lines.append("")
+
+    lines.append("## Non-Negotiable Boundary")
+    lines.append("- Identify the dataset.")
+    lines.append("- Hash it.")
+    lines.append("- Version it.")
+    lines.append("- Trace its source.")
+    lines.append("- Understand the schema.")
+    lines.append("- Understand what each field actually means.")
+    lines.append("- Measure quality deterministically.")
+    lines.append("- Check coverage.")
+    lines.append("- Check duplicates.")
+    lines.append("- Check lineage.")
+    lines.append("- Check source independence.")
+    lines.append("- Check time.")
+    lines.append("- Check privacy.")
+    lines.append("- Check contamination.")
+    lines.append("- Check fitness for purpose.")
+    lines.append("- Trust last.")
+
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="TRACEATLAS DATAINT safe starter")
+    parser.add_argument("--manifest", required=True, help="Path to DATAINT manifest JSON")
+    parser.add_argument("--output", default="dataint_result.json", help="Output JSON path")
+    parser.add_argument("--report", default="dataint_report.md", help="Output Markdown report path")
+    args = parser.parse_args()
+
+    try:
+        manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+        return 2
+
+    result = analyze_dataint_manifest(manifest)
+
+    Path(args.output).write_text(
+        json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    Path(args.report).write_text(generate_report(result), encoding="utf-8")
+
+    print(f"Wrote: {args.output}")
+    print(f"Wrote: {args.report}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+    {
+  "case_id": "DATA-CASE-001",
+  "task_id": "DATA-TASK-001",
+  "objective": "Assess authorized public company registry extract and derived enrichment dataset for identity, provenance, quality, overlap, source independence, privacy sensitivity, licensing, contamination candidates, and fitness for broad corporate discovery without accessing unauthorized data or attempting to link anonymized records to individuals.",
+  "questions": [
+    "Are Dataset D1 and D2 independent, derived, overlapping, or duplicate?",
+    "What provenance and license limitations affect use?",
+    "Which fields are privacy-sensitive and require minimization?",
+    "Are there contamination, leakage, integrity, or poisoning candidate signals?",
+    "Is the dataset fit for current-state corporate discovery?"
+  ],
+  "authorization": {
+    "approved": True,
+    "scope": "public_and_authorized_records",
+    "model_mode": "LOCAL_ONLY",
+    "cloud_approved": False,
+    "private_access_approved": False,
+    "privacy_approved": True,
+    "authorized_breach_metadata_only": False
+  },
+  "as_of": "2026-10-09T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "S1",
+      "source_type": "official_registry",
+      "reliability": 0.92,
+      "observed_at": "2026-10-08T00:00:00Z"
+    },
+    {
+      "source_id": "S2",
+      "source_type": "licensed_provider",
+      "upstream_source_id": "S1",
+      "reliability": 0.78,
+      "observed_at": "2026-10-08T00:00:00Z"
+    },
+    {
+      "source_id": "S3",
+      "source_type": "research_repository",
+      "reliability": 0.76,
+      "observed_at": "2026-10-01T00:00:00Z"
+    }
+  ],
+  "datasets": [
+    {
+      "dataset_id": "D1",
+      "name": "Company Registry Extract 2026-10",
+      "description": "Authorized public registry extract for company discovery.",
+      "producer": "National Registry Office",
+      "publisher": "National Registry Office",
+      "collector": "National Registry Office",
+      "source": "official_registry_api",
+      "collection_method": "scheduled_registry_export",
+      "format": "csv",
+      "version": "2026-10-08",
+      "snapshot_time": "2026-10-08T00:00:00Z",
+      "collection_start": "2026-10-07T00:00:00Z",
+      "collection_end": "2026-10-08T00:00:00Z",
+      "published_at": "2026-10-08T06:00:00Z",
+      "retrieved_at": "2026-10-08T07:00:00Z",
+      "license": "ODC-By-1.0",
+      "usage_restrictions": ["attribution_required"],
+      "source_ids": ["S1"],
+      "content": "id,company_id,legal_name,jurisdiction,status,registered_email,updated_at,label\nCOMP-001,REG-1001,Acme Widget Ltd,J1,active,contact@acme.example.invalid,2026-10-07T12:00:00Z,known\nCOMP-002,REG-1002,Beta Logistics SA,J2,inactive,admin@beta.example.invalid,2026-10-06T09:00:00Z,known\nCOMP-003,REG-1003,Gamma Research GmbH,J3,active,info@gamma.example.invalid,2026-10-07T18:00:00Z,unknown\nCOMP-004,REG-1004,Delta Holdings LLC,J1,active,,2026-10-08T01:00:00Z,known\nCOMP-005,REG-1005,Epsilon Services Ltd,J2,active,ops@epsilon.example.invalid,2026-10-05T11:00:00Z,known",
+      "expected_record_count": 5
+    },
+    {
+      "dataset_id": "D2",
+      "name": "Company Enrichment Overlay 2026-10",
+      "description": "Licensed provider overlay derived partly from registry and partly from web enrichment.",
+      "producer": "Enrichment Provider P",
+      "publisher": "Enrichment Provider P",
+      "collector": "Enrichment Provider P",
+      "source": "licensed_provider_api",
+      "collection_method": "vendor_enrichment_pipeline",
+      "format": "json",
+      "version": "2026-10-08-overlay",
+      "snapshot_time": "2026-10-08T00:00:00Z",
+      "published_at": "2026-10-08T10:00:00Z",
+      "retrieved_at": "2026-10-08T11:00:00Z",
+      "license": "proprietary-research-only",
+      "usage_restrictions": ["no_redistribution", "research_only"],
+      "source_ids": ["S2", "S3"],
+      "records": [
+        {"id": "COMP-001", "company_id": "REG-1001", "legal_name": "Acme Widget Ltd", "jurisdiction": "J1", "status": "active", "enrichment_score": 0.91, "website": "https://acme.example.invalid", "split": "train"},
+        {"id": "COMP-002", "company_id": "REG-1002", "legal_name": "Beta Logistics SA", "jurisdiction": "J2", "status": "inactive", "enrichment_score": 0.44, "website": "https://beta.example.invalid", "split": "test"},
+        {"id": "COMP-003", "company_id": "REG-1003", "legal_name": "Gamma Research GmbH", "jurisdiction": "J3", "status": "active", "enrichment_score": 0.77, "website": "https://gamma.example.invalid", "split": "train"},
+        {"id": "COMP-006", "company_id": "REG-1006", "legal_name": "Zeta Analytics Inc", "jurisdiction": "J1", "status": "active", "enrichment_score": 0.65, "website": "https://zeta.example.invalid", "split": "train", "synthetic": True}
+      ],
+      "synthetic": {
+        "augmented": True,
+        "generator": "provider_augmentation_model_v3"
+      }
+    }
+  ],
+  "data_dictionaries": [
+    {
+      "dataset_id": "D1",
+      "fields": {
+        "id": {"type": "string", "primary_key": True, "semantic_type": "uuid", "pii": False},
+        "company_id": {"type": "string", "semantic_type": "organization_identifier", "pii": False},
+        "legal_name": {"type": "string", "semantic_type": "organization", "pii": False},
+        "jurisdiction": {"type": "string", "semantic_type": "country", "pii": False},
+        "status": {"type": "string", "semantic_type": "status", "pii": False},
+        "registered_email": {"type": "string", "semantic_type": "email", "pii": True, "sensitivity": "MODERATE"},
+        "updated_at": {"type": "timestamp", "semantic_type": "timestamp", "pii": False},
+        "label": {"type": "string", "semantic_type": "label", "label": True}
+      }
+    },
+    {
+      "dataset_id": "D2",
+      "fields": {
+        "id": {"type": "string", "primary_key": True, "semantic_type": "uuid"},
+        "company_id": {"type": "string", "semantic_type": "organization_identifier"},
+        "legal_name": {"type": "string", "semantic_type": "organization"},
+        "jurisdiction": {"type": "string", "semantic_type": "country"},
+        "status": {"type": "string", "semantic_type": "status"},
+        "enrichment_score": {"type": "float", "semantic_type": "model_score"},
+        "website": {"type": "string", "semantic_type": "url"},
+        "split": {"type": "string", "semantic_type": "split"}
+      }
+    }
+  ],
+  "data_contracts": [
+    {
+      "dataset_id": "D1",
+      "required_fields": ["id", "company_id", "legal_name", "jurisdiction", "status"],
+      "unique_keys": [["id"]],
+      "allowed_values": {
+        "status": ["active", "inactive"]
+      },
+      "expected_record_count": 5
+    },
+    {
+      "dataset_id": "D2",
+      "required_fields": ["id", "company_id", "legal_name"],
+      "unique_keys": [["id"]]
+    }
+  ],
+  "dataset_relationships": [
+    {
+      "relationship_id": "REL-D2-D1",
+      "from_dataset": "D2",
+      "to_dataset": "D1",
+      "relationship_type": "DERIVED_FROM",
+      "evidence": "Provider documentation states overlay uses registry extract as base.",
+      "transform": {
+        "operation": "join_and_enrich",
+        "join_key": "company_id",
+        "added_fields": ["enrichment_score", "website", "split"]
+      },
+      "source_ids": ["S2"]
+    }
+  ],
+  "benchmark_examples": [
+    {"id": "COMP-001", "text": "Acme Widget Ltd"},
+    {"id": "COMP-999", "text": "Unrelated Benchmark Example"}
+  ],
+  "known_facts": []
+}
+
+
+

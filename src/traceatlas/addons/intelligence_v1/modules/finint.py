@@ -1,0 +1,2563 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+import json
+import re
+import csv
+import hashlib
+import uuid
+
+from collections import defaultdict, Counter
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+
+APP_TITLE = "TraceAtlas FININT AI Employee — Lawful / Authorized / Privacy-Aware Financial Intelligence Panel"
+APP_VERSION = "TraceAtlas FININT Panel v0.1"
+
+
+FIELDS = [
+    ("case_id", "Case ID", "entry"),
+    ("task_id", "Task ID", "entry"),
+    ("objective", "Objective", "text"),
+    ("target", "Target / Person / Org / Account Context", "entry"),
+    ("target_type", "Target Type", "combo"),
+    ("questions", "FININT Questions", "text"),
+
+    ("persons", "Persons / Individuals", "text"),
+    ("organizations", "Organizations / Companies", "text"),
+    ("accounts", "Authorized Accounts / Masked IDs", "text"),
+    ("payment_instruments", "Payment Instruments / Cards / Wallets", "text"),
+    ("transactions_inline", "Inline Transaction Records", "text"),
+    ("bank_statements", "Bank Statement Metadata / Excerpts", "text"),
+    ("invoices", "Invoice Details / References", "text"),
+    ("ledgers", "Ledger Entries / Accounting Data", "text"),
+    ("ownership_data", "Ownership / Beneficial Owner Data", "text"),
+    ("sanctions_data", "Sanctions / Watchlist Matches", "text"),
+    ("trade_data", "Trade Finance / Customs Data", "text"),
+    ("crypto_refs", "Crypto Address / Tx Hash References", "text"),
+    ("financial_reports", "Financial Reports / Filings", "text"),
+
+    ("transaction_paths", "Transaction Export Paths", "text"),
+    ("bank_statement_paths", "Bank Statement Export Paths", "text"),
+    ("invoice_paths", "Invoice Export Paths", "text"),
+    ("ledger_paths", "Ledger / Accounting Export Paths", "text"),
+    ("ownership_paths", "Ownership Registry Export Paths", "text"),
+    ("sanctions_paths", "Sanctions List Export Paths", "text"),
+    ("stix_misp_paths", "STIX / MISP Export Paths", "text"),
+
+    ("time_range", "Time Range", "text"),
+    ("jurisdiction", "Jurisdiction", "entry"),
+    ("scope", "Scope / Allowed Sources", "text"),
+    ("authorization", "Authorization Basis", "text"),
+    ("source_limits", "Source Limits / Safety Limits", "text"),
+    ("budget", "Budget", "entry"),
+    ("deadline", "Deadline", "entry"),
+    ("configured_connectors", "Configured Connectors (ERP/Banking API/Ledger/etc.)", "text"),
+]
+
+
+TARGET_TYPES = [
+    "person_financial_profile",
+    "organization_financial_profile",
+    "account_analysis",
+    "transaction_flow",
+    "invoice_reconciliation",
+    "corporate_finance",
+    "sanctions_check",
+    "fraud_indicator",
+    "crypto_handoff",
+    "unknown",
+]
+
+
+LIST_FIELDS = {
+    "questions",
+    "persons",
+    "organizations",
+    "accounts",
+    "payment_instruments",
+    "transactions_inline",
+    "bank_statements",
+    "invoices",
+    "ledgers",
+    "ownership_data",
+    "sanctions_data",
+    "trade_data",
+    "crypto_refs",
+    "financial_reports",
+    "transaction_paths",
+    "bank_statement_paths",
+    "invoice_paths",
+    "ledger_paths",
+    "ownership_paths",
+    "sanctions_paths",
+    "stix_misp_paths",
+    "source_limits",
+    "configured_connectors",
+}
+
+
+DICT_FIELDS = {
+    "scope",
+    "authorization",
+    "time_range",
+}
+
+
+SENSITIVE_TARGET_TYPES = {
+    "person_financial_profile",
+    "organization_financial_profile",
+    "account_analysis",
+    "transaction_flow",
+    "invoice_reconciliation",
+    "corporate_finance",
+    "sanctions_check",
+    "fraud_indicator",
+    "crypto_handoff",
+}
+
+
+POLICY_BLOCK_PATTERNS = [
+    r"\b(?:access|log in to|enter)\b[^\n]{0,140}\b(?:bank account|financial institution|payment gateway|trading platform)\b\s+(?:without authorization|illegally|stealthily)",
+    r"\b(?:use|apply|utilize)\b[^\n]{0,140}\b(?:stolen card|card detail|cvv|pin|otp|bank credential|payment token)\b",
+    r"\b(?:initiate|send|transfer|move|deposit|withdraw|freeze|close|open)\b[^\n]{0,140}\b(?:fund|money|currency|asset|transaction|account)\b\s+(?:autonomously|automatically|without approval)",
+    r"\b(?:design|plan|advise on|help with)\b[^\n]{0,140}\b(?:money laundering|layering|structuring|smurfing|threshold evasion|sanctions evasion|tax evasion|beneficial ownership concealment)\b",
+    r"\b(?:create|fabricate|forge)\b[^\n]{0,140}\b(?:invoice|transaction|financial record|statement|receipt)\b",
+    r"\b(?:manipulate|influence|rig)\b[^\n]{0,140}\b(?:market|stock price|commodity price|exchange rate)\b",
+    r"\b(?:contact|message|call)\b[^\n]{0,140}\b(?:bank|financial institution|merchant|processor)\b\s+(?:deceptively|pretending to be|impersonating)",
+    r"\b(?:launder|clean|hide|conceal)\b[^\n]{0,140}\b(?:proceeds|criminal money|illegal funds|black money)\b",
+]
+
+
+SAFE_ALTERNATIVES = [
+    "Provide lawful/authorized/evidence-first financial intelligence: entity resolution, transaction normalization, counterparty analysis, fund-flow tracing, invoice/payment reconciliation, corporate financial context, sanctions exposure assessment, fraud indicator detection, and risk prioritization.",
+    "Do not access bank accounts without authorization, use stolen credentials/cards/OTPs, initiate/move/freeze/close/open funds/accounts autonomously, design money-laundering/structuring/sanctions-evasion/tax-evasion schemes, fabricate invoices/records, manipulate markets, or contact institutions deceptively.",
+    "Separate fact from inference: Invoice != Payment, Authorization != Settlement, Processor != Beneficiary, Holder != Operator, Name Match != Sanctioned Entity.",
+    "Minimize sensitive data: Use masked identifiers, preserve original currency/amount precision, avoid displaying full PAN/CVV/PIN/Account Numbers unnecessarily.",
+    "Escalate defensively through authorized human workflows: COMPLIANCE, LEGAL, LAW_ENFORCEMENT, AUDIT, FORENSICS.",
+]
+
+
+SECRET_PATTERNS = [
+    (
+        "CARD_NUMBER_LIKE",
+        re.compile(r"\b\d{13,19}\b"), # Generic long digit sequences, needs context check
+    ),
+    (
+        "IBAN_LIKE",
+        re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b"),
+    ),
+    (
+        "SWIFT_BIC",
+        re.compile(r"\b[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b"),
+    ),
+    (
+        "PRIVATE_KEY_BLOCK",
+        re.compile(
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+            re.S | re.I,
+        ),
+    ),
+    (
+        "PASSWORD_OR_TOKEN_ASSIGNMENT",
+        re.compile(
+            r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+            r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+            r"\s*[:=]\s*[^\s,;\"']+"
+        ),
+    ),
+]
+
+
+PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+)?previous\s+(?:instructions|rules)",
+    r"transfer\s+funds",
+    r"send\s+money",
+    r"approve\s+payment",
+    r"release\s+hold",
+    r"wire\s+to",
+    r"contact\s+me",
+    r"reveal\s+balance",
+]
+
+
+# Regex for extracting financial entities from text
+AMOUNT_RE = re.compile(r"([€$£¥₹]|USD|EUR|GBP|JPY|INR|CAD|AUD|CHF)\s*(-?\d[\d,]*(?:\.\d+)?)|(-?\d[\d,]*(?:\.\d+)?)\s*(USD|EUR|GBP|JPY|INR|CAD|AUD|CHF)")
+CURRENCY_SYMBOL_MAP = {
+    "$": "USD",
+    "€": "EUR",
+    "£": "GBP",
+    "¥": "JPY",
+    "₹": "INR",
+}
+
+DATE_PATTERNS = [
+    "%Y-%m-%d",
+    "%d/%m/%Y",
+    "%m/%d/%Y",
+    "%d-%m-%Y",
+    "%m-%d-%Y",
+    "%Y%m%d",
+]
+
+TXN_TYPE_KEYWORDS = {
+    "DEBIT": ["debit", "withdrawal", "paid out", "expense", "outflow"],
+    "CREDIT": ["credit", "deposit", "received", "income", "inflow", "refund"],
+    "TRANSFER": ["transfer", "wire", "ach", "swift", "internal transfer"],
+    "FEE": ["fee", "charge", "commission", "interest charge"],
+    "TAX": ["tax", "vat", "gst", "sales tax"],
+}
+
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+
+
+def normalize_key(value: Any) -> str:
+    s = str(value or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    return s.strip("_")
+
+
+def parse_list(value: str) -> List[Any]:
+    value = str(value or "").strip()
+    if not value:
+        return []
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return [parsed]
+    except Exception:
+        pass
+
+    normalized = value.replace(",", "\n")
+    parts = [p.strip() for p in normalized.splitlines()]
+    return [p for p in parts if p]
+
+
+def parse_dict(value: str) -> Dict[str, Any]:
+    value = str(value or "").strip()
+    if not value:
+        return {}
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    result: Dict[str, Any] = {}
+    for line in value.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, val = line.split(":", 1)
+        result[key.strip()] = val.strip()
+    return result
+
+
+def listify(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    return [value]
+
+
+def unique_preserve_order(items: List[Any]) -> List[Any]:
+    seen = set()
+    out = []
+    for item in items:
+        key = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str) if isinstance(item, (dict, list)) else str(item)
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+    return out
+
+
+def truncate_list(items: List[Any], limit: int) -> Tuple[List[Any], bool]:
+    if len(items) <= limit:
+        return items, False
+    return items[:limit], True
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def mask_account(account_id: Any) -> str:
+    """Mask account numbers/cards to last 4 digits."""
+    s = str(account_id or "").strip()
+    if len(s) < 4:
+        return "***"
+    # Keep alphanumeric chars mostly, but obscure middle
+    clean = re.sub(r"[^a-zA-Z0-9]", "", s)
+    if len(clean) >= 4:
+        return "*" * (len(clean) - 4) + clean[-4:]
+    return "***"
+
+
+def content_fingerprint(text: str) -> str:
+    """Heuristic token fingerprint, never proof of independent source origin."""
+    # Apply redaction consistently across case variants before comparing tokens.
+    # A case-sensitive BIC pattern otherwise treats uppercase prose differently.
+    redacted = str(text or "")
+    for _, pattern in SECRET_PATTERNS:
+        redacted = re.sub(pattern.pattern, "[REDACTED_SECRET]", redacted,
+                          flags=pattern.flags | re.IGNORECASE)
+    tokens = re.findall(r"[a-z0-9]+", str(redacted).casefold())
+    return sha256_text(" ".join(sorted(set(tokens))))[:32] if tokens else ""
+
+
+def redact_secrets(text: str) -> Tuple[str, List[str]]:
+    flags: List[str] = []
+    if not text:
+        return "", flags
+
+    out = text
+    for name, rx in SECRET_PATTERNS:
+        matches = rx.findall(out)
+        if matches:
+            # Only flag CARD_NUMBER_LIKE if it looks like a real card (length > 12 and no spaces usually, or specific patterns)
+            # For simplicity in this stdlib demo, we flag generic long numbers in financial contexts carefully.
+            # Here we just apply substitution for high-confidence secrets.
+            
+            if name == "CARD_NUMBER_LIKE":
+                # Avoid masking dates or small integers. Check length of matched string.
+                # Since findall returns tuples/groups, we need to iterate matches properly.
+                # Simplified: Replace 13-19 digit sequences that aren't part of a date format YYYYMMDD etc.
+                def replace_card(match):
+                    val = match.group(0)
+                    if len(val) >= 13 and len(val) <= 19 and val.isdigit():
+                        flags.append(name)
+                        return "[REDACTED_CARD]"
+                    return val
+                
+                # We can't easily use sub with callback for all patterns uniformly in loop above, 
+                # so let's handle Card separately or accept slight over-redaction for safety.
+                # For this demo, we'll stick to explicit secret patterns first.
+                pass 
+            
+            # Apply standard substitutions for non-card secrets
+            if name != "CARD_NUMBER_LIKE":
+                if rx.search(out):
+                    flags.append(name)
+                    out = rx.sub("[REDACTED_SECRET]", out)
+                    
+    # Specific handling for Card Numbers to avoid false positives on IDs/Dates
+    # Look for 13-19 digits surrounded by non-digits
+    card_rx = re.compile(r"\b(\d{13,19})\b")
+    if card_rx.search(out):
+        flags.append("CARD_NUMBER_LIKE")
+        out = card_rx.sub("[REDACTED_CARD]", out)
+
+    return out, sorted(set(flags))
+
+
+def detect_prompt_injection(text: str) -> List[str]:
+    flags: List[str] = []
+    low = normalize_text(text)
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        if re.search(pattern, low, re.I):
+            flags.append(pattern)
+    return sorted(set(flags))
+
+
+def safe_str(value: Any, limit: int = 300) -> str:
+    return redact_secrets(str(value or ""))[0].strip()[:limit]
+
+
+def parse_decimal(amount: Any) -> Optional[Decimal]:
+    if amount is None:
+        return None
+    try:
+        s = str(amount).replace(",", "").strip()
+        if not s:
+            return None
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def extract_amount_currency(text: str) -> List[Dict[str, Any]]:
+    """Extract amounts and currencies from free text."""
+    results = []
+    for m in AMOUNT_RE.finditer(text or ""):
+        symbol_or_code = m.group(1) or m.group(2)
+        num_str = m.group(2) or m.group(3)
+        
+        # Determine Currency
+        currency = None
+        if symbol_or_code:
+            if symbol_or_code in CURRENCY_SYMBOL_MAP:
+                currency = CURRENCY_SYMBOL_MAP[symbol_or_code]
+            elif symbol_or_code.upper() in ["USD", "EUR", "GBP", "JPY", "INR", "CAD", "AUD", "CHF"]:
+                currency = symbol_or_code.upper()
+        
+        # Parse Amount
+        amt = parse_decimal(num_str)
+        if amt is not None and currency:
+            results.append({
+                "raw": m.group(0),
+                "amount": str(amt),
+                "currency": currency,
+            })
+    return results
+
+
+def infer_transaction_type(desc: str) -> str:
+    low = normalize_text(desc)
+    for ttype, keywords in TXN_TYPE_KEYWORDS.items():
+        if any(k in low for k in keywords):
+            return ttype
+    return "UNKNOWN"
+
+
+def empty_parsed() -> Dict[str, Any]:
+    return {
+        "sources": [],
+        "entities": [],
+        "accounts": [],
+        "transactions": [],
+        "invoices": [],
+        "payments": [], # Link between invoice and txn
+        "observations": [],
+        "notes": [],
+        "contradictions": [],
+        "hypotheses": [],
+        "knowledge_gaps": [],
+        "specialist_handoffs": [],
+    }
+
+
+def add_note(parsed: Dict[str, Any], note_type: str, **kwargs: Any) -> None:
+    if len(parsed.get("notes", [])) >= 200000:
+        return
+    note = {"type": note_type}
+    note.update(kwargs)
+    parsed["notes"].append(note)
+
+
+def add_observation(parsed: Dict[str, Any], statement: str, source_id: str, evidence_id: str, context: str = "") -> None:
+    if len(parsed.get("observations", [])) >= 200000:
+        return
+
+    redacted, secret_flags = redact_secrets(str(statement or "")[:1000])
+    injection_flags = detect_prompt_injection(str(statement or ""))
+
+    parsed["observations"].append({
+        "observation_id": f"OBS-{uuid.uuid4()}",
+        "statement": redacted,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": context[:200],
+        "state": "SOURCE_OBSERVED",
+        "secret_flags": secret_flags,
+        "prompt_injection_flags": injection_flags,
+        "content_hash": sha256_text(str(statement or "")),
+        "limitations": [
+            "Financial observation is metadata/record existence, not verified legitimacy or criminality.",
+        ],
+    })
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Embedded instructions in financial docs are ignored.")
+
+
+def add_source(
+    parsed: Dict[str, Any],
+    source_id: str,
+    evidence_id: str,
+    filename: str = "",
+    file_hash: str = "",
+    publisher: str = "",
+    title: str = "",
+    source_type: str = "",
+    markings: str = "",
+    content_fp: str = "",
+) -> None:
+    for s in parsed["sources"]:
+        if s.get("source_id") == source_id:
+            if file_hash and not s.get("file_hash"):
+                s["file_hash"] = file_hash
+            if publisher and not s.get("publisher"):
+                s["publisher"] = publisher
+            if title and not s.get("title"):
+                s["title"] = title
+            if content_fp and not s.get("content_fingerprint"):
+                s["content_fingerprint"] = content_fp
+            return
+
+    parsed["sources"].append({
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "filename": filename,
+        "file_hash": file_hash,
+        "publisher": publisher,
+        "title": title,
+        "source_type": source_type or "UNKNOWN",
+        "markings": markings,
+        "content_fingerprint": content_fp,
+        "retrieved_at": now_utc(),
+        "state": "SOURCE_REGISTERED",
+        "source_independence_state": "UNKNOWN",
+        "limitations": [
+            "Source registration is local provenance metadata.",
+            "Aggregators/copies are not independent sources.",
+        ],
+    })
+
+
+def add_entity(parsed: Dict[str, Any], name: Any, entity_type: str, source_id: str, evidence_id: str, context: str = "") -> Optional[str]:
+    n = safe_str(name, 200)
+    if not n:
+        return None
+    
+    norm_n = normalize_text(n)
+    
+    for e in parsed["entities"]:
+        if e.get("normalized_name") == norm_n and e.get("entity_type") == entity_type:
+            return e.get("entity_id")
+            
+    eid = f"ENT-{uuid.uuid4()}"
+    parsed["entities"].append({
+        "entity_id": eid,
+        "name": n,
+        "normalized_name": norm_n,
+        "entity_type": entity_type, # PERSON, ORG, BANK, MERCHANT, PROCESSOR
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "ENTITY_CANDIDATE",
+        "limitations": [
+            "Entity resolution requires corroboration. Similar names do not prove identity.",
+        ],
+    })
+    return eid
+
+
+def add_account(parsed: Dict[str, Any], acc_ref: Any, inst: Any, holder: Any, currency: str, source_id: str, evidence_id: str, context: str = "") -> Optional[str]:
+    ref = safe_str(acc_ref, 100)
+    if not ref:
+        return None
+        
+    masked_ref = mask_account(ref)
+    
+    for a in parsed["accounts"]:
+        if a.get("masked_reference") == masked_ref and a.get("institution_normalized") == normalize_text(inst):
+            return a.get("account_id")
+            
+    aid = f"ACC-{uuid.uuid4()}"
+    parsed["accounts"].append({
+        "account_id": aid,
+        "original_reference_redacted": ref[:2] + "..." + ref[-2:], # Very short preview
+        "masked_reference": masked_ref,
+        "institution": safe_str(inst, 200),
+        "institution_normalized": normalize_text(inst),
+        "holder_candidate": safe_str(holder, 200),
+        "currency": currency,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "ACCOUNT_OBSERVED",
+        "limitations": [
+            "Account holder may differ from operator. Legal owner may differ from beneficiary.",
+        ],
+    })
+    return aid
+
+
+def add_transaction(
+    parsed: Dict[str, Any],
+    txn_id_src: Any,
+    sender_acc: Optional[str],
+    recipient_acc: Optional[str],
+    amount: Optional[Decimal],
+    currency: str,
+    timestamp: str,
+    description: str,
+    status: str, # AUTHORIZED, SETTLED, PENDING, FAILED
+    rail: str, # WIRE, ACH, CARD, CASH, CRYPTO
+    source_id: str,
+    evidence_id: str,
+    context: str = "",
+) -> Optional[str]:
+    
+    tid = f"TXN-{uuid.uuid4()}"
+    
+    # Deduplication heuristic: Same amount, same time window, same desc
+    # In real app, use unique ID from source. Here we simulate.
+    
+    parsed["transactions"].append({
+        "transaction_id": tid,
+        "source_txn_id": safe_str(txn_id_src, 100),
+        "sender_account_id": sender_acc,
+        "recipient_account_id": recipient_acc,
+        "amount": str(amount) if amount else None,
+        "currency": currency,
+        "timestamp": timestamp,
+        "description": safe_str(description, 500),
+        "status": status,
+        "payment_rail": rail,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "TRANSACTION_OBSERVED",
+        "limitations": [
+            "Transaction record exists. Legitimacy/Criminality not determined.",
+            "Authorization does not equal Settlement.",
+        ],
+    })
+    return tid
+
+
+def add_invoice(parsed: Dict[str, Any], inv_num: Any, issuer: Any, recipient: Any, amount: Decimal, currency: str, date: str, source_id: str, evidence_id: str, context: str = "") -> Optional[str]:
+    iid = f"INV-{uuid.uuid4()}"
+    parsed["invoices"].append({
+        "invoice_id": iid,
+        "invoice_number": safe_str(inv_num, 100),
+        "issuer": safe_str(issuer, 200),
+        "recipient": safe_str(recipient, 200),
+        "amount": str(amount),
+        "currency": currency,
+        "date": date,
+        "source_id": source_id,
+        "evidence_id": evidence_id,
+        "context": safe_str(context, 300),
+        "state": "INVOICE_OBSERVED",
+        "limitations": [
+            "Invoice requests payment. It does not prove payment occurred.",
+        ],
+    })
+    return iid
+
+
+def process_json_record(
+    rec: Dict[str, Any],
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+) -> None:
+    if not isinstance(rec, dict):
+        return
+
+    rec_context = context or "json_record"
+    
+    # Try to identify type
+    r_type = get_field(rec, ["type", "record_type", "doc_type"])
+    
+    if r_type and "invoice" in str(r_type).lower():
+        # Process as Invoice
+        inv_num = get_field(rec, ["number", "invoice_no", "id"])
+        issuer = get_field(rec, ["vendor", "supplier", "from"])
+        recip = get_field(rec, ["customer", "bill_to", "to"])
+        amt_raw = get_field(rec, ["total", "amount", "value"])
+        curr = get_field(rec, ["currency", "ccy"]) or "USD"
+        date = get_field(rec, ["date", "issue_date"])
+        
+        amt = parse_decimal(amt_raw)
+        if amt and inv_num:
+            add_invoice(parsed, inv_num, issuer, recip, amt, curr, date, source_id, evidence_id, rec_context)
+            
+    elif r_type and "transaction" in str(r_type).lower() or "txn" in str(r_type).lower():
+        # Process as Transaction
+        txn_id = get_field(rec, ["id", "transaction_id", "ref"])
+        sender = get_field(rec, ["from", "debtor", "payer"])
+        recip = get_field(rec, ["to", "creditor", "payee"])
+        amt_raw = get_field(rec, ["amount", "value"])
+        curr = get_field(rec, ["currency", "ccy"]) or "USD"
+        ts = get_field(rec, ["date", "timestamp", "posted_at"])
+        desc = get_field(rec, ["description", "memo", "details"])
+        status = get_field(rec, ["status", "state"]) or "UNKNOWN"
+        rail = get_field(rec, ["rail", "method", "channel"]) or "UNKNOWN"
+        
+        amt = parse_decimal(amt_raw)
+        
+        # Resolve Accounts loosely
+        sender_acc_id = None
+        recip_acc_id = None
+        
+        if sender:
+            # Create dummy account ref for linking if needed, or just store name
+            # For this demo, we link via string matching in flow analysis later
+            pass
+            
+        add_transaction(
+            parsed,
+            txn_id,
+            sender_acc_id, # Left null for simple demo, would map in prod
+            recip_acc_id,
+            amt,
+            curr,
+            ts,
+            desc,
+            status,
+            rail,
+            source_id,
+            evidence_id,
+            rec_context
+        )
+        
+    else:
+        # Generic Text Processing for embedded financial data
+        text_blob = json.dumps(rec, ensure_ascii=False, default=str)[:5000]
+        process_text_block(text_blob, source_id, evidence_id, parsed, context=rec_context)
+
+
+def process_text_block(
+    text: str,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    context: str = "",
+) -> None:
+    raw = str(text or "")
+    if not raw.strip():
+        return
+
+    redacted, secret_flags = redact_secrets(raw)
+    injection_flags = detect_prompt_injection(raw)
+
+    if secret_flags:
+        add_note(parsed, "SECRET_REDACTION", flags=secret_flags, source_id=source_id, evidence_id=evidence_id, context=context)
+    if injection_flags:
+        add_note(parsed, "PROMPT_INJECTION_FLAG", flags=injection_flags, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Financial documents are untrusted data.")
+
+    add_observation(parsed, redacted[:1000], source_id, evidence_id, context=context)
+
+    # Extract Amounts/Currencies
+    amounts = extract_amount_currency(redacted)
+    
+    # Simple Heuristic: If an amount is found, create a pseudo-transaction or invoice marker
+    # This is very basic. Real parsing needs structure.
+    for a_info in amounts[:10]:
+        amt = parse_decimal(a_info['amount'])
+        if amt:
+            # Add as a generic 'Financial Signal' observation linked to potential txn
+            # In a robust system, this would populate the Transactions table with UNKNOWN parties
+            pass 
+
+    # Detect Keywords for Typologies/Fraud Indicators (Defensive Only)
+    low = normalize_text(redacted)
+    indicators = []
+    
+    # High Risk Signals (Just for Flagging Review, NOT Accusation)
+    if "structuring" in low or "splitting" in low:
+        indicators.append("STRUCTURING_PATTERN_CANDIDATE")
+    if "shell company" in low or "nominee" in low:
+        indicators.append("OWNERSHIP_OBFUSCATION_CANDIDATE")
+    if "rapid turnover" in low or "same day withdrawal" in low:
+        indicators.append("RAPID_MOVEMENT_CANDIDATE")
+        
+    if indicators:
+        add_note(parsed, "FINANCIAL_RISK_SIGNAL", signals=indicators, source_id=source_id, evidence_id=evidence_id, context=context,
+                 caution="Signal indicates need for review, NOT proof of crime.")
+
+
+def get_field(rec: Dict[str, Any], keys: List[str]) -> Any:
+    if not isinstance(rec, dict):
+        return None
+
+    lower = {normalize_key(k): v for k, v in rec.items()}
+    for key in keys:
+        nk = normalize_key(key)
+        if nk in lower and lower[nk] not in (None, ""):
+            val = lower[nk]
+            if isinstance(val, list):
+                return val[0] if val else None
+            return val
+    return None
+
+
+def classify_json_payload(data: Any, filename: str = "") -> str:
+    if isinstance(data, list):
+        return "JSON_ARRAY"
+    if not isinstance(data, dict):
+        return "GENERIC_JSON"
+
+    keys = {normalize_key(k) for k in data.keys()}
+    low = json.dumps(data, ensure_ascii=False, default=str)[:20000].lower()
+    fname = normalize_text(filename)
+
+    if "invoice" in fname or "inv_" in fname or "billing" in low:
+        return "INVOICE_RECORD"
+    if "transaction" in fname or "txn" in fname or "bank_stmt" in fname:
+        return "BANK_TRANSACTION_EXPORT"
+    if "ledger" in fname or "gl_" in fname or "journal" in low:
+        return "GENERAL_LEDGER_ENTRY"
+    if "ownership" in fname or "beneficial" in low:
+        return "OWNERSHIP_REGISTRY"
+    if "sanction" in fname or "watchlist" in low:
+        return "SANCTIONS_LIST_MATCH"
+        
+    return "GENERIC_FINANCIAL_DATA"
+
+
+def walk_json(
+    data: Any,
+    source_id: str,
+    evidence_id: str,
+    parsed: Dict[str, Any],
+    depth: int = 0,
+    path: str = "",
+) -> None:
+    if depth > 14 or len(parsed.get("observations", [])) > 200000:
+        return
+
+    if isinstance(data, dict):
+        process_json_record(data, source_id, evidence_id, parsed, context=path or "json")
+        for k, v in data.items():
+            new_path = f"{path}.{k}" if path else str(k)
+            walk_json(v, source_id, evidence_id, parsed, depth + 1, new_path)
+    elif isinstance(data, list):
+        for item in data[:100000]:
+            walk_json(item, source_id, evidence_id, parsed, depth + 1, path)
+    elif isinstance(data, str):
+        process_text_block(data, source_id, evidence_id, parsed, context=path or "json_string")
+
+
+def process_json_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+    data = json.loads(raw)
+    kind = classify_json_payload(data, path.name)
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    walk_json(data, source_id, evidence_id, parsed)
+    return kind, parsed
+
+
+def process_csv_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+    kind = "CSV_FINANCIAL_DATA"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
+        sample = f.read(1_000_000)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t| ")
+        except csv.Error:
+            dialect = csv.excel
+
+        reader = csv.DictReader(f, dialect=dialect)
+        for idx, row in enumerate(reader):
+            if idx >= 200000:
+                break
+            process_json_record(row, source_id, evidence_id, parsed, context=f"csv_row_{idx}")
+
+    return kind, parsed
+
+
+def process_text_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+    parsed = empty_parsed()
+    raw = path.read_text(encoding="utf-8", errors="replace")[:10_000_000]
+    redacted_raw, _ = redact_secrets(raw)
+    fp = content_fingerprint(redacted_raw)
+    
+    low = redacted_raw.lower()[:20000]
+    if "invoice" in low:
+        kind = "TEXT_INVOICE"
+    elif "bank statement" in low or "transaction history" in low:
+        kind = "TEXT_BANK_STATEMENT"
+    else:
+        kind = "TEXT_FINANCIAL_NOTE"
+
+    add_source(
+        parsed,
+        source_id,
+        evidence_id,
+        filename=path.name,
+        file_hash=sha256_file(path),
+        source_type=kind,
+        content_fp=fp,
+    )
+
+    for line_no, line in enumerate(raw.splitlines()[:200000]):
+        if line.strip():
+            process_text_block(line, source_id, evidence_id, parsed, context=f"text_line_{line_no}")
+
+    return kind, parsed
+
+
+def detect_format(path: Path) -> Dict[str, str]:
+    suffix = path.suffix.lower()
+
+    try:
+        with path.open("rb") as f:
+            head = f.read(256)
+    except Exception as exc:
+        return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream", "format_error": str(exc)}
+
+    binary_suffixes = {
+        ".exe", ".dll", ".sys", ".elf", ".so", ".dylib", ".bin", ".fw", ".img",
+        ".iso", ".apk", ".jar", ".class", ".zip", ".gz", ".tar", ".7z", ".rar",
+        ".pcap", ".pcapng", ".cap", ".msi", ".cab", ".pdf", ".docx", ".xlsx",
+    }
+
+    if suffix in binary_suffixes:
+        return {"format_detected": "BINARY_ARTIFACT", "mime_type": "application/octet-stream"}
+
+    stripped = head.lstrip()
+
+    if suffix == ".json" or stripped.startswith(b"{") or stripped.startswith(b"["):
+        return {"format_detected": "JSON", "mime_type": "application/json"}
+
+    if suffix in {".csv", ".tsv"}:
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if b"," in head and b"\n" in head and all(b in b"\x09\x0a\x0d\x20" or 32 <= b <= 126 for b in head[:64]):
+        return {"format_detected": "CSV", "mime_type": "text/csv"}
+
+    if suffix in {".txt", ".log", ".md", ".yaml", ".yml", ".report", ".stix", ".taxii", ".misp", ".snapshot"}:
+        return {"format_detected": "TEXT", "mime_type": "text/plain"}
+
+    try:
+        probe = head.decode("utf-8", errors="strict")
+        if probe.strip():
+            return {"format_detected": "TEXT", "mime_type": "text/plain"}
+    except Exception:
+        pass
+
+    return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream"}
+
+
+def analyze_financial_file(path_str: str, case_id: str = "", task_id: str = "") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    path = Path(path_str).expanduser()
+    source_id = f"SRC-{uuid.uuid4()}"
+    evidence_id = f"EVD-{uuid.uuid4()}"
+
+    file_evidence: Dict[str, Any] = {
+        "evidence_id": evidence_id,
+        "source_id": source_id,
+        "case_id": case_id,
+        "task_id": task_id,
+        "path": str(path),
+        "filename": path.name,
+        "retrieved_at": now_utc(),
+        "acquisition_method": "local_authorized_or_public_file_access",
+        "status": "PENDING",
+        "limitations": [
+            "No unauthorized bank access, credential use, fund movement, scheme design, fabrication, or deception performed.",
+            "Binary artifacts (PDF/XLSX) are hash/metadata preserved only; no deep parsing executed in this stdlib-only panel.",
+            "Financial records are untrusted evidence, not instruction.",
+            "Secrets/Card Numbers are redacted.",
+            "Transaction existence != Criminality.",
+        ],
+    }
+
+    parsed = empty_parsed()
+
+    if not path.exists():
+        file_evidence["status"] = "FAILED_FILE_NOT_FOUND"
+        return file_evidence, parsed
+
+    try:
+        st = path.stat()
+        file_evidence["size_bytes"] = st.st_size
+        file_evidence["filesystem_modified_at"] = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+    except Exception as exc:
+        file_evidence["status"] = "FAILED_STAT"
+        file_evidence["error"] = str(exc)
+        return file_evidence, parsed
+
+    try:
+        file_evidence["sha256"] = sha256_file(path)
+    except Exception as exc:
+        file_evidence["sha256_error"] = str(exc)
+
+    fmt = detect_format(path)
+    file_evidence.update(fmt)
+    format_detected = file_evidence.get("format_detected", "UNKNOWN")
+
+    try:
+        if format_detected == "JSON":
+            kind, parsed = process_json_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "CSV":
+            kind, parsed = process_csv_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "TEXT":
+            kind, parsed = process_text_file(path, source_id, evidence_id)
+            file_evidence["content_kind"] = kind
+            file_evidence["status"] = "SUCCEEDED"
+        elif format_detected == "BINARY_ARTIFACT":
+            file_evidence["content_kind"] = "BINARY_FINANCIAL_DOC_METADATA_ONLY"
+            file_evidence["status"] = "PARTIAL_BINARY_METADATA_ONLY"
+            file_evidence["reason"] = (
+                "Binary financial document detected. This planning panel preserves hash/metadata only. "
+                "It does not execute macros, parse PDF/XLSX deeply, or extract hidden layers."
+            )
+        else:
+            file_evidence["content_kind"] = "UNKNOWN_OR_UNSUPPORTED"
+            file_evidence["status"] = "UNSUPPORTED_FORMAT"
+    except Exception as exc:
+        file_evidence["status"] = "PARTIAL_OR_FAILED"
+        file_evidence["error"] = f"{exc.__class__.__name__}: {exc}"
+
+    file_evidence["parsed_txn_count"] = len(parsed.get("transactions", []))
+    file_evidence["parsed_inv_count"] = len(parsed.get("invoices", []))
+    file_evidence["parsed_ent_count"] = len(parsed.get("entities", []))
+
+    return file_evidence, parsed
+
+
+def aggregate_parsed(parsed_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    agg = empty_parsed()
+    for p in parsed_list:
+        for key in agg.keys():
+            if isinstance(agg[key], list) and isinstance(p.get(key), list):
+                agg[key].extend(p[key])
+        for key in agg.keys():
+            if isinstance(agg[key], list):
+                agg[key] = unique_preserve_order(agg[key])[:200000]
+    return agg
+
+
+def build_financial_flows(parsed: Dict[str, Any]) -> None:
+    """
+    Construct simple flow edges from transactions.
+    """
+    flows = []
+    txns = parsed.get("transactions", [])
+    
+    # Map Account IDs to Entities for readability if possible
+    # Simplified: Just list Sender -> Recipient
+    
+    for t in txns:
+        if t.get("sender_account_id") and t.get("recipient_account_id"):
+            flows.append({
+                "flow_id": f"FLOW-{uuid.uuid4()}",
+                "from_account": t.get("sender_account_id"),
+                "to_account": t.get("recipient_account_id"),
+                "amount": t.get("amount"),
+                "currency": t.get("currency"),
+                "timestamp": t.get("timestamp"),
+                "transaction_id": t.get("transaction_id"),
+                "state": "DIRECT_TRANSFER_OBSERVED",
+                "limitations": [
+                    "Direct transfer observed. Intermediate hops not resolved.",
+                    "Processor vs Merchant distinction unresolved.",
+                ],
+            })
+            
+    parsed["flows"] = flows
+
+
+def build_contradictions(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    contradictions = []
+    
+    # Check for Duplicate Transactions (Same Amt, Time, Desc)
+    txn_sig_map: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for t in parsed.get("transactions", []):
+        sig = f"{t.get('amount')}:{t.get('currency')}:{normalize_text(t.get('description'))}:{t.get('timestamp')}"
+        txn_sig_map[sig].append(t)
+        
+    for sig, group in txn_sig_map.items():
+        if len(group) > 1:
+            # Filter out exact same source duplicates if they come from different files representing same event
+            # For demo, just flag potential duplication
+            ids = [g['transaction_id'] for g in group]
+            contradictions.append({
+                "contradiction_id": f"CON-{uuid.uuid4()}",
+                "type": "POTENTIAL_DUPLICATE_TRANSACTION",
+                "subject": sig,
+                "values": ids[:10],
+                "possible_explanations": [
+                    "Same transaction reported in multiple systems (Bank + Ledger)",
+                    "Actual duplicate payment error",
+                    "Reversal pair",
+                ],
+                "resolution_status": "UNRESOLVED",
+                "caution": "Do not double-count flows.",
+            })
+            
+    # Check Invoice vs Payment Mismatch (Simplified)
+    # Would require linking logic. Skipping for stdlib demo complexity.
+
+    contradictions, _ = truncate_list(contradictions, 5000)
+    return contradictions
+
+
+def build_hypotheses(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    hyps = []
+    txns = parsed.get("transactions", [])
+    flows = parsed.get("flows", [])
+    
+    if not txns and not flows:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Insufficient financial transaction data to form flow hypotheses.",
+            "supporting_facts": [],
+            "opposing_facts": [],
+            "unknowns": ["counterparties", "purpose", "settlement status"],
+            "falsification_conditions": ["New transaction records provided."],
+            "next_test": "Ingest bank statements or ledger exports.",
+            "status": "OPEN",
+        })
+        return hyps[:1000]
+
+    # Example Hypothesis: Rapid Movement
+    rapid_moves = [f for f in flows if _is_rapid(f)] # Helper needed, simplified here
+    
+    # Generic Hypothesis Generation based on volume
+    if len(flows) > 10:
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Observed fund flows represent normal business operations (Vendor Payments/Sales Receipts).",
+            "supporting_facts": [f"{len(flows)} flow segments identified."],
+            "opposing_facts": ["Counterparty identities unresolved."],
+            "assumptions": ["Entities are legitimate businesses."],
+            "unknowns": ["Ultimate beneficiaries", "Contractual basis"],
+            "falsification_conditions": ["Counterparties are shell companies with no physical presence."],
+            "next_test": "Resolve counterparties via COMPANYINT/OWNERSHIPINT.",
+            "status": "OPEN",
+        })
+        
+        hyps.append({
+            "hypothesis_id": f"HYP-{uuid.uuid4()}",
+            "statement": "Flows may indicate layering or structuring due to fragmentation or rapid transit.",
+            "supporting_facts": ["Pattern analysis pending detailed timeline reconstruction."],
+            "opposing_facts": ["Large payments can be legitimate settlements."],
+            "assumptions": ["Anomaly equals risk."],
+            "unknowns": ["Intent", "Source of Funds"],
+            "falsification_conditions": ["Invoices/Contracts explain all large transfers."],
+            "next_test": "Match Invoices to Payments. Check Source of Funds.",
+            "status": "OPEN",
+        })
+
+    hyps, _ = truncate_list(hyps, 1000)
+    return hyps
+
+def _is_rapid(flow: Dict) -> bool:
+    # Placeholder for time-delta logic
+    return False
+
+
+def build_knowledge_gaps(payload: Dict[str, Any], files: List[Dict[str, Any]], parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    gaps = []
+    txns = parsed.get("transactions", [])
+    invoices = parsed.get("invoices", [])
+    
+    if not files:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "What authorized financial records exist?",
+            "missing_evidence": "No local FININT artifact supplied.",
+            "likely_source": "Bank statement export, ERP ledger dump, Invoice PDF metadata.",
+            "specialist_owner": "FININT AI Employee",
+            "priority": "HIGH",
+            "expected_information_value": "Enables baseline financial mapping.",
+            "safety_boundary": "No unauthorized access or fund movement.",
+        })
+
+    if txns and not invoices:
+        gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Do these transactions correspond to valid commercial activities?",
+            "missing_evidence": "Transactions present, but no invoices/contracts linked.",
+            "likely_source": "Accounts Payable/Receivable ledgers, Contract repository.",
+            "specialist_owner": "FININT / PROCUREMENTINT",
+            "priority": "MEDIUM_HIGH",
+            "expected_information_value": "Establishes economic rationale.",
+            "safety_boundary": "Do not assume illegality due to lack of docs immediately.",
+        })
+        
+    if any(t.get("status") == "AUTHORIZED" for t in txns):
+         gaps.append({
+            "gap_id": f"GAP-{uuid.uuid4()}",
+            "question": "Have authorized transactions settled?",
+            "missing_evidence": "Settlement confirmation missing.",
+            "likely_source": "Post-settlement bank advice, Clearing house reports.",
+            "specialist_owner": "PAYMENTINT / FININT",
+            "priority": "HIGH_IF_MATERIAL",
+            "expected_information_value": "Confirms actual fund movement.",
+            "safety_boundary": "Authorization != Settlement.",
+        })
+
+    gaps, _ = truncate_list(gaps, 500)
+    return gaps
+
+
+def build_specialist_handoffs(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+    handoffs = []
+    txns = parsed.get("transactions", [])
+    ents = parsed.get("entities", [])
+    
+    # Crypto Handoff
+    crypto_txns = [t for t in txns if t.get("payment_rail") == "CRYPTO"]
+    if crypto_txns:
+        handoffs.append({
+            "specialist": "CRYPTOINT",
+            "reason": "Cryptocurrency transactions detected.",
+            "expected_output": "On-chain analysis, cluster attribution, mixer interaction checks.",
+            "question": "Are these wallet addresses associated with known illicit clusters?",
+        })
+        
+    # Sanctions Handoff
+    # If any entity name matches common sanction patterns (placeholder)
+    if any("sanction" in e.get("name", "").lower() for e in ents):
+         handoffs.append({
+            "specialist": "SANCTIONSINT",
+            "reason": "Potential sanctions list match candidate.",
+            "expected_output": "False positive elimination, legal jurisdiction check.",
+            "question": "Is this entity truly a designated national/blockaded party?",
+        })
+
+    if not handoffs:
+        handoffs.append({
+            "specialist": "FININT Manager",
+            "reason": "Standard financial review.",
+            "expected_output": "Compliance report or Audit preparation.",
+            "question": "Does the flow pattern warrant SAR filing consideration (by humans)?",
+        })
+
+    return handoffs
+
+
+def finalize_parsed(parsed: Dict[str, Any], payload: Optional[Dict[str, Any]] = None, files: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    build_financial_flows(parsed)
+    parsed["contradictions"] = build_contradictions(parsed)
+    parsed["hypotheses"] = build_hypotheses(parsed)
+    parsed["knowledge_gaps"] = build_knowledge_gaps(payload or {}, files or [], parsed)
+    parsed["specialist_handoffs"] = build_specialist_handoffs(parsed)
+    return parsed
+
+
+def build_next_best_action(
+    payload: Dict[str, Any],
+    policy: Dict[str, Any],
+    files: List[Dict[str, Any]],
+    parsed: Dict[str, Any],
+) -> Dict[str, str]:
+    txns = parsed.get("transactions", [])
+    flows = parsed.get("flows", [])
+    
+    if policy.get("status") == "POLICY_BLOCKED":
+        return {
+            "action": "Revise task to remove prohibited access, movement, scheme design, or fabrication behavior.",
+            "reason": "FININT is analytical/lawful, not operational/criminal.",
+            "owner": "FININT Manager",
+            "expected_output": "Policy-compliant defensive scope.",
+        }
+
+    if not files:
+        return {
+            "action": "Attach authorized bank statements, ledgers, or invoice exports.",
+            "reason": "No financial evidence available.",
+            "owner": "FININT AI Employee",
+            "expected_output": "Evidence inventory.",
+        }
+
+    if txns and not flows:
+        return {
+            "action": "Link Sender/Recipient accounts to resolve direct flows.",
+            "reason": "Transactions isolated; graph incomplete.",
+            "owner": "FININT",
+            "expected_output": "Fund Flow Graph.",
+        }
+
+    if any(t.get("status") == "AUTHORIZED" for t in txns):
+        return {
+            "action": "Verify settlement status for authorized transactions.",
+            "reason": "Authorization does not guarantee completion.",
+            "owner": "PAYMENTINT / FININT",
+            "expected_output": "Settled vs Pending breakdown.",
+        }
+
+    return {
+        "action": "Proceed with Counterparty Resolution and Benign Explanation Testing.",
+        "reason": "Basic flows mapped; context needed for risk assessment.",
+        "owner": "FININT / COMPANYINT",
+        "expected_output": "Risk-rated Financial Network Report.",
+    }
+
+
+def build_collection_plan(
+    payload: Dict[str, Any],
+    questions: List[Any],
+    files: List[Dict[str, Any]],
+    parsed: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    plan = []
+    priority = 1
+    questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+
+    has_files = bool(files)
+    has_txns = bool(parsed.get("transactions"))
+    has_flows = bool(parsed.get("flows"))
+
+    def add(operation: str, tool: str, purpose: str, status: str, expected_output: str, safety_risk: str = "LOW", policy_note: str = "Lawful / Analytical / Non-Operational.") -> None:
+        nonlocal priority
+        plan.append({
+            "question": questions_limited[0] if questions_limited else "General FININT planning",
+            "operation": operation,
+            "tool_or_provider": tool,
+            "purpose": purpose,
+            "status": status,
+            "expected_output": expected_output,
+            "priority": priority,
+            "safety_risk": safety_risk,
+            "policy_note": policy_note,
+            "authorization_status": "ALLOWED_LAWFUL_AUTHORIZED",
+            "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+        })
+        priority += 1
+
+    add(
+        "verify_authorization_and_scope",
+        "Legal / Compliance",
+        "Ensure access to financial data is legally authorized and scoped.",
+        "COMPLETED_LOCAL" if payload.get("authorization") else "REQUIRED_BEFORE_COLLECTION",
+        "Signed authorization mandate.",
+        safety_risk="CRITICAL_IF_UNAUTHORIZED",
+        policy_note="No snooping.",
+    )
+
+    add(
+        "ingest_primary_records",
+        "Local Parser",
+        "Hash and ingest Bank Statements, Ledgers, Invoices.",
+        "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+        "Normalized Transaction Objects.",
+    )
+
+    add(
+        "resolve_entities_and_accounts",
+        "FININT Engine",
+        "Map masked account refs to Entity Candidates.",
+        "COMPLETED_LOCAL" if has_txns else "PLANNED_ANALYTIC",
+        "Entity-Account Links.",
+        safety_risk="HIGH_IF_FALSE_MERGE",
+        policy_note="Name similarity != Identity.",
+    )
+
+    add(
+        "construct_fund_flows",
+        "Graph Builder",
+        "Create Directed Edges for Transfers.",
+        "COMPLETED_LOCAL" if has_flows else "PLANNED_ANALYTIC",
+        "Flow Graph.",
+        safety_risk="MEDIUM_IF_MISSING_HOPS",
+        policy_note="Intermediary banks must be distinguished from beneficiaries.",
+    )
+
+    add(
+        "match_invoices_payments",
+        "Reconciliation Logic",
+        "Link Invoices to Settled Payments.",
+        "PLANNED_ANALYTIC",
+        "Paid/Unpaid Status.",
+        safety_risk="HIGH_IF_ASSUMED_PAID",
+        policy_note="Invoice != Payment.",
+    )
+
+    add(
+        "test_benign_explanations",
+        "Analyst",
+        "Propose normal business reasons for anomalies.",
+        "PLANNED_ANALYTIC",
+        "Alternative Hypotheses List.",
+        safety_risk="HIGH_IF_TUNNEL_VISION",
+        policy_note="Anomaly != Crime.",
+    )
+
+    return plan
+
+
+def policy_screen(payload: Dict[str, Any]) -> Dict[str, Any]:
+    scanned_text = " ".join(
+        [
+            str(payload.get("objective", "")),
+            " ".join(str(q) for q in payload.get("questions", [])),
+            str(payload.get("target", "")),
+            " ".join(str(s) for s in payload.get("persons", [])),
+            " ".join(str(s) for s in payload.get("organizations", [])),
+            " ".join(str(s) for s in payload.get("accounts", [])),
+            " ".join(str(s) for s in payload.get("transactions_inline", [])),
+        ]
+    ).lower()
+
+    blocked_reasons = [p for p in POLICY_BLOCK_PATTERNS if re.search(p, scanned_text, re.IGNORECASE)]
+
+    human_review_required = False
+    safety_notes: List[str] = []
+
+    if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+        human_review_required = True
+        safety_notes.append(
+            "Sensitive financial context detected. Analysis must remain lawful, authorized, and analytical. "
+            "No fund movement, scheme design, or unauthorized access."
+        )
+
+    if payload.get("accounts") or payload.get("transactions_inline"):
+        human_review_required = True
+        safety_notes.append(
+            "Raw account/transaction data context detected. Ensure strict masking and privacy controls."
+        )
+
+    if blocked_reasons:
+        return {
+            "status": "POLICY_BLOCKED",
+            "reasons": sorted(set(blocked_reasons)),
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "The requested task appears to involve unauthorized access, fund movement, "
+                "money laundering schematics, or financial fraud enablement."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    if human_review_required:
+        return {
+            "status": "HUMAN_REVIEW_REQUIRED",
+            "reasons": [],
+            "human_review_required": True,
+            "safety_notes": safety_notes,
+            "explanation": (
+                "No obvious hard policy violation detected, but sensitive financial/account/transaction context applies. "
+                "Conclusions must be reviewed by authorized compliance/legal humans before action."
+            ),
+            "safe_alternatives": SAFE_ALTERNATIVES,
+        }
+
+    return {
+        "status": "ALLOWED_LAWFUL_AUTHORIZED",
+        "reasons": [],
+        "human_review_required": False,
+        "safety_notes": [],
+        "explanation": "No obvious policy violation detected. Planning-only mode remains active.",
+        "safe_alternatives": [],
+    }
+
+
+def validate_payload(payload: Dict[str, Any]) -> List[str]:
+    warnings: List[str] = []
+
+    required = ["case_id", "task_id", "objective", "target", "target_type"]
+    for field in required:
+        if not payload.get(field):
+            warnings.append(f"Missing required field: {field}")
+
+    if not payload.get("questions"):
+        warnings.append("No FININT questions provided. Default questions will be inferred.")
+
+    evidence_keys = [
+        "persons",
+        "organizations",
+        "accounts",
+        "transactions_inline",
+        "bank_statements",
+        "invoices",
+        "ledgers",
+        "transaction_paths",
+        "bank_statement_paths",
+        "invoice_paths",
+        "ledger_paths",
+    ]
+
+    if not any(payload.get(k) for k in evidence_keys):
+        warnings.append("No financial evidence provided. Output remains planning-only.")
+
+    if not payload.get("time_range"):
+        warnings.append("No time range provided. Financial timelines are critical for flow analysis.")
+
+    return warnings
+
+
+def default_questions(payload: Dict[str, Any]) -> List[str]:
+    return [
+        "Which financial entities and accounts are involved?",
+        "What transactions are evidenced by primary records?",
+        "Who are the direct counterparties vs processors/banks?",
+        "Do fund flows show recurring patterns or unusual structures?",
+        "Can transactions be matched to invoices/contracts?",
+        "Are there benign explanations for apparent anomalies?",
+        "What sanctions/watchlist risks exist (false-positive checked)?",
+        "What remains unknown regarding source of funds or ownership?",
+    ]
+
+
+class TraceAtlasFININTPanel(tk.Tk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title(APP_TITLE)
+        self.geometry("1380x940")
+        self.minsize(1100, 760)
+
+        self.entries: Dict[str, Any] = {}
+        self.last_result: Dict[str, Any] = {}
+
+        self.analyzed_files: List[Dict[str, Any]] = []
+        self.parsed: Dict[str, Any] = empty_parsed()
+
+        self._configure_style()
+        self._build_ui()
+        self._set_defaults()
+
+    def _configure_style(self) -> None:
+        style = ttk.Style(self)
+
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        self.configure(bg="#0b0f19")
+
+        style.configure("TFrame", background="#0b0f19")
+        style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+        style.configure(
+            "Header.TLabel",
+            background="#0b0f19",
+            foreground="#34d399", # Green/Emerald for Finance
+            font=("Segoe UI", 17, "bold"),
+        )
+        style.configure(
+            "Subheader.TLabel",
+            background="#0b0f19",
+            foreground="#94a3b8",
+            font=("Segoe UI", 9),
+        )
+        style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+        style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+
+        style.configure(
+            "TEntry",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            insertcolor="#ffffff",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TCombobox",
+            fieldbackground="#111827",
+            foreground="#e5e7eb",
+            arrowcolor="#e5e7eb",
+            bordercolor="#334155",
+            lightcolor="#334155",
+            darkcolor="#334155",
+        )
+
+        style.configure(
+            "TButton",
+            padding=7,
+            font=("Segoe UI", 10, "bold"),
+            background="#1f2937",
+            foreground="#e5e7eb",
+            bordercolor="#475569",
+            lightcolor="#475569",
+            darkcolor="#475569",
+        )
+
+        style.map(
+            "TButton",
+            background=[("active", "#334155")],
+            foreground=[("active", "#ffffff")],
+        )
+
+        style.configure(
+            "Vertical.TScrollbar",
+            background="#1f2937",
+            troughcolor="#0b0f19",
+            arrowcolor="#e5e7eb",
+        )
+
+    def _build_ui(self) -> None:
+        header = ttk.Frame(self)
+        header.pack(fill="x", padx=16, pady=(14, 8))
+
+        ttk.Label(header, text="TraceAtlas FININT AI Employee", style="Header.TLabel").pack(anchor="w")
+
+        ttk.Label(
+            header,
+            text=(
+                "Lawful / Authorized / Evidence-first / Privacy-aware financial intelligence • Planning-only by default • "
+                "Local deterministic JSON/CSV/TXT transaction/statement/invoice parsing only • "
+                "No bank access / no fund movement / no laundering schemes / no fabrication / no market manipulation • "
+                "Invoice != Payment • Processor != Beneficiary • Anomaly != Crime"
+            ),
+            style="Subheader.TLabel",
+            wraplength=1280,
+            justify="left",
+        ).pack(anchor="w", pady=(2, 0))
+
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+
+        self.input_tab = ttk.Frame(self.notebook)
+        self.output_tab = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.input_tab, text="FININT Task Input")
+        self.notebook.add(self.output_tab, text="Output / FININT Plan / Evidence")
+
+        self._build_input_tab()
+        self._build_output_tab()
+
+    def _build_input_tab(self) -> None:
+        container = ttk.Frame(self.input_tab)
+        container.pack(fill="both", expand=True)
+
+        self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+        self.form = ttk.Frame(self.canvas)
+
+        self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        row = 0
+
+        for key, label, kind in FIELDS:
+            ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+
+            if kind == "entry":
+                widget = ttk.Entry(self.form, width=102)
+
+            elif kind == "combo":
+                widget = ttk.Combobox(
+                    self.form,
+                    values=TARGET_TYPES if key == "target_type" else [],
+                    width=100,
+                    state="readonly",
+                )
+
+            else:
+                widget = tk.Text(
+                    self.form,
+                    height=3,
+                    width=102,
+                    bg="#111827",
+                    fg="#e5e7eb",
+                    insertbackground="white",
+                    relief="flat",
+                    highlightthickness=1,
+                    highlightbackground="#334155",
+                    font=("Segoe UI", 10),
+                    wrap="word",
+                )
+
+            widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+            self.entries[key] = widget
+            row += 1
+
+        self.form.columnconfigure(1, weight=1)
+
+        buttons1 = ttk.Frame(self.input_tab)
+        buttons1.pack(fill="x", padx=10, pady=(12, 4))
+
+        buttons2 = ttk.Frame(self.input_tab)
+        buttons2.pack(fill="x", padx=10, pady=(0, 12))
+
+        ttk.Button(buttons1, text="Add Transactions", command=self.add_transactions).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Bank Statements", command=self.add_bank_statements).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Invoices", command=self.add_invoices).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Ledgers", command=self.add_ledgers).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Ownership Data", command=self.add_ownership).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add Sanctions Data", command=self.add_sanctions).pack(side="left", padx=4)
+        ttk.Button(buttons1, text="Add STIX / MISP", command=self.add_stix_misp).pack(side="left", padx=4)
+
+        ttk.Button(buttons2, text="Analyze Local FININT Evidence", command=self.analyze_local_finint).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Generate FININT Plan", command=self.generate_plan).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+        ttk.Button(buttons2, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+
+    def _build_output_tab(self) -> None:
+        container = ttk.Frame(self.output_tab)
+        container.pack(fill="both", expand=True)
+
+        self.output = tk.Text(
+            container,
+            wrap="word",
+            bg="#020617",
+            fg="#a7f3d0", # Light green text
+            insertbackground="white",
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#334155",
+            font=("Consolas", 11),
+        )
+
+        output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+        self.output.configure(yscrollcommand=output_scroll.set)
+
+        self.output.pack(side="left", fill="both", expand=True)
+        output_scroll.pack(side="right", fill="y")
+
+    def _set_defaults(self) -> None:
+        self.set_widget_value("case_id", "FININT-CASE-001")
+        self.set_widget_value("task_id", "FININT-TASK-001")
+        self.set_widget_value(
+            "objective",
+            "Analyze lawful/authorized financial intelligence using evidence-first FININT methods. "
+            "Preserve originals, parse safe transaction/statement/invoice metadata deterministically, resolve entities/accounts cautiously, "
+            "construct fund-flow graphs, distinguish processors from beneficiaries, match invoices to payments, test benign explanations, "
+            "and produce defensive risk assessments without accessing accounts, moving funds, designing schemes, or fabricating records.",
+        )
+        self.set_widget_value("target", "Illustrative example.com / authorized financial context")
+        self.set_widget_value("target_type", "transaction_flow")
+        self.set_widget_value(
+            "questions",
+            "\n".join(default_questions({"target": "Illustrative example.com / authorized financial context"})),
+        )
+
+        for field in [
+            "persons",
+            "organizations",
+            "accounts",
+            "payment_instruments",
+            "transactions_inline",
+            "bank_statements",
+            "invoices",
+            "ledgers",
+            "ownership_data",
+            "sanctions_data",
+            "trade_data",
+            "crypto_refs",
+            "financial_reports",
+            "transaction_paths",
+            "bank_statement_paths",
+            "invoice_paths",
+            "ledger_paths",
+            "ownership_paths",
+            "sanctions_paths",
+            "stix_misp_paths",
+        ]:
+            self.set_widget_value(field, "")
+
+        self.set_widget_value(
+            "time_range",
+            json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+        )
+        self.set_widget_value("jurisdiction", "")
+        self.set_widget_value(
+            "scope",
+            json.dumps(
+                {
+                    "allowed_source_types": [
+                        "authorized bank statements",
+                        "authorized transaction exports",
+                        "public company filings",
+                        "licensed sanctions data",
+                        "authorized accounting records",
+                    ],
+                    "prohibited_sources_and_actions": [
+                        "unauthorized bank access",
+                        "moving funds",
+                        "designing laundering schemes",
+                        "fabricating invoices",
+                        "market manipulation",
+                    ],
+                    "data_minimization_rules": [
+                        "mask account numbers",
+                        "redact card details",
+                        "preserve original currency precision",
+                    ],
+                    "authorized_use": "internal defensive/authorized financial analysis only",
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value(
+            "authorization",
+            json.dumps(
+                {
+                    "authorized_by": "FININT Manager / Chief Intelligence Manager",
+                    "authorization_basis": "customer-authorized lawful/public engagement",
+                    "permitted_actions": [
+                        "local record hashing",
+                        "transaction normalization",
+                        "flow graph construction",
+                        "risk assessment",
+                    ],
+                    "prohibited_actions": [
+                        "fund movement",
+                        "scheme design",
+                        "unauthorized access",
+                    ],
+                },
+                indent=2,
+            ),
+        )
+        self.set_widget_value("source_limits", "")
+        self.set_widget_value("budget", "")
+        self.set_widget_value("deadline", "")
+        self.set_widget_value(
+            "configured_connectors",
+            "None configured. No live Banking API/ERP connector invoked. Planning-only.",
+        )
+
+    def get_widget_value(self, key: str) -> str:
+        widget = self.entries.get(key)
+        if widget is None:
+            return ""
+
+        if isinstance(widget, tk.Text):
+            return widget.get("1.0", "end-1c").strip()
+
+        if isinstance(widget, ttk.Combobox):
+            return widget.get().strip()
+
+        if isinstance(widget, ttk.Entry):
+            return widget.get().strip()
+
+        return ""
+
+    def set_widget_value(self, key: str, value: str) -> None:
+        widget = self.entries.get(key)
+        if widget is None:
+            return
+
+        if isinstance(widget, tk.Text):
+            widget.delete("1.0", "end")
+            widget.insert("1.0", value)
+        elif isinstance(widget, ttk.Combobox):
+            widget.set(value)
+        elif isinstance(widget, ttk.Entry):
+            widget.delete(0, "end")
+            widget.insert(0, value)
+
+    def collect_payload(self) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {}
+
+        for key, _, _ in FIELDS:
+            raw = self.get_widget_value(key)
+
+            if key in LIST_FIELDS:
+                payload[key] = parse_list(raw)
+            elif key in DICT_FIELDS:
+                payload[key] = parse_dict(raw)
+            else:
+                payload[key] = raw
+
+        payload["generated_at"] = now_utc()
+        payload["panel_version"] = APP_VERSION
+        payload["operating_mode"] = "PLANNING_ONLY_LAWFUL_AUTHORIZED_ANALYTICAL"
+        payload["source_boundary"] = "LAWFUL_AUTHORIZED_EVIDENCE_FIRST_PRIVACY_AWARE_FININT_ONLY"
+        return payload
+
+    def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
+        if not paths:
+            return
+
+        current = self.get_widget_value(field)
+        added = "\n".join(paths)
+        new_value = current + ("\n" if current else "") + added
+        self.set_widget_value(field, new_value)
+        messagebox.showinfo(title, f"{len(paths)} path(s) added to {field}.")
+
+    def add_transactions(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select transaction export files",
+            filetypes=[
+                ("Transactions", "*.json *.csv *.tsv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("transaction_paths", paths, "Transaction Files Added")
+
+    def add_bank_statements(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select bank statement export files",
+            filetypes=[
+                ("Bank Statements", "*.json *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("bank_statement_paths", paths, "Bank Statement Files Added")
+
+    def add_invoices(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select invoice export files",
+            filetypes=[
+                ("Invoices", "*.json *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("invoice_paths", paths, "Invoice Files Added")
+
+    def add_ledgers(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select ledger/accounting export files",
+            filetypes=[
+                ("Ledgers", "*.json *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("ledger_paths", paths, "Ledger Files Added")
+
+    def add_ownership(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select ownership registry files",
+            filetypes=[
+                ("Ownership", "*.json *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("ownership_paths", paths, "Ownership Files Added")
+
+    def add_sanctions(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select sanctions list files",
+            filetypes=[
+                ("Sanctions", "*.json *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("sanctions_paths", paths, "Sanctions Files Added")
+
+    def add_stix_misp(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="Select STIX / MISP export files",
+            filetypes=[
+                ("STIX / MISP", "*.json *.xml *.csv *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        self._append_paths("stix_misp_paths", paths, "STIX / MISP Files Added")
+
+    def run_policy_screen(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        result = {
+            "mode": "POLICY_SCREEN_ONLY",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "payload_preview": {
+                "case_id": payload.get("case_id"),
+                "task_id": payload.get("task_id"),
+                "objective": payload.get("objective"),
+                "target": payload.get("target"),
+                "target_type": payload.get("target_type"),
+                "has_accounts": bool(payload.get("accounts")),
+                "has_transactions": bool(payload.get("transactions_inline") or payload.get("transaction_paths")),
+                "has_invoices": bool(payload.get("invoices") or payload.get("invoice_paths")),
+            },
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            messagebox.showwarning(
+                "Policy Blocked",
+                "This FININT request is policy-blocked.\n\n"
+                + "\n".join(policy["reasons"])
+                + "\n\nUse only lawful/analytical alternatives.",
+            )
+        elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            messagebox.showwarning(
+                "Human Review Required",
+                "No hard policy block detected, but sensitive financial/account context applies.",
+            )
+        else:
+            messagebox.showinfo(
+                "Policy Screen",
+                "No obvious policy violation detected. Planning-only mode remains active.",
+            )
+
+    def analyze_local_finint(self) -> None:
+        payload = self.collect_payload()
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "evidence_inventory": [],
+                "transactions_preview": [],
+                "flows_preview": [],
+                "observations": [],
+                "candidate_facts": [],
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning("Policy Blocked", "Local FININT evidence analysis blocked by policy screen.")
+            return
+
+        path_fields = [
+            "transaction_paths",
+            "bank_statement_paths",
+            "invoice_paths",
+            "ledger_paths",
+            "ownership_paths",
+            "sanctions_paths",
+            "stix_misp_paths",
+        ]
+
+        all_paths: List[str] = []
+        seen = set()
+
+        for field in path_fields:
+            for p in payload.get(field, []):
+                sp = str(p).strip()
+                if sp and sp not in seen:
+                    seen.add(sp)
+                    all_paths.append(sp)
+
+        if not all_paths:
+            messagebox.showwarning("No FININT Evidence", "Add local authorized/lawful financial evidence files first.")
+            return
+
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", "Analyzing local lawful/authorized FININT evidence. Hashing and parsing may take time...\n")
+        self.notebook.select(self.output_tab)
+
+        files: List[Dict[str, Any]] = []
+        parsed_list: List[Dict[str, Any]] = []
+
+        for p in all_paths[:30]:
+            f, parsed = analyze_financial_file(p, payload.get("case_id", ""), payload.get("task_id", ""))
+            files.append(f)
+            parsed_list.append(parsed)
+
+        aggregated = finalize_parsed(aggregate_parsed(parsed_list), payload, files)
+
+        self.analyzed_files = files
+        self.parsed = aggregated
+
+        report = self._build_local_analysis_report(
+            files=files,
+            parsed=aggregated,
+            payload=payload,
+            policy=policy,
+        )
+
+        self.last_result = report
+        self._write_output(report)
+
+        succeeded = sum(1 for f in files if str(f.get("status", "")).startswith("SUCCEEDED"))
+        messagebox.showinfo(
+            "Local FININT Evidence Analysis Complete",
+            f"Processed {len(files)} evidence file(s).\n"
+            f"Succeeded/partial: {succeeded}\n"
+            f"Transactions: {len(aggregated.get('transactions', []))}\n"
+            f"Invoices: {len(aggregated.get('invoices', []))}\n"
+            f"Flows: {len(aggregated.get('flows', []))}\n"
+            "Review output for limitations and next actions.",
+        )
+
+    def generate_plan(self) -> None:
+        payload = self.collect_payload()
+        warnings = validate_payload(payload)
+        policy = policy_screen(payload)
+
+        if policy["status"] == "POLICY_BLOCKED":
+            result = {
+                "mode": "POLICY_BLOCKED",
+                "panel_version": APP_VERSION,
+                "policy_screen": policy,
+                "warnings": warnings,
+                "payload": payload,
+                "finint_collection_plan": [],
+                "next_best_action": {
+                    "action": "Revise task to remove prohibited access, movement, scheme design, or fabrication behavior.",
+                    "owner": "FININT Manager",
+                    "expected_output": "Policy-compliant defensive scope.",
+                },
+            }
+            self.last_result = result
+            self._write_output(result)
+            messagebox.showwarning(
+                "Policy Blocked",
+                "FININT plan not generated because the request is policy-blocked.",
+            )
+            return
+
+        questions = payload.get("questions") or default_questions(payload)
+
+        if not self.parsed.get("transactions") and not self.parsed.get("flows"):
+            self.parsed = finalize_parsed(empty_parsed(), payload, self.analyzed_files)
+
+        files = self.analyzed_files
+        parsed = self.parsed
+
+        next_action = build_next_best_action(payload, policy, files, parsed)
+        collection_plan = build_collection_plan(payload, questions, files, parsed)
+
+        overall_status = "PLANNING_ONLY"
+        if policy["status"] == "HUMAN_REVIEW_REQUIRED":
+            overall_status = "HUMAN_REVIEW_REQUIRED"
+        if files or parsed.get("transactions") or parsed.get("flows"):
+            overall_status = "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE"
+
+        result = {
+            "mode": overall_status,
+            "panel_version": APP_VERSION,
+            "policy": (
+                "This output does not access bank accounts without authorization, use stolen credentials, move funds, freeze accounts, "
+                "design money-laundering schemes, fabricate invoices, manipulate markets, or contact institutions deceptively. "
+                "Local deterministic analysis is limited to hashing, safe JSON/CSV/TXT financial record parsing, entity/account resolution, "
+                "transaction normalization, flow graph construction, invoice/payment matching logic, sanctions context checking, "
+                "fraud indicator flagging (defensive only), benign explanation testing, contradiction detection, competing hypotheses, "
+                "falsification, secret redaction, prompt-injection flagging, and defensive specialist handoff planning. "
+                "Live Banking API/ERP enrichment, regulatory reporting, and consequential legal actions remain planning-only unless configured/authorized/human-reviewed."
+            ),
+            "policy_screen": policy,
+            "warnings": warnings,
+            "payload": payload,
+            "intelligence_questions": questions,
+            "evidence_inventory": files,
+            "transactions_preview": parsed.get("transactions", [])[:300],
+            "invoices_preview": parsed.get("invoices", [])[:300],
+            "flows_preview": parsed.get("flows", [])[:300],
+            "entities_preview": parsed.get("entities", [])[:300],
+            "accounts_preview": parsed.get("accounts", [])[:300],
+            "contradictions": parsed.get("contradictions", [])[:1000],
+            "hypotheses": parsed.get("hypotheses", [])[:1000],
+            "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+            "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+            "next_best_action": next_action,
+            "finint_collection_plan": collection_plan,
+            **self._policy_sections(),
+            **self._schemas(),
+        }
+
+        self.last_result = result
+        self._write_output(result)
+        self.notebook.select(self.output_tab)
+
+        if warnings:
+            messagebox.showwarning(
+                "Validation Warnings",
+                "FININT plan generated with warnings:\n\n" + "\n".join(warnings),
+            )
+
+    def _build_local_analysis_report(
+        self,
+        files: List[Dict[str, Any]],
+        parsed: Dict[str, Any],
+        payload: Dict[str, Any],
+        policy: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        next_action = build_next_best_action(payload, policy, files, parsed)
+        collection_plan = build_collection_plan(payload, default_questions(payload), files, parsed)
+
+        observations: List[Dict[str, Any]] = []
+
+        for f in files:
+            observations.append({
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"A local lawful/authorized FININT evidence file was accessed and hashed: {f.get('filename')}.",
+                "evidence_id": f.get("evidence_id"),
+                "source_id": f.get("source_id"),
+                "observed_at": now_utc(),
+                "extraction_method": "local_deterministic_file_hash",
+                "limitations": "File hash does not prove legitimacy or criminality.",
+            })
+
+        observations.extend([
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(files)} FININT evidence file(s) were parsed locally.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "safe_json_csv_text_financial_parser",
+                "limitations": "Parser output is normalized evidence, not verified external reality.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": f"{len(parsed.get('transactions', []))} transaction record(s) and {len(parsed.get('flows', []))} flow segment(s) were extracted.",
+                "evidence_id": "AGGREGATE",
+                "source_id": "LOCAL_FLOW_PARSER",
+                "observed_at": now_utc(),
+                "extraction_method": "transaction_flow_extraction",
+                "limitations": "Flow existence != Illicit Intent.",
+            },
+            {
+                "observation_id": f"OBS-{uuid.uuid4()}",
+                "statement": "No unauthorized bank access, fund movement, scheme design, fabrication, or deception was performed.",
+                "evidence_id": "LOCAL_PANEL_POLICY",
+                "source_id": "LOCAL_POLICY_GUARD",
+                "observed_at": now_utc(),
+                "extraction_method": "lawful_analytical_policy",
+                "limitations": "Planning/local deterministic panel only.",
+            },
+        ])
+
+        observations, _ = truncate_list(observations, 500)
+
+        candidate_facts: List[Dict[str, Any]] = []
+
+        for f in files:
+            if f.get("sha256"):
+                candidate_facts.append({
+                    "candidate_fact": f"The preserved local FININT evidence artifact {f.get('filename')} has SHA256 {f.get('sha256')}.",
+                    "status": "SUPPORTED",
+                    "evidence_ids": [f.get("evidence_id")],
+                    "notes": "Supported by deterministic local hashing. Does not prove legitimacy.",
+                })
+
+        candidate_facts.extend([
+            {
+                "candidate_fact": f"{len(parsed.get('transactions', []))} transaction candidate(s) were extracted.",
+                "status": "SUPPORTED_AS_CANDIDATE_ONLY",
+                "evidence_ids": ["AGGREGATE"],
+                "not_supported": [
+                    "verified legitimacy",
+                    "verified criminality",
+                    "verified ultimate beneficiary",
+                ],
+            },
+            {
+                "candidate_fact": "No unauthorized bank access, fund movement, scheme design, fabrication, or deception was performed.",
+                "status": "SUPPORTED",
+                "evidence_ids": ["LOCAL_PANEL_POLICY"],
+                "notes": "Lawful/analytical planning boundary.",
+            },
+        ])
+
+        candidate_facts, _ = truncate_list(candidate_facts, 200)
+
+        fact_gate = {
+            "status": "LOCAL_DETERMINISTIC_ONLY" if files or parsed.get("transactions") else "NO_LOCAL_FININT_EVIDENCE",
+            "supported": [
+                "file/source existence and SHA256 hash",
+                "parsed transaction records",
+                "parsed invoice records",
+                "parsed flow segments",
+                "parsed entity candidates",
+                "parsed account candidates",
+                "contradiction candidates",
+                "competing hypotheses",
+                "secret redaction flags",
+                "prompt-injection flags",
+            ],
+            "not_supported": [
+                "verified legitimacy",
+                "verified criminality",
+                "verified ultimate beneficiary",
+                "verified source of funds",
+                "verified beneficial ownership",
+                "final legal determination",
+                "autonomous SAR filing",
+                "autonomous account freezing",
+            ],
+            "safety_status": "No unauthorized bank access, fund movement, scheme design, fabrication, or deception performed.",
+        }
+
+        return {
+            "mode": "LOCAL_DETERMINISTIC_FININT_ANALYSIS",
+            "panel_version": APP_VERSION,
+            "policy_screen": policy,
+            "unauthorized_access_performed": False,
+            "fund_movement_performed": False,
+            "scheme_design_performed": False,
+            "fabrication_performed": False,
+            "market_manipulation_performed": False,
+            "evidence_inventory": files,
+            "transactions_preview": parsed.get("transactions", [])[:300],
+            "invoices_preview": parsed.get("invoices", [])[:300],
+            "flows_preview": parsed.get("flows", [])[:300],
+            "entities_preview": parsed.get("entities", [])[:300],
+            "accounts_preview": parsed.get("accounts", [])[:300],
+            "contradictions": parsed.get("contradictions", [])[:1000],
+            "hypotheses": parsed.get("hypotheses", [])[:1000],
+            "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+            "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+            "observations": observations,
+            "candidate_facts": candidate_facts,
+            "fact_gate": fact_gate,
+            "recommended_next_actions": next_action,
+            "finint_collection_plan_preview": collection_plan[:20],
+            "limitations": [
+                "Only local deterministic checks were performed.",
+                "No network access was performed.",
+                "No unauthorized bank access, fund movement, scheme design, fabrication, or deception was performed.",
+                "Invoice is not Payment.",
+                "Authorization is not Settlement.",
+                "Processor is not Beneficiary.",
+                "Holder is not Operator.",
+                "Anomaly is not Crime.",
+                "Name Match is not Sanctioned Entity.",
+                "Exposed secrets were redacted heuristically and not used.",
+                "Financial documents were treated as untrusted evidence.",
+            ],
+        }
+
+    def _write_output(self, result: Dict[str, Any]) -> None:
+        self.output.delete("1.0", "end")
+        self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2, default=str))
+
+    def _policy_sections(self) -> Dict[str, Any]:
+        return {
+            "role": {
+                "employee": "FININT AI Employee",
+                "hierarchy": [
+                    "Chief Intelligence Manager",
+                    "Financial / Economic Intelligence Manager",
+                    "FININT Manager",
+                    "FININT AI Employee",
+                ],
+                "not": [
+                    "banking-access agent",
+                    "transaction-execution system",
+                    "money-laundering advisor",
+                    "sanctions-evasion advisor",
+                    "tax-evasion advisor",
+                    "market-manipulation system",
+                    "account-takeover agent",
+                    "stolen-card/credential user",
+                    "autonomous fraud adjudicator",
+                    "autonomous asset-freezing system",
+                ],
+            },
+            "core_principle": [
+                "FINANCIAL RECORD",
+                "PRESERVE",
+                "NORMALIZE",
+                "ENTITY RESOLUTION",
+                "ACCOUNT RESOLUTION",
+                "TRANSACTION RESOLUTION",
+                "COUNTERPARTY RESOLUTION",
+                "TEMPORAL ANALYSIS",
+                "SOURCE RELIABILITY",
+                "SOURCE INDEPENDENCE",
+                "PATTERN ANALYSIS",
+                "BENIGN-EXPLANATION CHECK",
+                "FACT GATE",
+                "HYPOTHESIS",
+                "FALSIFICATION",
+                "DEFENSIBLE FINANCIAL ASSESSMENT",
+            ],
+            "critical_separations": [
+                "invoice != payment",
+                "purchase order != transaction",
+                "receipt != settlement",
+                "authorization != settlement",
+                "account holder != user/operator",
+                "legal owner != beneficial owner",
+                "payment processor != ultimate beneficiary",
+                "bank != economic counterparty",
+                "large transaction != suspicious",
+                "round amount != laundering",
+                "rapid movement != criminal",
+                "typology match != crime",
+                "name match != sanctioned entity",
+                "crypto address != person",
+                "fraud indicator != fraud confirmed",
+                "financial anomaly != criminal intent",
+            ],
+            "hard_restrictions": [
+                "Do not access bank accounts without authorization.",
+                "Do not use stolen banking credentials/card details/OTPs.",
+                "Do not initiate transfers/move funds/freeze accounts autonomously.",
+                "Do not design money-laundering/layering/structuring/sanctions-evasion/tax-evasion schemes.",
+                "Do not create false invoices/fabricate transactions/manipulate markets.",
+                "Do not purchase illicit financial data/contact institutions deceptively.",
+            ],
+            "non_negotiable_rules": [
+                "DO NOT ACCESS BANK ACCOUNTS WITHOUT AUTHORIZATION.",
+                "DO NOT USE BANK CREDENTIALS.",
+                "DO NOT INITIATE TRANSACTIONS.",
+                "DO NOT MOVE FUNDS.",
+                "DO NOT DESIGN MONEY-LAUNDERING SCHEMES.",
+                "DO NOT FABRICATE INVOICES.",
+                "DO NOT EQUATE LARGE TRANSACTION WITH CRIME.",
+                "DO NOT EQUATE INVOICE WITH PAYMENT.",
+                "DO NOT EQUATE PROCESSOR WITH BENEFICIARY.",
+                "DO NOT EQUATE ANOMALY WITH SUSPICION.",
+            ],
+        }
+
+    def _schemas(self) -> Dict[str, Any]:
+        return {
+            "financial_evidence_schema": {
+                "evidence_id": "Unique FININT evidence identifier",
+                "case_id": "Case identifier",
+                "source_id": "Source identifier",
+                "source_type": "Bank Stmt / Ledger / Invoice / etc.",
+                "document_id": "Document reference",
+                "record_id": "Record reference",
+                "account_reference": "Masked account ref",
+                "transaction_reference": "Txn ID",
+                "observed_at": "Observation time",
+                "transaction_at": "Txn time",
+                "posted_at": "Posting time",
+                "settled_at": "Settlement time",
+                "currency": "Currency Code",
+                "amount": "Numeric Amount",
+                "content_hash": "SHA256",
+                "raw_artifact_reference": "Secure path",
+                "parser_version": "Version",
+                "normalizer_version": "Version",
+                "authorization_context": "Auth Basis",
+            },
+            "transaction_schema": {
+                "transaction_id": "Unique Txn ID",
+                "source_txn_id": "Original Ref",
+                "sender_account_id": "From Acc",
+                "recipient_account_id": "To Acc",
+                "amount": "Value",
+                "currency": "CCY",
+                "timestamp": "Time",
+                "description": "Memo",
+                "status": "AUTHORIZED/SETTLED/PENDING",
+                "payment_rail": "WIRE/ACH/CARD",
+                "source_id": "Src ID",
+                "evidence_id": "Evd ID",
+                "context": "Context",
+                "state": "TRANSACTION_OBSERVED",
+                "limitations": [
+                    "Record exists. Legitimacy not determined.",
+                    "Authorization != Settlement.",
+                ],
+            },
+            "invoice_schema": {
+                "invoice_id": "Unique Inv ID",
+                "invoice_number": "Num",
+                "issuer": "Vendor",
+                "recipient": "Customer",
+                "amount": "Val",
+                "currency": "CCY",
+                "date": "Date",
+                "source_id": "Src ID",
+                "evidence_id": "Evd ID",
+                "context": "Ctx",
+                "state": "INVOICE_OBSERVED",
+                "limitations": [
+                    "Requests payment. Does not prove payment.",
+                ],
+            },
+            "finint_result_schema": [
+                "case_id",
+                "task_id",
+                "objective",
+                "questions",
+                "source_ids",
+                "evidence_ids",
+                "financial_entities",
+                "accounts",
+                "transactions",
+                "counterparties",
+                "fund_flows",
+                "invoice_payment_matches",
+                "risk_states",
+                "contradictions",
+                "hypotheses",
+                "knowledge_gaps",
+                "specialist_handoffs",
+                "limitations",
+                "status",
+            ],
+        }
+
+    def export_json(self) -> None:
+        if not self.last_result:
+            self.generate_plan()
+
+        data = self.last_result or self.collect_payload()
+
+        payload_for_name = data.get("payload") or data.get("payload_preview") or data
+        case_id = payload_for_name.get("case_id", "finint")
+        task_id = payload_for_name.get("task_id", "task")
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            initialfile=f"{case_id}_{task_id}.json",
+        )
+
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            messagebox.showinfo("Export Complete", f"FININT JSON saved to:\n{path}")
+        except Exception as exc:
+            messagebox.showerror("Export Failed", str(exc))
+
+    def copy_output(self) -> None:
+        text = self.output.get("1.0", "end-1c").strip()
+        if not text:
+            messagebox.showinfo("Copy Output", "No output to copy.")
+            return
+
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        messagebox.showinfo("Copy Output", "Output copied to clipboard.")
+
+    def clear_form(self) -> None:
+        confirm = messagebox.askyesno(
+            "Clear Form",
+            "Are you sure you want to clear all fields, analyzed FININT evidence, and reset defaults?",
+        )
+        if not confirm:
+            return
+
+        self._set_defaults()
+        self.output.delete("1.0", "end")
+        self.last_result = {}
+        self.analyzed_files = []
+        self.parsed = empty_parsed()
+
+
+if __name__ == "__main__":
+    app = TraceAtlasFININTPanel()
+    app.mainloop()
