@@ -1,0 +1,1000 @@
+#| class HypothesisStatus(Enum):
+#|     ACTIVE = auto()
+#|     REJECTED = auto()
+#|     CONFIRMED = auto()
+#|     CANDIDATE = auto()
+#|     INCONCLUSIVE = auto()
+#| 
+#| 
+#| class SourceIndependenceState(Enum):
+#|     INDEPENDENT = auto()
+#|     PARTIALLY_DEPENDENT = auto()
+#|     DEPENDENT = auto()
+#|     UNKNOWN = auto()
+#| 
+#| 
+#| # ==============================================================================
+#| # DATA OBJECTS
+#| # ==============================================================================
+#| 
+#| @dataclass
+#| class EvidenceRef:
+#|     evidence_id: str = ""
+#|     case_id: str = ""
+#|     source_id: str = ""
+#|     upstream_source_id: str = ""
+#|     source_type: str = "unknown"
+#|     kind: str = ""
+#|     observed_at: Optional[datetime] = None
+#|     reliability: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Entity:
+#|     entity_id: str = ""
+#|     entity_type: str = "UNKNOWN"
+#|     name: Optional[str] = None
+#|     aliases: List[str] = field(default_factory=list)
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#|     privacy_flags: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Relationship:
+#|     relationship_id: str = ""
+#|     source_id: str = ""
+#|     target_id: str = ""
+#|     relation: str = ""
+#|     confidence: float = 0.5
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     valid_from: Optional[datetime] = None
+#|     valid_to: Optional[datetime] = None
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class ModelObject:
+#|     model_id: str = ""
+#|     canonical_name: Optional[str] = None
+#|     family_id: Optional[str] = None
+#|     developer_id: Optional[str] = None
+#|     provider_ids: List[str] = field(default_factory=list)
+#|     model_type: ModelType = ModelType.UNKNOWN
+#|     access_type: AccessType = AccessType.UNKNOWN
+#|     architecture_claim: Optional[str] = None
+#|     parameter_count: Optional[int] = None
+#|     active_parameter_count: Optional[int] = None
+#|     modality: List[str] = field(default_factory=list)
+#|     context_window: Optional[int] = None
+#|     max_output_tokens: Optional[int] = None
+#|     tokenizer: Optional[str] = None
+#|     release_date: Optional[datetime] = None
+#|     knowledge_cutoff_claim: Optional[str] = None
+#|     license_id: Optional[str] = None
+#|     policy_ids: List[str] = field(default_factory=list)
+#|     repository: Optional[str] = None
+#|     model_card: Optional[str] = None
+#|     system_card: Optional[str] = None
+#|     base_model_id: Optional[str] = None
+#|     fine_tuned_from: Optional[str] = None
+#|     distilled_from: Optional[str] = None
+#|     quantized_from: Optional[str] = None
+#|     adapter_ids: List[str] = field(default_factory=list)
+#|     aliases: List[str] = field(default_factory=list)
+#|     capability_claims: List[Dict[str, Any]] = field(default_factory=list)
+#|     evaluation_result_ids: List[str] = field(default_factory=list)
+#|     safety_context: Dict[str, Any] = field(default_factory=dict)
+#|     availability: ModelAvailability = ModelAvailability.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class BenchmarkResult:
+#|     result_id: str = ""
+#|     model_id: Optional[str] = None
+#|     model_version: Optional[str] = None
+#|     benchmark_id: Optional[str] = None
+#|     benchmark_version: Optional[str] = None
+#|     score: Optional[float] = None
+#|     metric: Optional[str] = None
+#|     prompting: Optional[str] = None
+#|     shots: Optional[int] = None
+#|     tools: Optional[List[str]] = None
+#|     sampling: Optional[str] = None
+#|     evaluator: Optional[str] = None
+#|     source_type: str = "provider_benchmark"
+#|     independence_group: Optional[str] = None
+#|     date: Optional[datetime] = None
+#|     protocol_complete: bool = False
+#|     comparability_group: Optional[str] = None
+#|     comparability_status: BenchmarkComparability = BenchmarkComparability.UNKNOWN
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SecurityFinding:
+#|     finding_id: str = ""
+#|     title: Optional[str] = None
+#|     issue_type: SecurityIssueType = SecurityIssueType.UNKNOWN
+#|     affected_entity_type: Optional[str] = None
+#|     affected_entity_id: Optional[str] = None
+#|     affected_version: Optional[str] = None
+#|     deployment_context: Optional[str] = None
+#|     disclosure_date: Optional[datetime] = None
+#|     severity_context: Optional[str] = None
+#|     exploitability_context: Optional[str] = None
+#|     mitigation: Optional[str] = None
+#|     fixed_version: Optional[str] = None
+#|     verification_state: VerificationState = VerificationState.INCONCLUSIVE
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class Incident:
+#|     incident_id: str = ""
+#|     system_id: Optional[str] = None
+#|     model_id: Optional[str] = None
+#|     provider_id: Optional[str] = None
+#|     date: Optional[datetime] = None
+#|     incident_type: IncidentType = IncidentType.UNKNOWN
+#|     impact: Optional[str] = None
+#|     affected_versions: List[str] = field(default_factory=list)
+#|     cause_claim: Optional[str] = None
+#|     official_status: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class Pricing:
+#|     pricing_id: str = ""
+#|     entity_id: Optional[str] = None
+#|     currency: Optional[str] = None
+#|     input_token_price_per_million: Optional[float] = None
+#|     output_token_price_per_million: Optional[float] = None
+#|     cached_token_price_per_million: Optional[float] = None
+#|     effective_date: Optional[datetime] = None
+#|     expiration_date: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ChangeEvent:
+#|     change_id: str = ""
+#|     entity_id: Optional[str] = None
+#|     change_type: ChangeType = ChangeType.UNKNOWN
+#|     old_state: Any = None
+#|     new_state: Any = None
+#|     effective_at: Optional[datetime] = None
+#|     announced_at: Optional[datetime] = None
+#|     source: Optional[str] = None
+#|     impact_candidate: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class FactRecord:
+#|     fact_id: str = ""
+#|     statement: str = ""
+#|     claim_type: str = "UNKNOWN"
+#|     verification_state: VerificationState = VerificationState.INCONCLUSIVE
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     object_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.5
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Hypothesis:
+#|     id: str = ""
+#|     description: str = ""
+#|     support_evidence: List[str] = field(default_factory=list)
+#|     opposition_evidence: List[str] = field(default_factory=list)
+#|     unknowns: List[str] = field(default_factory=list)
+#|     falsification_criteria: str = ""
+#|     status: HypothesisStatus = HypothesisStatus.INCONCLUSIVE
+#| 
+#| 
+#| @dataclass
+#| class Contradiction:
+#|     contradiction_id: str = ""
+#|     contradiction_type: str = ""
+#|     description: str = ""
+#|     object_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     severity: str = "MEDIUM"
+#| 
+#| 
+#| @dataclass
+#| class GraphNode:
+#|     node_id: str = ""
+#|     type: str = ""
+#|     attributes: Dict[str, Any] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class GraphEdge:
+#|     edge_id: str = ""
+#|     source_node_id: str = ""
+#|     target_node_id: str = ""
+#|     relation: str = ""
+#|     confidence: float = 0.5
+#|     evidence_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Gap:
+#|     gap_id: str = ""
+#|     description: str = ""
+#|     importance: str = "MEDIUM"
+#|     recommended_source: str = ""
+#|     specialist: str = ""
+#|     expected_information_value: str = ""
+#| 
+#| 
+#| # ==============================================================================
+#| # CONSTANTS
+#| # ==============================================================================
+#| 
+#| SOURCE_RELIABILITY = {
+#|     "official_model_card": 0.90,
+#|     "official_system_card": 0.90,
+#|     "technical_report": 0.88,
+#|     "peer_reviewed_paper": 0.86,
+#|     "provider_docs": 0.85,
+#|     "api_docs": 0.84,
+#|     "release_notes": 0.86,
+#|     "independent_evaluator": 0.82,
+#|     "reproducible_benchmark": 0.84,
+#|     "provider_benchmark": 0.70,
+#|     "community_test": 0.55,
+#|     "social_post": 0.35,
+#|     "marketing_claim": 0.30,
+#|     "anonymous_claim": 0.20,
+#|     "authorized_internal_log": 0.86,
+#|     "authorized_internal_inventory": 0.86,
+#|     "authorized_evaluation": 0.88,
+#|     "ai_incident_database": 0.72,
+#|     "security_advisory": 0.84,
+#|     "cve_record": 0.86,
+#|     "license_text": 0.90,
+#|     "pricing_page": 0.80,
+#|     "hardware_doc": 0.82,
+#|     "cloud_doc": 0.82,
+#|     "package_registry": 0.84,
+#|     "dataset_card": 0.80,
+#|     "sbom": 0.82,
+#|     "vex": 0.78,
+#|     "unknown": 0.20,
+#| }
+#| 
+#| META_KEYS = {
+#|     "entity_id",
+#|     "id",
+#|     "name",
+#|     "aliases",
+#|     "source_type",
+#|     "source_id",
+#|     "upstream_source_id",
+#|     "observed_at",
+#|     "evidence_ids",
+#|     "limitations",
+#|     "confidence",
+#|     "reliability",
+#|     "type",
+#| }
+#| 
+#| MODEL_FIELD_KEYS = {
+#|     "model_id",
+#|     "canonical_name",
+#|     "family_id",
+#|     "developer_id",
+#|     "provider_ids",
+#|     "model_type",
+#|     "access_type",
+#|     "architecture_claim",
+#|     "parameter_count",
+#|     "active_parameter_count",
+#|     "modality",
+#|     "context_window",
+#|     "max_output_tokens",
+#|     "tokenizer",
+#|     "release_date",
+#|     "knowledge_cutoff_claim",
+#|     "license_id",
+#|     "policy_ids",
+#|     "repository",
+#|     "model_card",
+#|     "system_card",
+#|     "base_model_id",
+#|     "fine_tuned_from",
+#|     "distilled_from",
+#|     "quantized_from",
+#|     "adapter_ids",
+#|     "capability_claims",
+#|     "evaluation_result_ids",
+#|     "safety_context",
+#|     "availability",
+#| }
+#| 
+#| REL_FIELD_KEYS = {
+#|     "relationship_id",
+#|     "source_id",
+#|     "target_id",
+#|     "relation",
+#|     "valid_from",
+#|     "valid_to",
+#| }
+#| 
+#| SEC_FIELD_KEYS = {
+#|     "finding_id",
+#|     "title",
+#|     "issue_type",
+#|     "affected_entity_type",
+#|     "affected_entity_id",
+#|     "affected_version",
+#|     "deployment_context",
+#|     "disclosure_date",
+#|     "severity_context",
+#|     "exploitability_context",
+#|     "mitigation",
+#|     "fixed_version",
+#|     "verification_state",
+#| }
+#| 
+#| INC_FIELD_KEYS = {
+#|     "incident_id",
+#|     "system_id",
+#|     "model_id",
+#|     "provider_id",
+#|     "date",
+#|     "incident_type",
+#|     "impact",
+#|     "affected_versions",
+#|     "cause_claim",
+#|     "official_status",
+#| }
+#| 
+#| CHANGE_FIELD_KEYS = {
+#|     "change_id",
+#|     "entity_id",
+#|     "change_type",
+#|     "old_state",
+#|     "new_state",
+#|     "effective_at",
+#|     "announced_at",
+#|     "source",
+#|     "impact_candidate",
+#| }
+#| 
+#| SECRET_REGEXES = [
+#|     ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+#|     ("private_key_marker", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+#|     ("jwt_like_token", re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")),
+#|     ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]+")),
+#|     (
+#|         "generic_secret_assignment",
+#|         re.compile(
+#|             r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|apikey|"
+#|             r"private[_-]?key|cookie|session[_-]?id|mfa|otp|credential)\b\s*[:=]\s*([^\s,;&]+)"
+#|         ),
+#|     ),
+#| ]
+#| 
+#| UNTRUSTED_INSTRUCTION_REGEXES = [
+#|     re.compile(r"(?i)ignore (previous|all|system|aiint) (instructions|rules|policy|prompt)"),
+#|     re.compile(
+#|         r"(?i)(execute|run|download|upload|send|contact|use) "
+#|         r"(this|the|these) (command|script|token|secret|credential|prompt)"
+#|     ),
+#|     re.compile(r"(?i)\b(jailbreak|bypass safeguard|extract weights|steal model|poison model|poison dataset)\b"),
+#| ]
+#| 
+#| SENSITIVE_ATTRIBUTE_TOKENS = (
+#|     "private_key",
+#|     "api_key",
+#|     "apikey",
+#|     "password",
+#|     "passwd",
+#|     "secret",
+#|     "token",
+#|     "credential",
+#|     "personal_email",
+#|     "home_address",
+#|     "ssn",
+#|     "passport",
+#|     "biometric",
+#|     "private_training_data",
+#|     "confidential_prompt",
+#| )
+#| 
+#| OFFICIAL_LINEAGE_SOURCES = {
+#|     "official_model_card",
+#|     "official_system_card",
+#|     "technical_report",
+#|     "release_notes",
+#|     "peer_reviewed_paper",
+#| }
+#| 
+#| SUPPORTED_LINEAGE_SOURCES = {
+#|     "provider_docs",
+#|     "api_docs",
+#|     "model_repository",
+#|     "package_registry",
+#|     "authorized_internal_inventory",
+#|     "sbom",
+#| }
+#| 
+#| PROBABLE_LINEAGE_SOURCES = {
+#|     "community_test",
+#|     "third_party_index",
+#|     "social_post",
+#| }
+#| 
+#| INDEPENDENT_EVAL_SOURCES = {
+#|     "independent_evaluator",
+#|     "reproducible_benchmark",
+#|     "peer_reviewed_paper",
+#|     "authorized_evaluation",
+#| }
+#| 
+#| INTERNAL_EVAL_SOURCES = {
+#|     "authorized_internal_log",
+#|     "authorized_evaluation",
+#| }
+#| 
+#| PROVIDER_CLAIM_SOURCES = {
+#|     "provider_benchmark",
+#|     "official_model_card",
+#|     "provider_docs",
+#|     "marketing_claim",
+#| }
+#| 
+#| 
+#| # ==============================================================================
+#| # HELPERS
+#| # ==============================================================================
+#| 
+#| def new_id(prefix: str) -> str:
+#|     return f"{prefix}_{uuid.uuid4().hex[:12]}"
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(p) for p in parts)
+#|     digest = hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()
+#|     return f"{prefix}_{digest[:12]}"
+#| 
+#| 
+#| def json_serial(obj: Any) -> Any:
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, Enum):
+#|         return obj.name
+#|     if hasattr(obj, "__dataclass_fields__"):
+#|         return asdict(obj)
+#|     if isinstance(obj, set):
+#|         return sorted(obj)
+#|     if isinstance(obj, tuple):
+#|         return list(obj)
+#|     return str(obj)
+#| 
+#| 
+#| def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+#|     return max(low, min(high, value))
+#| 
+#| 
+#| def enum_from_name(enum_cls: Any, name: Any, default: Any) -> Any:
+#|     if isinstance(name, enum_cls):
+#|         return name
+#|     try:
+#|         return enum_cls[str(name).upper()]
+#|     except Exception:
+#|         return default
+#| 
+#| 
+#| def parse_dt(value: Any) -> Optional[datetime]:
+#|     if value is None:
+#|         return None
+#| 
+#|     if isinstance(value, datetime):
+#|         if value.tzinfo is None:
+#|             return value.replace(tzinfo=timezone.utc)
+#|         return value.astimezone(timezone.utc)
+#| 
+#|     text = str(value).strip()
+#|     if not text:
+#|         return None
+#| 
+#|     text = text.replace("Z", "+00:00")
+#| 
+#|     try:
+#|         dt = datetime.fromisoformat(text)
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt.astimezone(timezone.utc)
+#|     except ValueError:
+#|         pass
+#| 
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S.%f%z",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d %H:%M",
+#|         "%Y-%m-%d",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(text, fmt)
+#|             if dt.tzinfo is None:
+#|                 dt = dt.replace(tzinfo=timezone.utc)
+#|             return dt.astimezone(timezone.utc)
+#|         except ValueError:
+#|             continue
+#| 
+#|     return None
+#| 
+#| 
+#| def to_int(value: Any) -> Optional[int]:
+#|     if value is None:
+#|         return None
+#|     try:
+#|         return int(value)
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def to_float(value: Any) -> Optional[float]:
+#|     if value is None:
+#|         return None
+#|     try:
+#|         return float(value)
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def normalize_identifier(value: Any) -> str:
+#|     return re.sub(r"\s+", " ", str(value or "").strip().lower())
+#| 
+#| 
+#| def process_text(text: Optional[str]) -> Tuple[Optional[str], List[str]]:
+#|     if text is None:
+#|         return None, []
+#| 
+#|     s = str(text)
+#|     flags: List[str] = []
+#| 
+#|     for _, rx in SECRET_REGEXES:
+#|         if rx.search(s):
+#|             s = rx.sub("[REDACTED_SECRET]", s)
+#|             flags.append("SECRET_REDACTED")
+#| 
+#|     for rx in UNTRUSTED_INSTRUCTION_REGEXES:
+#|         if rx.search(s):
+#|             s = rx.sub("[UNTRUSTED_INSTRUCTION_REDACTED]", s)
+#|             flags.append("UNTRUSTED_INSTRUCTION_REDACTED")
+#| 
+#|     return s, sorted(set(flags))
+#| 
+#| 
+#| def sanitize_mapping(
+#|     mapping: Dict[str, Any],
+#|     context: str = "attributes",
+#| ) -> Tuple[Dict[str, Any], List[str]]:
+#|     out: Dict[str, Any] = {}
+#|     flags: List[str] = []
+#| 
+#|     for key, value in (mapping or {}).items():
+#|         lk = str(key).lower()
+#| 
+#|         if any(token in lk for token in SENSITIVE_ATTRIBUTE_TOKENS):
+#|             out[key] = "[REDACTED_SENSITIVE_ATTRIBUTE]"
+#|             flags.append(f"SENSITIVE_ATTRIBUTE_REDACTED:{context}.{key}")
+#|             continue
+#| 
+#|         if isinstance(value, str):
+#|             red, f = process_text(value)
+#|             out[key] = red
+#|             flags.extend(f)
+#|         elif isinstance(value, dict):
+#|             sub, f = sanitize_mapping(value, f"{context}.{key}")
+#|             out[key] = sub
+#|             flags.extend(f)
+#|         elif isinstance(value, list):
+#|             lst: List[Any] = []
+#|             for idx, item in enumerate(value):
+#|                 if isinstance(item, str):
+#|                     red, f = process_text(item)
+#|                     lst.append(red)
+#|                     flags.extend(f)
+#|                 elif isinstance(item, dict):
+#|                     sub, f = sanitize_mapping(item, f"{context}.{key}[{idx}]")
+#|                     lst.append(sub)
+#|                     flags.extend(f)
+#|                 else:
+#|                     lst.append(item)
+#|             out[key] = lst
+#|         elif isinstance(value, set):
+#|             out[key] = sorted(value)
+#|         elif isinstance(value, tuple):
+#|             out[key] = list(value)
+#|         else:
+#|             out[key] = value
+#| 
+#|     return out, sorted(set(flags))
+#| 
+#| 
+#| def split_attributes(
+#|     item: Dict[str, Any],
+#|     extra_meta: Optional[Set[str]] = None,
+#| ) -> Tuple[Dict[str, Any], List[str]]:
+#|     exclude = META_KEYS | set(extra_meta or set()) | {"attributes"}
+#|     extra, flags1 = sanitize_mapping(
+#|         {k: v for k, v in item.items() if k not in exclude},
+#|         "extra_attributes",
+#|     )
+#|     provided, flags2 = sanitize_mapping(
+#|         item.get("attributes", {}) or {},
+#|         "attributes",
+#|     )
+#|     return {**extra, **provided}, sorted(set(flags1 + flags2))
+#| 
+#| 
+#| def make_evidence(
+#|     item: Dict[str, Any],
+#|     case_id: str,
+#|     kind: str,
+#|     now: datetime,
+#|     default_source_type: str = "unknown",
+#| ) -> EvidenceRef:
+#|     source_type = str(item.get("source_type") or default_source_type)
+#|     reliability = float(item.get("reliability", SOURCE_RELIABILITY.get(source_type, 0.20)))
+#| 
+#|     observed_at = parse_dt(
+#|         item.get("observed_at")
+#|         or item.get("date")
+#|         or item.get("released_at")
+#|         or item.get("release_date")
+#|         or item.get("published_at")
+#|         or item.get("disclosure_date")
+#|         or item.get("effective_date")
+#|         or item.get("effective_at")
+#|         or item.get("announced_at")
+#|         or item.get("created_at")
+#|         or item.get("first_seen")
+#|         or item.get("last_seen")
+#|     )
+#| 
+#|     limitations: List[str] = list(item.get("limitations", []) or [])
+#| 
+#|     if observed_at is None:
+#|         limitations.append("OBSERVATION_TIME_UNRESOLVED")
+#| 
+#|     if source_type in {"marketing_claim", "social_post", "anonymous_claim", "unknown"}:
+#|         limitations.append("LOWER_SOURCE_AUTHORITY")
+#| 
+#|     ev = EvidenceRef(
+#|         evidence_id=new_id("EVID"),
+#|         case_id=case_id,
+#|         source_id=str(item.get("source_id") or "UNKNOWN_SOURCE"),
+#|         upstream_source_id=str(item.get("upstream_source_id") or item.get("source_id") or "UNKNOWN_UPSTREAM"),
+#|         source_type=source_type,
+#|         kind=kind,
+#|         observed_at=observed_at,
+#|         reliability=clamp(reliability),
+#|         limitations=sorted(set(limitations)),
+#|     )
+#| 
+#|     item.setdefault("evidence_ids", [])
+#|     item["evidence_ids"].append(ev.evidence_id)
+#| 
+#|     item.setdefault("confidence", ev.reliability)
+#|     item.setdefault("limitations", [])
+#|     item["limitations"] = sorted(set(list(item["limitations"]) + ev.limitations))
+#| 
+#|     return ev
+#| 
+#| 
+#| def default_entity_limitations(entity_type: str) -> List[str]:
+#|     t = entity_type.upper()
+#|     base: List[str] = []
+#| 
+#|     if t == "API":
+#|         base.append("API alias may be mutable and may route to different snapshots or regional variants.")
+#|     elif t == "PRODUCT":
+#|         base.append("Product capability may include retrieval, tools, guardrails, UI, and workflow logic beyond the model.")
+#|     elif t == "APPLICATION":
+#|         base.append("Application behavior depends on prompts, tools, data access, and orchestration.")
+#|     elif t == "DEPLOYMENT":
+#|         base.append("Deployment behavior may differ from base model due to quantization, system prompt, RAG, tools, and policy.")
+#|     elif t == "AGENT":
+#|         base.append("Agent capability derives from model, tools, permissions, memory, orchestrator, and environment.")
+#|     elif t == "DATASET":
+#|         base.append("Dataset provenance, filtering, deduplication, and training use may be partially disclosed.")
+#|     elif t == "BENCHMARK":
+#|         base.append("Benchmark scores are protocol, version, prompting, tool, sampling, evaluator, and date specific.")
+#|     elif t == "LICENSE":
+#|         base.append("License text requires legal interpretation for consequential deployment or redistribution.")
+#|     elif t == "GUARDRAIL":
+#|         base.append("Guardrail presence does not prove effectiveness without evaluation evidence.")
+#|     elif t == "MONITORING":
+#|         base.append("Observability coverage may be partial and version-specific.")
+#| 
+#|     return base
+#| 
+#| 
+#| # ==============================================================================
+#| # PARSERS
+#| # ==============================================================================
+#| 
+#| def parse_entities(
+#|     items: List[Dict[str, Any]],
+#|     entity_type: str,
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#|     default_source_type: str = "provider_docs",
+#| ) -> List[Entity]:
+#|     out: List[Entity] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, entity_type.lower(), now, default_source_type)
+#|         evidences.append(ev)
+#| 
+#|         entity_id = str(
+#|             item.get("entity_id")
+#|             or item.get("id")
+#|             or stable_id(entity_type, item.get("name") or new_id("ENT"))
+#|         )
+#| 
+#|         attributes, flags = split_attributes(item)
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + default_entity_limitations(entity_type)
+#|                 + flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             Entity(
+#|                 entity_id=entity_id,
+#|                 entity_type=entity_type.upper(),
+#|                 name=item.get("name"),
+#|                 aliases=[str(x) for x in item.get("aliases", []) or []],
+#|                 attributes=attributes,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 privacy_flags=flags,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_relationships(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[Relationship]:
+#|     out: List[Relationship] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "relationship", now, "provider_docs")
+#|         evidences.append(ev)
+#| 
+#|         attributes, _ = split_attributes(item, REL_FIELD_KEYS)
+#| 
+#|         out.append(
+#|             Relationship(
+#|                 relationship_id=str(
+#|                     item.get("relationship_id")
+#|                     or stable_id("REL", item.get("source_id"), item.get("target_id"), item.get("relation"))
+#|                 ),
+#|                 source_id=str(item.get("source_id") or ""),
+#|                 target_id=str(item.get("target_id") or ""),
+#|                 relation=str(item.get("relation") or "RELATED_TO").upper(),
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 valid_from=parse_dt(item.get("valid_from")),
+#|                 valid_to=parse_dt(item.get("valid_to")),
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_models(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ModelObject]:
+#|     out: List[ModelObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "model", now, "official_model_card")
+#|         evidences.append(ev)
+#| 
+#|         capability_claims: List[Dict[str, Any]] = []
+#|         claim_flags: List[str] = []
+#| 
+#|         for claim in item.get("capability_claims", []) or []:
+#|             if isinstance(claim, str):
+#|                 red, f = process_text(claim)
+#|                 claim_flags.extend(f)
+#|                 capability_claims.append(
+#|                     {
+#|                         "claim": red,
+#|                         "claim_type": CapabilityClaimType.PROVIDER_CLAIMED.name,
+#|                         "evidence_ids": [ev.evidence_id],
+#|                     }
+#|                 )
+#|             elif isinstance(claim, dict):
+#|                 sanitized, f = sanitize_mapping(claim, "model.capability_claim")
+#|                 claim_flags.extend(f)
+#|                 sanitized.setdefault("claim_type", CapabilityClaimType.PROVIDER_CLAIMED.name)
+#|                 sanitized.setdefault("evidence_ids", [ev.evidence_id])
+#|                 capability_claims.append(sanitized)
+#| 
+#|         safety_context, safety_flags = sanitize_mapping(item.get("safety_context", {}) or {}, "model.safety_context")
+#|         attributes, attr_flags = split_attributes(item, MODEL_FIELD_KEYS)
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Model metadata may be provider-claimed and not independently verified.",
+#|                     "Open weights does not automatically mean open source.",
+#|                     "Parameter count is not a capability score.",
+#|                     "Maximum context window is not equivalent to effective reasoning quality across full context.",
+#|                     "Model card is not independent verification.",
+#|                 ]
+#|                 + claim_flags
+#|                 + safety_flags
+#|                 + attr_flags
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             ModelObject(
+#|                 model_id=str(item.get("model_id") or stable_id("MODEL", item.get("canonical_name") or item.get("name"))),
+#|                 canonical_name=item.get("canonical_name") or item.get("name"),
+#|                 family_id=item.get("family_id"),
+#|                 developer_id=item.get("developer_id"),
+#|                 provider_ids=[str(x) for x in item.get("provider_ids", []) or []],
+#|                 model_type=enum_from_name(ModelType, item.get("model_type"), ModelType.UNKNOWN),
+#|                 access_type=enum_from_name(AccessType, item.get("access_type"), AccessType.UNKNOWN),
+#|                 architecture_claim=item.get("architecture_claim"),
+#|                 parameter_count=to_int(item.get("parameter_count")),
+#|                 active_parameter_count=to_int(item.get("active_parameter_count")),
+#|                 modality=[str(x) for x in item.get("modality", []) or []],
+#|                 context_window=to_int(item.get("context_window")),
+#|                 max_output_tokens=to_int(item.get("max_output_tokens")),
+#|                 tokenizer=item.get("tokenizer"),
+#|                 release_date=parse_dt(item.get("release_date")),
+#|                 knowledge_cutoff_claim=item.get("knowledge_cutoff_claim"),
+#|                 license_id=item.get("license_id"),
+#|                 policy_ids=[str(x) for x in item.get("policy_ids", []) or []],
+#|                 repository=item.get("repository"),
+#|                 model_card=item.get("model_card"),
+#|                 system_card=item.get("system_card"),
+#|                 base_model_id=item.get("base_model_id"),
+#|                 fine_tuned_from=item.get("fine_tuned_from"),
+#|                 distilled_from=item.get("distilled_from"),
+#|                 quantized_from=item.get("quantized_from"),
+#|                 adapter_ids=[str(x) for x in item.get("adapter_ids", []) or []],
+#|                 aliases=[str(x) for x in item.get("aliases", []) or []],
+#|                 capability_claims=capability_claims,
+#|                 evaluation_result_ids=[str(x) for x in item.get("evaluation_result_ids", []) or []],
+#|                 safety_context=safety_context,
+#|                 availability=enum_from_name(ModelAvailability, item.get("availability"), ModelAvailability.UNKNOWN),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|                 attributes=attributes,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_benchmark_results(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[BenchmarkResult]:
+#|     out: List[BenchmarkResult] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "benchmark_result", now, "provider_benchmark")
+#|         evidences.append(ev)
+#| 
+#|         tools = item.get("tools")
+#|         tools_list: Optional[List[str]] = None
+#|         if tools is not None:
+#|             tools_list = [str(x) for x in tools or []]
+#| 
+#|         protocol_fields = [
+#|             item.get("benchmark_id"),
+#|             item.get("benchmark_version"),
+#|             item.get("metric"),
+#|             item.get("prompting"),
+#|             item.get("shots"),
+#|             tools,
+#|             item.get("sampling"),
+#|             item.get("evaluator"),
+#|             item.get("date") or item.get("published_at"),
+#|         ]
+#| 
+#|         protocol_complete = all(x is not None for x in protocol_fields)
+#| 
+#|         limitations = sorted(
+#|             set(
+#|                 list(item.get("limitations", []) or [])
+#|                 + [
+#|                     "Benchmark score is not real-world performance proof.",
+#|                     "Scores are comparable only under normalized protocol, version, prompting, tools, sampling, evaluator, and date context.",
+#|                     "Provider-reported benchmark is not independent evaluation.",
+#|                 ]
+#|             )
+#|         )
+#| 
+#|         out.append(
+#|             BenchmarkResult(
+#|                 result_id=str(
+#|                     item.get("result_id")
+#|                     or stable_id("BMRES", item.get("model_id"), item.get("benchmark_id"), item.get("score"), ev.source_id)
+#|                 ),
+#|                 model_id=item.get("model_id"),
+#|                 model_version=item.get("model_version"),
+#|                 benchmark_id=item.get("benchmark_id"),
+#|                 benchmark_version=item.get("benchmark_version"),
+#|                 score=to_float(item.get("score")),
+#|                 metric=item.get("metric"),
+#|                 prompting=item.get("prompting"),
+#|                 shots=to_int(item.get("shots")),
+#|                 tools=tools_list,
+#|                 sampling=item.get("sampling"),
+#|                 evaluator=item.get("evaluator"),
+#|                 source_type=str(item.get("source_type") or ev.source_type),
+#|                 independence_group=str(item.get("independence_group") or ev.upstream_source_id),
+#|                 date=parse_dt(item.get("date") or item.get("published_at")),
+#|                 protocol_complete=protocol_complete,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=limitations,
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_security_findings(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],

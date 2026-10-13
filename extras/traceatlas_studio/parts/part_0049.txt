@@ -1,0 +1,1000 @@
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+#|     redacted_raw, _ = redact_secrets(raw)
+#|     fp = content_fingerprint(redacted_raw)
+#|     data = json.loads(raw)
+#|     kind = classify_json_payload(data, path.name)
+#| 
+#|     add_source(
+#|         parsed,
+#|         source_id,
+#|         evidence_id,
+#|         filename=path.name,
+#|         file_hash=sha256_file(path),
+#|         source_type=kind,
+#|         content_fp=fp,
+#|     )
+#| 
+#|     walk_json(data, source_id, evidence_id, parsed)
+#|     return kind, parsed
+#| 
+#| 
+#| def process_csv_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+#|     parsed = empty_parsed()
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:30_000_000]
+#|     redacted_raw, _ = redact_secrets(raw)
+#|     fp = content_fingerprint(redacted_raw)
+#|     kind = "CSV_BREACH_DATA"
+#| 
+#|     add_source(
+#|         parsed,
+#|         source_id,
+#|         evidence_id,
+#|         filename=path.name,
+#|         file_hash=sha256_file(path),
+#|         source_type=kind,
+#|         content_fp=fp,
+#|     )
+#| 
+#|     with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
+#|         sample = f.read(1_000_000)
+#|         f.seek(0)
+#|         try:
+#|             dialect = csv.Sniffer().sniff(sample, delimiters=",;\t| ")
+#|         except csv.Error:
+#|             dialect = csv.excel
+#| 
+#|         reader = csv.DictReader(f, dialect=dialect)
+#|         for idx, row in enumerate(reader):
+#|             if idx >= 200000:
+#|                 break
+#|             process_json_record(row, source_id, evidence_id, parsed, context=f"csv_row_{idx}")
+#| 
+#|     return kind, parsed
+#| 
+#| 
+#| def process_text_file(path: Path, source_id: str, evidence_id: str) -> Tuple[str, Dict[str, Any]]:
+#|     parsed = empty_parsed()
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:10_000_000]
+#|     redacted_raw, _ = redact_secrets(raw)
+#|     fp = content_fingerprint(redacted_raw)
+#| 
+#|     low = redacted_raw.lower()[:20000]
+#|     if any(k in low for k in BREACH_KEYWORDS):
+#|         kind = "TEXT_BREACH_CLAIM"
+#|     elif any(k in low for k in DATASET_KEYWORDS):
+#|         kind = "TEXT_DATASET_METADATA"
+#|     elif any(k in low for k in CREDENTIAL_KEYWORDS):
+#|         kind = "TEXT_CREDENTIAL_EXPOSURE"
+#|     elif any(k in low for k in RANSOMWARE_KEYWORDS):
+#|         kind = "TEXT_RANSOMWARE_CLAIM"
+#|     elif any(k in low for k in COMBO_KEYWORDS):
+#|         kind = "TEXT_COMBO_LIST_METADATA"
+#|     elif any(k in low for k in STEALER_KEYWORDS):
+#|         kind = "TEXT_STEALER_LOG_METADATA"
+#|     else:
+#|         kind = "TEXT_BREACH_REPORT"
+#| 
+#|     add_source(
+#|         parsed,
+#|         source_id,
+#|         evidence_id,
+#|         filename=path.name,
+#|         file_hash=sha256_file(path),
+#|         source_type=kind,
+#|         content_fp=fp,
+#|     )
+#| 
+#|     for line_no, line in enumerate(raw.splitlines()[:200000]):
+#|         if line.strip():
+#|             process_text_block(line, source_id, evidence_id, parsed, context=f"text_line_{line_no}")
+#| 
+#|     return kind, parsed
+#| 
+#| 
+#| def detect_format(path: Path) -> Dict[str, str]:
+#|     suffix = path.suffix.lower()
+#| 
+#|     try:
+#|         with path.open("rb") as f:
+#|             head = f.read(256)
+#|     except Exception as exc:
+#|         return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream", "format_error": str(exc)}
+#| 
+#|     binary_suffixes = {
+#|         ".exe", ".dll", ".sys", ".elf", ".so", ".dylib", ".bin", ".fw", ".img",
+#|         ".iso", ".apk", ".jar", ".class", ".zip", ".gz", ".tar", ".7z", ".rar",
+#|         ".pcap", ".pcapng", ".cap", ".msi", ".cab",
+#|     }
+#| 
+#|     if suffix in binary_suffixes:
+#|         return {"format_detected": "BINARY_ARTIFACT", "mime_type": "application/octet-stream"}
+#| 
+#|     stripped = head.lstrip()
+#| 
+#|     if suffix == ".json" or stripped.startswith(b"{") or stripped.startswith(b"["):
+#|         return {"format_detected": "JSON", "mime_type": "application/json"}
+#| 
+#|     if suffix in {".csv", ".tsv"}:
+#|         return {"format_detected": "CSV", "mime_type": "text/csv"}
+#| 
+#|     if b"," in head and b"\n" in head and all(b in b"\x09\x0a\x0d\x20" or 32 <= b <= 126 for b in head[:64]):
+#|         return {"format_detected": "CSV", "mime_type": "text/csv"}
+#| 
+#|     if suffix in {".txt", ".log", ".md", ".yaml", ".yml", ".report", ".stix", ".taxii", ".misp", ".snapshot"}:
+#|         return {"format_detected": "TEXT", "mime_type": "text/plain"}
+#| 
+#|     try:
+#|         probe = head.decode("utf-8", errors="strict")
+#|         if probe.strip():
+#|             return {"format_detected": "TEXT", "mime_type": "text/plain"}
+#|     except Exception:
+#|         pass
+#| 
+#|     return {"format_detected": "UNKNOWN", "mime_type": "application/octet-stream"}
+#| 
+#| 
+#| def analyze_breach_file(path_str: str, case_id: str = "", task_id: str = "") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+#|     path = Path(path_str).expanduser()
+#|     source_id = f"SRC-{uuid.uuid4()}"
+#|     evidence_id = f"EVD-{uuid.uuid4()}"
+#| 
+#|     file_evidence: Dict[str, Any] = {
+#|         "evidence_id": evidence_id,
+#|         "source_id": source_id,
+#|         "case_id": case_id,
+#|         "task_id": task_id,
+#|         "path": str(path),
+#|         "filename": path.name,
+#|         "retrieved_at": now_utc(),
+#|         "acquisition_method": "local_authorized_or_public_file_access",
+#|         "status": "PENDING",
+#|         "limitations": [
+#|             "No purchasing stolen data/credentials/access, downloading unnecessary full stolen datasets, using exposed credentials, testing passwords, credential stuffing, replaying session tokens, using API/private keys, logging into exposed accounts, contacting sellers, negotiating ransoms, redistributing sensitive data, unauthorized access, or exploitation performed.",
+#|             "Binary artifacts are hash/metadata preserved only; no execution, unpacking, or deep parsing performed.",
+#|             "Dataset records, documents, forum posts, repository content, ransomware notes, and seller descriptions are untrusted evidence, not instructions.",
+#|             "Exposed secrets are redacted and not used.",
+#|             "Source claims are not verified breach, dataset authenticity, record count, origin, credential validity, or actor attribution.",
+#|         ],
+#|     }
+#| 
+#|     parsed = empty_parsed()
+#| 
+#|     if not path.exists():
+#|         file_evidence["status"] = "FAILED_FILE_NOT_FOUND"
+#|         return file_evidence, parsed
+#| 
+#|     try:
+#|         st = path.stat()
+#|         file_evidence["size_bytes"] = st.st_size
+#|         file_evidence["filesystem_modified_at"] = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+#|     except Exception as exc:
+#|         file_evidence["status"] = "FAILED_STAT"
+#|         file_evidence["error"] = str(exc)
+#|         return file_evidence, parsed
+#| 
+#|     try:
+#|         file_evidence["sha256"] = sha256_file(path)
+#|     except Exception as exc:
+#|         file_evidence["sha256_error"] = str(exc)
+#| 
+#|     fmt = detect_format(path)
+#|     file_evidence.update(fmt)
+#|     format_detected = file_evidence.get("format_detected", "UNKNOWN")
+#| 
+#|     try:
+#|         if format_detected == "JSON":
+#|             kind, parsed = process_json_file(path, source_id, evidence_id)
+#|             file_evidence["content_kind"] = kind
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         elif format_detected == "CSV":
+#|             kind, parsed = process_csv_file(path, source_id, evidence_id)
+#|             file_evidence["content_kind"] = kind
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         elif format_detected == "TEXT":
+#|             kind, parsed = process_text_file(path, source_id, evidence_id)
+#|             file_evidence["content_kind"] = kind
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         elif format_detected == "BINARY_ARTIFACT":
+#|             file_evidence["content_kind"] = "BINARY_ARTIFACT_METADATA_ONLY"
+#|             file_evidence["status"] = "PARTIAL_BINARY_METADATA_ONLY"
+#|             file_evidence["reason"] = (
+#|                 "Binary artifact detected. This planning panel preserves hash/metadata only. "
+#|                 "It does not execute, unpack, modify, reverse-engineer, fuzz, replay PCAPs, or deeply parse binary artifacts."
+#|             )
+#|         else:
+#|             file_evidence["content_kind"] = "UNKNOWN_OR_UNSUPPORTED"
+#|             file_evidence["status"] = "UNSUPPORTED_FORMAT"
+#|     except Exception as exc:
+#|         file_evidence["status"] = "PARTIAL_OR_FAILED"
+#|         file_evidence["error"] = f"{exc.__class__.__name__}: {exc}"
+#| 
+#|     file_evidence["parsed_claim_count"] = len(parsed.get("claims", []))
+#|     file_evidence["parsed_dataset_count"] = len(parsed.get("datasets", []))
+#|     file_evidence["parsed_credential_count"] = len(parsed.get("credential_exposures", []))
+#|     file_evidence["parsed_ransomware_count"] = len(parsed.get("ransomware_claims", []))
+#|     file_evidence["parsed_record_count_candidates"] = len(parsed.get("record_counts", []))
+#| 
+#|     return file_evidence, parsed
+#| 
+#| 
+#| def aggregate_parsed(parsed_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     agg = empty_parsed()
+#|     for p in parsed_list:
+#|         for key in agg.keys():
+#|             if isinstance(agg[key], list) and isinstance(p.get(key), list):
+#|                 agg[key].extend(p[key])
+#|         for key in agg.keys():
+#|             if isinstance(agg[key], list):
+#|                 agg[key] = unique_preserve_order(agg[key])[:200000]
+#|     return agg
+#| 
+#| 
+#| def build_source_independence(parsed: Dict[str, Any]) -> None:
+#|     sources = parsed.get("sources", [])
+#|     hash_groups: Dict[str, List[str]] = defaultdict(list)
+#|     fp_groups: Dict[str, List[str]] = defaultdict(list)
+#|     publisher_groups: Dict[str, List[str]] = defaultdict(list)
+#| 
+#|     for s in sources:
+#|         sid = s.get("source_id")
+#|         fh = s.get("file_hash")
+#|         fp = s.get("content_fingerprint")
+#|         pub = normalize_text(s.get("publisher") or "")
+#|         if fh:
+#|             hash_groups[fh].append(sid)
+#|         if fp:
+#|             fp_groups[fp].append(sid)
+#|         if pub:
+#|             publisher_groups[pub].append(sid)
+#| 
+#|     for s in sources:
+#|         fh = s.get("file_hash")
+#|         fp = s.get("content_fingerprint")
+#|         pub = normalize_text(s.get("publisher") or "")
+#| 
+#|         if fh and len(hash_groups.get(fh, [])) > 1:
+#|             s["source_independence_state"] = "DEPENDENT_COPIES"
+#|             s["source_family_count"] = 1
+#|         elif fp and len(fp_groups.get(fp, [])) > 1:
+#|             s["source_independence_state"] = "DEPENDENT_CONTENT_FAMILY"
+#|             s["source_family_count"] = 1
+#|         elif pub and len(publisher_groups.get(pub, [])) > 1:
+#|             s["source_independence_state"] = "PARTIALLY_DEPENDENT_PENDING_REVIEW"
+#|             s["source_family_count"] = 1
+#|         elif len(sources) > 1:
+#|             s["source_independence_state"] = "UNKNOWN_POTENTIALLY_INDEPENDENT"
+#|             s["source_family_count"] = len(sources)
+#|         else:
+#|             s["source_independence_state"] = "SINGLE_SOURCE"
+#|             s["source_family_count"] = 1
+#| 
+#| 
+#| def build_contradictions(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     contradictions = []
+#| 
+#|     rc_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for rc in parsed.get("record_counts", []):
+#|         subject = normalize_text(rc.get("subject") or "UNKNOWN_SUBJECT")
+#|         rc_groups[subject].append(rc)
+#| 
+#|     for subject, group in rc_groups.items():
+#|         values = sorted({str(x.get("value")) for x in group if x.get("value") is not None})
+#|         if len(values) > 1:
+#|             contradictions.append({
+#|                 "contradiction_id": f"CON-{uuid.uuid4()}",
+#|                 "type": "RECORD_COUNT_CONFLICT",
+#|                 "subject": subject[:300],
+#|                 "values": values[:100],
+#|                 "possible_explanations": [
+#|                     "different datasets",
+#|                     "partial copies",
+#|                     "marketing exaggeration",
+#|                     "old vs new breach",
+#|                     "third-party breach",
+#|                     "reseller/recycled data",
+#|                     "duplicate records",
+#|                     "analyst/source error",
+#|                 ],
+#|                 "resolution_status": "UNRESOLVED",
+#|                 "caution": "Claimed record counts are source claims, not verified counts.",
+#|             })
+#| 
+#|     claim_groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for c in parsed.get("claims", []):
+#|         subject = normalize_text(c.get("subject") or c.get("organization") or c.get("domain") or "UNKNOWN_SUBJECT")
+#|         claim_groups[subject].append(c)
+#| 
+#|     for subject, group in claim_groups.items():
+#|         origins = sorted({c.get("origin") for c in group if c.get("origin") and c.get("origin") != "UNKNOWN"})
+#|         if len(origins) > 1:
+#|             contradictions.append({
+#|                 "contradiction_id": f"CON-{uuid.uuid4()}",
+#|                 "type": "ORIGIN_CONFLICT",
+#|                 "subject": subject[:300],
+#|                 "values": origins[:100],
+#|                 "possible_explanations": [
+#|                     "first-party vs third-party uncertainty",
+#|                     "supplier breach",
+#|                     "combo list/stealer log aggregation",
+#|                     "public/scraped data repackaging",
+#|                     "recycled dataset",
+#|                     "source simplification",
+#|                 ],
+#|                 "resolution_status": "UNRESOLVED",
+#|                 "caution": "Do not force single origin without evidence.",
+#|             })
+#| 
+#|         freshness_values = sorted({c.get("freshness") for c in group if c.get("freshness") and c.get("freshness") != "UNKNOWN"})
+#|         if len(freshness_values) > 1:
+#|             contradictions.append({
+#|                 "contradiction_id": f"CON-{uuid.uuid4()}",
+#|                 "type": "FRESHNESS_CONFLICT",
+#|                 "subject": subject[:300],
+#|                 "values": freshness_values[:100],
+#|                 "possible_explanations": [
+#|                     "mixed dataset",
+#|                     "old + new records",
+#|                     "recycled data",
+#|                     "source lag",
+#|                     "different publication times",
+#|                 ],
+#|                 "resolution_status": "UNRESOLVED",
+#|                 "caution": "Data authenticity and data freshness are separate dimensions.",
+#|             })
+#| 
+#|     contradictions, _ = truncate_list(contradictions, 5000)
+#|     return contradictions
+#| 
+#| 
+#| def build_hypotheses(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     hyps = []
+#|     claims = parsed.get("claims", [])
+#|     datasets = parsed.get("datasets", [])
+#|     creds = parsed.get("credential_exposures", [])
+#|     ransom = parsed.get("ransomware_claims", [])
+#|     sources = parsed.get("sources", [])
+#|     claim_types = {c.get("claim_type") for c in claims}
+#| 
+#|     if not claims and not datasets and not creds and not ransom:
+#|         hyps.append({
+#|             "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|             "statement": "Current local deterministic evidence is insufficient to assess breach authenticity, dataset origin, record count, credential exposure, or defensive impact.",
+#|             "supporting_facts": ["No breach/dataset/credential/ransomware claims parsed."],
+#|             "opposing_facts": [],
+#|             "assumptions": ["Evidence may be missing, unsupported, binary-only, or unavailable."],
+#|             "unknowns": ["breach authenticity", "dataset origin", "record count", "data freshness", "credential validity", "source independence"],
+#|             "falsification_conditions": ["New authorized/public/licensed breach, dataset, credential, incident, or exposure evidence changes assessment."],
+#|             "next_test": "Attach breach claim exports, dataset metadata, credential exposure metadata, ransomware leak metadata, historical breach records, or authorized incident data.",
+#|             "status": "OPEN",
+#|         })
+#|         return hyps[:1000]
+#| 
+#|     if "BREACH_CLAIM" in claim_types or any(c.get("claim_type") == "BREACH_CLAIM" for c in claims):
+#|         hyps.extend([
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Claim may represent a new first-party breach of the named organization/domain.",
+#|                 "supporting_facts": ["Breach claim parsed."],
+#|                 "opposing_facts": ["Email-domain presence alone does not establish first-party breach."],
+#|                 "unknowns": ["dataset origin", "breach authenticity", "current relevance", "incident evidence"],
+#|                 "falsification_conditions": ["Data is third-party, supplier, recycled, combo list, stealer log, public/scraped, or fraudulent."],
+#|                 "next_test": "Correlate authorized incident/identity/cloud/DLP telemetry; compare historical breaches; do not acquire full stolen dataset.",
+#|                 "status": "OPEN",
+#|             },
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Exposure may originate from third party, supplier, SaaS, CRM, payroll, marketing, or processor rather than customer infrastructure.",
+#|                 "supporting_facts": ["Third-party/supplier keywords or ambiguous origin parsed." if any(k in claim_types for k in ["THIRD_PARTY_CANDIDATE", "SUPPLY_CHAIN_CANDIDATE"]) else "Origin remains unresolved."],
+#|                 "opposing_facts": ["Some records may be directly associated with organization domain."],
+#|                 "unknowns": ["supplier relationship", "data holder", "breach origin"],
+#|                 "falsification_conditions": ["Independent incident evidence shows first-party system compromise."],
+#|                 "next_test": "Review vendor/supplier relationships and third-party breach context.",
+#|                 "status": "OPEN",
+#|             },
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Dataset may be recycled, repackaged, combo list, stealer log, or aggregated historical data rather than a new breach.",
+#|                 "supporting_facts": ["Recycled/combo/stealer/public keywords parsed." if any(k in claim_types for k in ["RECYCLED_CANDIDATE", "COMBO_LIST", "STEALER_LOG", "PUBLIC_DATA_CANDIDATE", "SCRAPED_DATA_CANDIDATE"]) else "No explicit recycling signal parsed, but origin remains uncertain."],
+#|                 "opposing_facts": ["Some timestamps or source metadata may suggest recent activity."],
+#|                 "unknowns": ["dataset lineage", "record overlap", "freshness"],
+#|                 "falsification_conditions": ["Fingerprint/lineage analysis shows unique new records and independent incident corroboration."],
+#|                 "next_test": "Compare historical breach corpus and dataset fingerprints.",
+#|                 "status": "OPEN",
+#|             },
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Claim may be fraudulent, exaggerated, or marketing-driven.",
+#|                 "supporting_facts": ["Seller/extortion incentives exist."],
+#|                 "opposing_facts": ["Claim may be genuine."],
+#|                 "unknowns": ["sample authenticity", "source reliability", "record count accuracy"],
+#|                 "falsification_conditions": ["Independent authorized evidence verifies dataset/access/exposure."],
+#|                 "next_test": "Adversarial review; do not contact seller, purchase data, or test credentials.",
+#|                 "status": "OPEN",
+#|             },
+#|         ])
+#| 
+#|     if creds:
+#|         hyps.extend([
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Credential/secret exposure metadata may reflect current authentication risk.",
+#|                 "supporting_facts": [f"{len(creds)} credential exposure record(s) parsed."],
+#|                 "opposing_facts": ["Validity is unknown and must not be tested."],
+#|                 "unknowns": ["credential freshness", "account status", "MFA/session context"],
+#|                 "falsification_conditions": ["Authorized identity/IAM evidence shows secrets already revoked/expired/invalid."],
+#|                 "next_test": "Handoff to EXPOSUREINT/identity workflow for rotation/revocation without testing.",
+#|                 "status": "OPEN",
+#|             },
+#|             {
+#|                 "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|                 "statement": "Credential exposure may reflect historical breach, password reuse, combo list, stealer log, or third-party service rather than current organizational compromise.",
+#|                 "supporting_facts": ["Combo/stealer/third-party/public context possible."],
+#|                 "opposing_facts": ["Some credentials may be active."],
+#|                 "unknowns": ["origin", "reuse", "current validity"],
+#|                 "falsification_conditions": ["Authorized telemetry shows no current use and identity provider confirms remediation."],
+#|                 "next_test": "Privacy-aware exposure triage; do not login/test/replay.",
+#|                 "status": "OPEN",
+#|             },
+#|         ])
+#| 
+#|     if ransom:
+#|         hyps.append({
+#|             "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|             "statement": "Ransomware victim/data-publication claim may be true but unverified, or may reflect bluff, misidentification, supplier breach, or recycled data.",
+#|             "supporting_facts": [f"{len(ransom)} ransomware claim record(s) parsed."],
+#|             "opposing_facts": ["Leak-site appearance alone is CLAIM_ONLY unless corroborated."],
+#|             "unknowns": ["victim confirmation", "data exfiltration", "group attribution"],
+#|             "falsification_conditions": ["Independent victim/incident/CTI evidence confirms or refutes claim."],
+#|             "next_test": "Handoff to INCIDENTINT/CTI/DARKINT; do not negotiate/contact/pay.",
+#|             "status": "OPEN",
+#|         })
+#| 
+#|     dependent_sources = [s for s in sources if s.get("source_independence_state") in {"DEPENDENT_COPIES", "DEPENDENT_CONTENT_FAMILY", "PARTIALLY_DEPENDENT_PENDING_REVIEW"}]
+#|     if dependent_sources:
+#|         hyps.append({
+#|             "hypothesis_id": f"HYP-{uuid.uuid4()}",
+#|             "statement": "Apparent multiple sources may be dependent copies, aggregators, mirrors, or reposts rather than independent corroboration.",
+#|             "supporting_facts": [f"{len(dependent_sources)} dependent/partially dependent source record(s)."],
+#|             "opposing_facts": ["Some sources may still be independent."],
+#|             "unknowns": ["upstream pedigree", "original reporter"],
+#|             "falsification_conditions": ["Source pedigree analysis shows truly independent observation families."],
+#|             "next_test": "Resolve original claim, first mirror, aggregators, and media/vendor republication.",
+#|             "status": "OPEN",
+#|         })
+#| 
+#|     hyps, _ = truncate_list(hyps, 1000)
+#|     return hyps
+#| 
+#| 
+#| def build_knowledge_gaps(payload: Dict[str, Any], files: List[Dict[str, Any]], parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     gaps = []
+#|     claims = parsed.get("claims", [])
+#|     datasets = parsed.get("datasets", [])
+#|     creds = parsed.get("credential_exposures", [])
+#|     sources = parsed.get("sources", [])
+#| 
+#|     if not files:
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "What authorized/public/licensed breach/exposure evidence exists?",
+#|             "missing_evidence": "No local BREACHINT evidence file supplied.",
+#|             "likely_source": "Official disclosure, regulator notification, CERT advisory, licensed breach-monitoring export, authorized credential-monitoring export, ransomware leak metadata, incident data, STIX/MISP.",
+#|             "specialist_owner": "BREACHINT AI Employee",
+#|             "priority": "HIGH",
+#|             "expected_information_value": "Enables breach claim/dataset/credential metadata planning.",
+#|             "safety_boundary": "No purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full dataset acquisition, or exploitation.",
+#|         })
+#| 
+#|     if not claims:
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "What breach/exposure claims are being asserted?",
+#|             "missing_evidence": "No claim records parsed.",
+#|             "likely_source": "Breach claim export, ransomware leak metadata, official disclosure, incident report, licensed monitoring feed.",
+#|             "specialist_owner": "BREACHINT AI Employee",
+#|             "priority": "HIGH",
+#|             "expected_information_value": "Establishes claim inventory.",
+#|             "safety_boundary": "Do not invent breaches, victims, datasets, or record counts.",
+#|         })
+#| 
+#|     if claims and not datasets:
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "What dataset metadata supports the claim?",
+#|             "missing_evidence": "Claims parsed but no dataset metadata.",
+#|             "likely_source": "Dataset schema, sample hashes, record counts, field names, timestamps, fingerprints.",
+#|             "specialist_owner": "BREACHINT / EXPOSUREINT",
+#|             "priority": "HIGH",
+#|             "expected_information_value": "Supports dataset authenticity/lineage analysis.",
+#|             "safety_boundary": "Use minimized metadata, not full stolen datasets.",
+#|         })
+#| 
+#|     if datasets and not parsed.get("dataset_fingerprints"):
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "Can dataset be deduplicated/lineage-analyzed against historical breaches?",
+#|             "missing_evidence": "No dataset fingerprints parsed.",
+#|             "likely_source": "File hashes, schema fingerprints, sample hashes, MinHash/SimHash, record overlap sketches.",
+#|             "specialist_owner": "BREACHINT",
+#|             "priority": "HIGH_IF_RECYCLING_CONSEQUENTIAL",
+#|             "expected_information_value": "Reduces false new-breach rate.",
+#|             "safety_boundary": "Do not acquire full illicit datasets merely to fingerprint.",
+#|         })
+#| 
+#|     if creds:
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "Are exposed credentials/secrets current, historical, reused, third-party, or stealer-log noise?",
+#|             "missing_evidence": "Credential exposure metadata parsed but validity/currentness unresolved.",
+#|             "likely_source": "Authorized identity/IAM logs, credential-monitoring provider, EXPOSUREINT, incident telemetry.",
+#|             "specialist_owner": "EXPOSUREINT / INCIDENTINT",
+#|             "priority": "HIGH_PRIVACY_SENSITIVE",
+#|             "expected_information_value": "Supports credential reset/token revocation/MFA review.",
+#|             "safety_boundary": "Do not test, login, replay, redeem, or use credentials/tokens.",
+#|         })
+#| 
+#|     if any(s.get("source_independence_state") in {"UNKNOWN", "UNKNOWN_POTENTIALLY_INDEPENDENT"} for s in sources) and len(sources) > 1:
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "Are multiple reports actually independent?",
+#|             "missing_evidence": "Source independence unresolved.",
+#|             "likely_source": "Original claim, first mirror, aggregator pedigree, media/vendor republication chain.",
+#|             "specialist_owner": "BREACHINT / CTI",
+#|             "priority": "HIGH",
+#|             "expected_information_value": "Prevents false corroboration from reposts.",
+#|             "safety_boundary": "Do not count republishing as corroboration.",
+#|         })
+#| 
+#|     if parsed.get("sensitive_flags"):
+#|         gaps.append({
+#|             "gap_id": f"GAP-{uuid.uuid4()}",
+#|             "question": "What privacy/legal handling is required for sensitive data categories?",
+#|             "missing_evidence": "Sensitive flags detected but legal/privacy review not executed.",
+#|             "likely_source": "Legal/compliance workflow, regulator guidance, organization policy.",
+#|             "specialist_owner": "Legal / Compliance / Privacy Officer",
+#|             "priority": "HIGH_PRIVACY_LEGAL",
+#|             "expected_information_value": "Ensures lawful, minimized, privacy-aware handling.",
+#|             "safety_boundary": "BREACHINT does not make final legal determinations or autonomously notify.",
+#|         })
+#| 
+#|     gaps, _ = truncate_list(gaps, 500)
+#|     return gaps
+#| 
+#| 
+#| def build_specialist_handoffs(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     handoffs = []
+#|     claims = parsed.get("claims", [])
+#|     creds = parsed.get("credential_exposures", [])
+#|     ransom = parsed.get("ransomware_claims", [])
+#|     datasets = parsed.get("datasets", [])
+#|     flags = parsed.get("sensitive_flags", [])
+#| 
+#|     if creds:
+#|         handoffs.append({
+#|             "specialist": "EXPOSUREINT",
+#|             "reason": "Credential/secret exposure metadata detected.",
+#|             "expected_output": "Current exposure triage, rotation/revocation recommendation, without testing credentials.",
+#|             "question": "Which exposed credentials/secrets are current, organizational, and require defensive remediation?",
+#|         })
+#| 
+#|     if claims or datasets:
+#|         handoffs.append({
+#|             "specialist": "INCIDENTINT / LOGINT",
+#|             "reason": "Breach/dataset claim detected.",
+#|             "expected_output": "Authorized telemetry correlation, root-cause investigation, and incident timeline.",
+#|             "question": "Do internal logs/EDR/identity/cloud/DLP evidence corroborate or refute the external claim?",
+#|         })
+#| 
+#|     if ransom:
+#|         handoffs.append({
+#|             "specialist": "CTI / THREATACTORINT / DARKINT",
+#|             "reason": "Ransomware/extortion claim detected.",
+#|             "expected_output": "Leak-site/source authenticity, group lineage, campaign context, and victim validation support.",
+#|             "question": "Is ransomware victim/data-publication claim independently corroborated, and what actor/campaign context applies?",
+#|         })
+#| 
+#|     if any(c.get("claim_type") in {"THIRD_PARTY_CANDIDATE", "SUPPLY_CHAIN_CANDIDATE"} for c in claims) or parsed.get("third_party_mentions") or parsed.get("supplier_mentions"):
+#|         handoffs.append({
+#|             "specialist": "Third-party risk / vendor management / EXPOSUREINT",
+#|             "reason": "Third-party/supply-chain exposure context detected.",
+#|             "expected_output": "Supplier data relationship, affected customer scope, and vendor incident validation.",
+#|             "question": "Does exposure originate from supplier/vendor/SaaS rather than customer infrastructure?",
+#|         })
+#| 
+#|     if any(c.get("claim_type") in {"SOURCE_CODE_EXPOSURE_CANDIDATE", "REPOSITORY_EXPOSURE_CANDIDATE"} for c in claims):
+#|         handoffs.append({
+#|             "specialist": "REPOINT / EXPOSUREINT",
+#|             "reason": "Source-code/repository exposure context detected.",
+#|             "expected_output": "Repository identity, secret exposure, commit/history review, and code exposure impact.",
+#|             "question": "Which repository/source-code metadata indicates exposure, and are secrets present?",
+#|         })
+#| 
+#|     if any(c.get("claim_type") == "CLOUD_EXPOSURE_CANDIDATE" for c in claims):
+#|         handoffs.append({
+#|             "specialist": "CLOUDSEC / EXPOSUREINT",
+#|             "reason": "Cloud exposure context detected.",
+#|             "expected_output": "Misconfigured storage/bucket/API exposure validation without exploitation.",
+#|             "question": "Is cloud storage/API exposure public, misconfigured, or tied to a breach event?",
+#|         })
+#| 
+#|     if any(c.get("claim_type") == "DOCUMENT_EXPOSURE_CANDIDATE" for c in claims):
+#|         handoffs.append({
+#|             "specialist": "DOCINT",
+#|             "reason": "Document exposure context detected.",
+#|             "expected_output": "Safe document metadata/category analysis with privacy minimization.",
+#|             "question": "Which document categories/metadata support exposure assessment?",
+#|         })
+#| 
+#|     if flags:
+#|         handoffs.append({
+#|             "specialist": "Legal / Compliance / Privacy Officer",
+#|             "reason": "Sensitive data flags detected.",
+#|             "expected_output": "Privacy/legal review, regulated-data handling, notification consideration.",
+#|             "question": "What legal/privacy obligations may apply, and what minimum evidence package is required?",
+#|         })
+#| 
+#|     if not handoffs:
+#|         handoffs.append({
+#|             "specialist": "BREACHINT Manager",
+#|             "reason": "No specialized handoff triggered from current local deterministic evidence alone.",
+#|             "expected_output": "Review scope, approve authorized connectors, assign breach/exposure collection tasks.",
+#|             "question": "What breach intelligence gap should be filled next?",
+#|         })
+#| 
+#|     return handoffs
+#| 
+#| 
+#| def build_breach_summary(parsed: Dict[str, Any]) -> Dict[str, Any]:
+#|     claims = parsed.get("claims", [])
+#|     datasets = parsed.get("datasets", [])
+#|     creds = parsed.get("credential_exposures", [])
+#|     ransom = parsed.get("ransomware_claims", [])
+#|     sources = parsed.get("sources", [])
+#| 
+#|     claim_type_counter = Counter(str(c.get("claim_type", "UNKNOWN")) for c in claims)
+#|     origin_counter = Counter(str(c.get("origin", "UNKNOWN")) for c in claims if c.get("origin"))
+#|     freshness_counter = Counter(str(c.get("freshness", "UNKNOWN")) for c in claims if c.get("freshness"))
+#|     category_counter = Counter()
+#|     for c in claims:
+#|         for cat in c.get("data_categories", []):
+#|             category_counter[str(cat)] += 1
+#|     for d in datasets:
+#|         for cat in d.get("data_categories", []):
+#|             category_counter[str(cat)] += 1
+#| 
+#|     sensitive_counter = Counter(str(f.get("flag", "UNKNOWN")) for f in parsed.get("sensitive_flags", []))
+#|     independence_counter = Counter(str(s.get("source_independence_state", "UNKNOWN")) for s in sources)
+#| 
+#|     return {
+#|         "source_count": len(sources),
+#|         "claim_count": len(claims),
+#|         "dataset_count": len(datasets),
+#|         "credential_exposure_count": len(creds),
+#|         "ransomware_claim_count": len(ransom),
+#|         "record_count_candidate_count": len(parsed.get("record_counts", [])),
+#|         "fingerprint_count": len(parsed.get("dataset_fingerprints", [])),
+#|         "by_claim_type": dict(claim_type_counter.most_common(500)),
+#|         "by_origin": dict(origin_counter.most_common(500)),
+#|         "by_freshness": dict(freshness_counter.most_common(500)),
+#|         "by_data_category": dict(category_counter.most_common(500)),
+#|         "by_sensitive_flag": dict(sensitive_counter.most_common(500)),
+#|         "by_source_independence": dict(independence_counter.most_common(500)),
+#|         "top_claims": claims[:300],
+#|         "top_datasets": datasets[:300],
+#|         "top_credential_exposures": creds[:300],
+#|         "top_ransomware_claims": ransom[:300],
+#|         "limitations": [
+#|             "Summary is deterministic/local and source-dependent.",
+#|             "Claims are not verified breach, dataset authenticity, record count, origin, credential validity, or actor attribution.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def finalize_parsed(parsed: Dict[str, Any], payload: Optional[Dict[str, Any]] = None, files: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+#|     build_source_independence(parsed)
+#|     parsed["contradictions"] = build_contradictions(parsed)
+#|     parsed["hypotheses"] = build_hypotheses(parsed)
+#|     parsed["knowledge_gaps"] = build_knowledge_gaps(payload or {}, files or [], parsed)
+#|     parsed["specialist_handoffs"] = build_specialist_handoffs(parsed)
+#|     parsed["breach_summary"] = build_breach_summary(parsed)
+#|     return parsed
+#| 
+#| 
+#| def build_next_best_action(
+#|     payload: Dict[str, Any],
+#|     policy: Dict[str, Any],
+#|     files: List[Dict[str, Any]],
+#|     parsed: Dict[str, Any],
+#| ) -> Dict[str, str]:
+#|     claims = parsed.get("claims", [])
+#|     creds = parsed.get("credential_exposures", [])
+#|     ransom = parsed.get("ransomware_claims", [])
+#|     sources = parsed.get("sources", [])
+#|     claim_types = {c.get("claim_type") for c in claims}
+#| 
+#|     if policy.get("status") == "POLICY_BLOCKED":
+#|         return {
+#|             "action": "Revise task to remove prohibited purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full stolen-dataset acquisition, redistribution, unauthorized access, or exploitation behavior.",
+#|             "reason": "BREACHINT is defensive breach/exposure metadata intelligence, not stolen-data acquisition or credential use.",
+#|             "owner": "BREACHINT Manager",
+#|             "expected_output": "Policy-compliant defensive BREACHINT scope and question set.",
+#|         }
+#| 
+#|     if policy.get("status") == "HUMAN_REVIEW_REQUIRED":
+#|         return {
+#|             "action": "Route to human BREACHINT/legal/privacy reviewer before breach confirmation, user notification, regulatory action, law-enforcement referral, credential remediation, or public disclosure.",
+#|             "reason": "Breach/exposure findings can be consequential, privacy-sensitive, and legally sensitive.",
+#|             "owner": "BREACHINT Manager",
+#|             "expected_output": "Approved defensive verification plan, evidence gaps, and handoffs.",
+#|         }
+#| 
+#|     if not files:
+#|         return {
+#|             "action": "Attach authorized/public/licensed breach claim, dataset metadata, credential exposure metadata, ransomware leak metadata, historical breach records, incident data, or STIX/MISP artifacts before analysis.",
+#|             "reason": "No BREACHINT evidence artifact is available for local deterministic analysis.",
+#|             "owner": "BREACHINT AI Employee",
+#|             "expected_output": "Breach evidence inventory with hashes and provenance.",
+#|         }
+#| 
+#|     if not claims:
+#|         return {
+#|             "action": "Obtain claim inventory from official disclosure, licensed breach-monitoring export, ransomware leak metadata, incident report, or authorized exposure report.",
+#|             "reason": "No breach/exposure claims parsed.",
+#|             "owner": "BREACHINT AI Employee",
+#|             "expected_output": "Claim objects with claimant, subject, time, source, and limitations.",
+#|         }
+#| 
+#|     if any(s.get("source_independence_state") in {"UNKNOWN", "UNKNOWN_POTENTIALLY_INDEPENDENT"} for s in sources) and len(sources) > 1:
+#|         return {
+#|             "action": "Resolve source pedigree/independence before treating reposts/aggregators/media coverage as corroboration.",
+#|             "reason": "Multiple republishing events can reflect one original claim.",
+#|             "owner": "BREACHINT / CTI",
+#|             "expected_output": "INDEPENDENT / PARTIALLY_DEPENDENT / DEPENDENT source states.",
+#|         }
+#| 
+#|     if creds:
+#|         return {
+#|             "action": "Handoff credential/secret exposure metadata to EXPOSUREINT/identity workflow for rotation/revocation; do not test credentials.",
+#|             "reason": "Credential exposure validity is unknown and testing is prohibited.",
+#|             "owner": "EXPOSUREINT / identity/security operations",
+#|             "expected_output": "Privacy-aware credential remediation recommendation.",
+#|         }
+#| 
+#|     if ransom:
+#|         return {
+#|             "action": "Seek independent victim/incident/CTI confirmation for ransomware claim; do not contact/negotiate/pay.",
+#|             "reason": "Ransomware leak-site claim is CLAIM_ONLY until corroborated.",
+#|             "owner": "INCIDENTINT / CTI / DARKINT",
+#|             "expected_output": "Corroborated or inconclusive ransomware victim assessment.",
+#|         }
+#| 
+#|     if {"THIRD_PARTY_CANDIDATE", "SUPPLY_CHAIN_CANDIDATE"} & claim_types or parsed.get("third_party_mentions") or parsed.get("supplier_mentions"):
+#|         return {
+#|             "action": "Review supplier/vendor/third-party data relationships before labeling customer infrastructure breached.",
+#|             "reason": "Third-party exposure should not be converted into first-party breach without evidence.",
+#|             "owner": "Third-party risk / EXPOSUREINT / INCIDENTINT",
+#|             "expected_output": "First-party vs third-party origin assessment.",
+#|         }
+#| 
+#|     if {"RECYCLED_CANDIDATE", "COMBO_LIST", "STEALER_LOG", "PUBLIC_DATA_CANDIDATE", "SCRAPED_DATA_CANDIDATE"} & claim_types:
+#|         return {
+#|             "action": "Compare dataset fingerprints/schema/record overlap against historical breach corpus before calling it new.",
+#|             "reason": "Recycled/combo/stealer/public data can masquerade as new breach.",
+#|             "owner": "BREACHINT",
+#|             "expected_output": "NEW_DATASET_SUPPORTED / PARTIALLY_NEW / RECYCLED / REPACKAGED / UNKNOWN.",
+#|         }
+#| 
+#|     if parsed.get("record_counts"):
+#|         return {
+#|             "action": "Separate claimed, observed sample, estimated unique, and verified record counts before reporting impact.",
+#|             "reason": "Claimed record counts are often exaggerated and duplicates inflate counts.",
+#|             "owner": "BREACHINT / data steward",
+#|             "expected_output": "Record-count confidence dimensions.",
+#|         }
+#| 
+#|     return {
+#|         "action": "Proceed with dataset metadata review, organization resolution, source independence, privacy-aware impact assessment, incident correlation planning, and specialist handoffs.",
+#|         "reason": "Local evidence exists, but breach truth remains source-dependent until corroboration.",
+#|         "owner": "BREACHINT / EXPOSUREINT / INCIDENTINT / CTI",
+#|         "expected_output": "Evidence-linked breach intelligence report with limitations and next actions.",
+#|     }
+#| 
+#| 
+#| def build_collection_plan(
+#|     payload: Dict[str, Any],
+#|     questions: List[Any],
+#|     files: List[Dict[str, Any]],
+#|     parsed: Dict[str, Any],
+#| ) -> List[Dict[str, Any]]:
+#|     plan = []
+#|     priority = 1
+#|     questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+#| 
+#|     has_files = bool(files)
+#|     has_claims = bool(parsed.get("claims"))
+#|     has_datasets = bool(parsed.get("datasets"))
+#|     has_creds = bool(parsed.get("credential_exposures"))
+#|     has_ransom = bool(parsed.get("ransomware_claims"))
+#|     has_fingerprints = bool(parsed.get("dataset_fingerprints"))
+#|     has_independence = bool(parsed.get("sources"))
+#| 
+#|     configured_connectors = payload.get("configured_connectors") or []
+#|     has_connectors = bool(configured_connectors) and not any("None configured" in str(x) for x in configured_connectors)
+#| 
+#|     def add(
+#|         operation: str,
+#|         tool: str,
+#|         purpose: str,
+#|         status: str,
+#|         expected_output: str,
+#|         safety_risk: str = "LOW",
+#|         policy_note: str = "Defensive / authorized / privacy-aware / evidence-first breach intelligence only.",
+#|     ) -> None:
+#|         nonlocal priority
+#|         plan.append({
+#|             "question": questions_limited[0] if questions_limited else "General BREACHINT collection planning",
+#|             "operation": operation,
+#|             "tool_or_provider": tool,
+#|             "purpose": purpose,
+#|             "status": status,
+#|             "expected_output": expected_output,
+#|             "priority": priority,
+#|             "safety_risk": safety_risk,
+#|             "policy_note": policy_note,
+#|             "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+#|             "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+#|         })
+#|         priority += 1
+#| 
+#|     add(
+#|         "define_breachint_questions_scope",
+#|         "BREACHINT Manager / BREACHINT AI Employee",
+#|         "Convert objective into breach/exposure questions, allowed sources, organization scope, temporal scope, privacy/legal boundaries, and safety boundaries.",
+#|         "COMPLETED_LOCAL" if payload.get("questions") else "REQUIRED_BEFORE_COLLECTION",
+#|         "Requirement-driven defensive breach collection plan.",
+#|         policy_note="No purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full dataset acquisition, or exploitation.",
+#|     )
+#| 
+#|     add(
+#|         "preserve_original_breach_evidence",
+#|         "local evidence store",
+#|         "Store original breach claims, dataset metadata, credential exposure metadata, ransomware leak metadata, incident data, historical breach records, and hashes without modifying originals.",
+#|         "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+#|         "BreachEvidenceObject with SHA256 and provenance fields.",
+#|     )
+#| 
+#|     add(
+#|         "safe_parse_json_csv_text_breach_metadata",
+#|         "local deterministic parser",
+#|         "Parse authorized/public/licensed JSON/CSV/TXT breach/dataset/credential/ransomware metadata without executing archives, documents, malware, or scripts.",
+#|         "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+#|         "Normalized claims, datasets, credential exposures, ransomware claims, categories, sensitive flags, and observations.",
+#|         safety_risk="HIGH_IF_UNTRUSTED_CONTENT_TREATED_AS_INSTRUCTION",
+#|         policy_note="Dataset records, documents, forum posts, repository content, ransomware notes, and seller descriptions are untrusted evidence.",
+#|     )
+#| 
+#|     add(
+#|         "organization_and_victim_resolution",
+#|         "BREACHINT analyst + public corporate identity",
+#|         "Resolve legal organization, brand, subsidiary, parent, domain, region, industry, and avoid false name matches.",
+#|         "COMPLETED_LOCAL" if has_claims else "PLANNED_REQUIRES_CLAIM_EVIDENCE",
+#|         "Organization-resolution records and ambiguity flags.",
+#|         safety_risk="HIGH_IF_WRONG_COMPANY_ATTRIBUTION",
+#|         policy_note="Email-domain presence alone does not establish first-party breach.",
+#|     )
+#| 
+#|     add(
+#|         "dataset_metadata_schema_fingerprint_lineage",
+#|         "dataset metadata export / historical breach corpus",
+#|         "Extract schema, record counts as claims, sample hashes, fingerprints, lineage, duplicate/overlap, recycled/repackaged candidates.",
+#|         "COMPLETED_LOCAL" if (has_datasets or has_fingerprints) else "PLANNED_REQUIRES_DATASET_EVIDENCE",
+#|         "Dataset objects, fingerprints, lineage candidates, and deduplication states.",
+#|         safety_risk="HIGH_IF_FALSE_NEW_BREACH",
+#|         policy_note="Do not acquire full stolen datasets when metadata/samples are sufficient.",
+#|     )
+#| 
+#|     add(
+#|         "credential_secret_exposure_metadata",
+#|         "authorized credential-monitoring provider / EXPOSUREINT",
+#|         "Classify credential/secret exposure at metadata level; redact secrets; do not test validity.",
+#|         "COMPLETED_LOCAL" if has_creds else "PLANNED_REQUIRES_CREDENTIAL_EVIDENCE",
+#|         "Credential exposure objects with validity unknown and defensive handoff.",
+#|         safety_risk="HIGH_PRIVACY_SENSITIVE",
+#|         policy_note="Do not use, test, login, replay, redeem, or expose plaintext secrets.",
+#|     )
+#| 
+#|     add(
+#|         "first_party_third_party_supply_chain_analysis",
+#|         "BREACHINT analyst + vendor/supplier context",
+#|         "Distinguish first-party breach, third-party exposure, supply-chain breach, combo list, stealer log, public/scraped data, and unknown origin.",
+#|         "PLANNED_ANALYTIC",
+#|         "Origin candidates and confidence dimensions.",
+#|         safety_risk="HIGH_IF_FALSE_FIRST_PARTY",
+#|         policy_note="Do not create hundreds of first-party breaches from one supplier breach.",
+#|     )
+#| 
+#|     add(
+#|         "ransomware_extortion_context",
+#|         "DARKINT / CTI / INCIDENTINT",
+#|         "Track ransomware victim/data-publication/extortion claims without contact/negotiation/payment.",
+#|         "COMPLETED_LOCAL" if has_ransom else "PLANNED_REQUIRES_RANSOMWARE_EVIDENCE",
+#|         "Ransomware claim objects and independent corroboration gaps.",
+#|         safety_risk="HIGH_IF_RANSOMWARE_CLAIM_TREATED_AS_FACT",
+#|         policy_note="Do not negotiate, pay, contact actor, or operationalize coercion techniques.",
+#|     )
+#| 
+#|     add(
+#|         "source_reliability_bias_independence",
+#|         "BREACHINT analyst + report provenance",
+#|         "Assess official disclosure, regulator, CERT, incident responder, licensed provider, seller, ransomware site, media, and copied reports.",
+#|         "COMPLETED_LOCAL" if has_independence else "PLANNED_ANALYTIC",
+#|         "INDEPENDENT / PARTIALLY_DEPENDENT / DEPENDENT / UNKNOWN source states.",
+#|         safety_risk="HIGH_IF_SOURCE_DEPENDENCY_ERROR",
+#|         policy_note="Republishing/aggregation is not corroboration.",
+#|     )
+#| 
+#|     add(
+#|         "privacy_legal_impact_assessment",
+#|         "Legal / Compliance / Privacy Officer / data steward",
+#|         "Flag personal/financial/health/identity/auth-secret/minor/regulated data and prepare defensive impact assessment without final legal determination.",
+#|         "PLANNED_ANALYTIC",
+#|         "Privacy/legal flags, impact severity, and human-review requirements.",
+#|         safety_risk="HIGH_PRIVACY_LEGAL",
+#|         policy_note="BREACHINT recommends; authorized humans govern notification and legal action.",
+#|     )
+#| 
+#|     return plan
+#| 
+#| 
+#| def policy_screen(payload: Dict[str, Any]) -> Dict[str, Any]:
+#|     scanned_text = " ".join(
+#|         [
+#|             str(payload.get("objective", "")),
+#|             " ".join(str(q) for q in payload.get("questions", [])),
+#|             str(payload.get("target", "")),
+#|             " ".join(str(s) for s in payload.get("organizations", [])),
+#|             " ".join(str(s) for s in payload.get("brands", [])),
+#|             " ".join(str(s) for s in payload.get("domains", [])),
+#|             " ".join(str(s) for s in payload.get("email_domains", [])),
+#|             " ".join(str(s) for s in payload.get("breach_claims", [])),
+#|             " ".join(str(s) for s in payload.get("dataset_claims", [])),
+#|             " ".join(str(s) for s in payload.get("credential_claims", [])),
+#|             " ".join(str(s) for s in payload.get("ransomware_claims", [])),
+#|             " ".join(str(s) for s in payload.get("exposure_sources", [])),
+#|             str(payload.get("incident_context", "")),
+#|         ]
+#|     ).lower()
+#| 
+#|     blocked_reasons = [p for p in POLICY_BLOCK_PATTERNS if re.search(p, scanned_text, re.IGNORECASE)]
+#| 
+#|     human_review_required = False
+#|     safety_notes: List[str] = []
+#| 
+#|     if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Sensitive breach/dataset/credential/ransomware/incident/supply-chain/repository/cloud/document context detected. "
+#|             "Analysis must remain defensive, authorized, privacy-aware, and evidence-first. "
+#|             "No purchase, credential testing, login, token replay, seller contact, ransomware negotiation, full stolen-dataset acquisition, redistribution, unauthorized access, or exploitation."
+#|         )
+#| 
+#|     if payload.get("credential_claims") or payload.get("credential_exposure_paths"):
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Credential/secret exposure context detected. Preserve only redacted defensive metadata. Do not use, test, login, replay, or redeem credentials/tokens/keys."
+#|         )
+#| 
+#|     if payload.get("ransomware_claims") or payload.get("ransomware_leak_paths"):
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Ransomware/extortion context detected. Do not contact, negotiate, pay, or operationalize coercion techniques."
+#|         )
+#| 
+#|     if payload.get("known_accounts_if_authorized") or payload.get("known_assets_if_authorized") or payload.get("incident_data_paths"):
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Authorized account/asset/incident context detected. Respect tenant isolation, privacy, classification, and purpose limitation."
+#|         )
+#| 
+#|     if payload.get("third_parties") or payload.get("suppliers") or payload.get("supply_chain_paths"):
+#|         human_review_required = True

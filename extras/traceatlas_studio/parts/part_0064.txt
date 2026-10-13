@@ -1,0 +1,1000 @@
+#|     for f in found:
+#|         unique[(f["secret_type"], f["fingerprint"])] = f
+#| 
+#|     return list(unique.values())
+#| 
+#| 
+#| def is_sensitive_env_key(key: str) -> bool:
+#|     k = str(key).lower()
+#|     return any(token in k for token in SENSITIVE_ENV_KEYS)
+#| 
+#| 
+#| def component_key(name: Optional[str], version: Optional[str], ecosystem: Optional[str], purl: Optional[str]) -> str:
+#|     return f"{str(name or '').lower()}|{str(version or '').lower()}|{str(ecosystem or '').lower()}|{str(purl or '').lower()}"
+#| 
+#| 
+#| def component_display(name: Optional[str], version: Optional[str], ecosystem: Optional[str]) -> str:
+#|     return f"{name or 'unknown'}@{version or 'unknown'} ({ecosystem or 'unknown'})"
+#| 
+#| 
+#| # ==============================================================================
+#| # PARSERS
+#| # ==============================================================================
+#| 
+#| def parse_registries(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[RegistryObject]:
+#|     out: List[RegistryObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "registry_record", now, "oci_registry_api")
+#|         evidences.append(ev)
+#| 
+#|         registry_id = str(item.get("registry_id") or stable_id("REG", item.get("hostname"), item.get("provider")))
+#| 
+#|         out.append(
+#|             RegistryObject(
+#|                 registry_id=registry_id,
+#|                 hostname=item.get("hostname"),
+#|                 provider=item.get("provider"),
+#|                 registry_type=enum_from_name(RegistryType, item.get("registry_type"), RegistryType.UNKNOWN),
+#|                 authorization_context=item.get("authorization_context"),
+#|                 repositories=[str(x) for x in item.get("repositories", []) or []],
+#|                 first_seen=parse_dt(item.get("first_seen")),
+#|                 last_seen=parse_dt(item.get("last_seen")),
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_repositories(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[RepositoryObject]:
+#|     out: List[RepositoryObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "repository_record", now, "oci_registry_api")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             RepositoryObject(
+#|                 registry_id=str(item.get("registry_id") or "UNKNOWN_REGISTRY"),
+#|                 repository_name=str(item.get("repository_name") or item.get("name") or "UNKNOWN_REPO"),
+#|                 namespace=item.get("namespace"),
+#|                 owner_candidate=item.get("owner_candidate"),
+#|                 visibility=item.get("visibility"),
+#|                 tags=[str(x) for x in item.get("tags", []) or []],
+#|                 digests=[normalize_digest(x) or str(x) for x in item.get("digests", []) or []],
+#|                 first_seen=parse_dt(item.get("first_seen")),
+#|                 last_seen=parse_dt(item.get("last_seen")),
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_image_references(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ImageReferenceObject]:
+#|     out: List[ImageReferenceObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "image_reference", now, "oci_registry_api")
+#|         evidences.append(ev)
+#| 
+#|         original = item.get("original_reference") or item.get("reference")
+#|         digest = normalize_digest(item.get("digest"))
+#|         tag = item.get("tag")
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#| 
+#|         if digest is None:
+#|             limitations.append("MUTABLE_TAG_REFERENCE_NO_IMMUTABLE_DIGEST")
+#| 
+#|         out.append(
+#|             ImageReferenceObject(
+#|                 image_reference_id=str(item.get("image_reference_id") or stable_id("IMGREF", original, digest, tag)),
+#|                 registry_id=item.get("registry_id"),
+#|                 repository=item.get("repository"),
+#|                 tag=tag,
+#|                 digest=digest,
+#|                 original_reference=original,
+#|                 resolved_reference=item.get("resolved_reference"),
+#|                 observed_at=parse_dt(item.get("observed_at")) or ev.observed_at,
+#|                 source=item.get("source") or ev.source_id,
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_tag_history(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[TagHistoryEntry]:
+#|     out: List[TagHistoryEntry] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "tag_history", now, "oci_registry_api")
+#|         evidences.append(ev)
+#| 
+#|         digest = normalize_digest(item.get("digest"))
+#|         if not digest:
+#|             continue
+#| 
+#|         out.append(
+#|             TagHistoryEntry(
+#|                 entry_id=str(item.get("entry_id") or new_id("TAGHIST")),
+#|                 tag=str(item.get("tag") or "unknown"),
+#|                 digest=digest,
+#|                 valid_from=parse_dt(item.get("valid_from")),
+#|                 valid_to=parse_dt(item.get("valid_to")),
+#|                 observed_at=parse_dt(item.get("observed_at")) or ev.observed_at,
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_platform_variants(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[PlatformVariant]:
+#|     out: List[PlatformVariant] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "platform_variant", now, "oci_index")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             PlatformVariant(
+#|                 os=item.get("os"),
+#|                 architecture=item.get("architecture"),
+#|                 variant=item.get("variant"),
+#|                 features=[str(x) for x in item.get("features", []) or []],
+#|                 manifest_digest=normalize_digest(item.get("manifest_digest")),
+#|                 config_digest=normalize_digest(item.get("config_digest")),
+#|                 layer_digests=[normalize_digest(x) or str(x) for x in item.get("layer_digests", []) or []],
+#|                 evidence_ids=[ev.evidence_id],
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_manifests(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#|     platforms: List[PlatformVariant],
+#| ) -> List[ManifestObject]:
+#|     out: List[ManifestObject] = []
+#| 
+#|     platform_by_digest = {p.manifest_digest: p for p in platforms if p.manifest_digest}
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "manifest", now, "oci_manifest")
+#|         evidences.append(ev)
+#| 
+#|         manifest_digest = normalize_digest(item.get("manifest_digest"))
+#|         platform_context = platform_by_digest.get(manifest_digest)
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#| 
+#|         if not manifest_digest:
+#|             limitations.append("MANIFEST_DIGEST_MISSING")
+#| 
+#|         out.append(
+#|             ManifestObject(
+#|                 manifest_digest=manifest_digest,
+#|                 media_type=item.get("media_type"),
+#|                 config_digest=normalize_digest(item.get("config_digest")),
+#|                 layer_digests=[normalize_digest(x) or str(x) for x in item.get("layer_digests", []) or []],
+#|                 platform_context=platform_context,
+#|                 annotations=dict(item.get("annotations", {}) or {}),
+#|                 size=int(item["size"]) if item.get("size") is not None else None,
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_image_configs(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ImageConfigObject]:
+#|     out: List[ImageConfigObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "image_config", now, "oci_manifest")
+#|         evidences.append(ev)
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#|         limitations.append("IMAGE_CONFIG_METADATA_MAY_BE_BUILD_DERIVED_OR_MANUALLY_MODIFIED")
+#| 
+#|         out.append(
+#|             ImageConfigObject(
+#|                 created_claim=parse_dt(item.get("created")),
+#|                 architecture=item.get("architecture"),
+#|                 os=item.get("os"),
+#|                 environment=dict(item.get("environment", {}) or {}),
+#|                 entrypoint=[str(x) for x in item.get("entrypoint", []) or []],
+#|                 cmd=[str(x) for x in item.get("cmd", []) or []],
+#|                 user=item.get("user"),
+#|                 working_directory=item.get("working_directory"),
+#|                 labels=dict(item.get("labels", {}) or {}),
+#|                 history=[str(x) for x in item.get("history", []) or []],
+#|                 volumes=[str(x) for x in item.get("volumes", []) or []],
+#|                 exposed_ports=[str(x) for x in item.get("exposed_ports", []) or []],
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_layers(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[LayerObject]:
+#|     out: List[LayerObject] = []
+#| 
+#|     for idx, item in enumerate(items or []):
+#|         ev = make_evidence(item, case_id, "layer", now, "oci_manifest")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             LayerObject(
+#|                 layer_index=int(item.get("layer_index", idx)),
+#|                 digest=normalize_digest(item.get("digest")),
+#|                 media_type=item.get("media_type"),
+#|                 compressed_size=int(item["compressed_size"]) if item.get("compressed_size") is not None else None,
+#|                 uncompressed_size=int(item["uncompressed_size"]) if item.get("uncompressed_size") is not None else None,
+#|                 parent_layer=normalize_digest(item.get("parent_layer")),
+#|                 files_added=[str(x) for x in item.get("files_added", []) or []],
+#|                 files_modified=[str(x) for x in item.get("files_modified", []) or []],
+#|                 files_deleted=[str(x) for x in item.get("files_deleted", []) or []],
+#|                 whiteouts=[str(x) for x in item.get("whiteouts", []) or []],
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_filesystem_artifacts(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[FilesystemArtifact]:
+#|     out: List[FilesystemArtifact] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "filesystem_artifact", now, "filesystem_export")
+#|         evidences.append(ev)
+#| 
+#|         path = item.get("path")
+#|         filename = item.get("filename") or (str(path).split("/")[-1] if path else None)
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#| 
+#|         if not item.get("sha256"):
+#|             limitations.append("FILE_HASH_MISSING")
+#| 
+#|         out.append(
+#|             FilesystemArtifact(
+#|                 artifact_id=str(item.get("artifact_id") or stable_id("FS", path, item.get("sha256"), item.get("layer_index"))),
+#|                 path=path,
+#|                 filename=filename,
+#|                 size=int(item["size"]) if item.get("size") is not None else None,
+#|                 sha256=item.get("sha256"),
+#|                 layer_index=int(item["layer_index"]) if item.get("layer_index") is not None else None,
+#|                 current_present=bool(item.get("current_present", True)),
+#|                 historical_present=bool(item.get("historical_present", True)),
+#|                 deleted_in_layer=int(item["deleted_in_layer"]) if item.get("deleted_in_layer") is not None else None,
+#|                 file_type=item.get("file_type"),
+#|                 mime_type=item.get("mime_type"),
+#|                 permissions=item.get("permissions"),
+#|                 owner=item.get("owner"),
+#|                 content_snippet=item.get("content_snippet"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_packages(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[PackageObject]:
+#|     out: List[PackageObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "package_inventory", now, "filesystem_export")
+#|         evidences.append(ev)
+#| 
+#|         name = str(item.get("name") or "unknown")
+#|         version = item.get("version")
+#|         ecosystem = item.get("ecosystem")
+#|         purl = item.get("purl")
+#| 
+#|         out.append(
+#|             PackageObject(
+#|                 package_id=str(item.get("package_id") or stable_id("PKG", name, version, ecosystem, purl)),
+#|                 name=name,
+#|                 version=version,
+#|                 ecosystem=ecosystem,
+#|                 purl=purl,
+#|                 cpe=item.get("cpe"),
+#|                 architecture=item.get("architecture"),
+#|                 location=item.get("location"),
+#|                 layer_index=int(item["layer_index"]) if item.get("layer_index") is not None else None,
+#|                 direct_or_inherited=item.get("direct_or_inherited", "UNKNOWN"),
+#|                 source=item.get("source") or ev.source_id,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_binaries(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[BinaryObject]:
+#|     out: List[BinaryObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "binary_inventory", now, "filesystem_export")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             BinaryObject(
+#|                 binary_id=str(item.get("binary_id") or stable_id("BIN", item.get("path"), item.get("sha256"))),
+#|                 path=item.get("path"),
+#|                 sha256=item.get("sha256"),
+#|                 file_type=item.get("file_type"),
+#|                 architecture=item.get("architecture"),
+#|                 signing=dict(item.get("signing", {}) or {}),
+#|                 package_association=item.get("package_association"),
+#|                 layer_index=int(item["layer_index"]) if item.get("layer_index") is not None else None,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_sboms(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[SbomObject]:
+#|     out: List[SbomObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "sbom", now, "sbom_cyclonedx")
+#|         evidences.append(ev)
+#| 
+#|         components: List[SbomComponent] = []
+#| 
+#|         for comp in item.get("components", []) or []:
+#|             components.append(
+#|                 SbomComponent(
+#|                     name=str(comp.get("name") or "unknown"),
+#|                     version=comp.get("version"),
+#|                     ecosystem=comp.get("ecosystem"),
+#|                     purl=comp.get("purl"),
+#|                     cpe=comp.get("cpe"),
+#|                     licenses=[str(x) for x in comp.get("licenses", []) or []],
+#|                     hashes=dict(comp.get("hashes", {}) or {}),
+#|                     supplier=comp.get("supplier"),
+#|                 )
+#|             )
+#| 
+#|         out.append(
+#|             SbomObject(
+#|                 sbom_id=str(item.get("sbom_id") or stable_id("SBOM", item.get("format"), item.get("version"), ev.source_id)),
+#|                 format=item.get("format"),
+#|                 version=item.get("version"),
+#|                 components=components,
+#|                 dependency_edges=[dict(x) for x in item.get("dependency_edges", []) or []],
+#|                 generated_at=parse_dt(item.get("generated_at")),
+#|                 source=item.get("source") or ev.source_id,
+#|                 hash=item.get("hash"),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def validate_sbom_against_image(
+#|     sbom: Optional[SbomObject],
+#|     packages: List[PackageObject],
+#|     binaries: List[BinaryObject],
+#|     image_reference: Optional[ImageReferenceObject],
+#|     now: datetime,
+#| ) -> Optional[SbomValidation]:
+#|     if sbom is None:
+#|         return None
+#| 
+#|     observed_keys: Set[str] = set()
+#|     observed_display: Dict[str, str] = {}
+#| 
+#|     for p in packages:
+#|         k = component_key(p.name, p.version, p.ecosystem, p.purl)
+#|         observed_keys.add(k)
+#|         observed_display[k] = component_display(p.name, p.version, p.ecosystem)
+#| 
+#|     # Binaries are not necessarily SBOM components unless represented as packages.
+#|     # We include standalone binary hashes only as weak observed context.
+#|     for b in binaries:
+#|         if b.package_association:
+#|             k = component_key(b.package_association, None, "binary", None)
+#|             observed_keys.add(k)
+#|             observed_display[k] = f"binary:{b.path or b.binary_id}"
+#| 
+#|     sbom_keys: Set[str] = set()
+#|     sbom_display: Dict[str, str] = {}
+#|     sbom_by_name_eco: Dict[Tuple[str, str], List[SbomComponent]] = defaultdict(list)
+#| 
+#|     for c in sbom.components:
+#|         k = component_key(c.name, c.version, c.ecosystem, c.purl)
+#|         sbom_keys.add(k)
+#|         sbom_display[k] = component_display(c.name, c.version, c.ecosystem)
+#|         sbom_by_name_eco[(str(c.name).lower(), str(c.ecosystem or "").lower())].append(c)
+#| 
+#|     matched = sorted(observed_keys & sbom_keys)
+#|     missing_in_sbom = sorted(observed_keys - sbom_keys)
+#|     extra_in_sbom = sorted(sbom_keys - observed_keys)
+#| 
+#|     version_conflicts: List[Dict[str, Any]] = []
+#| 
+#|     for p in packages:
+#|         key = (str(p.name).lower(), str(p.ecosystem or "").lower())
+#|         candidates = sbom_by_name_eco.get(key, [])
+#|         for c in candidates:
+#|             if c.version and p.version and str(c.version).lower() != str(p.version).lower():
+#|                 version_conflicts.append(
+#|                     {
+#|                         "name": p.name,
+#|                         "ecosystem": p.ecosystem,
+#|                         "image_version": p.version,
+#|                         "sbom_version": c.version,
+#|                     }
+#|                 )
+#| 
+#|     mismatch_count = len(missing_in_sbom) + len(extra_in_sbom) + len(version_conflicts)
+#| 
+#|     if not observed_keys:
+#|         state = SbomValidationState.UNVERIFIED
+#|         explanation = "No observed package inventory available to validate SBOM."
+#|     elif mismatch_count == 0:
+#|         state = SbomValidationState.MATCHES_IMAGE_STRONGLY
+#|         explanation = "SBOM components align with observed image package inventory."
+#|     elif sbom.generated_at and image_reference and image_reference.observed_at:
+#|         if sbom.generated_at < image_reference.observed_at - __import__("datetime").timedelta(days=30):
+#|             state = SbomValidationState.STALE_CANDIDATE
+#|             explanation = "SBOM generation time materially predates image observation; possible stale SBOM."
+#|         elif mismatch_count <= 3:
+#|             state = SbomValidationState.PARTIAL_MATCH
+#|             explanation = "SBOM mostly aligns with image inventory but has limited mismatches."
+#|         else:
+#|             state = SbomValidationState.DIFFERENT_BUILD_CANDIDATE
+#|             explanation = "SBOM has material mismatches; may correspond to different build/architecture."
+#|     elif mismatch_count <= 3:
+#|         state = SbomValidationState.PARTIAL_MATCH
+#|         explanation = "SBOM partially matches observed image inventory."
+#|     else:
+#|         state = SbomValidationState.INCONCLUSIVE
+#|         explanation = "SBOM validation inconclusive due to material mismatches and limited temporal context."
+#| 
+#|     limitations = [
+#|         "SBOM may be generated from source rather than final image.",
+#|         "SBOM may be incomplete for statically linked libraries or distroless images.",
+#|         "SBOM mismatch does not automatically mean malicious tampering.",
+#|         "Multi-architecture images may have different SBOM applicability.",
+#|     ]
+#| 
+#|     return SbomValidation(
+#|         validation_id=new_id("SBOMVAL"),
+#|         sbom_id=sbom.sbom_id,
+#|         state=state,
+#|         matched_components=[observed_display.get(k, k) for k in matched],
+#|         missing_in_sbom=[observed_display.get(k, k) for k in missing_in_sbom],
+#|         extra_in_sbom=[sbom_display.get(k, k) for k in extra_in_sbom],
+#|         version_conflicts=version_conflicts,
+#|         explanation=explanation,
+#|         evidence_ids=sbom.evidence_ids,
+#|         confidence=clamp(sbom.confidence * (0.95 if state == SbomValidationState.MATCHES_IMAGE_STRONGLY else 0.70)),
+#|         limitations=limitations,
+#|     )
+#| 
+#| 
+#| def parse_vex_records(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[VexRecord]:
+#|     out: List[VexRecord] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "vex", now, "vex_record")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             VexRecord(
+#|                 vex_id=str(item.get("vex_id") or stable_id("VEX", item.get("vulnerability_id"), item.get("product"))),
+#|                 vulnerability_id=item.get("vulnerability_id"),
+#|                 product=item.get("product"),
+#|                 purl=item.get("purl"),
+#|                 version=item.get("version"),
+#|                 status=item.get("status"),
+#|                 justification=item.get("justification"),
+#|                 issuer=item.get("issuer"),
+#|                 timestamp=parse_dt(item.get("timestamp")),
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_signatures(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[SignatureObject]:
+#|     out: List[SignatureObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "signature", now, "cosign_signature")
+#|         evidences.append(ev)
+#| 
+#|         result = str(item.get("verification_result") or "UNKNOWN").upper()
+#| 
+#|         if result == "VERIFIED":
+#|             state = SignatureState.VERIFIED
+#|         elif result == "INVALID":
+#|             state = SignatureState.INVALID
+#|         elif result == "ABSENT":
+#|             state = SignatureState.ABSENT
+#|         elif result == "UNVERIFIED":
+#|             state = SignatureState.UNVERIFIED
+#|         else:
+#|             state = SignatureState.UNKNOWN
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#|         limitations.append("Signature proves artifact integrity/signer relationship, not absence of vulnerabilities or malware.")
+#| 
+#|         out.append(
+#|             SignatureObject(
+#|                 signature_id=str(item.get("signature_id") or stable_id("SIG", item.get("digest_covered"), item.get("signer_identity_claim"))),
+#|                 digest_covered=normalize_digest(item.get("digest_covered")),
+#|                 signer_identity_claim=item.get("signer_identity_claim"),
+#|                 certificate_subject=item.get("certificate_subject"),
+#|                 transparency_log=item.get("transparency_log"),
+#|                 verification_result=result,
+#|                 verification_time=parse_dt(item.get("verification_time")),
+#|                 policy=item.get("policy"),
+#|                 state=state,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_attestations(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[AttestationObject]:
+#|     out: List[AttestationObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "attestation", now, "in_toto_attestation")
+#|         evidences.append(ev)
+#| 
+#|         out.append(
+#|             AttestationObject(
+#|                 attestation_id=str(item.get("attestation_id") or stable_id("ATT", item.get("attestation_type"), item.get("subject_digest"))),
+#|                 attestation_type=item.get("attestation_type"),
+#|                 predicate=dict(item.get("predicate", {}) or {}),
+#|                 signer=item.get("signer"),
+#|                 subject_digest=normalize_digest(item.get("subject_digest")),
+#|                 verified=bool(item.get("verified")) if item.get("verified") is not None else None,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def parse_provenance(
+#|     items: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[ProvenanceObject]:
+#|     out: List[ProvenanceObject] = []
+#| 
+#|     for item in items or []:
+#|         ev = make_evidence(item, case_id, "provenance", now, "slsa_provenance")
+#|         evidences.append(ev)
+#| 
+#|         state = enum_from_name(ProvenanceState, item.get("state"), ProvenanceState.UNKNOWN)
+#| 
+#|         limitations: List[str] = list(item.get("limitations", []) or [])
+#|         limitations.append("Provenance may prove build relationship, not source-code benignness.")
+#| 
+#|         out.append(
+#|             ProvenanceObject(
+#|                 provenance_id=str(item.get("provenance_id") or stable_id("PROV", item.get("artifact_digest"), item.get("builder"))),
+#|                 builder=item.get("builder"),
+#|                 source_repository=item.get("source_repository"),
+#|                 commit=item.get("commit"),
+#|                 build_workflow=item.get("build_workflow"),
+#|                 materials=[dict(x) for x in item.get("materials", []) or []],
+#|                 timestamp=parse_dt(item.get("timestamp")),
+#|                 artifact_digest=normalize_digest(item.get("artifact_digest")),
+#|                 state=state,
+#|                 evidence_ids=[ev.evidence_id],
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(limitations)),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def resolve_build_sources(
+#|     provenance: List[ProvenanceObject],
+#|     build_metadata: List[Dict[str, Any]],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[BuildSourceObject]:
+#|     out: List[BuildSourceObject] = []
+#| 
+#|     prov_by_digest = {p.artifact_digest: p for p in provenance if p.artifact_digest}
+#| 
+#|     for item in build_metadata or []:
+#|         ev = make_evidence(item, case_id, "build_source", now, "ci_cd_build_record")
+#|         evidences.append(ev)
+#| 
+#|         digest = normalize_digest(item.get("image_digest"))
+#|         prov = prov_by_digest.get(digest)
+#| 
+#|         if prov and prov.state in (ProvenanceState.VERIFIED_BUILD_SOURCE, ProvenanceState.SUPPORTED_BUILD_SOURCE):
+#|             state = prov.state
+#|         elif item.get("state"):
+#|             state = enum_from_name(ProvenanceState, item.get("state"), ProvenanceState.SOURCE_CLAIMED)
+#|         else:
+#|             state = ProvenanceState.SOURCE_CLAIMED
+#| 
+#|         out.append(
+#|             BuildSourceObject(
+#|                 build_id=str(item.get("build_id") or stable_id("BUILD", digest, item.get("pipeline"))),
+#|                 repository=item.get("repository") or (prov.source_repository if prov else None),
+#|                 commit=item.get("commit") or (prov.commit if prov else None),
+#|                 pipeline=item.get("pipeline"),
+#|                 build_time=parse_dt(item.get("build_time")),
+#|                 image_digest=digest,
+#|                 state=state,
+#|                 evidence_ids=[ev.evidence_id] + (prov.evidence_ids if prov else []),
+#|                 confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                 limitations=sorted(set(item.get("limitations", []) or [] + ["Commit metadata alone does not prove observed image was built from it."])),
+#|             )
+#|         )
+#| 
+#|     return out
+#| 
+#| 
+#| def scan_secret_exposures(
+#|     configs: List[ImageConfigObject],
+#|     filesystem_artifacts: List[FilesystemArtifact],
+#|     layers: List[LayerObject],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[SecretExposure]:
+#|     out: List[SecretExposure] = []
+#| 
+#|     def add_secret(
+#|         secret_type: str,
+#|         redacted_value: str,
+#|         fingerprint: str,
+#|         path: Optional[str] = None,
+#|         layer_index: Optional[int] = None,
+#|         env_var: Optional[str] = None,
+#|         current_present: bool = True,
+#|         evidence_ids: Optional[List[str]] = None,
+#|         confidence: float = 0.75,
+#|     ) -> None:
+#|         state = SecretState.PRESENT if current_present else SecretState.HISTORICAL_LAYER_PRESENT
+#| 
+#|         limitations = [
+#|             "Raw secret value is redacted.",
+#|             "Secret validity was not tested.",
+#|             "Do not use discovered secrets.",
+#|             "Hand off credential exposure to CREDINT.",
+#|         ]
+#| 
+#|         if not current_present:
+#|             limitations.append("Secret may remain recoverable from historical layer even if deleted in later layer.")
+#| 
+#|         out.append(
+#|             SecretExposure(
+#|                 secret_id=new_id("SECRET"),
+#|                 secret_type=secret_type,
+#|                 redacted_value=redacted_value,
+#|                 fingerprint=fingerprint,
+#|                 path=path,
+#|                 layer_index=layer_index,
+#|                 environment_variable=env_var,
+#|                 state=state,
+#|                 evidence_ids=evidence_ids or [],
+#|                 confidence=clamp(confidence),
+#|                 limitations=limitations,
+#|             )
+#|         )
+#| 
+#|     # Environment variables.
+#|     for cfg in configs:
+#|         for key, value in cfg.environment.items():
+#|             detected = detect_secrets_in_text(str(value))
+#|             sensitive_key = is_sensitive_env_key(key)
+#| 
+#|             if detected:
+#|                 for d in detected:
+#|                     add_secret(
+#|                         secret_type=d["secret_type"],
+#|                         redacted_value=d["redacted_value"],
+#|                         fingerprint=d["fingerprint"],
+#|                         env_var=key,
+#|                         current_present=True,
+#|                         evidence_ids=cfg.evidence_ids,
+#|                         confidence=cfg.confidence,
+#|                     )
+#|             elif sensitive_key and value:
+#|                 fingerprint = hashlib.sha256(str(value).encode("utf-8", errors="ignore")).hexdigest()[:16]
+#|                 add_secret(
+#|                     secret_type="sensitive_environment_variable",
+#|                     redacted_value="[REDACTED]",
+#|                     fingerprint=fingerprint,
+#|                     env_var=key,
+#|                     current_present=True,
+#|                     evidence_ids=cfg.evidence_ids,
+#|                     confidence=cfg.confidence,
+#|                 )
+#| 
+#|         # Labels may contain secrets.
+#|         for key, value in cfg.labels.items():
+#|             detected = detect_secrets_in_text(str(value))
+#|             for d in detected:
+#|                 add_secret(
+#|                     secret_type=f"label_{d['secret_type']}",
+#|                     redacted_value=d["redacted_value"],
+#|                     fingerprint=d["fingerprint"],
+#|                     env_var=key,
+#|                     current_present=True,
+#|                     evidence_ids=cfg.evidence_ids,
+#|                     confidence=cfg.confidence,
+#|                 )
+#| 
+#|         # History commands may contain secrets.
+#|         for hist in cfg.history:
+#|             detected = detect_secrets_in_text(hist)
+#|             for d in detected:
+#|                 add_secret(
+#|                     secret_type=f"history_{d['secret_type']}",
+#|                     redacted_value=d["redacted_value"],
+#|                     fingerprint=d["fingerprint"],
+#|                     current_present=True,
+#|                     evidence_ids=cfg.evidence_ids,
+#|                     confidence=cfg.confidence,
+#|                 )
+#| 
+#|     # Filesystem artifacts.
+#|     for fa in filesystem_artifacts:
+#|         detected = detect_secrets_in_text(fa.content_snippet)
+#|         for d in detected:
+#|             add_secret(
+#|                 secret_type=d["secret_type"],
+#|                 redacted_value=d["redacted_value"],
+#|                 fingerprint=d["fingerprint"],
+#|                 path=fa.path,
+#|                 layer_index=fa.layer_index,
+#|                 current_present=fa.current_present,
+#|                 evidence_ids=fa.evidence_ids,
+#|                 confidence=fa.confidence,
+#|             )
+#| 
+#|     return out
+#| 
+#| 
+#| def scan_malware_indicators(
+#|     malware_intel: List[Dict[str, Any]],
+#|     packages: List[PackageObject],
+#|     binaries: List[BinaryObject],
+#|     filesystem_artifacts: List[FilesystemArtifact],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[MalwareIndicator]:
+#|     out: List[MalwareIndicator] = []
+#| 
+#|     # Known hash IOC matching.
+#|     for item in malware_intel or []:
+#|         ev = make_evidence(item, case_id, "malware_intel", now, "malware_intelligence")
+#|         evidences.append(ev)
+#| 
+#|         ioc_type = str(item.get("ioc_type", "unknown")).lower()
+#|         value = str(item.get("value", "")).lower()
+#|         family = item.get("family")
+#| 
+#|         if ioc_type in {"sha256", "hash"}:
+#|             for b in binaries:
+#|                 if str(b.sha256 or "").lower() == value:
+#|                     out.append(
+#|                         MalwareIndicator(
+#|                             indicator_id=new_id("MAL"),
+#|                             indicator_type="binary_hash_match",
+#|                             value=value,
+#|                             source=item.get("source") or ev.source_id,
+#|                             match_object_type="binary",
+#|                             match_object_id=b.binary_id,
+#|                             state=MalwareState.MALICIOUS_ARTIFACT_CANDIDATE,
+#|                             family=family,
+#|                             evidence_ids=[ev.evidence_id] + b.evidence_ids,
+#|                             confidence=clamp(float(item.get("confidence", ev.reliability)) * b.confidence),
+#|                             limitations=[
+#|                                 "Hash match indicates known indicator context, not independent malware confirmation.",
+#|                                 "Do not execute sample. Hand off to MALINT.",
+#|                             ],
+#|                         )
+#|                     )
+#| 
+#|             for fa in filesystem_artifacts:
+#|                 if str(fa.sha256 or "").lower() == value:
+#|                     out.append(
+#|                         MalwareIndicator(
+#|                             indicator_id=new_id("MAL"),
+#|                             indicator_type="file_hash_match",
+#|                             value=value,
+#|                             source=item.get("source") or ev.source_id,
+#|                             match_object_type="filesystem_artifact",
+#|                             match_object_id=fa.artifact_id,
+#|                             state=MalwareState.MALICIOUS_ARTIFACT_CANDIDATE,
+#|                             family=family,
+#|                             evidence_ids=[ev.evidence_id] + fa.evidence_ids,
+#|                             confidence=clamp(float(item.get("confidence", ev.reliability)) * fa.confidence),
+#|                             limitations=[
+#|                                 "File hash match does not prove execution.",
+#|                                 "Hand off to MALINT for deep analysis.",
+#|                             ],
+#|                         )
+#|                     )
+#| 
+#|         elif ioc_type == "domain":
+#|             # Domain IOC is contextual unless runtime/network evidence is supplied.
+#|             out.append(
+#|                 MalwareIndicator(
+#|                     indicator_id=new_id("MAL"),
+#|                     indicator_type="domain_ioc_context",
+#|                     value=value,
+#|                     source=item.get("source") or ev.source_id,
+#|                     match_object_type="image_context",
+#|                     match_object_id=None,
+#|                     state=MalwareState.UNKNOWN,
+#|                     family=family,
+#|                     evidence_ids=[ev.evidence_id],
+#|                     confidence=clamp(float(item.get("confidence", ev.reliability))),
+#|                     limitations=["Embedded/domain IOC does not prove container contacted it."],
+#|                 )
+#|             )
+#| 
+#|     # Suspicious static heuristics: unsigned binary in temp path.
+#|     for b in binaries:
+#|         path = str(b.path or "").lower()
+#|         signing = b.signing or {}
+#|         unsigned = signing.get("valid") is False or not signing.get("publisher")
+#| 
+#|         if unsigned and any(marker in path for marker in SUSPICIOUS_TEMP_PATHS):
+#|             out.append(
+#|                 MalwareIndicator(
+#|                     indicator_id=new_id("MAL"),
+#|                     indicator_type="suspicious_unsigned_temp_binary",
+#|                     value=b.path or b.binary_id,
+#|                     source="static_heuristic",
+#|                     match_object_type="binary",
+#|                     match_object_id=b.binary_id,
+#|                     state=MalwareState.SUSPICIOUS_ARTIFACT_CANDIDATE,
+#|                     evidence_ids=b.evidence_ids,
+#|                     confidence=clamp(b.confidence * 0.65),
+#|                     limitations=[
+#|                         "Heuristic suspicion only; not malware confirmation.",
+#|                         "Legitimate installers/temporary build artifacts may match.",
+#|                         "Hand off to MALINT if consequential.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|     return out
+#| 
+#| 
+#| def map_vulnerability_candidates(
+#|     packages: List[PackageObject],
+#|     vulnerability_data: List[Dict[str, Any]],
+#|     vex_records: List[VexRecord],
+#|     case_id: str,
+#|     now: datetime,
+#|     evidences: List[EvidenceRef],
+#| ) -> List[VulnerabilityCandidate]:
+#|     out: List[VulnerabilityCandidate] = []

@@ -1,0 +1,1000 @@
+#| 
+#|     # Resources
+#|     c.add_resource(Resource(
+#|         id="STG-777",
+#|         provider="aws-like",
+#|         tenant_id="T-ACME",
+#|         account_id="A-123456789012",
+#|         project_id="P-payments",
+#|         resource_type="OBJECT_STORAGE",
+#|         name="payments-data",
+#|         region="us-east-1",
+#|         environment=Environment.PRODUCTION,
+#|         state=ResourceState.ACTIVE,
+#|         owner_candidate="payments-team",
+#|         business_owner="Finance Applications",
+#|         technical_owner="Platform Engineering",
+#|         data_owner="Payments Data Steward",
+#|         data_classification_candidate=None,
+#|         tags={
+#|             "owner": "payments-team",
+#|             "environment": "production",
+#|             "application": "payments",
+#|             "data_sensitivity_tag_claim": "confidential",
+#|         },
+#|         first_seen="2026-08-01T00:00:00Z",
+#|         last_seen="2026-10-08T00:00:00Z",
+#|         source_ids=["SRC-NATIVE-INV", "SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-NATIVE-CFG-PUBLIC", "EV-NATIVE-CFG-PRIVATE"],
+#|         confidence=0.95,
+#|         limitations=[
+#|             "Owner tag is a metadata claim; technical/business owner resolved from authorized inventory.",
+#|             "Data classification tag claim is not verified data-content classification.",
+#|         ],
+#|     ))
+#|     c.add_resource(Resource(
+#|         id="VM-01",
+#|         provider="aws-like",
+#|         tenant_id="T-ACME",
+#|         account_id="A-123456789012",
+#|         project_id="P-payments",
+#|         resource_type="COMPUTE_INSTANCE",
+#|         name="web-server",
+#|         region="us-east-1",
+#|         zone="us-east-1a",
+#|         environment=Environment.PRODUCTION,
+#|         state=ResourceState.ACTIVE,
+#|         owner_candidate="platform-team",
+#|         business_owner="Payments Web",
+#|         technical_owner="Platform Engineering",
+#|         data_owner=None,
+#|         data_classification_candidate=None,
+#|         tags={"owner": "platform-team", "environment": "production"},
+#|         first_seen="2026-07-01T00:00:00Z",
+#|         last_seen="2026-10-08T00:00:00Z",
+#|         source_ids=["SRC-NATIVE-INV", "SRC-VULN"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-VULN-VM"],
+#|         confidence=0.94,
+#|         limitations=["Public IP does not prove public service or vulnerability."],
+#|     ))
+#|     c.add_resource(Resource(
+#|         id="LB-01",
+#|         provider="aws-like",
+#|         tenant_id="T-ACME",
+#|         account_id="A-123456789012",
+#|         project_id="P-payments",
+#|         resource_type="LOAD_BALANCER",
+#|         name="payments-lb",
+#|         region="us-east-1",
+#|         environment=Environment.PRODUCTION,
+#|         state=ResourceState.ACTIVE,
+#|         owner_candidate="platform-team",
+#|         business_owner="Payments Web",
+#|         technical_owner="Platform Engineering",
+#|         data_owner=None,
+#|         data_classification_candidate=None,
+#|         tags={"owner": "platform-team"},
+#|         first_seen="2026-07-01T00:00:00Z",
+#|         last_seen="2026-10-08T00:00:00Z",
+#|         source_ids=["SRC-NATIVE-INV", "SRC-DNS", "SRC-CT"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-DNS-API", "EV-CT-API"],
+#|         confidence=0.92,
+#|         limitations=["Load balancer IP/DNS does not identify backend tenant or prove service exposure."],
+#|     ))
+#| 
+#|     # Config snapshots
+#|     c.add_config_snapshot(ConfigSnapshot(
+#|         id="CFG-STG-PUBLIC",
+#|         resource_id="STG-777",
+#|         config_type="STORAGE_ACCESS",
+#|         attributes={
+#|             "public_read": True,
+#|             "block_public_access": False,
+#|             "access_logging_enabled": False,
+#|             "encryption_at_rest": True,
+#|             "versioning": True,
+#|             "object_ownership_control": "BUCKET_OWNER_ENFORCED_CLAIM",
+#|         },
+#|         valid_from="2026-09-01T00:00:00Z",
+#|         valid_to="2026-10-01T00:00:00Z",
+#|         observed_at="2026-09-15T00:00:00Z",
+#|         source_id="SRC-NATIVE-CFG",
+#|         evidence_id="EV-NATIVE-CFG-PUBLIC",
+#|         confidence=0.95,
+#|         limitations=["Configuration candidate only; does not prove object-level public readability."],
+#|     ))
+#|     c.add_config_snapshot(ConfigSnapshot(
+#|         id="CFG-STG-PRIVATE",
+#|         resource_id="STG-777",
+#|         config_type="STORAGE_ACCESS",
+#|         attributes={
+#|             "public_read": False,
+#|             "block_public_access": True,
+#|             "access_logging_enabled": False,
+#|             "encryption_at_rest": True,
+#|             "versioning": True,
+#|             "object_ownership_control": "BUCKET_OWNER_ENFORCED_CLAIM",
+#|         },
+#|         valid_from="2026-10-01T00:00:00Z",
+#|         valid_to=None,
+#|         observed_at="2026-10-02T00:00:00Z",
+#|         source_id="SRC-NATIVE-CFG",
+#|         evidence_id="EV-NATIVE-CFG-PRIVATE",
+#|         confidence=0.95,
+#|         limitations=["Current private state does not retroactively prove historical private state."],
+#|     ))
+#| 
+#|     # Identities / IAM
+#|     c.add_identity(Identity(
+#|         id="SP-ANALYTICS",
+#|         provider="aws-like",
+#|         tenant_id="T-ACME",
+#|         account_id="A-123456789012",
+#|         identity_type=IdentityType.SERVICE_PRINCIPAL,
+#|         display_name="analytics-service-principal",
+#|         principal_id="SP-998877",
+#|         enabled=True,
+#|         created_at="2026-05-01T00:00:00Z",
+#|         last_used_at="2026-10-07T00:00:00Z",
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.94,
+#|         limitations=["Service principal is not a person."],
+#|     ))
+#|     c.add_identity(Identity(
+#|         id="USER-1",
+#|         provider="aws-like",
+#|         tenant_id="T-ACME",
+#|         account_id="A-123456789012",
+#|         identity_type=IdentityType.HUMAN_USER,
+#|         display_name="user-1",
+#|         principal_id="USER-001",
+#|         enabled=True,
+#|         created_at="2025-01-01T00:00:00Z",
+#|         last_used_at="2026-10-01T09:00:00Z",
+#|         source_ids=["SRC-IAM", "SRC-AUDIT"],
+#|         evidence_ids=["EV-IAM-EXPORT", "EV-AUDIT-CONFIG-CHANGE"],
+#|         confidence=0.93,
+#|         limitations=["Cloud identity does not automatically establish physical person operator in incident context."],
+#|     ))
+#| 
+#|     c.add_policy(Policy(
+#|         id="P-READONLY",
+#|         provider="aws-like",
+#|         account_id="A-123456789012",
+#|         policy_name="PaymentsReadOnly",
+#|         policy_type="IDENTITY_POLICY",
+#|         statements=[
+#|             PolicyStatement(
+#|                 effect="Allow",
+#|                 actions=["s3:GetObject", "s3:ListBucket"],
+#|                 resources=["arn:aws-like:s3:::payments-data", "arn:aws-like:s3:::payments-data/*"],
+#|                 conditions={},
+#|             )
+#|         ],
+#|         attached_to=["ROLE-READONLY"],
+#|         valid_from="2026-05-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_id="SRC-IAM",
+#|         evidence_id="EV-IAM-EXPORT",
+#|         confidence=0.94,
+#|         limitations=["Policy statement is not effective access without attachment/trust/conditions/boundaries."],
+#|     ))
+#|     c.add_policy(Policy(
+#|         id="P-BROAD",
+#|         provider="aws-like",
+#|         account_id="A-123456789012",
+#|         policy_name="BroadAdminLike",
+#|         policy_type="IDENTITY_POLICY",
+#|         statements=[
+#|             PolicyStatement(
+#|                 effect="Allow",
+#|                 actions=["*"],
+#|                 resources=["*"],
+#|                 conditions={"aws:SourceIp": "10.0.0.0/8"},
+#|             )
+#|         ],
+#|         attached_to=["ROLE-BROAD"],
+#|         valid_from="2026-06-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_id="SRC-IAM",
+#|         evidence_id="EV-IAM-EXPORT",
+#|         confidence=0.94,
+#|         limitations=[
+#|             "Wildcard policy may be constrained by conditions, permission boundaries, resource policies, and session context.",
+#|             "Role name does not prove privilege.",
+#|         ],
+#|     ))
+#| 
+#|     c.add_role(Role(
+#|         id="ROLE-READONLY",
+#|         provider="aws-like",
+#|         account_id="A-123456789012",
+#|         role_name="PaymentsReadOnlyRole",
+#|         role_arn_like="arn:aws-like:iam::A-123456789012:role/PaymentsReadOnlyRole",
+#|         trust_policy_id="TRUST-ACCOUNT-A",
+#|         attached_policy_ids=["P-READONLY"],
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.94,
+#|     ))
+#|     c.add_role(Role(
+#|         id="ROLE-BROAD",
+#|         provider="aws-like",
+#|         account_id="A-123456789012",
+#|         role_name="PlatformBroadRole",
+#|         role_arn_like="arn:aws-like:iam::A-123456789012:role/PlatformBroadRole",
+#|         trust_policy_id="TRUST-ACCOUNT-A",
+#|         attached_policy_ids=["P-BROAD"],
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.94,
+#|         limitations=["Privileged status candidate only; requires effective permission evaluation."],
+#|     ))
+#| 
+#|     c.add_role_attachment(RoleAttachment(
+#|         id="ATT-SP-READONLY",
+#|         identity_id="SP-ANALYTICS",
+#|         role_id="ROLE-READONLY",
+#|         valid_from="2026-05-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.94,
+#|     ))
+#|     c.add_trust_relationship(TrustRelationship(
+#|         id="TRUST-SP-READONLY",
+#|         from_identity_id="SP-ANALYTICS",
+#|         to_role_id="ROLE-READONLY",
+#|         trust_type="SERVICE_PRINCIPAL_TO_ROLE",
+#|         conditions={"audience": "analytics.internal"},
+#|         valid_from="2026-05-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.92,
+#|         limitations=["Trust does not prove successful assumption or effective access."],
+#|     ))
+#|     c.add_trust_relationship(TrustRelationship(
+#|         id="TRUST-ACCOUNT-A",
+#|         from_identity_id="USER-1",
+#|         to_role_id="ROLE-BROAD",
+#|         trust_type="ACCOUNT_PRINCIPAL_TO_ROLE",
+#|         conditions={"mfa_present": True},
+#|         valid_from="2026-06-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         confidence=0.92,
+#|         limitations=["Trust with MFA condition does not establish current session or effective privilege without evaluation."],
+#|     ))
+#| 
+#|     # Network
+#|     c.add_security_group_rule(SecurityGroupRule(
+#|         id="SG-WEB-443-INTERNET",
+#|         security_group_id="SG-WEB",
+#|         direction="ingress",
+#|         protocol="tcp",
+#|         port_range="443",
+#|         source_cidr="0.0.0.0/0",
+#|         action="ALLOW",
+#|         description="HTTPS from Internet to web tier",
+#|         valid_from="2026-07-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-INV"],
+#|         confidence=0.93,
+#|         limitations=["Security group allow rule does not prove service listening or vulnerability."],
+#|     ))
+#|     c.add_network_endpoint(NetworkEndpoint(
+#|         id="EP-LB-PUBLIC",
+#|         resource_id="LB-01",
+#|         endpoint_type="PUBLIC_LOAD_BALANCER",
+#|         public=True,
+#|         ip="198.51.100.55",
+#|         dns_name="api.example",
+#|         load_balancer_id="LB-01",
+#|         target_resource_ids=["VM-01"],
+#|         valid_from="2026-07-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-NATIVE-INV", "SRC-DNS", "SRC-CT"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-DNS-API", "EV-CT-API"],
+#|         confidence=0.90,
+#|         limitations=["Public endpoint candidate; no active probe performed."],
+#|     ))
+#|     c.add_network_endpoint(NetworkEndpoint(
+#|         id="EP-VM-PUBLIC-IP",
+#|         resource_id="VM-01",
+#|         endpoint_type="PUBLIC_IP",
+#|         public=True,
+#|         ip="198.51.100.20",
+#|         dns_name=None,
+#|         load_balancer_id="LB-01",
+#|         target_resource_ids=["VM-01"],
+#|         valid_from="2026-07-01T00:00:00Z",
+#|         valid_to=None,
+#|         source_ids=["SRC-NATIVE-INV"],
+#|         evidence_ids=["EV-NATIVE-INV"],
+#|         confidence=0.88,
+#|         limitations=["Public IP does not prove public service."],
+#|     ))
+#| 
+#|     # CSPM
+#|     c.add_cspm_finding(CSPMFinding(
+#|         id="CSPM-STG-PUBLIC",
+#|         resource_id="STG-777",
+#|         rule_id="storage-public-read",
+#|         severity="HIGH",
+#|         status="OPEN",
+#|         statement="Storage bucket allows public read access",
+#|         effective_at="2026-09-20T00:00:00Z",
+#|         retrieved_at="2026-10-08T00:25:00Z",
+#|         source_id="SRC-CSPM",
+#|         evidence_id="EV-CSPM-STG",
+#|         derived_from_native_config=True,
+#|         confidence=0.68,
+#|         limitations=[
+#|             "CSPM finding may be stale relative to native configuration change on 2026-10-01.",
+#|             "CSPM is derived from native configuration and is not independent corroboration.",
+#|         ],
+#|     ))
+#| 
+#|     # Audit / Flow
+#|     c.add_audit_event(AuditEvent(
+#|         id="AUDIT-CONFIG-CHANGE",
+#|         provider="aws-like",
+#|         account_id="A-123456789012",
+#|         event_name="PutBucketPublicAccessBlock",
+#|         actor_identity_id="USER-1",
+#|         actor_type="HUMAN_USER",
+#|         resource_id="STG-777",
+#|         source_ip="10.10.10.10",
+#|         auth_type="IAM",
+#|         status="SUCCESS",
+#|         event_time="2026-10-01T09:00:00Z",
+#|         request_id="REQ-9911",
+#|         data_plane=False,
+#|         source_ids=["SRC-AUDIT"],
+#|         evidence_ids=["EV-AUDIT-CONFIG-CHANGE"],
+#|         confidence=0.93,
+#|         limitations=["Control-plane event; does not prove object-level data access."],
+#|     ))
+#|     c.add_flow_event(FlowEvent(
+#|         id="FLOW-STG",
+#|         src_ip="203.0.113.10",
+#|         dst_ip="198.51.100.77",
+#|         dst_port="443",
+#|         protocol="tcp",
+#|         bytes_transferred=1024,
+#|         action="ACCEPT",
+#|         start_time="2026-09-20T11:59:00Z",
+#|         end_time="2026-09-20T11:59:30Z",
+#|         resource_id="STG-777",
+#|         source_ids=["SRC-FLOW"],
+#|         evidence_ids=["EV-FLOW-STG"],
+#|         confidence=0.88,
+#|         limitations=["Flow does not prove object GET/PUT, data content, or exfiltration."],
+#|     ))
+#| 
+#|     # Findings
+#|     c.add_finding(Finding(
+#|         id="F-RES-STG",
+#|         finding_type=FindingType.RESOURCE_EXISTS,
+#|         subject_id="STG-777",
+#|         statement="Object storage resource STG-777 exists in tenant T-ACME / account A-123456789012 / project P-payments.",
+#|         risk_dimension=RiskDimension.EVIDENCE_CONFIDENCE.value,
+#|         source_ids=["SRC-NATIVE-INV"],
+#|         evidence_ids=["EV-NATIVE-INV"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-RES-VM",
+#|         finding_type=FindingType.RESOURCE_EXISTS,
+#|         subject_id="VM-01",
+#|         statement="Compute resource VM-01 exists in tenant T-ACME / account A-123456789012 / project P-payments.",
+#|         risk_dimension=RiskDimension.EVIDENCE_CONFIDENCE.value,
+#|         source_ids=["SRC-NATIVE-INV"],
+#|         evidence_ids=["EV-NATIVE-INV"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-RES-LB",
+#|         finding_type=FindingType.RESOURCE_EXISTS,
+#|         subject_id="LB-01",
+#|         statement="Load balancer resource LB-01 exists in tenant T-ACME / account A-123456789012 / project P-payments.",
+#|         risk_dimension=RiskDimension.EVIDENCE_CONFIDENCE.value,
+#|         source_ids=["SRC-NATIVE-INV", "SRC-DNS"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-DNS-API"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-CFG-STG-PUBLIC-HIST",
+#|         finding_type=FindingType.CONFIGURATION_STATE,
+#|         subject_id="STG-777",
+#|         statement="Storage STG-777 native configuration indicated public-read capability during 2026-09-01 to 2026-10-01.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|         valid_from="2026-09-01T00:00:00Z",
+#|         valid_to="2026-10-01T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-CFG-STG-PRIVATE-CURRENT",
+#|         finding_type=FindingType.CONFIGURATION_STATE,
+#|         subject_id="STG-777",
+#|         statement="Storage STG-777 native configuration indicates private/block-public-access from 2026-10-01 onward.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG", "SRC-AUDIT"],
+#|         evidence_ids=["EV-NATIVE-CFG-PRIVATE", "EV-AUDIT-CONFIG-CHANGE"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|         valid_from="2026-10-01T00:00:00Z",
+#|         valid_to=None,
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-PUBCFG-STG",
+#|         finding_type=FindingType.PUBLIC_ACCESS_CONFIGURATION_CANDIDATE,
+#|         subject_id="STG-777",
+#|         statement="Storage STG-777 had a configuration capable of granting public read access during the historical window.",
+#|         risk_dimension=RiskDimension.DATA_EXPOSURE.value,
+#|         source_ids=["SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|         valid_from="2026-09-01T00:00:00Z",
+#|         valid_to="2026-10-01T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-DATAEXP-STG",
+#|         finding_type=FindingType.SENSITIVE_DATA_EXPOSURE,
+#|         subject_id="STG-777",
+#|         statement="Sensitive data exposure of storage STG-777 is not established.",
+#|         risk_dimension=RiskDimension.DATA_EXPOSURE.value,
+#|         source_ids=["SRC-NATIVE-CFG", "SRC-FLOW", "SRC-AUDIT"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-FLOW-STG", "EV-AUDIT-CONFIG-CHANGE"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-CSPM-STALE",
+#|         finding_type=FindingType.CSPM_STALE,
+#|         subject_id="STG-777",
+#|         statement="CSPM finding CSPM-STG-PUBLIC appears stale relative to native configuration history.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-CSPM", "SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-CSPM-STG", "EV-NATIVE-CFG-PRIVATE"],
+#|         effective_at="2026-10-08T00:25:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-LOGGING-STG",
+#|         finding_type=FindingType.LOGGING_GAP,
+#|         subject_id="STG-777",
+#|         statement="Storage access logging was disabled in native configuration snapshots, creating a data-plane visibility gap.",
+#|         risk_dimension=RiskDimension.LOGGING_GAP.value,
+#|         source_ids=["SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-NATIVE-CFG-PRIVATE"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-PUBEP-LB",
+#|         finding_type=FindingType.PUBLIC_ENDPOINT_CANDIDATE,
+#|         subject_id="LB-01",
+#|         statement="Load balancer LB-01 presents a public endpoint candidate via DNS/IP and Internet ingress security group rule.",
+#|         risk_dimension=RiskDimension.NETWORK_EXPOSURE.value,
+#|         source_ids=["SRC-NATIVE-INV", "SRC-NATIVE-CFG", "SRC-DNS", "SRC-CT"],
+#|         evidence_ids=["EV-NATIVE-INV", "EV-DNS-API", "EV-CT-API"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-IAM-POLICY-READONLY",
+#|         finding_type=FindingType.IAM_POLICY_OBSERVED,
+#|         subject_id="ROLE-READONLY",
+#|         statement="IAM policy P-READONLY permits s3:GetObject/ListBucket on payments-data resources.",
+#|         risk_dimension=RiskDimension.IDENTITY_RISK.value,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         effective_at="2026-10-08T00:10:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-IAM-SP",
+#|         finding_type=FindingType.IAM_EFFECTIVE_ACCESS_CANDIDATE,
+#|         subject_id="SP-ANALYTICS",
+#|         statement="Service principal SP-ANALYTICS may have effective read access to STG-777 via ROLE-READONLY, pending deterministic effective-permission evaluation.",
+#|         risk_dimension=RiskDimension.IDENTITY_RISK.value,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         effective_at="2026-10-08T00:10:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-PRIV-ROLEBROAD",
+#|         finding_type=FindingType.PRIVILEGED_IDENTITY_CANDIDATE,
+#|         subject_id="ROLE-BROAD",
+#|         statement="ROLE-BROAD has wildcard policy with source-IP condition; privileged status is candidate-only until effective permissions are evaluated.",
+#|         risk_dimension=RiskDimension.IDENTITY_RISK.value,
+#|         source_ids=["SRC-IAM"],
+#|         evidence_ids=["EV-IAM-EXPORT"],
+#|         effective_at="2026-10-08T00:10:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-MISCONFIG-STG",
+#|         finding_type=FindingType.MISCONFIGURATION_CANDIDATE,
+#|         subject_id="STG-777",
+#|         statement="Historical public-read storage configuration is a misconfiguration candidate absent approved exception evidence.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG", "SRC-CSPM"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-CSPM-STG"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|         valid_from="2026-09-01T00:00:00Z",
+#|         valid_to="2026-10-01T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-VULN-VM",
+#|         finding_type=FindingType.VULNERABILITY_CONTEXT,
+#|         subject_id="VM-01",
+#|         statement="Scanner associates CVE-2026-1234 with VM-01 image component openssl 3.0.x; applicability and exploitability unresolved.",
+#|         risk_dimension=RiskDimension.VULNERABILITY_RISK.value,
+#|         source_ids=["SRC-VULN"],
+#|         evidence_ids=["EV-VULN-VM"],
+#|         effective_at="2026-10-07T00:00:00Z",
+#|         specialist_handoff="VULNINT",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-BACKUP-STG",
+#|         finding_type=FindingType.BACKUP_RISK,
+#|         subject_id="STG-777",
+#|         statement="Versioning/backup metadata exists, but restore-test evidence is unavailable; restorability unknown.",
+#|         risk_dimension=RiskDimension.BACKUP_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG", "SRC-NATIVE-INV"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-NATIVE-INV"],
+#|         effective_at="2026-10-08T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-ENCRYPT-STG",
+#|         finding_type=FindingType.ENCRYPTION_CONTEXT,
+#|         subject_id="STG-777",
+#|         statement="Native configuration indicates encryption at rest and versioning; encryption does not eliminate identity/network exposure risk.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-NATIVE-CFG-PRIVATE"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-SHARED-RESP-STG",
+#|         finding_type=FindingType.SHARED_RESPONSIBILITY_CONTEXT,
+#|         subject_id="STG-777",
+#|         statement="Storage public-access configuration and IAM/resource policy are customer responsibilities; underlying provider infrastructure is provider responsibility.",
+#|         risk_dimension=RiskDimension.CONFIGURATION_RISK.value,
+#|         source_ids=["SRC-NATIVE-CFG", "SRC-IAM"],
+#|         evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-IAM-EXPORT"],
+#|         effective_at="2026-09-20T00:00:00Z",
+#|     ))
+#|     c.add_finding(Finding(
+#|         id="F-COST-CTX",
+#|         finding_type=FindingType.COST_ANOMALY_CONTEXT,
+#|         subject_id="A-123456789012",
+#|         statement="Billing metadata shows modest compute cost increase; this is context only and not compromise evidence.",
+#|         risk_dimension=RiskDimension.INCIDENT_RISK.value,
+#|         source_ids=["SRC-BILLING"],
+#|         evidence_ids=["EV-BILLING-COST"],
+#|         effective_at="2026-10-08T00:35:00Z",
+#|     ))
+#| 
+#|     # Hypotheses
+#|     c.hypotheses = [
+#|         Hypothesis(
+#|             id="H-STG-INTENTIONAL-PUBLIC",
+#|             statement="Storage STG-777 was intentionally public during the historical window.",
+#|             kind="PUBLIC_INTENT",
+#|             supporting_event_ids=["F-PUBCFG-STG"],
+#|             supporting_evidence_ids=["EV-NATIVE-CFG-PUBLIC"],
+#|             contradicting_evidence_ids=["EV-NATIVE-CFG-PRIVATE"],
+#|             assumptions=["Public access may serve a legitimate public dataset or API."],
+#|             predictions=["Change ticket/approval and public data classification would support intentional public design."],
+#|             falsification_conditions=[
+#|                 "No approved exception exists.",
+#|                 "Data classification is confidential/regulated.",
+#|                 "Object-level logs show unintended anonymous access.",
+#|             ],
+#|             status=HypothesisStatus.POSSIBLE,
+#|             confidence=0.35,
+#|             limitations=["Intent cannot be established from configuration alone."],
+#|         ),
+#|         Hypothesis(
+#|             id="H-STG-UNINTENTIONAL-PUBLIC",
+#|             statement="Storage STG-777 was unintentionally public during the historical window.",
+#|             kind="PUBLIC_INTENT",
+#|             supporting_event_ids=["F-MISCONFIG-STG", "F-LOGGING-STG"],
+#|             supporting_evidence_ids=["EV-NATIVE-CFG-PUBLIC", "EV-CSPM-STG"],
+#|             contradicting_evidence_ids=[],
+#|             assumptions=["Production payments data with confidential tag claim is unlikely to be intentionally public."],
+#|             predictions=["Change management would show no approval for public access; later remediation supports unintended exposure hypothesis."],
+#|             falsification_conditions=[
+#|                 "Approved exception/public dataset evidence exists.",
+#|                 "Object classification shows public data.",
+#|                 "Architecture docs indicate public read requirement.",
+#|             ],
+#|             status=HypothesisStatus.POSSIBLE,
+#|             confidence=0.55,
+#|             limitations=["Misconfiguration candidate is not breach."],
+#|         ),
+#|         Hypothesis(
+#|             id="H-CSPM-STALE",
+#|             statement="CSPM public finding is stale relative to native configuration history.",
+#|             kind="SOURCE_QUALITY",
+#|             supporting_event_ids=["F-CSPM-STALE"],
+#|             supporting_evidence_ids=["EV-CSPM-STG", "EV-NATIVE-CFG-PRIVATE", "EV-AUDIT-CONFIG-CHANGE"],
+#|             contradicting_evidence_ids=[],
+#|             assumptions=["Native configuration history is more authoritative than cached scanner state for temporal configuration."],
+#|             predictions=["Re-run CSPM after 2026-10-01 would no longer report public read."],
+#|             falsification_conditions=[
+#|                 "Native config export is wrong.",
+#|                 "Resource was recreated with public config after 2026-10-01.",
+#|                 "CSPM evaluated a different resource version.",
+#|             ],
+#|             status=HypothesisStatus.PROBABLE,
+#|             confidence=0.82,
+#|             limitations=["Staleness does not erase historical public configuration fact."],
+#|         ),
+#|         Hypothesis(
+#|             id="H-LB-AUTHENTICATED-SERVICE",
+#|             statement="Public endpoint LB-01 serves an authenticated application rather than anonymous public data.",
+#|             kind="EXPOSURE_INTERPRETATION",
+#|             supporting_event_ids=["F-PUBEP-LB"],
+#|             supporting_evidence_ids=["EV-DNS-API", "EV-CT-API"],
+#|             contradicting_evidence_ids=[],
+#|             assumptions=["TLS certificate and load balancer suggest web service, but auth model unknown."],
+#|             predictions=["Authorized service logs/banner/auth tests would show authentication required."],
+#|             falsification_conditions=[
+#|                 "Anonymous sensitive endpoints are confirmed.",
+#|                 "Public data download is evidenced.",
+#|                 "WAF/auth logs show unauthenticated successful access to protected objects.",
+#|             ],
+#|             status=HypothesisStatus.UNRESOLVED,
+#|             confidence=0.45,
+#|             limitations=["No active probing performed."],
+#|         ),
+#|         Hypothesis(
+#|             id="H-IAM-EFFECTIVE-READ",
+#|             statement="SP-ANALYTICS has effective read access to STG-777 via ROLE-READONLY.",
+#|             kind="IAM_EFFECTIVE",
+#|             supporting_event_ids=["F-IAM-SP", "F-IAM-POLICY-READONLY"],
+#|             supporting_evidence_ids=["EV-IAM-EXPORT"],
+#|             contradicting_evidence_ids=[],
+#|             assumptions=["Attachment/trust/policy are current and no boundary/deny/condition blocks access."],
+#|             predictions=["Deterministic IAM evaluator would confirm or deny effective access."],
+#|             falsification_conditions=[
+#|                 "Permission boundary denies access.",
+#|                 "Resource policy denies SP-ANALYTICS.",
+#|                 "Session conditions/network context block access.",
+#|                 "Role attachment is stale.",
+#|             ],
+#|             status=HypothesisStatus.UNRESOLVED,
+#|             confidence=0.50,
+#|             limitations=["No role assumption or credential test performed."],
+#|         ),
+#|     ]
+#| 
+#|     c.prepare()
+#|     return c
+#| 
+#| 
+#| # =====================================================================
+#| # RESULT BUILDER
+#| # =====================================================================
+#| 
+#| def graph_version_hash(c: CloudInt) -> str:
+#|     seed_obj = {
+#|         "resources": sorted((rid, r.provider, r.tenant_id, r.account_id, r.resource_type) for rid, r in c.resources.items()),
+#|         "configs": sorted((cid, cs.resource_id, cs.config_type, cs.valid_from, cs.valid_to) for cid, cs in c.config_snapshots.items()),
+#|         "findings": sorted((fid, f.finding_type.value, f.subject_id, f.verification_state.value, round(float(f.confidence), 3)) for fid, f in c.findings.items()),
+#|     }
+#|     return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+#| 
+#| 
+#| def build_source_graph(c: CloudInt) -> Dict[str, Any]:
+#|     edges = []
+#|     for src in c.sources.values():
+#|         if src.derived_from:
+#|             edges.append({
+#|                 "source": src.derived_from,
+#|                 "target": src.id,
+#|                 "relationship_type": "DERIVED_FROM",
+#|             })
+#|     return {
+#|         "nodes": [s.id for s in c.sources.values()],
+#|         "edges": edges,
+#|     }
+#| 
+#| 
+#| def build_source_dependency_graph(c: CloudInt) -> Dict[str, List[str]]:
+#|     families: Dict[str, List[str]] = defaultdict(list)
+#|     for sid in c.sources:
+#|         fam = c.get_source_family(sid) or "UNKNOWN"
+#|         families[fam].append(sid)
+#|     return {k: sorted(v) for k, v in families.items()}
+#| 
+#| 
+#| def build_config_history_payload(c: CloudInt) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for cs in sorted(c.config_snapshots.values(), key=lambda x: (x.resource_id, dt_or_min(x.valid_from))):
+#|         out.append({
+#|             "config_snapshot_id": cs.id,
+#|             "resource_id": cs.resource_id,
+#|             "config_type": cs.config_type,
+#|             "attributes": cs.attributes,
+#|             "valid_from": cs.valid_from,
+#|             "valid_to": cs.valid_to,
+#|             "observed_at": cs.observed_at,
+#|             "source_id": cs.source_id,
+#|             "evidence_id": cs.evidence_id,
+#|             "parser_version": cs.parser_version,
+#|             "confidence": cs.confidence,
+#|             "limitations": cs.limitations,
+#|         })
+#|     return out
+#| 
+#| 
+#| def build_iam_graph(c: CloudInt) -> Dict[str, Any]:
+#|     nodes = []
+#|     edges = []
+#| 
+#|     for ident in c.identities.values():
+#|         nodes.append({"id": ident.id, "type": "Identity", "identity_type": ident.identity_type.value})
+#|     for role in c.roles.values():
+#|         nodes.append({"id": role.id, "type": "Role", "role_name": role.role_name})
+#|     for pol in c.policies.values():
+#|         nodes.append({"id": pol.id, "type": "Policy", "policy_name": pol.policy_name})
+#| 
+#|     for att in c.role_attachments.values():
+#|         edges.append({
+#|             "source": att.identity_id,
+#|             "target": att.role_id,
+#|             "relationship_type": "ASSIGNED_ROLE",
+#|             "valid_from": att.valid_from,
+#|             "valid_to": att.valid_to,
+#|         })
+#|     for tr in c.trust_relationships.values():
+#|         edges.append({
+#|             "source": tr.from_identity_id,
+#|             "target": tr.to_role_id,
+#|             "relationship_type": "TRUSTS_CAN_ASSUME",
+#|             "conditions": tr.conditions,
+#|             "valid_from": tr.valid_from,
+#|             "valid_to": tr.valid_to,
+#|         })
+#|     for pol in c.policies.values():
+#|         for target in pol.attached_to:
+#|             edges.append({
+#|                 "source": pol.id,
+#|                 "target": target,
+#|                 "relationship_type": "ATTACHED_TO",
+#|             })
+#| 
+#|     return {"nodes": nodes, "edges": edges}
+#| 
+#| 
+#| def build_exposure_payload(c: CloudInt) -> Dict[str, Any]:
+#|     endpoints = []
+#|     for ep in c.network_endpoints.values():
+#|         endpoints.append({
+#|             "endpoint_id": ep.id,
+#|             "resource_id": ep.resource_id,
+#|             "endpoint_type": ep.endpoint_type,
+#|             "public": ep.public,
+#|             "ip": ep.ip,
+#|             "dns_name": ep.dns_name,
+#|             "load_balancer_id": ep.load_balancer_id,
+#|             "target_resource_ids": ep.target_resource_ids,
+#|             "valid_from": ep.valid_from,
+#|             "valid_to": ep.valid_to,
+#|             "source_ids": ep.source_ids,
+#|             "evidence_ids": ep.evidence_ids,
+#|             "confidence": ep.confidence,
+#|             "limitations": ep.limitations,
+#|         })
+#| 
+#|     storage_cfg_candidates = [
+#|         f for f in c.findings.values()
+#|         if f.finding_type == FindingType.PUBLIC_ACCESS_CONFIGURATION_CANDIDATE
+#|     ]
+#|     sensitive_exposure = [
+#|         f for f in c.findings.values()
+#|         if f.finding_type == FindingType.SENSITIVE_DATA_EXPOSURE
+#|     ]
+#| 
+#|     return {
+#|         "network_endpoints": endpoints,
+#|         "public_access_configuration_candidates": storage_cfg_candidates,
+#|         "sensitive_data_exposure_findings": sensitive_exposure,
+#|         "guardrails": [
+#|             "Public endpoint != public service.",
+#|             "Public service != anonymous access.",
+#|             "Public access configuration != public data.",
+#|             "Public data != breach.",
+#|             "No bucket listing/download/upload/ACL test performed.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_result(c: CloudInt, status: Status) -> Dict[str, Any]:
+#|     dual = c.dual_ai_review()
+#|     summary = c.analyst_summary(dual)
+#|     source_families = build_source_dependency_graph(c)
+#| 
+#|     finding_independence = {
+#|         fid: c.independence_state(f.source_ids)
+#|         for fid, f in c.findings.items()
+#|     }
+#| 
+#|     supported_facts = [f for f in c.findings.values() if f.verification_state == VerificationState.SUPPORTED]
+#|     partial_facts = [f for f in c.findings.values() if f.verification_state == VerificationState.PARTIALLY_SUPPORTED]
+#|     disputed_facts = [f for f in c.findings.values() if f.verification_state == VerificationState.DISPUTED]
+#|     inconclusive_facts = [f for f in c.findings.values() if f.verification_state == VerificationState.INCONCLUSIVE]
+#| 
+#|     replay_manifest = {
+#|         "generated_at": now_iso(),
+#|         "pipeline_version": PIPELINE_VERSION,
+#|         "graph_version": graph_version_hash(c),
+#|         "core_principle": (
+#|             "CLOUD REFERENCE -> PROVIDER RESOLUTION -> TENANT/ACCOUNT RESOLUTION -> RESOURCE INVENTORY -> "
+#|             "RESOURCE IDENTITY -> OWNERSHIP/RESPONSIBILITY -> IAM/TRUST -> NETWORK/EXPOSURE -> CONFIGURATION -> "
+#|             "TELEMETRY -> TEMPORAL VALIDATION -> SOURCE RELIABILITY -> SOURCE INDEPENDENCE -> FACT GATE -> CLOUD RISK ASSESSMENT"
+#|         ),
+#|         "temporal_rule": "Current configuration must not contaminate historical incident analysis; config eras preserved.",
+#|         "iam_rule": "IAM policy observation != effective access; trust != successful assumption; role name != privilege.",
+#|         "exposure_rule": "Public endpoint != public service != anonymous access != public data != breach.",
+#|         "source_rule": "CSPM/SIEM/CNAPP derivatives are not independent corroboration of native configuration.",
+#|         "policy_exclusions": [
+#|             "No cloud credential use/testing.",
+#|             "No token redemption.",
+#|             "No role assumption.",
+#|             "No bucket listing/download/upload.",
+#|             "No private object access.",
+#|             "No metadata/SSRF exploitation.",
+#|             "No IAM/firewall/storage modification.",
+#|             "No log deletion/disabling.",
+#|             "No cross-tenant access.",
+#|             "No unauthorized scanning.",
+#|         ],
+#|         "source_lineage": source_families,
+#|         "config_history": build_config_history_payload(c),
+#|         "finding_independence": finding_independence,
+#|     }
+#| 
+#|     return {
+#|         "case_id": c.case.case_id,
+#|         "task_id": c.case.task_id,
+#|         "objective": c.case.objective,
+#|         "questions": c.case.questions,
+#|         "scope": c.case.scope,
+#|         "authorization": c.case.authorization,
+#|         "status": status.value,
+#|         "source_ids": sorted(c.sources.keys()),
+#|         "evidence_ids": sorted(c.evidence.keys()),
+#|         "cloud_providers": sorted({r.provider for r in c.resources.values()}),
+#|         "organizations": [c.case.tenant_id] if c.case.tenant_id else [],
+#|         "tenants": sorted({r.tenant_id for r in c.resources.values()}),
+#|         "accounts": sorted({r.account_id for r in c.resources.values()}),
+#|         "subscriptions": sorted({r.subscription_id for r in c.resources.values() if r.subscription_id}),
+#|         "projects": sorted({r.project_id for r in c.resources.values() if r.project_id}),
+#|         "folders": [],
+#|         "resource_groups": sorted({r.resource_group for r in c.resources.values() if r.resource_group}),
+#|         "regions": sorted({r.region for r in c.resources.values() if r.region}),
+#|         "zones": sorted({r.zone for r in c.resources.values() if r.zone}),
+#|         "resources": list(c.resources.values()),
+#|         "resource_types": sorted({r.resource_type for r in c.resources.values()}),
+#|         "resource_states": {rid: r.state.value for rid, r in c.resources.items()},
+#|         "resource_eras": build_config_history_payload(c),
+#|         "environments": {rid: r.environment.value for rid, r in c.resources.items()},
+#|         "business_owners": {rid: r.business_owner for rid, r in c.resources.items()},
+#|         "technical_owners": {rid: r.technical_owner for rid, r in c.resources.items()},
+#|         "identities": list(c.identities.values()),
+#|         "groups": [],
+#|         "roles": list(c.roles.values()),
+#|         "policies": list(c.policies.values()),
+#|         "effective_permissions": [
+#|             f for f in c.findings.values()
+#|             if f.finding_type in {
+#|                 FindingType.IAM_EFFECTIVE_ACCESS_CANDIDATE,
+#|                 FindingType.PRIVILEGED_IDENTITY_CANDIDATE,
+#|             }
+#|         ],
+#|         "trust_relationships": list(c.trust_relationships.values()),
+#|         "federation": [],
+#|         "service_principals": [i for i in c.identities.values() if i.identity_type == IdentityType.SERVICE_PRINCIPAL],
+#|         "managed_identities": [i for i in c.identities.values() if i.identity_type == IdentityType.MANAGED_IDENTITY],
+#|         "workload_identities": [i for i in c.identities.values() if i.identity_type == IdentityType.WORKLOAD_IDENTITY],
+#|         "privileged_identities": [f for f in c.findings.values() if f.finding_type == FindingType.PRIVILEGED_IDENTITY_CANDIDATE],
+#|         "compute_resources": [r for r in c.resources.values() if r.resource_type == "COMPUTE_INSTANCE"],
+#|         "serverless_resources": [],
+#|         "containers": [],
+#|         "kubernetes_clusters": [],
+#|         "registries": [],
+#|         "images": [],
+#|         "storage_resources": [r for r in c.resources.values() if r.resource_type == "OBJECT_STORAGE"],
+#|         "databases": [],
+#|         "vpcs": [],
+#|         "vnets": [],
+#|         "subnets": [],
+#|         "security_groups": list(c.security_group_rules.values()),
+#|         "firewalls": [],
+#|         "route_tables": [],
+#|         "peerings": [],
+#|         "private_endpoints": [],
+#|         "public_endpoints": [ep for ep in c.network_endpoints.values() if ep.public],
+#|         "load_balancers": [r for r in c.resources.values() if r.resource_type == "LOAD_BALANCER"],
+#|         "cdns": [],
+#|         "dns_zones": [],
+#|         "certificates": [],
+#|         "secret_objects": [],
+#|         "key_management": [],
+#|         "logging_sources": [s.id for s in c.sources.values() if s.source_type in {SourceType.CLOUD_AUDIT_LOG, SourceType.CLOUD_FLOW_LOG}],
+#|         "audit_events": list(c.audit_events.values()),
+#|         "flow_logs": list(c.flow_events.values()),
+#|         "configurations": build_config_history_payload(c),
+#|         "config_drift": [
+#|             {
+#|                 "resource_id": "STG-777",
+#|                 "from": "public_read=true",
+#|                 "to": "public_read=false",
+#|                 "changed_at": "2026-10-01T00:00:00Z",
+#|                 "source": "native configuration history + audit event",
+#|             }
+#|         ],
+#|         "cspm_findings": list(c.cspm_findings.values()),
+#|         "benchmark_context": [],
+#|         "exceptions": [],
+#|         "encryption_context": [f for f in c.findings.values() if f.finding_type == FindingType.ENCRYPTION_CONTEXT],
+#|         "backup_context": [f for f in c.findings.values() if f.finding_type == FindingType.BACKUP_RISK],
+#|         "data_classification": {rid: r.data_classification_candidate for rid, r in c.resources.items()},
+#|         "data_residency": {
+#|             "STG-777": "primary_region_us_east_1_replication_unknown",
+#|             "VM-01": "primary_region_us_east_1",
+#|             "LB-01": "regional_load_balancer",
+#|         },
+#|         "external_exposure": build_exposure_payload(c),
+#|         "vulnerability_context": [f for f in c.findings.values() if f.finding_type == FindingType.VULNERABILITY_CONTEXT],
+#|         "incident_context": [f for f in c.findings.values() if f.finding_type in {FindingType.INCIDENT_SIGNAL, FindingType.BREACH_CONTEXT}],
+#|         "breach_context": "NOT_ESTABLISHED",
+#|         "supply_chain_context": [],
+#|         "shared_responsibility": [f for f in c.findings.values() if f.finding_type == FindingType.SHARED_RESPONSIBILITY_CONTEXT],
+#|         "cost_context": [f for f in c.findings.values() if f.finding_type == FindingType.COST_ANOMALY_CONTEXT],
+#|         "timeline_updates": [
+#|             {
+#|                 "time": "2026-09-01T00:00:00Z",
+#|                 "event": "Storage public-read configuration era begins.",
+#|                 "source_ids": ["SRC-NATIVE-CFG"],
+#|             },
+#|             {
+#|                 "time": "2026-09-20T00:00:00Z",
+#|                 "event": "CSPM effective time for public-read finding.",
+#|                 "source_ids": ["SRC-CSPM"],
+#|             },
+#|             {
+#|                 "time": "2026-10-01T00:00:00Z",
+#|                 "event": "Storage configuration changes to private/block public access.",
+#|                 "source_ids": ["SRC-NATIVE-CFG", "SRC-AUDIT"],
+#|             },
+#|             {
+#|                 "time": "2026-10-08T00:25:00Z",
+#|                 "event": "CSPM retrieved still reports public; stale/contradiction detected.",
+#|                 "source_ids": ["SRC-CSPM"],
+#|             },
+#|         ],
+#|         "observations": list(c.evidence.values()),
+#|         "candidate_facts": list(c.findings.values()),
+#|         "supported_facts": supported_facts,
+#|         "partial_facts": partial_facts,
+#|         "disputed_facts": disputed_facts,
+#|         "inconclusive_facts": inconclusive_facts,
+#|         "source_reliability": {sid: s.reliability for sid, s in c.sources.items()},
+#|         "source_bias": {sid: s.notes for sid, s in c.sources.items()},
+#|         "source_limitations": {sid: [s.notes] for sid, s in c.sources.items() if s.notes},
+#|         "source_pedigree": {sid: c.get_source_family(sid) for sid in c.sources},
+#|         "source_independence": {
+#|             "source_families": source_families,
+#|             "finding_independence": finding_independence,
+#|         },
+#|         "contradictions": c.contradictions,
+#|         "hypotheses": c.hypotheses,
+#|         "falsification_results": [
+#|             {
+#|                 "hypothesis_id": h.id,

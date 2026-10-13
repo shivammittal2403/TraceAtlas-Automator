@@ -1,0 +1,1000 @@
+#|     for sm in security_mappings:
+#|         node_id = f"N_SEC_{sm.get('finding_id')}"
+#|         add_node(node_id, "SecurityFinding", sm)
+#|         if sm.get("affected_entity_id"):
+#|             add_edge(node_id, f"N_ENTITY_{sm.get('affected_entity_id')}", "AFFECTS", 0.7, [])
+#| 
+#|     for inc in incident_props:
+#|         node_id = f"N_INC_{inc.get('incident_id')}"
+#|         add_node(node_id, "Incident", inc)
+#| 
+#|     for est in cost_estimates:
+#|         node_id = f"N_COST_{est.get('estimate_id')}"
+#|         add_node(node_id, "CostEstimate", est)
+#|         if est.get("entity_id"):
+#|             add_edge(node_id, f"N_ENTITY_{est.get('entity_id')}", "COST_FOR", 0.9, est.get("evidence_ids", []))
+#| 
+#|     for ch in change_analysis.get("timeline", []):
+#|         node_id = f"N_CHG_{ch.get('change_id')}"
+#|         add_node(node_id, "ChangeEvent", ch)
+#|         if ch.get("entity_id"):
+#|             add_edge(node_id, f"N_ENTITY_{ch.get('entity_id')}", "CHANGES", 0.8, ch.get("evidence_ids", []))
+#| 
+#|     for f in facts:
+#|         add_node(f"N_FACT_{f.fact_id}", "Fact", asdict(f))
+#| 
+#|     for h in hypotheses:
+#|         add_node(f"N_HYP_{h.id}", "Hypothesis", asdict(h))
+#| 
+#|     for c in contradictions:
+#|         add_node(f"N_CONTRA_{c.contradiction_id}", "Contradiction", asdict(c))
+#| 
+#|     for g in gaps:
+#|         add_node(f"N_GAP_{g.gap_id}", "Gap", asdict(g))
+#| 
+#|     return {
+#|         "nodes": [asdict(n) for n in nodes.values()],
+#|         "edges": [asdict(e) for e in edges],
+#|     }
+#| 
+#| 
+#| def generate_summary(
+#|     resolved_references: List[Dict[str, Any]],
+#|     models: List[ModelObject],
+#|     lineage: List[Dict[str, Any]],
+#|     benchmark_results: List[BenchmarkResult],
+#|     capability: List[Dict[str, Any]],
+#|     security_mappings: List[Dict[str, Any]],
+#|     incident_props: List[Dict[str, Any]],
+#|     supply_chain: Dict[str, Any],
+#|     cost_estimates: List[Dict[str, Any]],
+#|     change_analysis: Dict[str, Any],
+#|     contradictions: List[Contradiction],
+#|     gaps: List[Gap],
+#|     source_independence: Dict[str, Any],
+#| ) -> str:
+#|     lines: List[str] = []
+#| 
+#|     lines.append("=== AIINT REQUIRED ANALYST SUMMARY ===")
+#| 
+#|     lines.append("AI ENTITY / REFERENCE:")
+#|     for rr in resolved_references:
+#|         lines.append(f"- {rr.get('reference')} -> layer={rr.get('layer')}, primary={rr.get('primary_id')}, ambiguous={rr.get('ambiguous')}")
+#| 
+#|     lines.append("")
+#|     lines.append("MODEL / FAMILY / VERSION:")
+#|     for m in models:
+#|         lines.append(
+#|             f"- {m.canonical_name} ({m.model_id}): family={m.family_id}, type={m.model_type.name}, "
+#|             f"access={m.access_type.name}, context={m.context_window}, params={m.parameter_count}"
+#|         )
+#| 
+#|     lines.append("")
+#|     lines.append("DEVELOPER / PROVIDER:")
+#|     for m in models:
+#|         lines.append(f"- {m.model_id}: developer={m.developer_id}, providers={m.provider_ids}")
+#| 
+#|     lines.append("")
+#|     lines.append("PRODUCT / API / DEPLOYMENT / AGENT SEPARATION:")
+#|     lines.append("- References are resolved by layer; product/API/deployment/agent capability is not collapsed into base model capability.")
+#| 
+#|     lines.append("")
+#|     lines.append("MODEL LINEAGE:")
+#|     for lin in lineage:
+#|         lines.append(f"- {lin.get('source_model_id')} {lin.get('relation')} {lin.get('target_model_id')} [{lin.get('lineage_confidence')}]")
+#| 
+#|     lines.append("")
+#|     lines.append("MODALITIES / CONTEXT / TOOLS:")
+#|     for m in models:
+#|         lines.append(
+#|             f"- {m.model_id}: modality={m.modality}, max_context={m.context_window}, max_output={m.max_output_tokens}, "
+#|             f"tool_use={m.attributes.get('tool_use')}, function_calling={m.attributes.get('function_calling')}"
+#|         )
+#| 
+#|     lines.append("")
+#|     lines.append("CAPABILITY CLAIMS vs MEASUREMENTS:")
+#|     for cap in capability:
+#|         lines.append(f"- {cap.get('model_id')}: claims={len(cap.get('claims', []))}, measurements={len(cap.get('measurements', []))}")
+#| 
+#|     lines.append("")
+#|     lines.append("BENCHMARK COMPARABILITY:")
+#|     for br in benchmark_results:
+#|         lines.append(
+#|             f"- {br.result_id}: model={br.model_id}, benchmark={br.benchmark_id}/{br.benchmark_version}, "
+#|             f"score={br.score}, status={br.comparability_status.name}"
+#|         )
+#| 
+#|     lines.append("")
+#|     lines.append("LICENSE / POLICY:")
+#|     for m in models:
+#|         lines.append(f"- {m.model_id}: license={m.license_id}, policies={m.policy_ids}")
+#| 
+#|     lines.append("")
+#|     lines.append("TRAINING DATA / DATASET PROVENANCE:")
+#|     lines.append("- Training-data claims are preserved as disclosed/inferred/unknown and are not converted into exact record facts.")
+#| 
+#|     lines.append("")
+#|     lines.append("SAFETY / SECURITY:")
+#|     for sm in security_mappings:
+#|         lines.append(
+#|             f"- {sm.get('finding_id')}: layer={sm.get('affected_layer')}, "
+#|             f"base_model_impact={sm.get('base_model_impact')}, issue={sm.get('issue_type')}"
+#|         )
+#| 
+#|     lines.append("")
+#|     lines.append("AI INCIDENTS:")
+#|     for inc in incident_props:
+#|         lines.append(f"- {inc.get('incident_id')}: model={inc.get('model_id')}, propagation_entries={len(inc.get('deployment_propagation', []))}")
+#| 
+#|     lines.append("")
+#|     lines.append("RAG / AGENT / TOOL CONTEXT:")
+#|     lines.append("- RAG, embedding, reranker, vector DB, tool, MCP, guardrail, and monitoring dependencies are represented separately from model intrinsic capability.")
+#| 
+#|     lines.append("")
+#|     lines.append("FRAMEWORK / PACKAGE / INFERENCE / HARDWARE / CLOUD:")
+#|     if supply_chain.get("paths"):
+#|         for path in supply_chain["paths"][:20]:
+#|             lines.append("- " + " -> ".join(path))
+#|     else:
+#|         lines.append("- No supply-chain paths resolved from supplied relationships.")
+#| 
+#|     lines.append("")
+#|     lines.append("COMMON-MODE DEPENDENCIES:")
+#|     for cm in supply_chain.get("common_mode_dependencies", [])[:20]:
+#|         lines.append(f"- {cm.get('dependency_type')} {cm.get('dependency_id')} shared by {cm.get('deployment_ids')}")
+#| 
+#|     lines.append("")
+#|     lines.append("COST / LATENCY / THROUGHPUT:")
+#|     for est in cost_estimates:
+#|         lines.append(
+#|             f"- {est.get('entity_id')}: total_cost={est.get('total_cost')} {est.get('currency')} as_of={est.get('pricing_effective_date')}"
+#|         )
+#| 
+#|     lines.append("")
+#|     lines.append("CHANGE / DRIFT:")
+#|     for flag in change_analysis.get("flags", []):
+#|         lines.append(f"- {flag}")
+#| 
+#|     lines.append("")
+#|     lines.append("SOURCE RELIABILITY / INDEPENDENCE:")
+#|     lines.append(f"- Source independence state: {source_independence.get('state')}")
+#| 
+#|     lines.append("")
+#|     lines.append("CONTRADICTIONS:")
+#|     if contradictions:
+#|         for c in contradictions:
+#|             lines.append(f"- {c.contradiction_type}: {c.description} [{c.severity}]")
+#|     else:
+#|         lines.append("- None detected.")
+#| 
+#|     lines.append("")
+#|     lines.append("UNKNOWN:")
+#|     lines.append("- Exact checkpoint behind mutable API alias, if applicable.")
+#|     lines.append("- Effective reasoning quality across full context window.")
+#|     lines.append("- Real-world reliability, safety, and intent.")
+#|     lines.append("- Full deployment scope and hidden routing/fallback behavior.")
+#|     lines.append("- Threat actor, malicious intent, or exploitation status.")
+#| 
+#|     lines.append("")
+#|     lines.append("NEXT ACTION:")
+#|     lines.append("- Resolve exact model/version/checkpoint and separate API alias routing.")
+#|     lines.append("- Retrieve official model card, system card, release notes, and license text.")
+#|     lines.append("- Normalize benchmark protocol before comparing scores.")
+#|     lines.append("- Map RAG/tool/guardrail/monitoring dependencies before attributing behavior to model.")
+#|     lines.append("- Hand vulnerability applicability to VULNINT and incident scope to INCIDENTINT.")
+#|     lines.append("- Hand package/framework deep analysis to PACKAGEINT and repository details to REPOINT.")
+#|     lines.append("- Hand license/regulatory interpretation to LEGALINT/GRC.")
+#|     lines.append("- Do not extract weights, harvest keys, bypass safeguards, jailbreak, poison, or deploy harmful agents.")
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # ==============================================================================
+#| # MAIN ENGINE
+#| # ==============================================================================
+#| 
+#| class AIIntEmployee:
+#|     """
+#|     Defensive AIINT employee.
+#| 
+#|     Consumes lawful public/authorized AI ecosystem evidence representations.
+#|     Does not steal models, extract weights, harvest/use API keys, bypass safeguards,
+#|     extract confidential prompts, automate jailbreaks, poison models/data/RAG/memory,
+#|     compromise ML pipelines/inference infrastructure, or deploy harmful autonomous agents.
+#|     """
+#| 
+#|     def __init__(self, model_mode: str = "LOCAL_ONLY"):
+#|         self.model_mode = model_mode.upper()
+#|         logger.info("AIINT employee initialized in mode=%s", self.model_mode)
+#| 
+#|     def process_case(
+#|         self,
+#|         case_id: str,
+#|         task_id: str,
+#|         objective: str,
+#|         scope: Dict[str, Any],
+#|         evidence_input: Dict[str, Any],
+#|         known_facts: Optional[Dict[str, Any]] = None,
+#|     ) -> Dict[str, Any]:
+#|         known_facts = known_facts or {}
+#|         now = datetime.now(timezone.utc)
+#| 
+#|         try:
+#|             enforce_policy(objective, scope)
+#|         except PolicyViolation as exc:
+#|             return {
+#|                 "case_id": case_id,
+#|                 "task_id": task_id,
+#|                 "objective": objective,
+#|                 "status": "POLICY_BLOCKED",
+#|                 "error": str(exc),
+#|                 "privacy_flags": [
+#|                     "AUTHORIZED_STATIC_ONLY",
+#|                     "NO_MODEL_THEFT",
+#|                     "NO_WEIGHT_EXTRACTION",
+#|                     "NO_API_KEY_HARVESTING",
+#|                     "NO_SYSTEM_PROMPT_EXTRACTION",
+#|                     "NO_JAILBREAK_AUTOMATION",
+#|                     "NO_POISONING_ENABLEMENT",
+#|                 ],
+#|             }
+#| 
+#|         logger.info("Starting AIINT case=%s task=%s", case_id, task_id)
+#| 
+#|         evidences: List[EvidenceRef] = []
+#|         entities: List[Entity] = []
+#| 
+#|         entity_specs = [
+#|             ("ai_companies", "AI_COMPANY", "provider_docs"),
+#|             ("model_developers", "MODEL_DEVELOPER", "official_model_card"),
+#|             ("model_providers", "MODEL_PROVIDER", "provider_docs"),
+#|             ("model_families", "MODEL_FAMILY", "official_model_card"),
+#|             ("products", "PRODUCT", "provider_docs"),
+#|             ("applications", "APPLICATION", "authorized_internal_inventory"),
+#|             ("apis", "API", "api_docs"),
+#|             ("deployments", "DEPLOYMENT", "authorized_internal_inventory"),
+#|             ("agents", "AGENT", "authorized_internal_inventory"),
+#|             ("agent_frameworks", "AGENT_FRAMEWORK", "package_registry"),
+#|             ("orchestrators", "ORCHESTRATOR", "provider_docs"),
+#|             ("tools", "TOOL", "provider_docs"),
+#|             ("connectors", "CONNECTOR", "provider_docs"),
+#|             ("mcp_servers", "MCP_SERVER", "provider_docs"),
+#|             ("datasets", "DATASET", "dataset_card"),
+#|             ("dataset_versions", "DATASET_VERSION", "dataset_card"),
+#|             ("training_data_claims", "TRAINING_DATA_CLAIM", "official_model_card"),
+#|             ("benchmarks", "BENCHMARK", "reproducible_benchmark"),
+#|             ("evaluations", "EVALUATION", "independent_evaluator"),
+#|             ("safety_evaluations", "SAFETY_EVALUATION", "official_system_card"),
+#|             ("red_team_reports", "RED_TEAM_REPORT", "authorized_evaluation"),
+#|             ("model_cards", "MODEL_CARD", "official_model_card"),
+#|             ("system_cards", "SYSTEM_CARD", "official_system_card"),
+#|             ("frameworks", "FRAMEWORK", "package_registry"),
+#|             ("packages", "PACKAGE", "package_registry"),
+#|             ("inference_engines", "INFERENCE_ENGINE", "provider_docs"),
+#|             ("hardware", "HARDWARE", "hardware_doc"),
+#|             ("cloud_services", "CLOUD_SERVICE", "cloud_doc"),
+#|             ("vector_databases", "VECTOR_DATABASE", "provider_docs"),
+#|             ("embedding_models", "EMBEDDING_MODEL", "official_model_card"),
+#|             ("rerankers", "RERANKER", "official_model_card"),
+#|             ("rag_systems", "RAG_SYSTEM", "authorized_internal_inventory"),
+#|             ("guardrails", "GUARDRAIL", "provider_docs"),
+#|             ("monitoring", "MONITORING", "authorized_internal_log"),
+#|             ("governance_contexts", "GOVERNANCE_CONTEXT", "official_project_docs"),
+#|             ("regulation_contexts", "REGULATION_CONTEXT", "provider_docs"),
+#|             ("licenses", "LICENSE", "license_text"),
+#|             ("policies", "POLICY", "provider_docs"),
+#|         ]
+#| 
+#|         for key, etype, default_source in entity_specs:
+#|             entities.extend(
+#|                 parse_entities(
+#|                     evidence_input.get(key, []) or [],
+#|                     etype,
+#|                     case_id,
+#|                     now,
+#|                     evidences,
+#|                     default_source,
+#|                 )
+#|             )
+#| 
+#|         relationships = parse_relationships(evidence_input.get("relationships", []) or [], case_id, now, evidences)
+#|         models = parse_models(evidence_input.get("models", []) or [], case_id, now, evidences)
+#|         benchmark_results = parse_benchmark_results(evidence_input.get("benchmark_results", []) or [], case_id, now, evidences)
+#|         security_findings = parse_security_findings(evidence_input.get("security_findings", []) or [], case_id, now, evidences)
+#|         incidents = parse_incidents(evidence_input.get("incidents", []) or [], case_id, now, evidences)
+#|         pricing = parse_pricing(evidence_input.get("pricing", []) or [], case_id, now, evidences)
+#|         change_events = parse_change_events(evidence_input.get("change_events", []) or [], case_id, now, evidences)
+#|         cost_usage = parse_cost_usage(evidence_input.get("cost_usage", []) or [], case_id, now, evidences)
+#| 
+#|         (
+#|             entity_index,
+#|             alias_to_ids,
+#|             rel_by_source,
+#|             rel_by_target,
+#|             evidence_by_id,
+#|         ) = build_indexes(entities, models, relationships, evidences)
+#| 
+#|         resolved_references = resolve_references(evidence_input.get("ai_references", []) or [], alias_to_ids, entity_index)
+#|         lineage = build_lineage(models, relationships, evidence_by_id)
+#|         capability = assess_capability(models, benchmark_results)
+#|         benchmark_groups, benchmark_conflicts = normalize_benchmark_results(benchmark_results)
+#|         security_mappings = map_security_layers(security_findings, rel_by_source, rel_by_target, entity_index)
+#|         incident_props = propagate_incidents(incidents, entities, rel_by_source, rel_by_target, entity_index)
+#|         supply_chain = map_supply_chain(models, entities, relationships, rel_by_source, rel_by_target, entity_index)
+#|         cost_estimates, cost_missing = estimate_costs(pricing, cost_usage, now)
+#|         substitutability = assess_substitutability(models, resolved_references)
+#|         lock_in = assess_lock_in(entities, rel_by_source, entity_index)
+#|         change_analysis = analyze_changes(change_events)
+#|         source_independence = analyze_source_independence(evidences)
+#| 
+#|         contradictions = detect_contradictions(
+#|             resolved_references=resolved_references,
+#|             alias_to_ids=alias_to_ids,
+#|             entity_index=entity_index,
+#|             benchmark_groups=benchmark_groups,
+#|             benchmark_conflicts=benchmark_conflicts,
+#|             pricing=pricing,
+#|             security_mappings=security_mappings,
+#|             change_events=change_events,
+#|             relationships=relationships,
+#|         )
+#| 
+#|         hypotheses = build_hypotheses(
+#|             resolved_references=resolved_references,
+#|             lineage=lineage,
+#|             benchmark_groups=benchmark_groups,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             supply_chain=supply_chain,
+#|             change_analysis=change_analysis,
+#|             contradictions=contradictions,
+#|             known_facts=known_facts,
+#|         )
+#| 
+#|         skeptic = skeptic_review(
+#|             resolved_references=resolved_references,
+#|             benchmark_groups=benchmark_groups,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             supply_chain=supply_chain,
+#|             change_analysis=change_analysis,
+#|             contradictions=contradictions,
+#|             known_facts=known_facts,
+#|         )
+#| 
+#|         facts = build_facts(
+#|             resolved_references=resolved_references,
+#|             models=models,
+#|             lineage=lineage,
+#|             benchmark_results=benchmark_results,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             supply_chain=supply_chain,
+#|             cost_estimates=cost_estimates,
+#|             change_analysis=change_analysis,
+#|             contradictions=contradictions,
+#|             source_independence=source_independence,
+#|         )
+#| 
+#|         gaps = build_gaps(
+#|             resolved_references=resolved_references,
+#|             models=models,
+#|             lineage=lineage,
+#|             benchmark_results=benchmark_results,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             supply_chain=supply_chain,
+#|             cost_estimates=cost_estimates,
+#|             cost_missing=cost_missing,
+#|             change_analysis=change_analysis,
+#|             contradictions=contradictions,
+#|         )
+#| 
+#|         graph = build_graph(
+#|             entity_index=entity_index,
+#|             relationships=relationships,
+#|             lineage=lineage,
+#|             benchmark_results=benchmark_results,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             cost_estimates=cost_estimates,
+#|             change_analysis=change_analysis,
+#|             facts=facts,
+#|             hypotheses=hypotheses,
+#|             contradictions=contradictions,
+#|             gaps=gaps,
+#|         )
+#| 
+#|         analyst_summary = generate_summary(
+#|             resolved_references=resolved_references,
+#|             models=models,
+#|             lineage=lineage,
+#|             benchmark_results=benchmark_results,
+#|             capability=capability,
+#|             security_mappings=security_mappings,
+#|             incident_props=incident_props,
+#|             supply_chain=supply_chain,
+#|             cost_estimates=cost_estimates,
+#|             change_analysis=change_analysis,
+#|             contradictions=contradictions,
+#|             gaps=gaps,
+#|             source_independence=source_independence,
+#|         )
+#| 
+#|         recommended_next_actions = [
+#|             {
+#|                 "action": "Resolve exact model/version/checkpoint and separate API alias, product, deployment, and agent layers.",
+#|                 "reason": "Mutable aliases and product wrappers can obscure artifact identity and behavior provenance.",
+#|                 "specialist": "AIINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Retrieve official model card, system card, release notes, technical report, and license text.",
+#|                 "reason": "Primary sources reduce marketing and secondary-report distortion.",
+#|                 "specialist": "AIINT",
+#|                 "privacy": "PUBLIC_OR_AUTHORIZED",
+#|             },
+#|             {
+#|                 "action": "Normalize benchmark protocol before comparing scores or ranking models.",
+#|                 "reason": "Prompting, shots, tools, sampling, evaluator, benchmark version, and date materially affect comparability.",
+#|                 "specialist": "AIINT / EVALINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Map RAG, embedding, reranker, vector DB, tool, MCP, guardrail, and monitoring dependencies.",
+#|                 "reason": "Observed application behavior may derive from surrounding system, not base model alone.",
+#|                 "specialist": "AIINT / CLOUDINT / SUPPLYCHAININT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand vulnerability applicability and exploitation context to VULNINT.",
+#|                 "reason": "AIINT identifies AI-specific context but does not adjudicate CVE applicability.",
+#|                 "specialist": "VULNINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand incident scope, containment, and root-cause adjudication to INCIDENTINT.",
+#|                 "reason": "Deployment/version/time evidence is required before impact claims.",
+#|                 "specialist": "INCIDENTINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand package/framework dependency depth to PACKAGEINT and repository details to REPOINT.",
+#|                 "reason": "AI ecosystem intelligence should not replace software package/repository analysis.",
+#|                 "specialist": "PACKAGEINT / REPOINT",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Hand license/regulatory interpretation to LEGALINT/GRC.",
+#|                 "reason": "AIINT identifies relevant terms but does not issue final legal opinions.",
+#|                 "specialist": "LEGALINT / GRC",
+#|                 "privacy": "AUTHORIZED_ONLY",
+#|             },
+#|             {
+#|                 "action": "Do not extract weights, harvest/use API keys, bypass safeguards, jailbreak, poison models/data/RAG/memory, or deploy harmful agents.",
+#|                 "reason": "AIINT boundary is defensive intelligence.",
+#|                 "specialist": "GOVERNANCE / HUMAN_REVIEW",
+#|                 "privacy": "POLICY_BOUNDARY",
+#|             },
+#|         ]
+#| 
+#|         specialist_handoffs = [
+#|             {"specialist": "VULNINT", "reason": "CVE/advisory applicability, affected versions, reachability, exploitation context."},
+#|             {"specialist": "INCIDENTINT", "reason": "AI incident scope, root cause, containment, response."},
+#|             {"specialist": "PACKAGEINT", "reason": "Framework/package ecosystem, versions, dependencies, supply-chain package risk."},
+#|             {"specialist": "REPOINT", "reason": "Repository implementation, commits, releases, issues."},
+#|             {"specialist": "SUPPLYCHAININT", "reason": "Enterprise dependency propagation and business impact."},
+#|             {"specialist": "CLOUDINT", "reason": "Managed AI services, cloud IAM, regions, billing, telemetry."},
+#|             {"specialist": "INFRAINT", "reason": "GPU/accelerator/network/serving infrastructure context."},
+#|             {"specialist": "MALINT", "reason": "Malicious model/artifact behavior if authorized samples exist."},
+#|             {"specialist": "CTI", "reason": "Threat actor use of AI, campaign context, attribution."},
+#|             {"specialist": "LEGALINT", "reason": "License, contractual, regulatory, and IP interpretation."},
+#|             {"specialist": "ACADEMICINT", "reason": "Paper citation networks and research lineage."},
+#|             {"specialist": "DOCINT", "reason": "Document/model-card/system-card extraction and provenance."},
+#|         ]
+#| 
+#|         privacy_flags = [
+#|             "AUTHORIZED_STATIC_ONLY",
+#|             "NO_MODEL_THEFT",
+#|             "NO_WEIGHT_EXTRACTION",
+#|             "NO_API_KEY_HARVESTING",
+#|             "NO_STOLEN_CREDENTIAL_USE",
+#|             "NO_CONFIDENTIAL_PROMPT_EXTRACTION",
+#|             "NO_JAILBREAK_AUTOMATION",
+#|             "NO_SAFEGUARD_BYPASS",
+#|             "NO_POISONING_ENABLEMENT",
+#|             "NO_HARMFUL_AGENT_DEPLOYMENT",
+#|             "PROMPT_LOG_REDACTION_IF_PRESENT",
+#|         ]
+#| 
+#|         limitations = [
+#|             "AIINT analyzes supplied lawful public/authorized AI ecosystem evidence representations only.",
+#|             "It does not steal models, extract weights, harvest/use credentials, bypass safeguards, jailbreak, poison, compromise pipelines, or deploy harmful agents.",
+#|             "Model is not product, API, deployment, or agent.",
+#|             "Provider claim is not independent measurement.",
+#|             "Benchmark score is not real-world performance.",
+#|             "Open weights is not open source.",
+#|             "Parameter count is not capability.",
+#|             "Maximum context is not effective reasoning across full context.",
+#|             "Security issue class is not verified exploitation.",
+#|             "Incident claim is not verified root cause or universal customer impact.",
+#|         ]
+#| 
+#|         status = "COMPLETED" if resolved_references or models or benchmark_results or security_findings else "INSUFFICIENT_DATA"
+#| 
+#|         source_reliability = {
+#|             ev.source_id: {
+#|                 "source_type": ev.source_type,
+#|                 "reliability": ev.reliability,
+#|                 "upstream_source_id": ev.upstream_source_id,
+#|             }
+#|             for ev in evidences
+#|         }
+#| 
+#|         source_pedigree = {
+#|             ev.evidence_id: {
+#|                 "source_id": ev.source_id,
+#|                 "upstream_source_id": ev.upstream_source_id,
+#|                 "source_type": ev.source_type,
+#|                 "observed_at": ev.observed_at,
+#|             }
+#|             for ev in evidences
+#|         }
+#| 
+#|         result: Dict[str, Any] = {
+#|             "case_id": case_id,
+#|             "task_id": task_id,
+#|             "objective": objective,
+#|             "status": status,
+#|             "model_mode": self.model_mode,
+#|             "questions": scope.get("questions", []),
+#|             "authorized_scope": scope,
+#|             "source_ids": sorted({ev.source_id for ev in evidences}),
+#|             "evidence_ids": sorted({ev.evidence_id for ev in evidences}),
+#|             "resolved_references": resolved_references,
+#|             "entities": [asdict(e) for e in entities],
+#|             "models": [asdict(m) for m in models],
+#|             "relationships": [asdict(r) for r in relationships],
+#|             "model_families": [asdict(e) for e in entities if e.entity_type == "MODEL_FAMILY"],
+#|             "developers": [asdict(e) for e in entities if e.entity_type in {"AI_COMPANY", "MODEL_DEVELOPER"}],
+#|             "providers": [asdict(e) for e in entities if e.entity_type == "MODEL_PROVIDER"],
+#|             "products": [asdict(e) for e in entities if e.entity_type == "PRODUCT"],
+#|             "applications": [asdict(e) for e in entities if e.entity_type == "APPLICATION"],
+#|             "apis": [asdict(e) for e in entities if e.entity_type == "API"],
+#|             "deployments": [asdict(e) for e in entities if e.entity_type == "DEPLOYMENT"],
+#|             "agents": [asdict(e) for e in entities if e.entity_type == "AGENT"],
+#|             "agent_frameworks": [asdict(e) for e in entities if e.entity_type == "AGENT_FRAMEWORK"],
+#|             "orchestrators": [asdict(e) for e in entities if e.entity_type == "ORCHESTRATOR"],
+#|             "tools": [asdict(e) for e in entities if e.entity_type == "TOOL"],
+#|             "connectors": [asdict(e) for e in entities if e.entity_type == "CONNECTOR"],
+#|             "mcp_servers": [asdict(e) for e in entities if e.entity_type == "MCP_SERVER"],
+#|             "model_lineage": lineage,
+#|             "fine_tunes": [lin for lin in lineage if lin.get("relation") == "FINE_TUNED_FROM"],
+#|             "adapters": [lin for lin in lineage if lin.get("relation") == "USES_ADAPTER"],
+#|             "quantized_variants": [lin for lin in lineage if lin.get("relation") == "QUANTIZED_FROM"],
+#|             "distilled_models": [lin for lin in lineage if lin.get("relation") == "DISTILLED_FROM"],
+#|             "benchmark_results": [asdict(br) for br in benchmark_results],
+#|             "benchmark_groups": benchmark_groups,
+#|             "benchmark_conflicts": benchmark_conflicts,
+#|             "capability_assessment": capability,
+#|             "security_findings": [asdict(sf) for sf in security_findings],
+#|             "security_layer_mapping": security_mappings,
+#|             "incidents": [asdict(inc) for inc in incidents],
+#|             "incident_propagation": incident_props,
+#|             "supply_chain": supply_chain,
+#|             "pricing": [asdict(p) for p in pricing],
+#|             "cost_estimates": cost_estimates,
+#|             "cost_missing": cost_missing,
+#|             "change_events": [asdict(ch) for ch in change_events],
+#|             "change_analysis": change_analysis,
+#|             "substitutability": substitutability,
+#|             "provider_lock_in": lock_in,
+#|             "source_reliability": source_reliability,
+#|             "source_bias": [
+#|                 "Developer marketing may overstate capability.",
+#|                 "Benchmark cherry-picking may omit unfavorable protocols.",
+#|                 "Community tests may lack version control.",
+#|                 "Secondary articles may depend on one upstream model card.",
+#|             ],
+#|             "source_limitations": [
+#|                 "No unauthorized model access.",
+#|                 "No weight extraction.",
+#|                 "No confidential prompt extraction.",
+#|                 "No live safeguard bypass testing.",
+#|             ],
+#|             "source_pedigree": source_pedigree,
+#|             "source_independence": source_independence,
+#|             "contradictions": [asdict(c) for c in contradictions],
+#|             "hypotheses": [asdict(h) for h in hypotheses],
+#|             "falsification_results": {
+#|                 "questions": [
+#|                     "Could model alias have changed?",
+#|                     "Could benchmark use different version?",
+#|                     "Could capability come from tools?",
+#|                     "Could result depend on RAG?",
+#|                     "Could performance difference come from quantization?",
+#|                     "Could provider claim be marketing?",
+#|                     "Could two reports share same benchmark output?",
+#|                     "Could dataset contamination explain result?",
+#|                     "Could release notes supersede documentation?",
+#|                 ],
+#|                 "skeptic_review": skeptic,
+#|             },
+#|             "observations": [asdict(ev) for ev in evidences],
+#|             "candidate_facts": [asdict(f) for f in facts if f.verification_state == VerificationState.INCONCLUSIVE],
+#|             "supported_facts": [asdict(f) for f in facts if f.verification_state == VerificationState.SUPPORTED],
+#|             "partial_facts": [asdict(f) for f in facts if f.verification_state == VerificationState.PARTIALLY_SUPPORTED],
+#|             "disputed_facts": [asdict(f) for f in facts if f.verification_state in (VerificationState.DISPUTED, VerificationState.UNSUPPORTED)],
+#|             "facts": [asdict(f) for f in facts],
+#|             "knowledge_gaps": [asdict(g) for g in gaps],
+#|             "recommended_next_actions": recommended_next_actions,
+#|             "specialist_handoffs": specialist_handoffs,
+#|             "privacy_flags": privacy_flags,
+#|             "legal_flags": [
+#|                 "License interpretation requires LEGALINT.",
+#|                 "Regulatory classification requires LEGALINT/GRC.",
+#|                 "No final legal compliance determination is made by AIINT.",
+#|             ],
+#|             "unknowns": [
+#|                 "Exact checkpoint behind mutable API alias, if applicable.",
+#|                 "Effective reasoning quality across full context window.",
+#|                 "Real-world reliability, safety, and intent.",
+#|                 "Full deployment scope and hidden routing/fallback behavior.",
+#|                 "Threat actor, malicious intent, or exploitation status.",
+#|             ],
+#|             "limitations": limitations,
+#|             "analyst_summary": analyst_summary,
+#|             "graphical_memory": graph,
+#|             "replay_manifest": {
+#|                 "case_id": case_id,
+#|                 "task_id": task_id,
+#|                 "model_mode": self.model_mode,
+#|                 "generated_at": now.isoformat(),
+#|                 "evidence_ids": sorted({ev.evidence_id for ev in evidences}),
+#|                 "resolved_references": resolved_references,
+#|                 "models": [asdict(m) for m in models],
+#|                 "model_lineage": lineage,
+#|                 "benchmark_groups": benchmark_groups,
+#|                 "benchmark_conflicts": benchmark_conflicts,
+#|                 "security_layer_mapping": security_mappings,
+#|                 "incident_propagation": incident_props,
+#|                 "supply_chain": supply_chain,
+#|                 "cost_estimates": cost_estimates,
+#|                 "change_timeline": change_analysis.get("timeline", []),
+#|                 "source_independence": source_independence,
+#|                 "fact_gate": [asdict(f) for f in facts],
+#|                 "contradictions": [asdict(c) for c in contradictions],
+#|                 "hypotheses": [asdict(h) for h in hypotheses],
+#|                 "skeptic_review": skeptic,
+#|             },
+#|         }
+#| 
+#|         logger.info(
+#|             "AIINT case completed. references=%s models=%s benchmarks=%s security_findings=%s incidents=%s",
+#|             len(resolved_references),
+#|             len(models),
+#|             len(benchmark_results),
+#|             len(security_findings),
+#|             len(incidents),
+#|         )
+#| 
+#|         return result
+#| 
+#| 
+#| # ==============================================================================
+#| # EXAMPLE EXECUTION
+#| # ==============================================================================
+#| 
+#| if __name__ == "__main__":
+#|     analyst = AIIntEmployee(model_mode="LOCAL_ONLY")
+#| 
+#|     case_id = "CASE_AIINT_001"
+#|     task_id = "TASK_MODEL_ECOSYSTEM_REVIEW_001"
+#| 
+#|     objective = (
+#|         "Analyze authorized AI ecosystem evidence for Nebula chat API and product deployment to resolve "
+#|         "exact model/version, lineage, benchmark comparability, security layer mapping, incident propagation, "
+#|         "supply-chain dependencies, cost estimates, and change drift under defensive intelligence constraints."
+#|     )
+#| 
+#|     scope = {
+#|         "mode": "AUTHORIZED_STATIC",
+#|         "questions": [
+#|             "What exact model/version is referenced by the API alias?",
+#|             "Is product capability attributable to the base model alone?",
+#|             "Are benchmark results comparable?",
+#|             "Does the security finding affect the model or surrounding system?",
+#|             "Which deployments may be affected by the incident?",
+#|             "What common-mode AI dependencies exist?",
+#|             "What is the deterministic cost estimate?",
+#|             "What change/drift events require evaluation?",
+#|         ],
+#|     }
+#| 
+#|     evidence_input = {
+#|         "ai_references": [
+#|             "nebula-chat",
+#|             "Acme Assist",
+#|             "MODEL_NEBULA_2_1",
+#|             {"reference": "Nebula 2.1", "expected_type": "MODEL"},
+#|         ],
+#|         "model_developers": [
+#|             {
+#|                 "entity_id": "ORG_ACME",
+#|                 "name": "Acme AI",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_DEV",
+#|                 "upstream_source_id": "ACME_DOCS",
+#|             }
+#|         ],
+#|         "model_providers": [
+#|             {
+#|                 "entity_id": "PROV_ACME",
+#|                 "name": "Acme Cloud",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_PROVIDER",
+#|                 "upstream_source_id": "ACME_DOCS",
+#|             }
+#|         ],
+#|         "model_families": [
+#|             {
+#|                 "entity_id": "FAM_NEBULA",
+#|                 "name": "Nebula",
+#|                 "source_type": "official_model_card",
+#|                 "source_id": "SRC_FAMILY",
+#|                 "upstream_source_id": "ACME_MODEL_CARD",
+#|             }
+#|         ],
+#|         "products": [
+#|             {
+#|                 "entity_id": "PROD_ASSIST",
+#|                 "name": "Acme Assist",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_PRODUCT",
+#|                 "upstream_source_id": "ACME_DOCS",
+#|             }
+#|         ],
+#|         "applications": [
+#|             {
+#|                 "entity_id": "APP_INTERNAL",
+#|                 "name": "Internal Support Copilot",
+#|                 "source_type": "authorized_internal_inventory",
+#|                 "source_id": "SRC_APP_INV",
+#|                 "upstream_source_id": "INTERNAL_AI_INVENTORY",
+#|             }
+#|         ],
+#|         "apis": [
+#|             {
+#|                 "entity_id": "API_NEBULA",
+#|                 "name": "nebula-chat",
+#|                 "attributes": {"mutable_alias": True, "proprietary": True},
+#|                 "source_type": "api_docs",
+#|                 "source_id": "SRC_API",
+#|                 "upstream_source_id": "ACME_API_DOCS",
+#|             }
+#|         ],
+#|         "deployments": [
+#|             {
+#|                 "entity_id": "DEP_PROD",
+#|                 "name": "prod-nebula-v2",
+#|                 "attributes": {"model_version": "nebula-2.1"},
+#|                 "source_type": "authorized_internal_inventory",
+#|                 "source_id": "SRC_DEP_INV",
+#|                 "upstream_source_id": "INTERNAL_AI_INVENTORY",
+#|             }
+#|         ],
+#|         "agents": [
+#|             {
+#|                 "entity_id": "AGENT_TICKET",
+#|                 "name": "Ticket Agent",
+#|                 "source_type": "authorized_internal_inventory",
+#|                 "source_id": "SRC_AGENT_INV",
+#|                 "upstream_source_id": "INTERNAL_AI_INVENTORY",
+#|             }
+#|         ],
+#|         "datasets": [
+#|             {
+#|                 "entity_id": "DAT_PUBLIC_WEB",
+#|                 "name": "Public Web Corpus",
+#|                 "source_type": "dataset_card",
+#|                 "source_id": "SRC_DATASET",
+#|                 "upstream_source_id": "DATASET_CARD",
+#|             }
+#|         ],
+#|         "benchmarks": [
+#|             {
+#|                 "entity_id": "BM_REASON",
+#|                 "name": "ReasoningBench",
+#|                 "source_type": "reproducible_benchmark",
+#|                 "source_id": "SRC_BM",
+#|                 "upstream_source_id": "BENCHMARK_REPO",
+#|             }
+#|         ],
+#|         "licenses": [
+#|             {
+#|                 "entity_id": "LIC_NEBULA",
+#|                 "name": "Nebula Community License",
+#|                 "source_type": "license_text",
+#|                 "source_id": "SRC_LICENSE",
+#|                 "upstream_source_id": "LICENSE_TEXT",
+#|             }
+#|         ],
+#|         "frameworks": [
+#|             {
+#|                 "entity_id": "FW_PYTORCH",
+#|                 "name": "PyTorch",
+#|                 "source_type": "package_registry",
+#|                 "source_id": "SRC_FW",
+#|                 "upstream_source_id": "PYPI",
+#|             }
+#|         ],
+#|         "packages": [
+#|             {
+#|                 "entity_id": "PKG_TRANSFORMERS",
+#|                 "name": "transformers",
+#|                 "source_type": "package_registry",
+#|                 "source_id": "SRC_PKG",
+#|                 "upstream_source_id": "PYPI",
+#|             }
+#|         ],
+#|         "inference_engines": [
+#|             {
+#|                 "entity_id": "ENGINE_VLLM",
+#|                 "name": "vLLM",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_ENGINE",
+#|                 "upstream_source_id": "VLLM_DOCS",
+#|             }
+#|         ],
+#|         "hardware": [
+#|             {
+#|                 "entity_id": "HW_GPU_A100",
+#|                 "name": "A100",
+#|                 "source_type": "hardware_doc",
+#|                 "source_id": "SRC_HW",
+#|                 "upstream_source_id": "GPU_VENDOR_DOC",
+#|             }
+#|         ],
+#|         "cloud_services": [
+#|             {
+#|                 "entity_id": "CLOUD_ACME",
+#|                 "name": "Acme Cloud",
+#|                 "source_type": "cloud_doc",
+#|                 "source_id": "SRC_CLOUD",
+#|                 "upstream_source_id": "ACME_CLOUD_DOCS",
+#|             }
+#|         ],
+#|         "vector_databases": [
+#|             {
+#|                 "entity_id": "VDB_QDRANT",
+#|                 "name": "Qdrant",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_VDB",
+#|                 "upstream_source_id": "QDRANT_DOCS",
+#|             }
+#|         ],
+#|         "embedding_models": [
+#|             {
+#|                 "entity_id": "MODEL_EMBED",
+#|                 "name": "nebula-embed",
+#|                 "source_type": "official_model_card",
+#|                 "source_id": "SRC_EMBED",
+#|                 "upstream_source_id": "ACME_MODEL_CARD",
+#|             }
+#|         ],
+#|         "guardrails": [
+#|             {
+#|                 "entity_id": "GR_POLICY",
+#|                 "name": "Acme Policy Filter",
+#|                 "source_type": "provider_docs",
+#|                 "source_id": "SRC_GR",
+#|                 "upstream_source_id": "ACME_DOCS",
+#|             }
+#|         ],
+#|         "monitoring": [
+#|             {
+#|                 "entity_id": "MON_AI",
+#|                 "name": "Acme AI Monitor",
+#|                 "source_type": "authorized_internal_log",
+#|                 "source_id": "SRC_MON",
+#|                 "upstream_source_id": "INTERNAL_MONITORING",
+#|             }
+#|         ],
+#|         "models": [
+#|             {
+#|                 "model_id": "MODEL_NEBULA_2_1",
+#|                 "canonical_name": "Nebula 2.1",
+#|                 "family_id": "FAM_NEBULA",
+#|                 "developer_id": "ORG_ACME",
+#|                 "provider_ids": ["PROV_ACME"],
+#|                 "model_type": "CHAT_MODEL",
+#|                 "access_type": "API_ONLY",
+#|                 "context_window": 128000,
+#|                 "modality": ["TEXT_INPUT", "TEXT_OUTPUT"],
+#|                 "license_id": "LIC_NEBULA",
+#|                 "model_card": "MC_NEBULA_2_1",
+#|                 "base_model_id": "MODEL_NEBULA_2",
+#|                 "capability_claims": [
+#|                     {
+#|                         "claim": "state-of-the-art reasoning",
+#|                         "claim_type": "PROVIDER_CLAIMED",
+#|                     }
+#|                 ],
+#|                 "attributes": {
+#|                     "tool_use": True,
+#|                     "function_calling": True,
+#|                     "supported_interfaces": ["chat_completions"],
+#|                 },
+#|                 "availability": "AVAILABLE",
+#|                 "source_type": "official_model_card",
+#|                 "source_id": "SRC_MODEL_CARD",
+#|                 "upstream_source_id": "ACME_MODEL_CARD",
+#|             },
+#|             {
+#|                 "model_id": "MODEL_NEBULA_2",
+#|                 "canonical_name": "Nebula 2",
+#|                 "family_id": "FAM_NEBULA",
+#|                 "developer_id": "ORG_ACME",
+#|                 "provider_ids": ["PROV_ACME"],
+#|                 "model_type": "CHAT_MODEL",
+#|                 "access_type": "API_ONLY",
+#|                 "context_window": 128000,
+#|                 "modality": ["TEXT_INPUT", "TEXT_OUTPUT"],
+#|                 "license_id": "LIC_NEBULA",
+#|                 "attributes": {
+#|                     "tool_use": True,
+#|                     "function_calling": True,
+#|                     "supported_interfaces": ["chat_completions"],
+#|                 },
+#|                 "availability": "DEPRECATED",
+#|                 "source_type": "release_notes",
+#|                 "source_id": "SRC_MODEL_CARD_OLD",
+#|                 "upstream_source_id": "ACME_RELEASE_NOTES",
+#|             },
+#|         ],
+#|         "relationships": [
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "ORG_ACME", "relation": "DEVELOPED_BY", "source_type": "official_model_card", "source_id": "SRC_REL_DEV", "upstream_source_id": "ACME_MODEL_CARD"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "PROV_ACME", "relation": "PROVIDED_BY", "source_type": "provider_docs", "source_id": "SRC_REL_PROV", "upstream_source_id": "ACME_DOCS"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "FAM_NEBULA", "relation": "BELONGS_TO_FAMILY", "source_type": "official_model_card", "source_id": "SRC_REL_FAM", "upstream_source_id": "ACME_MODEL_CARD"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "MODEL_NEBULA_2", "relation": "VERSION_OF", "source_type": "release_notes", "source_id": "SRC_REL_VER", "upstream_source_id": "ACME_RELEASE_NOTES"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "LIC_NEBULA", "relation": "LICENSED_UNDER", "source_type": "license_text", "source_id": "SRC_REL_LIC", "upstream_source_id": "LICENSE_TEXT"},
+#|             {"source_id": "API_NEBULA", "target_id": "MODEL_NEBULA_2_1", "relation": "SERVES_MODEL", "source_type": "api_docs", "source_id": "SRC_REL_API", "upstream_source_id": "ACME_API_DOCS"},
+#|             {"source_id": "PROD_ASSIST", "target_id": "API_NEBULA", "relation": "USES_API", "source_type": "provider_docs", "source_id": "SRC_REL_PROD", "upstream_source_id": "ACME_DOCS"},
+#|             {"source_id": "APP_INTERNAL", "target_id": "PROD_ASSIST", "relation": "USES_PRODUCT", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_APP", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "MODEL_NEBULA_2_1", "relation": "USES_MODEL", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_DEP", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "VDB_QDRANT", "relation": "USES_VECTOR_DATABASE", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_VDB", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "MODEL_EMBED", "relation": "EMBEDDED_BY", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_EMBED", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "GR_POLICY", "relation": "GUARDED_BY", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_GR", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "MON_AI", "relation": "MONITORED_BY", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_MON", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "DEP_PROD", "target_id": "ENGINE_VLLM", "relation": "SERVED_WITH", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_ENGINE", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "ENGINE_VLLM", "target_id": "HW_GPU_A100", "relation": "RUNS_ON_HARDWARE", "source_type": "provider_docs", "source_id": "SRC_REL_HW", "upstream_source_id": "VLLM_DOCS"},
+#|             {"source_id": "DEP_PROD", "target_id": "CLOUD_ACME", "relation": "RUNS_ON_CLOUD", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_CLOUD", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|             {"source_id": "PKG_TRANSFORMERS", "target_id": "FW_PYTORCH", "relation": "DEPENDS_ON", "source_type": "package_registry", "source_id": "SRC_REL_PKG", "upstream_source_id": "PYPI"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "DAT_PUBLIC_WEB", "relation": "TRAINED_ON_CLAIMED", "source_type": "official_model_card", "source_id": "SRC_REL_DATA", "upstream_source_id": "ACME_MODEL_CARD"},
+#|             {"source_id": "MODEL_NEBULA_2_1", "target_id": "BM_REASON", "relation": "EVALUATED_ON", "source_type": "provider_benchmark", "source_id": "SRC_REL_BM", "upstream_source_id": "ACME_BENCH"},
+#|             {"source_id": "AGENT_TICKET", "target_id": "DEP_PROD", "relation": "USES_DEPLOYMENT", "source_type": "authorized_internal_inventory", "source_id": "SRC_REL_AGENT", "upstream_source_id": "INTERNAL_AI_INVENTORY"},
+#|         ],
+#|         "benchmark_results": [
+#|             {
+#|                 "result_id": "BR_NEBULA_2_1_REASON_PROVIDER",
+#|                 "model_id": "MODEL_NEBULA_2_1",
+#|                 "benchmark_id": "BM_REASON",
+#|                 "benchmark_version": "v3",
+#|                 "score": 85.0,
+#|                 "metric": "accuracy",
+#|                 "prompting": "zero_shot",
+#|                 "shots": 0,
+#|                 "tools": [],
+#|                 "sampling": "greedy",
+#|                 "evaluator": "official",
+#|                 "source_type": "provider_benchmark",
+#|                 "date": "2026-09-01T00:00:00Z",
+#|                 "source_id": "SRC_BM_PROVIDER",
+#|                 "upstream_source_id": "ACME_BENCH",
+#|             },
+#|             {
+#|                 "result_id": "BR_NEBULA_2_1_REASON_INDEPENDENT",
+#|                 "model_id": "MODEL_NEBULA_2_1",
+#|                 "benchmark_id": "BM_REASON",
+#|                 "benchmark_version": "v3",
+#|                 "score": 83.5,

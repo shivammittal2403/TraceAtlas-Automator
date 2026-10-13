@@ -1,0 +1,1000 @@
+#|         for o in obs:
+#|             if o.imo_candidate and validate_imo(o.imo_candidate)[0]:
+#|                 key = f"IMO_{o.imo_candidate}"
+#|             elif o.mmsi:
+#|                 key = f"MMSI_{o.mmsi}"
+#|             else:
+#|                 key = f"OBS_{o.observation_id}"
+#|             o.vessel_candidate_id = key
+#|             obs_by_key.setdefault(key, []).append(o)
+#| 
+#|         vessels: list[Vessel] = []
+#|         identity_eras: list[VesselIdentityEra] = []
+#|         mmsi_eras: list[MMSIUsageEra] = []
+#|         contradictions: list[Contradiction] = []
+#|         key_to_vessel_id: dict[str, str] = {}
+#| 
+#|         for key, olist in obs_by_key.items():
+#|             vessel_id = f"VESSEL_{hashlib.sha1(key.encode('utf-8')).hexdigest()[:12]}"
+#|             key_to_vessel_id[key] = vessel_id
+#| 
+#|             current: Optional[dict[str, Any]] = None
+#| 
+#|             def close_era(cur: dict[str, Any]) -> None:
+#|                 attrs = cur["attrs"]
+#|                 name, mmsi, imo, callsign, ship_type, length, beam = attrs
+#|                 start = cur["start"]
+#|                 end = cur["end"]
+#|                 source_ids = unique_list(cur["source_ids"])
+#| 
+#|                 if imo and validate_imo(imo)[0]:
+#|                     conf = Confidence.HIGH
+#|                 elif mmsi and name:
+#|                     conf = Confidence.MEDIUM
+#|                 else:
+#|                     conf = Confidence.LOW
+#| 
+#|                 era = VesselIdentityEra(
+#|                     vessel_id=vessel_id,
+#|                     valid_from=start,
+#|                     valid_to=end,
+#|                     name=name,
+#|                     mmsi=mmsi,
+#|                     imo=imo,
+#|                     callsign=callsign,
+#|                     flag=None,
+#|                     ship_type=ship_type,
+#|                     length=length,
+#|                     beam=beam,
+#|                     source_ids=source_ids,
+#|                     confidence=conf,
+#|                 )
+#|                 identity_eras.append(era)
+#| 
+#|                 if mmsi:
+#|                     mmsi_eras.append(
+#|                         MMSIUsageEra(
+#|                             mmsi=mmsi,
+#|                             vessel_id=vessel_id,
+#|                             valid_from=start,
+#|                             valid_to=end,
+#|                             source_ids=source_ids,
+#|                             confidence=conf,
+#|                         )
+#|                     )
+#| 
+#|             for o in olist:
+#|                 attrs = (
+#|                     o.name,
+#|                     o.mmsi,
+#|                     o.imo_candidate,
+#|                     o.callsign,
+#|                     o.ship_type,
+#|                     o.length,
+#|                     o.beam,
+#|                 )
+#|                 if current is None:
+#|                     current = {
+#|                         "attrs": attrs,
+#|                         "start": o.timestamp,
+#|                         "end": o.timestamp,
+#|                         "source_ids": [o.evidence_id],
+#|                     }
+#|                 elif current["attrs"] != attrs:
+#|                     close_era(current)
+#|                     current = {
+#|                         "attrs": attrs,
+#|                         "start": o.timestamp,
+#|                         "end": o.timestamp,
+#|                         "source_ids": [o.evidence_id],
+#|                     }
+#|                 else:
+#|                     current["end"] = o.timestamp
+#|                     current["source_ids"].append(o.evidence_id)
+#| 
+#|             if current is not None:
+#|                 close_era(current)
+#| 
+#|         # Detect overlapping MMSI usage by different vessel candidates.
+#|         by_mmsi: dict[str, list[MMSIUsageEra]] = {}
+#|         for era in mmsi_eras:
+#|             by_mmsi.setdefault(era.mmsi, []).append(era)
+#| 
+#|         for mmsi, items in by_mmsi.items():
+#|             items.sort(key=lambda x: x.valid_from)
+#|             for i in range(len(items)):
+#|                 for j in range(i + 1, len(items)):
+#|                     a = items[i]
+#|                     b = items[j]
+#|                     if a.vessel_id == b.vessel_id:
+#|                         continue
+#|                     max_start = max(a.valid_from, b.valid_from)
+#|                     min_end = min(a.valid_to, b.valid_to)
+#|                     if max_start < min_end:
+#|                         contradictions.append(
+#|                             Contradiction(
+#|                                 contradiction_id=new_id("CONTRA"),
+#|                                 contradiction_type="MMSI_CONFLICT",
+#|                                 description=(
+#|                                     f"MMSI {mmsi} overlaps between vessel candidates "
+#|                                     f"{a.vessel_id} and {b.vessel_id}."
+#|                                 ),
+#|                                 evidence_ids=unique_list(a.source_ids + b.source_ids),
+#|                                 candidate_resolutions=[
+#|                                     "MMSI reassignment",
+#|                                     "duplicate MMSI use",
+#|                                     "provider identity contamination",
+#|                                     "decoding/source error",
+#|                                     "spoofing candidate (requires stronger evidence)",
+#|                                 ],
+#|                                 status="OPEN",
+#|                             )
+#|                         )
+#| 
+#|         # Build vessel objects from eras.
+#|         for key, vessel_id in key_to_vessel_id.items():
+#|             vessel_eras = [e for e in identity_eras if e.vessel_id == vessel_id]
+#|             if not vessel_eras:
+#|                 continue
+#|             latest = max(vessel_eras, key=lambda e: e.valid_to)
+#|             vessel = Vessel(
+#|                 vessel_id=vessel_id,
+#|                 current_name=latest.name,
+#|                 historical_names=unique_list([e.name for e in vessel_eras]),
+#|                 imo=latest.imo,
+#|                 call_sign=latest.callsign,
+#|                 flag=latest.flag,
+#|                 ship_type=latest.ship_type,
+#|                 length=latest.length,
+#|                 beam=latest.beam,
+#|                 registered_owner=None,
+#|                 operator=None,
+#|                 manager=None,
+#|                 technical_manager=None,
+#|                 charterer=None,
+#|                 fleet=None,
+#|                 status="IDENTIFIED_BY_AIS" if latest.imo else "CANDIDATE",
+#|                 identity_eras=vessel_eras,
+#|                 mmsi_usage_eras=[m for m in mmsi_eras if m.vessel_id == vessel_id],
+#|                 source_ids=unique_list([sid for e in vessel_eras for sid in e.source_ids]),
+#|                 confidence=latest.confidence,
+#|             )
+#|             vessels.append(vessel)
+#| 
+#|         return vessels, identity_eras, mmsi_eras, contradictions
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 9 — TRACK RECONSTRUCTION / GAP / IMPOSSIBLE MOVEMENT
+#| # ======================================================================
+#| 
+#| class TrackBuilder:
+#|     """
+#|     Builds ordered validated track segments.
+#|     Does not interpolate observed positions.
+#|     Marks gaps and impossible movement candidates.
+#|     """
+#| 
+#|     def __init__(
+#|         self,
+#|         gap_threshold_minutes: float = 120.0,
+#|         max_plausible_speed_kn: float = 60.0,
+#|     ):
+#|         self.gap_threshold_minutes = gap_threshold_minutes
+#|         self.max_plausible_speed_kn = max_plausible_speed_kn
+#| 
+#|     def build(
+#|         self,
+#|         vessel_id: str,
+#|         observations: list[Observation],
+#|     ) -> tuple[
+#|         list[Observation],
+#|         list[TrackSegment],
+#|         list[AISGap],
+#|         list[Contradiction],
+#|     ]:
+#|         ordered = sorted(
+#|             [o for o in observations if o.timestamp is not None],
+#|             key=lambda x: x.timestamp,
+#|         )
+#| 
+#|         valid: list[Observation] = []
+#|         contradictions: list[Contradiction] = []
+#| 
+#|         for o in ordered:
+#|             if o.latitude is None or o.longitude is None:
+#|                 continue
+#|             if not coordinate_valid(o.latitude, o.longitude):
+#|                 contradictions.append(
+#|                     Contradiction(
+#|                         contradiction_id=new_id("CONTRA"),
+#|                         contradiction_type="POSITION_CONFLICT",
+#|                         description=f"Invalid coordinate in observation {o.observation_id}.",
+#|                         evidence_ids=[o.evidence_id],
+#|                         candidate_resolutions=["bad decoding", "receiver error", "placeholder position"],
+#|                         status="OPEN",
+#|                     )
+#|                 )
+#|                 continue
+#|             if is_zero_placeholder(o.latitude, o.longitude):
+#|                 contradictions.append(
+#|                     Contradiction(
+#|                         contradiction_id=new_id("CONTRA"),
+#|                         contradiction_type="POSITION_CONFLICT",
+#|                         description=f"Zero/default coordinate suspected in observation {o.observation_id}.",
+#|                         evidence_ids=[o.evidence_id],
+#|                         candidate_resolutions=["placeholder value", "manual error", "GNSS invalid"],
+#|                         status="OPEN",
+#|                     )
+#|                 )
+#|                 continue
+#|             valid.append(o)
+#| 
+#|         segments: list[TrackSegment] = []
+#|         gaps: list[AISGap] = []
+#| 
+#|         if not valid:
+#|             return valid, segments, gaps, contradictions
+#| 
+#|         seg_obs: list[Observation] = [valid[0]]
+#|         prev = valid[0]
+#| 
+#|         for curr in valid[1:]:
+#|             dt = curr.timestamp - prev.timestamp
+#|             dt_min = dt.total_seconds() / 60.0
+#|             dist = haversine_nm(prev.latitude, prev.longitude, curr.latitude, curr.longitude)
+#|             speed = implied_speed_kn(dist, dt)
+#| 
+#|             if speed is not None and speed > self.max_plausible_speed_kn:
+#|                 curr.quality_flags.append("IMPOSSIBLE_MOVEMENT_FROM_PREV")
+#|                 contradictions.append(
+#|                     Contradiction(
+#|                         contradiction_id=new_id("CONTRA"),
+#|                         contradiction_type="POSITION_CONFLICT",
+#|                         description=(
+#|                             f"Implied speed {speed:.1f} kn between observations "
+#|                             f"{prev.observation_id} and {curr.observation_id}."
+#|                         ),
+#|                         evidence_ids=[prev.evidence_id, curr.evidence_id],
+#|                         candidate_resolutions=[
+#|                             "bad position",
+#|                             "duplicate MMSI",
+#|                             "provider timing issue",
+#|                             "identity reassignment",
+#|                             "spoofing candidate (requires stronger evidence)",
+#|                         ],
+#|                         status="OPEN",
+#|                     )
+#|                 )
+#| 
+#|             if dt_min > self.gap_threshold_minutes or (
+#|                 speed is not None and speed > self.max_plausible_speed_kn
+#|             ):
+#|                 segments.append(self._make_segment(vessel_id, seg_obs))
+#| 
+#|                 if dt_min > self.gap_threshold_minutes:
+#|                     gaps.append(
+#|                         AISGap(
+#|                             gap_id=new_id("GAP"),
+#|                             vessel_id=vessel_id,
+#|                             gap_start=prev.timestamp,
+#|                             gap_end=curr.timestamp,
+#|                             last_pre_observation_id=prev.observation_id,
+#|                             first_post_observation_id=curr.observation_id,
+#|                             duration_minutes=dt_min,
+#|                             distance_nm=dist,
+#|                             implied_speed_kn=speed,
+#|                             coverage_state=CoverageState.COVERAGE_UNKNOWN,
+#|                             possible_causes=[
+#|                                 "receiver coverage gap",
+#|                                 "satellite collision / revisit limitation",
+#|                                 "provider outage or latency",
+#|                                 "poor radio propagation",
+#|                                 "equipment malfunction",
+#|                                 "data filtering",
+#|                                 "message corruption",
+#|                                 "identity change",
+#|                                 "other",
+#|                             ],
+#|                             confidence=Confidence.LOW,
+#|                         )
+#|                     )
+#| 
+#|                 seg_obs = [curr]
+#|             else:
+#|                 seg_obs.append(curr)
+#| 
+#|             prev = curr
+#| 
+#|         segments.append(self._make_segment(vessel_id, seg_obs))
+#|         return valid, segments, gaps, contradictions
+#| 
+#|     def _make_segment(self, vessel_id: str, obs: list[Observation]) -> TrackSegment:
+#|         obs = sorted(obs, key=lambda x: x.timestamp)
+#|         distance = 0.0
+#|         has_distance = True
+#|         for a, b in zip(obs, obs[1:]):
+#|             d = haversine_nm(a.latitude, a.longitude, b.latitude, b.longitude)
+#|             if d is None:
+#|                 has_distance = False
+#|                 break
+#|             distance += d
+#| 
+#|         total_time = obs[-1].timestamp - obs[0].timestamp if len(obs) > 1 else timedelta(0)
+#|         avg_speed = implied_speed_kn(distance, total_time) if has_distance else None
+#| 
+#|         gap_flags = []
+#|         for o in obs:
+#|             gap_flags.extend([f for f in o.quality_flags if "IMPOSSIBLE" in f or "INVALID" in f])
+#| 
+#|         confidence = Confidence.MEDIUM if len(obs) >= 3 and not gap_flags else Confidence.LOW
+#| 
+#|         return TrackSegment(
+#|             segment_id=new_id("SEG"),
+#|             vessel_id=vessel_id,
+#|             start_time=obs[0].timestamp,
+#|             end_time=obs[-1].timestamp,
+#|             start_latitude=obs[0].latitude,
+#|             start_longitude=obs[0].longitude,
+#|             end_latitude=obs[-1].latitude,
+#|             end_longitude=obs[-1].longitude,
+#|             observation_count=len(obs),
+#|             source_mix=sorted({o.receiver_type.value for o in obs}),
+#|             distance_nm=distance if has_distance else None,
+#|             average_speed_kn=avg_speed,
+#|             confidence=confidence,
+#|             gap_flags=unique_list(gap_flags),
+#|         )
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 10 — PORT CALL ANALYSIS
+#| # ======================================================================
+#| 
+#| class PortAnalyzer:
+#|     """
+#|     Port geofence analysis.
+#|     Geofence entry alone is not berthing and not cargo operation.
+#|     """
+#| 
+#|     def __init__(
+#|         self,
+#|         dwell_threshold_minutes: float = 30.0,
+#|         slow_speed_kn: float = 3.0,
+#|     ):
+#|         self.dwell_threshold_minutes = dwell_threshold_minutes
+#|         self.slow_speed_kn = slow_speed_kn
+#| 
+#|     def analyze(
+#|         self,
+#|         vessel_id: str,
+#|         observations: list[Observation],
+#|         ports: list[Port],
+#|         port_records: Optional[list[dict[str, Any]]] = None,
+#|     ) -> list[PortCall]:
+#|         port_calls: list[PortCall] = []
+#|         port_records = port_records or []
+#|         ordered = sorted(
+#|             [o for o in observations if o.timestamp is not None and o.latitude is not None and o.longitude is not None],
+#|             key=lambda x: x.timestamp,
+#|         )
+#| 
+#|         for port in ports:
+#|             inside = False
+#|             start: Optional[datetime] = None
+#|             end: Optional[datetime] = None
+#|             evidence_ids: list[str] = []
+#|             speeds: list[float] = []
+#|             source_types: set[SourceType] = set()
+#| 
+#|             def close_call(departure: Optional[datetime]) -> None:
+#|                 nonlocal inside, start, end, evidence_ids, speeds, source_types
+#|                 if start is None:
+#|                     return
+#| 
+#|                 dwell = None
+#|                 if departure is not None:
+#|                     dwell = (departure - start).total_seconds() / 60.0
+#| 
+#|                 avg_speed = median(speeds) if speeds else None
+#| 
+#|                 if dwell is not None and dwell < self.dwell_threshold_minutes:
+#|                     state = PortCallState.TRANSIT_ONLY
+#|                 elif avg_speed is not None and avg_speed > self.slow_speed_kn:
+#|                     state = PortCallState.TRANSIT_ONLY
+#|                 else:
+#|                     state = PortCallState.PORT_CALL_CANDIDATE
+#| 
+#|                 if SourceType.PORT_AIS in source_types or SourceType.PORT_AUTHORITY in source_types:
+#|                     state = PortCallState.PORT_CALL_SUPPORTED
+#| 
+#|                 notes = [
+#|                     "Port geofence entry alone does not prove berthing.",
+#|                     "Berthing does not prove cargo operation.",
+#|                 ]
+#|                 if departure is None:
+#|                     notes.append("Departure not observed within supplied data.")
+#| 
+#|                 pc = PortCall(
+#|                     port_call_id=new_id("PC"),
+#|                     vessel_id=vessel_id,
+#|                     port_id=port.port_id,
+#|                     arrival_time=start,
+#|                     departure_time=departure,
+#|                     dwell_minutes=dwell,
+#|                     average_speed_kn=avg_speed,
+#|                     state=state,
+#|                     evidence_ids=unique_list(evidence_ids),
+#|                     confidence=Confidence.MEDIUM if state != PortCallState.TRANSIT_ONLY else Confidence.LOW,
+#|                     notes=notes,
+#|                 )
+#|                 port_calls.append(pc)
+#| 
+#|                 inside = False
+#|                 start = None
+#|                 end = None
+#|                 evidence_ids = []
+#|                 speeds = []
+#|                 source_types = set()
+#| 
+#|             for o in ordered:
+#|                 dist = haversine_nm(o.latitude, o.longitude, port.latitude, port.longitude)
+#|                 is_inside = dist is not None and dist <= port.radius_nm
+#| 
+#|                 if is_inside and not inside:
+#|                     inside = True
+#|                     start = o.timestamp
+#|                     end = o.timestamp
+#|                     evidence_ids = [o.evidence_id]
+#|                     speeds = [o.sog] if o.sog is not None else []
+#|                     source_types = {o.receiver_type}
+#|                 elif is_inside and inside:
+#|                     end = o.timestamp
+#|                     evidence_ids.append(o.evidence_id)
+#|                     if o.sog is not None:
+#|                         speeds.append(o.sog)
+#|                     source_types.add(o.receiver_type)
+#|                 elif not is_inside and inside:
+#|                     close_call(o.timestamp)
+#| 
+#|             if inside:
+#|                 close_call(None)
+#| 
+#|         # Upgrade using external port records if supplied.
+#|         for pc in port_calls:
+#|             for rec in port_records:
+#|                 if rec.get("port_id") != pc.port_id:
+#|                     continue
+#|                 if rec.get("vessel_id") not in (None, pc.vessel_id):
+#|                     continue
+#|                 rec_arrival = to_datetime(rec.get("arrival_time"))
+#|                 rec_departure = to_datetime(rec.get("departure_time"))
+#|                 overlap = False
+#|                 if rec_arrival and pc.arrival_time and rec_departure and pc.departure_time:
+#|                     overlap = max(rec_arrival, pc.arrival_time) < min(rec_departure, pc.departure_time)
+#|                 elif rec_arrival and pc.arrival_time:
+#|                     overlap = abs((rec_arrival - pc.arrival_time).total_seconds()) <= 6 * 3600
+#|                 if overlap:
+#|                     pc.state = PortCallState.PORT_CALL_VERIFIED
+#|                     pc.confidence = Confidence.HIGH
+#|                     pc.evidence_ids = unique_list(pc.evidence_ids + [str(rec.get("evidence_id", ""))])
+#|                     pc.notes.append("Matched external port record.")
+#| 
+#|         return port_calls
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 11 — BEHAVIOR / PROXIMITY / RENDEZVOUS / STS CANDIDATES
+#| # ======================================================================
+#| 
+#| class BehaviorAnalyzer:
+#|     """
+#|     Detects stationary patterns, proximity events, rendezvous candidates,
+#|     and STS candidates. Proximity is never treated as proof of transfer.
+#|     """
+#| 
+#|     def __init__(
+#|         self,
+#|         low_speed_kn: float = 2.0,
+#|         anchorage_minutes: float = 60.0,
+#|         loiter_radius_nm: float = 2.0,
+#|         loiter_minutes: float = 120.0,
+#|         proximity_nm: float = 1.0,
+#|         time_window_minutes: float = 30.0,
+#|         rendezvous_minutes: float = 30.0,
+#|         sts_minutes: float = 30.0,
+#|     ):
+#|         self.low_speed_kn = low_speed_kn
+#|         self.anchorage_minutes = anchorage_minutes
+#|         self.loiter_radius_nm = loiter_radius_nm
+#|         self.loiter_minutes = loiter_minutes
+#|         self.proximity_nm = proximity_nm
+#|         self.time_window_minutes = time_window_minutes
+#|         self.rendezvous_minutes = rendezvous_minutes
+#|         self.sts_minutes = sts_minutes
+#| 
+#|     def detect_stationary_patterns(
+#|         self,
+#|         vessel_id: str,
+#|         observations: list[Observation],
+#|         ports: list[Port],
+#|     ) -> list[dict[str, Any]]:
+#|         ordered = sorted(
+#|             [o for o in observations if o.timestamp is not None and o.latitude is not None and o.longitude is not None],
+#|             key=lambda x: x.timestamp,
+#|         )
+#| 
+#|         patterns: list[dict[str, Any]] = []
+#|         current: Optional[dict[str, Any]] = None
+#| 
+#|         def close_current() -> None:
+#|             nonlocal current
+#|             if not current:
+#|                 return
+#|             lats = current["lats"]
+#|             lons = current["lons"]
+#|             avg_lat = sum(lats) / len(lats)
+#|             avg_lon = sum(lons) / len(lons)
+#|             duration = (current["end"] - current["start"]).total_seconds() / 60.0
+#|             avg_speed = median(current["speeds"]) if current["speeds"] else None
+#| 
+#|             outside_ports = True
+#|             for port in ports:
+#|                 d = haversine_nm(avg_lat, avg_lon, port.latitude, port.longitude)
+#|                 if d is not None and d <= port.radius_nm + 5.0:
+#|                     outside_ports = False
+#|                     break
+#| 
+#|             labels = []
+#|             if duration >= self.anchorage_minutes:
+#|                 labels.append("ANCHORAGE_CANDIDATE")
+#|             if outside_ports and duration >= self.loiter_minutes:
+#|                 labels.append("LOITERING_PATTERN")
+#| 
+#|             if labels:
+#|                 patterns.append(
+#|                     {
+#|                         "pattern_id": new_id("STAT"),
+#|                         "vessel_id": vessel_id,
+#|                         "labels": labels,
+#|                         "start_time": current["start"].isoformat(),
+#|                         "end_time": current["end"].isoformat(),
+#|                         "duration_minutes": duration,
+#|                         "average_latitude": avg_lat,
+#|                         "average_longitude": avg_lon,
+#|                         "average_speed_kn": avg_speed,
+#|                         "evidence_ids": unique_list(current["evidence_ids"]),
+#|                         "notes": [
+#|                             "Anchorage candidate does not prove illegal waiting.",
+#|                             "Loitering pattern is descriptive, not motive.",
+#|                         ],
+#|                     }
+#|                 )
+#|             current = None
+#| 
+#|         for o in ordered:
+#|             if o.sog is None or o.sog > self.low_speed_kn:
+#|                 close_current()
+#|                 continue
+#| 
+#|             if current is None:
+#|                 current = {
+#|                     "start": o.timestamp,
+#|                     "end": o.timestamp,
+#|                     "reference_lat": o.latitude,
+#|                     "reference_lon": o.longitude,
+#|                     "lats": [o.latitude],
+#|                     "lons": [o.longitude],
+#|                     "speeds": [o.sog],
+#|                     "evidence_ids": [o.evidence_id],
+#|                 }
+#|                 continue
+#| 
+#|             dist = haversine_nm(current["reference_lat"], current["reference_lon"], o.latitude, o.longitude)
+#|             gap_min = (o.timestamp - current["end"]).total_seconds() / 60.0
+#| 
+#|             if dist is not None and dist <= self.loiter_radius_nm and gap_min <= 180.0:
+#|                 current["end"] = o.timestamp
+#|                 current["lats"].append(o.latitude)
+#|                 current["lons"].append(o.longitude)
+#|                 current["speeds"].append(o.sog)
+#|                 current["evidence_ids"].append(o.evidence_id)
+#|             else:
+#|                 close_current()
+#|                 current = {
+#|                     "start": o.timestamp,
+#|                     "end": o.timestamp,
+#|                     "reference_lat": o.latitude,
+#|                     "reference_lon": o.longitude,
+#|                     "lats": [o.latitude],
+#|                     "lons": [o.longitude],
+#|                     "speeds": [o.sog],
+#|                     "evidence_ids": [o.evidence_id],
+#|                 }
+#| 
+#|         close_current()
+#|         return patterns
+#| 
+#|     def analyze_pairs(
+#|         self,
+#|         tracks: dict[str, list[Observation]],
+#|         vessels_by_id: dict[str, Vessel],
+#|         ports: list[Port],
+#|         corroborations: Optional[list[dict[str, Any]]] = None,
+#|     ) -> tuple[
+#|         list[ProximityEvent],
+#|         list[RendezvousCandidate],
+#|         list[STSCandidate],
+#|     ]:
+#|         corroborations = corroborations or []
+#|         proximity_events: list[ProximityEvent] = []
+#|         rendezvous_candidates: list[RendezvousCandidate] = []
+#|         sts_candidates: list[STSCandidate] = []
+#| 
+#|         for (vid_a, track_a), (vid_b, track_b) in itertools.combinations(tracks.items(), 2):
+#|             pairs: list[tuple[datetime, Observation, Observation, float, Optional[float]]] = []
+#| 
+#|             for oa in track_a:
+#|                 if oa.latitude is None or oa.longitude is None:
+#|                     continue
+#|                 for ob in track_b:
+#|                     if ob.latitude is None or ob.longitude is None:
+#|                         continue
+#|                     dt_min = abs((oa.timestamp - ob.timestamp).total_seconds()) / 60.0
+#|                     if dt_min > self.time_window_minutes:
+#|                         continue
+#|                     dist = haversine_nm(oa.latitude, oa.longitude, ob.latitude, ob.longitude)
+#|                     if dist is None or dist > self.proximity_nm:
+#|                         continue
+#|                     rel = relative_speed_kn(oa, ob)
+#|                     event_time = max(oa.timestamp, ob.timestamp)
+#|                     pairs.append((event_time, oa, ob, dist, rel))
+#| 
+#|             pairs.sort(key=lambda x: x[0])
+#| 
+#|             current: Optional[dict[str, Any]] = None
+#| 
+#|             def close_event() -> Optional[ProximityEvent]:
+#|                 nonlocal current
+#|                 if not current:
+#|                     return None
+#|                 duration = (current["end"] - current["start"]).total_seconds() / 60.0
+#|                 med_rel = median(current["rel_speeds"])
+#|                 ev = ProximityEvent(
+#|                     event_id=new_id("PROX"),
+#|                     vessel_a=vid_a,
+#|                     vessel_b=vid_b,
+#|                     start_time=current["start"],
+#|                     end_time=current["end"],
+#|                     minimum_distance_nm=current["min_dist"],
+#|                     median_relative_speed_kn=med_rel,
+#|                     location_latitude=current["min_lat"],
+#|                     location_longitude=current["min_lon"],
+#|                     source_coverage=CoverageState.COVERAGE_UNKNOWN,
+#|                     confidence=Confidence.MEDIUM if duration >= 15 else Confidence.LOW,
+#|                     evidence_ids=unique_list(current["evidence_ids"]),
+#|                 )
+#|                 current = None
+#|                 return ev
+#| 
+#|             for t, oa, ob, dist, rel in pairs:
+#|                 if current is None or (t - current["end"]).total_seconds() / 60.0 > self.time_window_minutes:
+#|                     ev = close_event()
+#|                     if ev:
+#|                         proximity_events.append(ev)
+#|                     current = {
+#|                         "start": t,
+#|                         "end": t,
+#|                         "min_dist": dist,
+#|                         "min_lat": oa.latitude,
+#|                         "min_lon": oa.longitude,
+#|                         "rel_speeds": [rel] if rel is not None else [],
+#|                         "evidence_ids": [oa.evidence_id, ob.evidence_id],
+#|                     }
+#|                 else:
+#|                     current["end"] = t
+#|                     if dist < current["min_dist"]:
+#|                         current["min_dist"] = dist
+#|                         current["min_lat"] = oa.latitude
+#|                         current["min_lon"] = oa.longitude
+#|                     if rel is not None:
+#|                         current["rel_speeds"].append(rel)
+#|                     current["evidence_ids"].extend([oa.evidence_id, ob.evidence_id])
+#| 
+#|             ev = close_event()
+#|             if ev:
+#|                 proximity_events.append(ev)
+#| 
+#|             # Build rendezvous and STS candidates from proximity events.
+#|             for ev in [e for e in proximity_events if e.vessel_a == vid_a and e.vessel_b == vid_b]:
+#|                 duration = (ev.end_time - ev.start_time).total_seconds() / 60.0
+#|                 med_rel = ev.median_relative_speed_kn
+#| 
+#|                 rd_status = "PROXIMITY_ONLY"
+#|                 if (
+#|                     duration >= self.rendezvous_minutes
+#|                     and med_rel is not None
+#|                     and med_rel <= 3.0
+#|                     and ev.minimum_distance_nm is not None
+#|                     and ev.minimum_distance_nm <= 0.5
+#|                 ):
+#|                     rd_status = "RENDEZVOUS_CANDIDATE"
+#| 
+#|                 rd = RendezvousCandidate(
+#|                     candidate_id=new_id("RDV"),
+#|                     vessel_a=vid_a,
+#|                     vessel_b=vid_b,
+#|                     proximity_event_id=ev.event_id,
+#|                     status=rd_status,
+#|                     alternative_explanations=[
+#|                         "normal anchorage proximity",
+#|                         "pilot transfer",
+#|                         "crew transfer",
+#|                         "bunkering",
+#|                         "tug assistance",
+#|                         "shared traffic lane",
+#|                         "coincidental route",
+#|                         "STS transfer (unverified)",
+#|                     ],
+#|                     evidence_ids=ev.evidence_ids,
+#|                     confidence=ev.confidence,
+#|                 )
+#|                 rendezvous_candidates.append(rd)
+#| 
+#|                 vessel_a = vessels_by_id.get(vid_a)
+#|                 vessel_b = vessels_by_id.get(vid_b)
+#|                 compatible = self._compatible_sts_types(
+#|                     vessel_a.ship_type if vessel_a else None,
+#|                     vessel_b.ship_type if vessel_b else None,
+#|                 )
+#|                 offshore = self._is_offshore(ev.location_latitude, ev.location_longitude, ports)
+#| 
+#|                 factors: list[str] = []
+#|                 if compatible:
+#|                     factors.append("compatible vessel types")
+#|                 if offshore:
+#|                     factors.append("offshore location")
+#|                 if duration >= 60.0:
+#|                     factors.append("extended duration")
+#|                 if med_rel is not None and med_rel <= 2.0:
+#|                     factors.append("low relative speed")
+#|                 if ev.minimum_distance_nm is not None and ev.minimum_distance_nm <= 0.25:
+#|                     factors.append("very close minimum distance")
+#| 
+#|                 draught_a = self._draught_change(track_a, ev.start_time, ev.end_time)
+#|                 draught_b = self._draught_change(track_b, ev.start_time, ev.end_time)
+#|                 if draught_a:
+#|                     factors.append("draught change candidate on vessel A")
+#|                 if draught_b:
+#|                     factors.append("draught change candidate on vessel B")
+#| 
+#|                 corr_factors = self._match_corroborations(
+#|                     corroborations,
+#|                     vid_a,
+#|                     vid_b,
+#|                     ev,
+#|                 )
+#|                 factors.extend(corr_factors)
+#| 
+#|                 missing = [
+#|                     "independent satellite imagery",
+#|                     "port/terminal record",
+#|                     "trade/manifest record",
+#|                     "confirmed draught change corroboration",
+#|                 ]
+#|                 if draught_a or draught_b:
+#|                     missing = [m for m in missing if "draught" not in m.lower()]
+#|                 if corr_factors:
+#|                     missing = [m for m in missing if not any(c.split()[0].lower() in m.lower() for c in corr_factors)]
+#| 
+#|                 if rd_status != "RENDEZVOUS_CANDIDATE":
+#|                     sts_status = STSStatus.PROXIMITY_ONLY
+#|                 elif compatible and offshore and duration >= self.sts_minutes and med_rel is not None and med_rel <= 2.0:
+#|                     if (draught_a or draught_b or corr_factors) and duration >= 60.0:
+#|                         sts_status = STSStatus.STS_SUPPORTED
+#|                     else:
+#|                         sts_status = STSStatus.STS_CANDIDATE
+#|                 else:
+#|                     sts_status = STSStatus.PROXIMITY_ONLY
+#| 
+#|                 sts = STSCandidate(
+#|                     sts_id=new_id("STS"),
+#|                     vessel_a=vid_a,
+#|                     vessel_b=vid_b,
+#|                     proximity_event_id=ev.event_id,
+#|                     status=sts_status,
+#|                     supporting_factors=factors,
+#|                     missing_corroboration=missing,
+#|                     evidence_ids=ev.evidence_ids,
+#|                     confidence=Confidence.MEDIUM if sts_status != STSStatus.PROXIMITY_ONLY else Confidence.LOW,
+#|                 )
+#|                 sts_candidates.append(sts)
+#| 
+#|         return proximity_events, rendezvous_candidates, sts_candidates
+#| 
+#|     @staticmethod
+#|     def _compatible_sts_types(type_a: Optional[int], type_b: Optional[int]) -> bool:
+#|         # Conservative: cargo/tanker ranges.
+#|         def ok(t: Optional[int]) -> bool:
+#|             return t is not None and 70 <= t <= 89
+#|         return ok(type_a) and ok(type_b)
+#| 
+#|     @staticmethod
+#|     def _is_offshore(lat: Optional[float], lon: Optional[float], ports: list[Port]) -> bool:
+#|         if lat is None or lon is None:
+#|             return False
+#|         if not ports:
+#|             return False
+#|         for port in ports:
+#|             d = haversine_nm(lat, lon, port.latitude, port.longitude)
+#|             if d is not None and d <= port.radius_nm + 5.0:
+#|                 return False
+#|         return True
+#| 
+#|     @staticmethod
+#|     def _draught_change(
+#|         track: list[Observation],
+#|         start: datetime,
+#|         end: datetime,
+#|         threshold_m: float = 0.5,
+#|     ) -> bool:
+#|         before = [o.draught for o in track if o.timestamp < start and o.draught is not None]
+#|         after = [
+#|             o.draught
+#|             for o in track
+#|             if end <= o.timestamp <= end + timedelta(hours=6) and o.draught is not None
+#|         ]
+#|         if not before or not after:
+#|             return False
+#|         return abs(max(after) - min(before)) >= threshold_m
+#| 
+#|     @staticmethod
+#|     def _match_corroborations(
+#|         corroborations: list[dict[str, Any]],
+#|         vid_a: str,
+#|         vid_b: str,
+#|         event: ProximityEvent,
+#|     ) -> list[str]:
+#|         matched: list[str] = []
+#|         vessels_needed = {vid_a, vid_b}
+#|         for c in corroborations:
+#|             c_vessels = set(c.get("vessels", []))
+#|             if not vessels_needed.issubset(c_vessels):
+#|                 continue
+#|             c_time = to_datetime(c.get("timestamp"))
+#|             if c_time is None:
+#|                 continue
+#|             if abs((c_time - event.start_time).total_seconds()) > 120 * 60:
+#|                 continue
+#|             c_lat = safe_float(c.get("latitude"))
+#|             c_lon = safe_float(c.get("longitude"))
+#|             d = haversine_nm(event.location_latitude, event.location_longitude, c_lat, c_lon)
+#|             if d is not None and d > 5.0:
+#|                 continue
+#|             ctype = str(c.get("type", "CORROBORATION")).upper()
+#|             matched.append(f"{ctype.lower()} corroboration")
+#|         return unique_list(matched)
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 12 — SPOOFING INDICATOR ANALYSIS (DEFENSIVE ONLY)
+#| # ======================================================================
+#| 
+#| class SpoofingIndicatorAnalyzer:
+#|     """
+#|     Defensive indicator analysis only.
+#|     Does not provide spoofing methods.
+#|     """
+#| 
+#|     def analyze(
+#|         self,
+#|         contradictions: list[Contradiction],
+#|         source_independence: dict[str, Any],
+#|     ) -> tuple[SpoofingConfidence, list[str]]:
+#|         indicators: list[str] = []
+#|         for c in contradictions:
+#|             if c.contradiction_type == "MMSI_CONFLICT":
+#|                 indicators.append("MMSI conflict / possible reuse or duplication")
+#|             elif c.contradiction_type == "POSITION_CONFLICT":
+#|                 indicators.append("position conflict / implausible movement candidate")
+#| 
+#|         indicators = unique_list(indicators)
+#|         if not indicators:
+#|             return SpoofingConfidence.NO_SPOOFING_EVIDENCE, []
+#| 
+#|         independence_status = source_independence.get("status", "UNKNOWN")
+#|         if independence_status in ("DEPENDENT", "UNKNOWN") and len(indicators) < 2:
+#|             return SpoofingConfidence.INCONCLUSIVE, indicators
+#| 
+#|         if len(indicators) == 1:
+#|             return SpoofingConfidence.ANOMALOUS, indicators
+#| 
+#|         # Even multiple anomalies are not confirmed spoofing without independent corroboration.
+#|         return SpoofingConfidence.POSSIBLE_SPOOFING, indicators
+#| 
+#| 
+#| # ======================================================================
+#| # SECTION 13 — FACT GATE / HYPOTHESES / NEXT ACTIONS
+#| # ======================================================================
+#| 
+#| class FactGate:
+#|     """
+#|     Converts observations and analyses into evidence-linked facts,
+#|     candidate facts, hypotheses, unknowns, knowledge gaps, and next actions.
+#|     """
+#| 
+#|     def generate(
+#|         self,
+#|         *,
+#|         case: dict[str, Any],
+#|         observations: list[Observation],
+#|         vessels: list[Vessel],
+#|         segments: list[TrackSegment],
+#|         gaps: list[AISGap],
+#|         port_calls: list[PortCall],
+#|         proximity_events: list[ProximityEvent],
+#|         rendezvous_candidates: list[RendezvousCandidate],
+#|         sts_candidates: list[STSCandidate],
+#|         stationary_patterns: list[dict[str, Any]],
+#|         contradictions: list[Contradiction],
+#|         spoofing_confidence: SpoofingConfidence,
+#|         spoofing_indicators: list[str],
+#|         source_independence: dict[str, Any],
+#|     ) -> dict[str, Any]:
+#|         facts: list[Fact] = []
+#|         hypotheses: list[Hypothesis] = []
+#|         unknowns: list[str] = []
+#|         limitations: list[str] = []
+#|         knowledge_gaps: list[KnowledgeGap] = []
+#|         next_actions: list[NextAction] = []
+#|         handoffs: list[SpecialistHandoff] = []
+#| 
+#|         # Observation-level facts: source recorded an observation.
+#|         for o in observations[:200]:
+#|             facts.append(
+#|                 Fact(
+#|                     fact_id=new_id("FACT"),
+#|                     statement=(
+#|                         f"Source {o.source_id} ({o.receiver_type.value}) recorded an AIS observation "
+#|                         f"for MMSI {o.mmsi or 'unknown'} / IMO {o.imo_candidate or 'unknown'} "
+#|                         f"at {o.latitude},{o.longitude} on {o.timestamp.isoformat()}."
+#|                     ),
+#|                     status=FactStatus.FACT,
+#|                     evidence_ids=[o.evidence_id],
+#|                     limitations=[
+#|                         "This is a sensor/provider record, not independent ground truth.",
+#|                         "Position may contain GNSS/receiver/provider error.",
+#|                     ],
+#|                 )
+#|             )
+#| 
+#|         # Identity facts.
+#|         for v in vessels:
+#|             if v.imo and validate_imo(v.imo)[0]:
+#|                 facts.append(
+#|                     Fact(
+#|                         fact_id=new_id("FACT"),
+#|                         statement=(
+#|                             f"Identifier evidence supports vessel candidate {v.vessel_id} with IMO {v.imo} "
+#|                             f"during the relevant observation era."
+#|                         ),
+#|                         status=FactStatus.SUPPORTED,
+#|                         evidence_ids=v.source_ids,
+#|                         limitations=[
+#|                             "IMO is strong but still requires registry/source validation.",
+#|                             "Ownership/operator are not resolved by AIS alone.",
+#|                         ],
+#|                     )
+#|                 )
+#|             else:
+#|                 facts.append(
+#|                     Fact(
+#|                         fact_id=new_id("FACT"),
+#|                         statement=(
+#|                             f"Vessel candidate {v.vessel_id} is unresolved; identity based only on "
+#|                             f"available MMSI/name/static fields."
+#|                         ),
+#|                         status=FactStatus.CANDIDATE,
+#|                         evidence_ids=v.source_ids,
+#|                         limitations=["Do not treat MMSI as permanent vessel identity."],
+#|                     )

@@ -1,0 +1,7 @@
+# Standalone generated output (reconstructed from verified source pieces)
+TraceAtlas_AllInOne_Studio.py
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+traceatlas_studio_data/

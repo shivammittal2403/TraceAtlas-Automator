@@ -1,0 +1,1000 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""TraceAtlas unified single-file intelligence workbench.
+
+Runs nineteen embedded, individually namespaced TraceAtlas domains, provides an
+SQLite evidence/case ledger, an evidence-grounded claim gate, optional explicitly
+approved public API connectors, a local JSON API, and CLI tools.
+
+ORIGINAL CODE preserved under '#| ' lines in this very file. On demand it is
+reconstructed and minimally repaired; full original text is preserved for audit.
+No remote collection is performed unless explicitly requested.
+"""
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import datetime as dt
+import enum
+import hashlib
+import http.server
+import importlib
+import inspect
+import ipaddress
+import json
+import os
+import re
+import secrets
+import sqlite3
+import sys
+import threading
+import traceback
+import types
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from pathlib import Path
+from typing import Any, Optional
+
+VERSION = "1.0.0-unified"
+ARCHIVE_MARKER = "# TRACEATLAS EMBEDDED ORIGINAL MODULE "
+SOURCE_LINES = 66349
+KNOWN_DOMAINS = (
+    "academicint", "acoustint", "adsbint", "aiint", "aisint",
+    "anomalyint", "assetint", "audint", "automotiveint", "aviationcyberint",
+    "aviationint", "behaveint", "brandint", "breachint", "cloudint",
+    "codeint", "comint", "containerint", "contradictionint",
+)
+NAME_TO_FILE = {
+    "academicint": "accadmicint(1).py", "acoustint": "ACOUSTINT(1).py",
+    "adsbint": "adsbint(1).py", "aiint": "AIINT(1).py",
+    "aisint": "aisint(1).py", "anomalyint": "anomalint(1).py",
+    "assetint": "assetint(1).py", "audint": "audint(1).py",
+    "automotiveint": "automotiveint(1).py",
+    "aviationcyberint": "aviationcyberint(1).py",
+    "aviationint": "aviationint(1).py", "behaveint": "behaveint(1).py",
+    "brandint": "brandint(1).py", "breachint": "breachint(1).py",
+    "cloudint": "cloudint(1).py", "codeint": "codeint(1).py",
+    "comint": "comint(1).py", "containerint": "containerint(1).py",
+    "contradictionint": "contradictionint(1).py",
+}
+ORIGINAL_SHA256 = {'academicint': 'a0ccec4c7c702d1ba9c3c7eb0457df3f9d3c20152663a2b11f49e06acf84e058', 'acoustint': '380238acf021dbe0f0886b269807b4b3cd23fe86c5886535c14b05ea8ee8d939', 'adsbint': '7efeebc4dbff67b5f072eafbe2f55736ba08516b549272d2f2bdb6365723c2d0', 'aiint': '8af170331a3080fb45deb837324e57ff27a20f5535e411bdf2fa098db3b64bb3', 'aisint': '6817077d0ba8159aa28c5da95901a7b49e028b5dd935a40a0b67e3a1849786bf', 'anomalyint': 'acddb2122318f0890d86f5fcfaa81e013dc87f746dfa1e4367f724892095cca7', 'assetint': '9a0877997317b0a0ba51b50e67e177490d2813d92f40ac1056a68b95fdae0982', 'audint': 'c4730b03e3aa601db913ae911275e13d907c5b1f8756ce55d4367ec283fe41bd', 'automotiveint': '4905b1360f462ac34e1b1788540c0c93cf0e5ea946eee3aade94d3f90f4b50d2', 'aviationcyberint': '6d2a459dddf71bd1a7cd3be615bdcdd6fb0d691618c986e44af3337f0bf21a1d', 'aviationint': 'e8ed52648fb9035a3d79f4c950515e99f613501020f465de3702078fd95506c4', 'behaveint': '39f184d8c861136fa47ea0d47d68d82adbb4eb14c3cb701a8a60ffc7b6cd009b', 'brandint': 'a7b22333026107da8fa8cef2bce52f7ea235886f6e3c5af3755c8c732e1f065d', 'breachint': 'b5580bb572c625aecba6d4d44258b4223904cea1b822fab89292ec2ef9a858f2', 'cloudint': 'bb79e42e537187c352de74f92e20484e56d7bae3eb9ccb4debd7b0cb74ad8990', 'codeint': '867692a548348907996c138d7f113778ce835381d2ca4199e48e2b2ba6a990ad', 'comint': '03fad57f0b48b943998e86ced67bc4435680a41409497285bd9d879a26eb18d1', 'containerint': '1359e3550895611ddcebc45f7894db7884d9887d4f0bbe7b6439af47ffee14b8', 'contradictionint': '3853699241a9b5f76e67df1266a4dbabd7f8f8a37a241849edfe2a8ade25f484'}  # SHA-256 of original embedded source
+DOMAIN_MODE = {x: "native" for x in KNOWN_DOMAINS}
+for _gui in ("audint", "aviationint", "breachint", "comint"):
+    DOMAIN_MODE[_gui] = "file_or_gui"
+REPAIR_NOTES = {
+    "academicint": "Input was truncated mid-Markdown report; completed reporter footer without inventing missing report sections.",
+    "aiint": "Three accidentally concatenated revisions; selected newest complete revision. Earlier revisions retained in archive.",
+    "anomalyint": "Repaired truncated quality list comprehension; removed incomplete loose JSON example.",
+    "assetint": "Detached raw JSON example appended as executable Python at end of source.",
+    "automotiveint": "Detached incomplete example JSON appended after program entry point.",
+    "behaveint": "Corrected report rendering indentation and removed stray JSON example.",
+    "brandint": "Detached raw JSON example appended as executable Python at end of source.",
+    "cloudint": "Corrected invalid Python enum identifier RESOURCE ERA_UNRESOLVED.",
+    "containerint": "Fixed Hypothesis keyword argument, dataclass default ordering; excluded truncated demo entry point.",
+}
+_SOURCE_CACHE: dict[str, str] = {}
+_MODULE_CACHE: dict[str, types.ModuleType] = {}
+_LOCK = threading.RLock()
+
+
+def utcnow() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def canonical_json(obj: Any) -> str:
+    return json.dumps(as_json(obj), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def as_json(obj: Any, depth: int = 0) -> Any:
+    if depth > 24:
+        return "[DEPTH_LIMIT]"
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if isinstance(obj, enum.Enum):
+        return as_json(obj.value, depth + 1)
+    if isinstance(obj, (dt.datetime, dt.date)):
+        return obj.isoformat()
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return as_json(dataclasses.asdict(obj), depth + 1)
+    if isinstance(obj, dict):
+        return {str(k): as_json(v, depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (tuple, list)):
+        return [as_json(x, depth + 1) for x in obj]
+    if isinstance(obj, (set, frozenset)):
+        return sorted([as_json(x, depth + 1) for x in obj], key=str)
+    if hasattr(obj, "__dict__"):
+        return as_json(vars(obj), depth + 1)
+    return str(obj)
+
+
+def filtered(data: Any, depth: int = 0) -> Any:
+    """Reduce accidental storage of credentials in case/evidence payloads."""
+    if depth > 32:
+        raise ValueError("payload nested too deeply")
+    if isinstance(data, dict):
+        out = {}
+        for k, v in data.items():
+            key = str(k)
+            if re.search(r"(^|[_-])(password|passwd|secret|api_key|access_token|refresh_token|private_key|bearer)([_-]|$)", key, re.I):
+                out[key] = "[REDACTED]"
+            else:
+                out[key] = filtered(v, depth + 1)
+        return out
+    if isinstance(data, list):
+        return [filtered(x, depth + 1) for x in data]
+    return as_json(data)
+
+
+def _read_embedded_archive() -> None:
+    if _SOURCE_CACHE:
+        return
+    with _LOCK:
+        if _SOURCE_CACHE:
+            return
+        p = Path(__file__).resolve()
+        current = None
+        chunks: dict[str, list[str]] = {}
+        with p.open("r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith(ARCHIVE_MARKER):
+                    value = line[len(ARCHIVE_MARKER):].strip()
+                    if value.endswith(" BEGIN"):
+                        key = value[:-6]
+                        if key not in KNOWN_DOMAINS or key in chunks:
+                            raise ValueError("Invalid or duplicate archive domain: " + key)
+                        current = key
+                        chunks[key] = []
+                    elif value.endswith(" END"):
+                        if current != value[:-4]:
+                            raise ValueError("Archive closing marker mismatch")
+                        current = None
+                    continue
+                if current is not None:
+                    if not line.startswith("#| "):
+                        raise ValueError("Malformed embedded source line: " + current)
+                    chunks[current].append(line[3:])
+        if current is not None:
+            raise ValueError("Unterminated embedded archive")
+        if set(chunks) != set(KNOWN_DOMAINS):
+            raise ValueError("Incomplete embedded archive")
+        for domain, lines in chunks.items():
+            source = "".join(lines)
+            expected = ORIGINAL_SHA256.get(domain)
+            if expected and hashlib.sha256(source.encode()).hexdigest() != expected:
+                raise ValueError("Source archive integrity check failed: " + domain)
+            _SOURCE_CACHE[domain] = source
+
+
+def source_original(domain: str) -> str:
+    if domain not in KNOWN_DOMAINS:
+        raise ValueError("Unknown domain: " + domain)
+    _read_embedded_archive()
+    return _SOURCE_CACHE[domain]
+
+
+def source_repaired(domain: str) -> str:
+    original = source_original(domain)
+    lines = original.splitlines()
+    if domain == "aiint":
+        starts = [i for i, line in enumerate(lines) if "from __future__ import annotations" in line]
+        if not starts:
+            raise ValueError("No usable AIINT revision")
+        lines = lines[starts[-1]:]
+        lines[0] = "from __future__ import annotations"
+    if domain == "academicint":
+        lines = lines[:3670] + [
+            '    lines.append("- Research integrity signal detail was truncated in the supplied file.")',
+            '    return "\\n".join(lines)',
+        ]
+    if domain == "anomalyint":
+        lines = lines[:2728]
+        lines[2472] = ('    result["data_quality"] = [{"observation_id": o["observation_id"], '
+                       '"data_quality": o.get("data_quality"), "issues": o.get("issues", [])} '
+                       'for o in observations if o.get("issues")]')
+    if domain == "automotiveint":
+        lines = lines[:2759]
+    if domain == "behaveint":
+        lines = lines[:3044]
+        lines[2985] = lines[2985][4:]
+    if domain == "cloudint":
+        lines[191] = lines[191].replace("RESOURCE ERA_UNRESOLVED", "RESOURCE_ERA_UNRESOLVED")
+    if domain == "containerint":
+        lines = lines[:4341]
+        lines = [line.replace("unknowns [", "unknowns=[") for line in lines]
+        lines = [line.replace("    package_name: str", '    package_name: str = ""')
+                 if line.strip() == "package_name: str" else line for line in lines]
+    if domain in ("assetint", "brandint"):
+        guard = next(i for i, line in enumerate(lines) if line.startswith('if __name__ == "__main__":'))
+        lines = lines[:guard+2]
+    return "\n".join(lines) + "\n"
+
+
+def load_domain(domain: str) -> types.ModuleType:
+    if domain not in KNOWN_DOMAINS:
+        raise ValueError("Unsupported domain: " + domain)
+    with _LOCK:
+        if domain in _MODULE_CACHE:
+            return _MODULE_CACHE[domain]
+        name = "traceatlas_embedded_" + domain
+        mod = types.ModuleType(name)
+        mod.__package__ = ""
+        mod.__file__ = f"{Path(__file__).resolve()}::{NAME_TO_FILE[domain]}"
+        mod.__dict__["__builtins__"] = __builtins__
+        sys.modules[name] = mod
+        try:
+            exec(compile(source_repaired(domain), mod.__file__, "exec"), mod.__dict__)
+        except Exception:
+            sys.modules.pop(name, None)
+            raise
+        _MODULE_CACHE[domain] = mod
+        return mod
+
+
+def domain_info(domain: str, runtime: bool = False) -> dict[str, Any]:
+    src = source_original(domain)
+    repaired = source_repaired(domain)
+    info = {"domain": domain, "original_file": NAME_TO_FILE[domain],
+            "original_lines": len(src.splitlines()),
+            "runtime_lines": len(repaired.splitlines()),
+            "original_sha256": hashlib.sha256(src.encode()).hexdigest(),
+            "source_repair": REPAIR_NOTES.get(domain),
+            "mode": DOMAIN_MODE[domain]}
+    if runtime:
+        try:
+            m = load_domain(domain)
+            info["load_status"] = "OK"
+            info["entrypoints"] = [name for name in ("analyze", "run_pipeline", "process_case",
+                 "analyze_academicint_manifest", "analyze_anomaly_manifest", "analyze_assetint_manifest",
+                 "analyze_automotiveint_manifest", "analyze_behavint_manifest", "analyze_brandint_manifest")
+                 if callable(getattr(m, name, None))]
+        except Exception as exc:
+            info["load_status"] = "ERROR"
+            info["error"] = f"{type(exc).__name__}: {exc}"
+    return info
+
+
+def _case_kwargs(cls: type, data: dict[str, Any]) -> dict[str, Any]:
+    return {f.name: data[f.name] for f in dataclasses.fields(cls) if f.name in data}
+
+
+def run_native(domain: str, manifest: dict[str, Any], file_path: str | None = None) -> Any:
+    """Run native domain code; no silent substitution of generic results."""
+    if not isinstance(manifest, dict):
+        raise TypeError("manifest must be JSON object")
+    m = load_domain(domain)
+    funcs = {
+       "academicint": "analyze_academicint_manifest", "anomalyint": "analyze_anomaly_manifest",
+       "assetint": "analyze_assetint_manifest", "automotiveint": "analyze_automotiveint_manifest",
+       "behaveint": "analyze_behavint_manifest", "brandint": "analyze_brandint_manifest",
+    }
+    if domain in funcs:
+        return as_json(getattr(m, funcs[domain])(manifest))
+    if domain in ("acoustint", "adsbint", "contradictionint"):
+        return as_json(m.analyze(manifest))
+    if domain in ("cloudint", "codeint"):
+        cls = getattr(m, "Case")
+        prepared = _case_kwargs(cls, manifest)
+        if isinstance(prepared.get("scope"), dict):
+            prepared["scope"] = [str(k) + "=" + str(v) for k, v in prepared["scope"].items()]
+        if isinstance(prepared.get("authorization"), dict):
+            approved = prepared["authorization"].get("approved", False)
+            prepared["authorization"] = "authorized_case" if approved else "authorization_unverified"
+        for key in ("questions", "resources", "repositories", "commits"):
+            if key in prepared and not isinstance(prepared[key], list):
+                prepared[key] = [str(prepared[key])]
+        instance = cls(**prepared)
+        return as_json(m.run_pipeline(instance))
+    if domain in ("aiint", "containerint"):
+        worker = getattr(m, "AIIntEmployee" if domain == "aiint" else "ContainerIntEmployee")()
+        output = worker.process_case(
+            case_id=str(manifest.get("case_id", "UNSPECIFIED")),
+            task_id=str(manifest.get("task_id", "UNSPECIFIED")),
+            objective=str(manifest.get("objective", "Defensive evidence analysis")),
+            scope=manifest.get("scope", {"mode": "AUTHORIZED_STATIC"}),
+            evidence_input=manifest.get("evidence_input", manifest.get("evidence", {})),
+            known_facts=manifest.get("known_facts", []),
+        )
+        return as_json(output)
+    if domain == "aisint":
+        # Native AISINT explicitly accepts a case dictionary (including observations).
+        return as_json(m.AISIntelligenceEmployee().run_case(manifest))
+    if domain == "aviationcyberint":
+        model = m.Request(**_case_kwargs(m.Request, manifest))
+        return as_json(m.AviationCyberInt().analyze(model))
+    file_methods = {
+        "audint": "analyze_audio_file", "aviationint": "analyze_av_file",
+        "breachint": "analyze_breach_file", "comint": "analyze_communication_file",
+    }
+    if domain in file_methods:
+        if not file_path:
+            raise ValueError("FILE_REQUIRED: native %s analyzer needs an authorized local file via --file" % domain)
+        path = Path(file_path).expanduser().resolve(strict=True)
+        if not path.is_file() or path.stat().st_size > 20_000_000:
+            raise ValueError("Input file must be a regular file <=20MB")
+        return as_json(getattr(m, file_methods[domain])(str(path)))
+    raise ValueError("No native runner mapped for domain: " + domain)
+
+
+class CaseLedger:
+    """Persistent scoped evidence store. No inference of guilt from graph edges."""
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = Path(path or os.environ.get("TRACEATLAS_DB", str(Path.home()/".traceatlas_unified"/"cases.sqlite3")))
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.RLock()
+        self.db = sqlite3.connect(str(self.path), check_same_thread=False, timeout=20)
+        self.db.row_factory = sqlite3.Row
+        with self.db:
+            self.db.execute("PRAGMA foreign_keys=ON")
+            self.db.execute("PRAGMA journal_mode=WAL")
+            self.db.executescript("""
+CREATE TABLE IF NOT EXISTS cases (
+ case_id TEXT PRIMARY KEY, objective TEXT NOT NULL, scope TEXT NOT NULL,
+ status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS evidence (
+ evidence_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(case_id),
+ domain TEXT NOT NULL, source_type TEXT NOT NULL, source_uri TEXT,
+ upstream_source TEXT NOT NULL, independent_group TEXT NOT NULL,
+ observed_at TEXT, ingested_at TEXT NOT NULL, content_hash TEXT NOT NULL, payload TEXT NOT NULL,
+ UNIQUE(case_id, content_hash, source_uri));
+CREATE TABLE IF NOT EXISTS claims (
+ claim_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(case_id),
+ entity_id TEXT NOT NULL, predicate TEXT NOT NULL, object_value TEXT NOT NULL,
+ statement TEXT NOT NULL, evidence_ids TEXT NOT NULL, state TEXT NOT NULL,
+ rationale TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS runs (
+ run_id TEXT PRIMARY KEY, case_id TEXT NOT NULL REFERENCES cases(case_id),
+ domain TEXT NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL,
+ result_hash TEXT, result_json TEXT NOT NULL, diagnostic TEXT);
+CREATE INDEX IF NOT EXISTS idx_evidence_case ON evidence(case_id);
+CREATE INDEX IF NOT EXISTS idx_claims_case ON claims(case_id);
+CREATE INDEX IF NOT EXISTS idx_runs_case ON runs(case_id);
+""")
+
+    def _rows(self, query: str, params: tuple = ()) -> list[dict[str, Any]]:
+        with self.lock:
+            return [dict(x) for x in self.db.execute(query, params).fetchall()]
+
+    def new_case(self, objective: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not objective.strip() or len(objective) > 8000:
+            raise ValueError("objective required, <=8000 chars")
+        case_id = "CASE-" + uuid.uuid4().hex[:14].upper()
+        now = utcnow()
+        scope = filtered(scope or {"authorization": "user_supplied_local_evidence"})
+        if len(canonical_json(scope)) > 128000:
+            raise ValueError("scope too large")
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO cases VALUES(?,?,?,?,?,?)", (case_id, objective, canonical_json(scope), "OPEN", now, now))
+        return self.get_case(case_id)
+
+    def get_case(self, case_id: str) -> dict[str, Any]:
+        rows = self._rows("SELECT * FROM cases WHERE case_id=?", (case_id,))
+        if not rows:
+            raise KeyError("Unknown case: " + case_id)
+        item = rows[0]
+        item["scope"] = json.loads(item["scope"])
+        return item
+
+    def cases(self) -> list[dict[str, Any]]:
+        return [self.get_case(x["case_id"]) for x in self._rows("SELECT case_id FROM cases ORDER BY created_at DESC LIMIT 200")]
+
+    def add_evidence(self, case_id: str, domain: str, payload: Any, *,
+                     source_type: str = "USER_SUPPLIED", source_uri: str = "",
+                     upstream_source: str = "", independent_group: str = "",
+                     observed_at: str | None = None) -> dict[str, Any]:
+        self.get_case(case_id)
+        if domain not in KNOWN_DOMAINS and domain != "external":
+            raise ValueError("Unknown domain")
+        data = filtered(payload)
+        serialized = canonical_json(data)
+        if len(serialized.encode("utf-8")) > 256_000:
+            raise ValueError("Evidence exceeds 256KB")
+        digest = hashlib.sha256(serialized.encode()).hexdigest()
+        evid = "EV-" + uuid.uuid4().hex[:16].upper()
+        with self.lock, self.db:
+            try:
+                self.db.execute("INSERT INTO evidence VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
+                    evid, case_id, domain, source_type, source_uri,
+                    upstream_source or source_uri or source_type,
+                    independent_group or upstream_source or source_uri or source_type,
+                    observed_at, utcnow(), digest, serialized))
+            except sqlite3.IntegrityError:
+                rows = self._rows("SELECT * FROM evidence WHERE case_id=? AND content_hash=? AND source_uri=?", (case_id,digest,source_uri))
+                if rows:
+                    return self._evidence_row(rows[0])
+                raise
+        return self.evidence(case_id, evid)
+
+    @staticmethod
+    def _evidence_row(row: dict[str, Any]) -> dict[str, Any]:
+        row["payload"] = json.loads(row["payload"])
+        return row
+
+    def evidence(self, case_id: str, evidence_id: str | None = None) -> Any:
+        self.get_case(case_id)
+        if evidence_id:
+            rows = self._rows("SELECT * FROM evidence WHERE case_id=? AND evidence_id=?", (case_id,evidence_id))
+            if not rows:
+                raise KeyError("Evidence not found in this case")
+            return self._evidence_row(rows[0])
+        return [self._evidence_row(x) for x in self._rows(
+            "SELECT * FROM evidence WHERE case_id=? ORDER BY ingested_at LIMIT 3000", (case_id,))]
+
+    def add_claim(self, case_id: str, *, entity_id: str, predicate: str,
+                  object_value: Any, statement: str, evidence_ids: list[str]) -> dict[str, Any]:
+        self.get_case(case_id)
+        if not entity_id or not predicate or not statement:
+            raise ValueError("Claim entity_id, predicate and statement required")
+        if not isinstance(evidence_ids, list) or len(evidence_ids) > 100:
+            raise ValueError("evidence_ids must be a list of <=100")
+        for evid in evidence_ids:
+            self.evidence(case_id, evid)
+        cid = "CL-" + uuid.uuid4().hex[:16].upper()
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO claims VALUES(?,?,?,?,?,?,?,?,?,?)", (
+               cid,case_id,entity_id,predicate,canonical_json(filtered(object_value)),
+               statement,canonical_json(evidence_ids),"UNREVIEWED","awaiting_fact_gate",utcnow()))
+        return self.claims(case_id, cid)
+
+    def claims(self, case_id: str, claim_id: str | None = None) -> Any:
+        self.get_case(case_id)
+        rows = self._rows("SELECT * FROM claims WHERE case_id=?" + (" AND claim_id=?" if claim_id else " ORDER BY created_at"),
+                         (case_id,claim_id) if claim_id else (case_id,))
+        for row in rows:
+            row["object_value"] = json.loads(row["object_value"])
+            row["evidence_ids"] = json.loads(row["evidence_ids"])
+        if claim_id:
+            if not rows:
+                raise KeyError("Claim not found")
+            return rows[0]
+        return rows
+
+    def fact_gate(self, case_id: str) -> dict[str, Any]:
+        claim_list = self.claims(case_id)
+        evidence_by_id = {e["evidence_id"]: e for e in self.evidence(case_id)}
+        evaluations = []
+        for claim in claim_list:
+            supported = [evidence_by_id[e] for e in claim["evidence_ids"] if e in evidence_by_id]
+            independent = {e["independent_group"] for e in supported}
+            conflicts = [c["claim_id"] for c in claim_list if c["claim_id"] != claim["claim_id"]
+                         and c["entity_id"] == claim["entity_id"]
+                         and c["predicate"] == claim["predicate"]
+                         and c["object_value"] != claim["object_value"]]
+            # Conflict merely marks a dispute, it does not adjudicate which source is true.
+            if conflicts:
+                state, reason = "DISPUTED", "Conflicting claims for the same entity/predicate; analyst adjudication needed"
+            elif len(independent) >= 2:
+                state, reason = "CORROBORATED_CANDIDATE", "Two independent upstream source groups cited; content has not been manually verified"
+            else:
+                state, reason = "INCONCLUSIVE", "Fewer than two independent evidence source groups"
+            with self.lock, self.db:
+                self.db.execute("UPDATE claims SET state=?,rationale=? WHERE claim_id=?", (state,reason,claim["claim_id"]))
+            evaluations.append({"claim_id":claim["claim_id"],"state":state,"source_group_count":len(independent),
+                                "contradictions":conflicts,"reason":reason})
+        return {"case_id":case_id,"evaluations":evaluations,"no_automatic_truth_verdict":True}
+
+    def graph(self, case_id: str) -> dict[str, Any]:
+        claims = self.claims(case_id)
+        evidence = self.evidence(case_id)
+        nodes = ([{"id": e["evidence_id"],"type":"EVIDENCE","domain":e["domain"]} for e in evidence]
+                + [{"id":c["claim_id"],"type":"CLAIM","state":c["state"]} for c in claims])
+        entity_names = sorted(set(c["entity_id"] for c in claims))
+        nodes += [{"id":"ENTITY:"+e,"type":"ENTITY"} for e in entity_names]
+        edges = []
+        for c in claims:
+            edges.append({"from":"ENTITY:"+c["entity_id"],"to":c["claim_id"],"relation":c["predicate"]})
+            edges.extend({"from":c["claim_id"],"to":e,"relation":"CITES"} for e in c["evidence_ids"])
+        return {"case_id":case_id,"nodes":nodes,"edges":edges,"non_attribution_notice":"Graph relationships are evidence links, not proof of identity or wrongdoing"}
+
+    def run_case(self, case_id: str, domain: str, manifest: dict[str, Any] | None = None,
+                 file_path: str | None = None) -> dict[str, Any]:
+        case = self.get_case(case_id)
+        manifest = dict(manifest or {})
+        manifest.setdefault("case_id",case_id)
+        manifest.setdefault("task_id","TASK-"+uuid.uuid4().hex[:10])
+        manifest.setdefault("objective",case["objective"])
+        manifest.setdefault("authorization", {"approved":True,"scope":"provided_records_only"})
+        manifest.setdefault("scope",case["scope"])
+        run_id = "RUN-" + uuid.uuid4().hex[:16].upper()
+        status = "SUCCEEDED"
+        diagnostic = None
+        try:
+            result = run_native(domain, manifest, file_path=file_path)
+        except Exception as exc:
+            status = "FAILED"
+            diagnostic = f"{type(exc).__name__}: {exc}"
+            result = {"status":"FAILED","error":diagnostic,"domain":domain}
+        result = filtered(result)
+        output = canonical_json(result)
+        if len(output.encode()) > 2_000_000:
+            status = "PARTIAL"
+            diagnostic = "Result larger than 2MB; not persisted"
+            result = {"status":"PARTIAL","diagnostic":diagnostic}
+            output = canonical_json(result)
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO runs VALUES(?,?,?,?,?,?,?,?)", (run_id, case_id, domain, utcnow(), status,
+                            hashlib.sha256(output.encode()).hexdigest(), output, diagnostic))
+        return {"run_id":run_id,"case_id":case_id,"domain":domain,"status":status,"diagnostic":diagnostic,"result":result}
+
+    def orchestrate(self, case_id: str, domains: list[str] | None = None,
+                    manifest: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Manager -> specialist routing -> native employee execution -> review ledger.
+
+        Deliberately avoids converting model outputs into verified claims.
+        File-dependent employees must run with a separately provided file on the CLI.
+        """
+        case = self.get_case(case_id)
+        if domains is None:
+            routed = route_domains(case["objective"], limit=6)
+            domains = [x["domain"] for x in routed.get("domains", [])]
+        if not isinstance(domains, list) or len(domains) > 8:
+            raise ValueError("Select at most 8 specialist domains")
+        results = []
+        for domain in dict.fromkeys(domains):
+            if domain not in KNOWN_DOMAINS:
+                raise ValueError("Unrecognized domain " + str(domain))
+            if DOMAIN_MODE[domain] == "file_or_gui":
+                results.append({"domain":domain,"status":"INPUT_REQUIRED",
+                                "reason":"This employee requires an explicitly authorized local evidence file via CLI"})
+                continue
+            executed = self.run_case(case_id,domain,manifest or {})
+            result = executed.pop("result",{})
+            results.append({**executed,"result_status":result.get("status") if isinstance(result,dict) else "UNKNOWN",
+                            "result_keys":list(result)[:20] if isinstance(result,dict) else []})
+        return {"case_id":case_id,"manager":"objective_router", "team_lead":"specialist_dispatch",
+                "results":results,"independent_fact_gate":self.fact_gate(case_id),
+                "note":"Native domain outputs are analytical observations, never automatic verified facts"}
+
+    def runs(self, case_id: str) -> list[dict[str, Any]]:
+        self.get_case(case_id)
+        result = self._rows("SELECT * FROM runs WHERE case_id=? ORDER BY created_at DESC LIMIT 200", (case_id,))
+        for row in result:
+            row["result_json"] = json.loads(row["result_json"])
+        return result
+
+    def report(self, case_id: str) -> dict[str, Any]:
+        c = self.get_case(case_id)
+        return {"case":c,"evidence_count":len(self.evidence(case_id)),
+                "claim_count":len(self.claims(case_id)),"claims":self.claims(case_id),
+                "evaluations":self.fact_gate(case_id),"graph":self.graph(case_id),
+                "runs":[{k:v for k,v in run.items() if k!="result_json"} for run in self.runs(case_id)],
+                "limitations":["Unverified source records do not establish truth", "Domain model results are not automatic investigative findings"]}
+
+
+PROVIDERS = {
+ "openalex": {"domain":"academicint","base":"https://api.openalex.org/works","param":"search", "field":"results"},
+ "crossref": {"domain":"academicint","base":"https://api.crossref.org/works","param":"query", "field":"message.items"},
+ "nvd": {"domain":"codeint","base":"https://services.nvd.nist.gov/rest/json/cves/2.0","param":"keywordSearch", "field":"vulnerabilities"},
+ "github_repositories": {"domain":"codeint","base":"https://api.github.com/search/repositories","param":"q", "field":"items"},
+}
+
+
+def fetch_provider(provider: str, query: str, *, network_approved: bool = False,
+                   max_items: int = 10) -> dict[str, Any]:
+    if provider not in PROVIDERS:
+        raise ValueError("Unknown provider. Allowed: " + ", ".join(PROVIDERS))
+    if not network_approved:
+        raise PermissionError("Live network access is OFF. Supply explicit --allow-network or network_approved=true")
+    if not query.strip() or len(query) > 250:
+        raise ValueError("Query length must be 1..250")
+    max_items = min(max(int(max_items),1),25)
+    config = PROVIDERS[provider]
+    url = config["base"] + "?" + urllib.parse.urlencode({config["param"]:query,"per-page":max_items} if provider == "openalex" else
+                                {config["param"]:query,"rows":max_items} if provider == "crossref" else
+                                {config["param"]:query,"resultsPerPage":max_items} if provider == "nvd" else
+                                {config["param"]:query,"per_page":max_items})
+    headers = {"Accept":"application/json","User-Agent":"TraceAtlas-Unified/1.0 (authorized research)"}
+    if provider == "github_repositories" and os.environ.get("GITHUB_TOKEN"):
+        headers["Authorization"] = "Bearer " + os.environ["GITHUB_TOKEN"]
+    if provider == "nvd" and os.environ.get("NVD_API_KEY"):
+        headers["apiKey"] = os.environ["NVD_API_KEY"]
+    request = urllib.request.Request(url,headers=headers,method="GET")
+    class StrictRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            parsed = urllib.parse.urlparse(newurl)
+            if parsed.scheme != "https" or parsed.hostname != urllib.parse.urlparse(config["base"]).hostname:
+                raise ValueError("Provider redirects outside HTTPS allowlisted domain")
+            return super().redirect_request(req,fp,code,msg,headers,newurl)
+    opener = urllib.request.build_opener(StrictRedirect)
+    with opener.open(request,timeout=12) as response:
+        raw = response.read(2_000_001)
+        if len(raw)>2_000_000:
+            raise ValueError("Provider response too large")
+    data = json.loads(raw.decode("utf-8"))
+    items = data
+    for key in config["field"].split("."):
+        items = items.get(key,[]) if isinstance(items,dict) else []
+    if not isinstance(items,list): items=[]
+    return {"provider":provider,"query":query,"domain":config["domain"],"retrieved_at":utcnow(),
+            "source_url":url,"items":items[:max_items],"count":len(items[:max_items]),
+            "provenance":"Live public API response; external records require independent verification"}
+
+
+ROUTING_RULES = {
+ "academicint": ("paper","academic","doi","research","journal","scholar"),
+ "acoustint": ("acoustic","sound feature","microphone sensor","spectral"),
+ "adsbint": ("ads-b","adsb","aircraft trajectory","mlat"),
+ "aiint": ("model supply","llm","artificial intelligence","model lineage","benchmark"),
+ "aisint": ("ais vessel","maritime","vessel movement","port call"),
+ "anomalyint": ("outlier","anomaly","deviation","baseline"),
+ "assetint": ("asset owner","beneficial owner","property registry"),
+ "audint": ("audio transcript","recording","podcast","voice note"),
+ "automotiveint": ("vehicle firmware","automotive","ecu","car hacking"),
+ "aviationcyberint": ("avionics security","aircraft cybersecurity","aviation cyber"),
+ "aviationint": ("aircraft registry","aviation investigation","flight records"),
+ "behaveint": ("user behavior","behavior pattern","behavioural","behavioral"),
+ "brandint": ("brand impersonation","typosquat","brand abuse"),
+ "breachint": ("data breach","ransomware leak","breach claim"),
+ "cloudint": ("cloud configuration","aws","azure","iam"),
+ "codeint": ("source code","repository","sbom","dependency"),
+ "comint": ("communication export","chat export","message archive"),
+ "containerint": ("container image","oci","kubernetes image","docker image"),
+ "contradictionint": ("contradiction","conflicting claim","inconsistent sources"),
+}
+
+
+def route_domains(objective: str, limit: int = 5) -> dict[str, Any]:
+    lower = objective.lower()
+    scores = []
+    for domain, terms in ROUTING_RULES.items():
+        matched = [t for t in terms if t in lower]
+        if matched: scores.append((len(matched),domain,matched))
+    scores.sort(key=lambda t:(-t[0],t[1]))
+    if not scores:
+        return {"objective":objective,"domains":[],"status":"NO_CONFIDENT_ROUTE",
+                "reason":"No matching specialist routing terms. Provide domain explicitly."}
+    return {"objective":objective,"domains":[{"domain":domain,"matched_terms":matches,"score":score}
+                    for score,domain,matches in scores[:limit]],"status":"ROUTED",
+            "human_review_required":True}
+
+
+class ApiHandler(http.server.BaseHTTPRequestHandler):
+    server_version = "TraceAtlasUnified/1.0"
+    def log_message(self, fmt: str, *args: Any) -> None:
+        sys.stderr.write("[API] %s %s\n" % (self.log_date_time_string(),fmt%args))
+    def send(self, status: int, data: Any) -> None:
+        raw = json.dumps(as_json(data),ensure_ascii=False,default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type","application/json; charset=utf-8")
+        self.send_header("X-Content-Type-Options","nosniff")
+        self.send_header("Cache-Control","no-store")
+        self.send_header("Content-Length",str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+    def _data(self) -> dict[str, Any]:
+        n = int(self.headers.get("Content-Length","0"))
+        if n < 1 or n > 1_000_000:
+            raise ValueError("Request must be JSON object <=1MB")
+        obj = json.loads(self.rfile.read(n).decode("utf-8"))
+        if not isinstance(obj,dict):raise ValueError("JSON object required")
+        return obj
+    def _authorized(self) -> bool:
+        token = self.headers.get("Authorization", "")
+        return bool(secrets.compare_digest(token,"Bearer "+self.server.api_token))
+    def handle_error(self, fn):
+        try: fn()
+        except KeyError as e:self.send(404,{"error":str(e)})
+        except (ValueError,TypeError,PermissionError,json.JSONDecodeError) as e:self.send(400,{"error":str(e)})
+        except Exception as e:self.send(500,{"error":f"{type(e).__name__}: {e}"})
+    def do_GET(self) -> None:
+        def run():
+            path=urllib.parse.urlsplit(self.path).path.rstrip("/") or "/"
+            parts=path.strip("/").split("/")
+            if path in ("/health","/api/v1/health"):
+                return self.send(200,{"status":"OK","version":VERSION,"domains":len(KNOWN_DOMAINS)})
+            if path=="/api/v1/domains":return self.send(200,[domain_info(d) for d in KNOWN_DOMAINS])
+            if len(parts)==4 and parts[:3]==["api","v1","domains"]:
+                return self.send(200,domain_info(parts[3],True))
+            if path=="/api/v1/providers":return self.send(200,{k:{"domain":v["domain"],"url":v["base"],"configured":True} for k,v in PROVIDERS.items()})
+            if path=="/api/v1/docs":return self.send(200,{
+                "version":VERSION,"authentication":"Authorization: Bearer <token> for case and POST APIs",
+                "GET":["/health","/api/v1/domains","/api/v1/domains/{domain}","/api/v1/providers",
+                       "/api/v1/cases","/api/v1/cases/{case_id}","/api/v1/cases/{case_id}/evidence",
+                       "/api/v1/cases/{case_id}/claims","/api/v1/cases/{case_id}/runs",
+                       "/api/v1/cases/{case_id}/graph","/api/v1/cases/{case_id}/report"],
+                "POST":["/api/v1/route","/api/v1/cases","/api/v1/cases/{case_id}/evidence",
+                        "/api/v1/cases/{case_id}/claims","/api/v1/cases/{case_id}/fact-gate",
+                        "/api/v1/cases/{case_id}/orchestrate","/api/v1/cases/{case_id}/run/{domain}",
+                        "/api/v1/providers/{provider}/fetch"],
+                "network":"Disabled by default; provider fetch requires explicit network_approved=true"})
+            if path=="/api/v1/cases":
+                if not self._authorized():return self.send(401,{"error":"Bearer token required"})
+                return self.send(200,self.server.ledger.cases())
+            if len(parts)>=4 and parts[:3]==["api","v1","cases"]:
+                if not self._authorized():return self.send(401,{"error":"Bearer token required"})
+                ident=parts[3]
+                if len(parts)==4:return self.send(200,self.server.ledger.get_case(ident))
+                if len(parts)==5:
+                    label=parts[4]
+                    funcs={"evidence":self.server.ledger.evidence,"claims":self.server.ledger.claims,
+                        "graph":self.server.ledger.graph,"runs":self.server.ledger.runs,"report":self.server.ledger.report}
+                    if label in funcs:return self.send(200,funcs[label](ident))
+            return self.send(404,{"error":"Unknown route"})
+        return self.handle_error(run)
+    def do_POST(self) -> None:
+        def run():
+            if not self._authorized():return self.send(401,{"error":"Bearer token required"})
+            payload=self._data()
+            parts=urllib.parse.urlsplit(self.path).path.strip("/").split("/")
+            if parts==["api","v1","route"]:return self.send(200,route_domains(str(payload.get("objective",""))))
+            if len(parts)==5 and parts[:3]==["api","v1","providers"] and parts[4]=="fetch":
+                result=fetch_provider(parts[3],str(payload.get("query","")),
+                    network_approved=payload.get("network_approved") is True,
+                    max_items=int(payload.get("limit",10)))
+                return self.send(200,result)
+            if parts==["api","v1","cases"]:
+                return self.send(201,self.server.ledger.new_case(str(payload.get("objective","")),payload.get("scope")))
+            if len(parts)>=5 and parts[:3]==["api","v1","cases"]:
+                case_id=parts[3];action=parts[4]; ledger=self.server.ledger
+                if action=="evidence" and len(parts)==5:
+                    return self.send(201,ledger.add_evidence(case_id,str(payload.get("domain","external")),payload.get("payload",{}),
+                        source_type=str(payload.get("source_type","USER_SUPPLIED")),source_uri=str(payload.get("source_uri","")),
+                        upstream_source=str(payload.get("upstream_source","")),independent_group=str(payload.get("independent_group","")),
+                        observed_at=payload.get("observed_at")))
+                if action=="claims" and len(parts)==5:
+                    return self.send(201,ledger.add_claim(case_id,entity_id=str(payload.get("entity_id","")),
+                        predicate=str(payload.get("predicate","")),object_value=payload.get("object_value"),
+                        statement=str(payload.get("statement","")),evidence_ids=payload.get("evidence_ids",[])))
+                if action=="fact-gate" and len(parts)==5:return self.send(200,ledger.fact_gate(case_id))
+                if action=="orchestrate" and len(parts)==5:
+                    return self.send(200,ledger.orchestrate(case_id,payload.get("domains"),payload.get("manifest",{})))
+                if action=="run" and len(parts)==6:
+                    # API cannot open arbitrary local file paths.
+                    if parts[5] in ("audint","aviationint","breachint","comint"):
+                        raise ValueError("File-based analyzers are CLI-only, not accessible by API path")
+                    return self.send(200,ledger.run_case(case_id,parts[5],payload.get("manifest",{})))
+            return self.send(404,{"error":"Unknown route"})
+        return self.handle_error(run)
+
+
+def run_api(host: str, port: int, db: str | None, token: str | None, allow_remote: bool = False) -> None:
+    host_ip = ipaddress.ip_address(host)
+    if not host_ip.is_loopback and not allow_remote:
+        raise PermissionError("API defaults to loopback only; use --allow-remote to opt in")
+    secret = token or secrets.token_urlsafe(32)
+    server=http.server.ThreadingHTTPServer((host,port),ApiHandler)
+    server.api_token=secret
+    server.ledger=CaseLedger(db)
+    print(f"TraceAtlas API: http://{host}:{port}  (REST v1)",flush=True)
+    print(f"Bearer token (store privately): {secret}",flush=True)
+    print("Endpoints: GET /health /api/v1/domains /api/v1/providers ; authorized case/evidence/claim/run APIs",flush=True)
+    try:server.serve_forever(poll_interval=.25)
+    except KeyboardInterrupt:pass
+    finally:server.server_close()
+
+
+def _print(obj: Any) -> None:
+    print(json.dumps(as_json(obj),indent=2,ensure_ascii=False,default=str))
+
+
+def self_test(db_path: str | None = None) -> dict[str, Any]:
+    import tempfile
+    report={"version":VERSION,"syntax":{},"load":{},"smoke":{},"ledger":{},"errors":[]}
+    for domain in KNOWN_DOMAINS:
+        try:
+            compile(source_repaired(domain),"<"+domain+">","exec")
+            report["syntax"][domain]="PASS"
+            load_domain(domain)
+            report["load"][domain]="PASS"
+        except Exception as exc:
+            report["load"][domain]="FAIL"
+            report["errors"].append(f"{domain} load: {type(exc).__name__} {exc}")
+    sample_domains=tuple(d for d in KNOWN_DOMAINS if DOMAIN_MODE[d] != "file_or_gui")
+    for domain in sample_domains:
+        try:
+            data={"case_id":"SMOKE-CASE","task_id":"SMOKE-TASK","objective":"Analyze authorized records",
+                  "authorization":{"approved":True,"scope":"provided_records_only"},
+                  "scope":{"mode":"AUTHORIZED_STATIC"}}
+            if domain in ("aiint", "containerint"):
+                data.update({"evidence_input":{}, "known_facts":[]})
+            if domain == "aisint":
+                data["authorization"] = "PUBLIC_DATA_LAWFUL_RESEARCH"
+            result=run_native(domain,data)
+            if not isinstance(result,dict):raise AssertionError("Expected JSON object")
+            report["smoke"][domain]="PASS"
+        except Exception as exc:
+            report["smoke"][domain]="FAIL"
+            report["errors"].append(f"{domain} native: {type(exc).__name__} {exc}")
+    with tempfile.TemporaryDirectory() as path_root:
+        demo=Path(path_root)/"synthetic_authorized_record.txt"
+        demo.write_text("Synthetic test evidence 2026-10-01. This record does not contain real private information.", encoding="utf-8")
+        for domain in ("audint","aviationint","breachint","comint"):
+            try:
+                result=run_native(domain,{},file_path=str(demo))
+                if not isinstance(result,(list,dict)):
+                    raise AssertionError("Expected JSON-compatible file evidence")
+                report["smoke"][domain]="PASS"
+            except Exception as exc:
+                report["smoke"][domain]="FAIL"
+                report["errors"].append(f"{domain} file smoke: {type(exc).__name__} {exc}")
+    with tempfile.TemporaryDirectory() as root:
+        db=CaseLedger(Path(root)/"test.sqlite3")
+        case=db.new_case("Investigate two independent public sources")
+        a=db.add_evidence(case["case_id"],"academicint",{"observation":"same"},source_uri="https://a.example/1",independent_group="A")
+        b=db.add_evidence(case["case_id"],"academicint",{"observation":"same"},source_uri="https://b.example/1",independent_group="B")
+        c=db.add_claim(case["case_id"],entity_id="E1",predicate="status",object_value="active",
+                       statement="The recorded status was active",evidence_ids=[a["evidence_id"],b["evidence_id"]])
+        gate=db.fact_gate(case["case_id"])
+        assert gate["evaluations"][0]["state"]=="CORROBORATED_CANDIDATE"
+        db.add_claim(case["case_id"],entity_id="E1",predicate="status",object_value="inactive",
+                     statement="A conflicting record says inactive",evidence_ids=[a["evidence_id"]])
+        gate=db.fact_gate(case["case_id"])
+        assert all(i["state"]=="DISPUTED" for i in gate["evaluations"])
+        assert db.graph(case["case_id"])["edges"]
+        execution=db.orchestrate(case["case_id"],["academicint"],{"scope":{"mode":"AUTHORIZED_STATIC"}})
+        assert execution["results"][0]["status"]=="SUCCEEDED"
+        report["ledger"]={"create":"PASS","evidence":"PASS","claim_independence":"PASS",
+                          "contradiction":"PASS","graph":"PASS","sqlite":"PASS","orchestrate":"PASS"}
+    report["status"]="PASS" if not report["errors"] else "PARTIAL_OR_FAIL"
+    report["validation_scope"]="Compilation and import of all 19, native empty/synthetic fixture smoke, evidence ledger and manager routing"
+    report["not_validated"]=["Complete domain-specific edge cases", "Live third-party API connectivity and credentials",
+                              "Interactive desktop GUI behavior", "Production-scale performance", "All external integration workflows"]
+    report["total_original_lines"] = sum(domain_info(d)["original_lines"] for d in KNOWN_DOMAINS)
+    report["domain_count"] = len(KNOWN_DOMAINS)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser=argparse.ArgumentParser(description="TraceAtlas all-in-one evidence-first intelligence workbench")
+    parser.add_argument("--db",default=None,help="SQLite evidence store")
+    sub=parser.add_subparsers(dest="command",required=True)
+    sub.add_parser("list",help="List all embedded specialist domains")
+    sub.add_parser("doctor",help="Compile and load each specialist")
+    sub.add_parser("self-test",help="Test embedded domains and case/evidence/claim engine")
+    src=sub.add_parser("source",help="Inspect/export original or repaired embedded domain source")
+    src.add_argument("domain",choices=KNOWN_DOMAINS)
+    src.add_argument("--repaired",action="store_true")
+    src.add_argument("--output",help="Optional output path; otherwise stdout")
+    route=sub.add_parser("route",help="Suggest specialist domains from an objective")
+    route.add_argument("objective")
+    run=sub.add_parser("run",help="Invoke a domain's native analyzer directly")
+    run.add_argument("domain",choices=KNOWN_DOMAINS)
+    run.add_argument("--manifest",help="Input manifest JSON path")
+    run.add_argument("--file",help="Local evidence input for file-based analyzers")
+    case=sub.add_parser("new-case",help="Create an investigation")
+    case.add_argument("objective")
+    ev=sub.add_parser("add-evidence",help="Ingest local JSON evidence")
+    ev.add_argument("case_id");ev.add_argument("domain",choices=(*KNOWN_DOMAINS,"external"))
+    ev.add_argument("--json",required=True,help="JSON evidence file")
+    ev.add_argument("--source-uri",default="")
+    ev.add_argument("--independent-group",default="")
+    cl=sub.add_parser("add-claim",help="Register a claim with explicit evidence IDs")
+    cl.add_argument("case_id");cl.add_argument("--entity",required=True)
+    cl.add_argument("--predicate",required=True);cl.add_argument("--value",required=True)
+    cl.add_argument("--statement",required=True);cl.add_argument("--evidence",nargs="*",default=[])
+    fg=sub.add_parser("fact-gate");fg.add_argument("case_id")
+    report=sub.add_parser("report");report.add_argument("case_id")
+    orch=sub.add_parser("orchestrate",help="Manager routing -> specialist employees -> stored results")
+    orch.add_argument("case_id")
+    orch.add_argument("--domains",nargs="*",choices=KNOWN_DOMAINS)
+    orch.add_argument("--manifest",help="Optional shared manifest JSON")
+    case_run=sub.add_parser("analyze-case",help="Analyze and store a domain result")
+    case_run.add_argument("case_id");case_run.add_argument("domain",choices=KNOWN_DOMAINS)
+    case_run.add_argument("--manifest");case_run.add_argument("--file")
+    providers=sub.add_parser("providers",help="List configured public data connector definitions")
+    fetch=sub.add_parser("fetch-source",help="Explicitly fetch one allowlisted public API")
+    fetch.add_argument("provider",choices=tuple(PROVIDERS))
+    fetch.add_argument("query");fetch.add_argument("--allow-network",action="store_true")
+    fetch.add_argument("--limit",type=int,default=10)
+    fetch.add_argument("--case-id",help="Optional existing case to add fetched evidence")
+    api=sub.add_parser("api",help="Launch local HTTP JSON API")
+    api.add_argument("--host",default="127.0.0.1");api.add_argument("--port",type=int,default=8765)
+    api.add_argument("--token",help="Bearer token; autogenerated if unspecified")
+    api.add_argument("--allow-remote",action="store_true")
+    args=parser.parse_args(argv)
+    try:
+        if args.command=="list":_print([domain_info(d) for d in KNOWN_DOMAINS]);return 0
+        if args.command=="doctor":
+            info=[domain_info(d,True) for d in KNOWN_DOMAINS]
+            _print(info)
+            return 0 if all(x["load_status"]=="OK" for x in info) else 1
+        if args.command=="self-test":
+            res=self_test(args.db);_print(res);return 0 if res["status"]=="PASS" else 1
+        if args.command=="source":
+            content=source_repaired(args.domain) if args.repaired else source_original(args.domain)
+            if args.output:Path(args.output).write_text(content,encoding="utf-8");_print({"written":args.output,"lines":len(content.splitlines())})
+            else:sys.stdout.write(content)
+            return 0
+        if args.command=="route":_print(route_domains(args.objective));return 0
+        if args.command=="run":
+            manifest=json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else {}
+            _print(run_native(args.domain,manifest,file_path=args.file));return 0
+        if args.command=="api":run_api(args.host,args.port,args.db,args.token,args.allow_remote);return 0
+        if args.command=="providers":
+            _print({k:{"domain":v["domain"],"url":v["base"],"configured":True} for k,v in PROVIDERS.items()});return 0
+        if args.command=="fetch-source":
+            result=fetch_provider(args.provider,args.query,network_approved=args.allow_network,max_items=args.limit)
+            if args.case_id:
+                ledger=CaseLedger(args.db)
+                saved=ledger.add_evidence(args.case_id,"external",result,source_uri=result["source_url"],
+                    source_type="PUBLIC_API",upstream_source=args.provider,independent_group=args.provider)
+                _print({"provider":args.provider,"evidence":saved});return 0
+            _print(result);return 0
+        ledger=CaseLedger(args.db)
+        if args.command=="new-case":_print(ledger.new_case(args.objective));return 0
+        if args.command=="add-evidence":
+            payload=json.loads(Path(args.json).read_text(encoding="utf-8"))
+            _print(ledger.add_evidence(args.case_id,args.domain,payload,source_uri=args.source_uri,
+                     independent_group=args.independent_group));return 0
+        if args.command=="add-claim":
+            _print(ledger.add_claim(args.case_id,entity_id=args.entity,predicate=args.predicate,
+                object_value=args.value,statement=args.statement,evidence_ids=args.evidence));return 0
+        if args.command=="fact-gate":_print(ledger.fact_gate(args.case_id));return 0
+        if args.command=="report":_print(ledger.report(args.case_id));return 0
+        if args.command=="orchestrate":
+            manifest=json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else {}
+            _print(ledger.orchestrate(args.case_id,args.domains,manifest));return 0
+        if args.command=="analyze-case":
+            manifest=json.loads(Path(args.manifest).read_text(encoding="utf-8")) if args.manifest else {}
+            _print(ledger.run_case(args.case_id,args.domain,manifest,file_path=args.file));return 0
+        parser.error("Unknown command")
+    except Exception as exc:
+        print(json.dumps({"error":f"{type(exc).__name__}: {exc}"}),file=sys.stderr)
+        return 2
+    return 0
+
+
+if False and __name__ == "__main__":
+    raise SystemExit(main())
+
+# ---- BUNDLED ORIGINAL SOURCES BELOW: PRESERVED AS INERT COMMENTS ----
+# Original source is stored line-for-line using #| prefix, not executed directly.
+# Runtime reconstructs one module, applies listed repairs, then executes it in
+# a distinct module namespace (avoiding name collisions across 19 domains).
+# TRACEATLAS EMBEDDED ORIGINAL MODULE academicint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS ACADEMICINT — Safe Python Starter Implementation
+#| 
+#| Purpose:
+#|   Evidence-first academic / research ecosystem intelligence pipeline.
+#| 
+#| Hard boundaries enforced in code:
+#|   - Does NOT fabricate papers, authors, DOIs, citations, datasets, experiments,
+#|     results, peer review, ethics approvals, credentials, or certificates.
+#|   - Does NOT enable plagiarism, paraphrase-to-evade-detection, paper mills,
+#|     fake theses, fabricated experimental records, or manufactured statistics.
+#|   - Does NOT manipulate peer review, generate fake reviewers, create citation
+#|     rings, coordinate coercive citation, or dishonestly inflate metrics.
+#|   - Does NOT bypass paywalls, use stolen university/library credentials,
+#|     pirate restricted papers, or access private lab systems.
+#|   - Does NOT deanonymize private reviewers, dox researchers, harass academics,
+#|     or infer sensitive personal traits/ideology without lawful justification.
+#|   - Does NOT provide exam cheating, assignment solutions, or ghostwriting.
+#|   - Treats publications, abstracts, metadata, and researcher pages as evidence,
+#|     not automatic truth.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import re
+#| import sys
+#| import unicodedata
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timedelta, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+#| 
+#| VERSION = "0.1.0-academicint-safe-starter"
+#| FAR_FUTURE = datetime(9999, 12, 31, tzinfo=timezone.utc)
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / authorization constants
+#| # --------------------------------------------------------------------
+#| 
+#| ALLOWED_SCOPES = {
+#|     "public_and_authorized_records",
+#|     "authorized_case_evidence",
+#|     "authorized_scholarly_sources",
+#|     "provided_records_only",
+#| }
+#| 
+#| PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+#|     (
+#|         re.compile(
+#|             r"(?i)\b(fabricate|invent|make up|generate|create)\s+"
+#|             r"(paper|publication|citation|doi|dataset|experiment|result|peer review|ethics approval|thesis|credential|certificate)\b"

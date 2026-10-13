@@ -1,0 +1,1000 @@
+#|         gid = stable_id("GRANT", normalize_title(s))
+#|         funder_id = None
+#|         recipient_institution_id = None
+#|         recipient_author_id = None
+#|         program = None
+#|         amount = None
+#|         currency = None
+#|         period = None
+#|         sids = source_list(source_ids)
+#| 
+#|     if gid not in grants:
+#|         grants[gid] = {
+#|             "grant_id": gid,
+#|             "funder_id": funder_id,
+#|             "recipient_institution_id": recipient_institution_id,
+#|             "recipient_author_id": recipient_author_id,
+#|             "program": program,
+#|             "amount": amount,
+#|             "currency": currency,
+#|             "period": period,
+#|             "publication_ids": [],
+#|             "source_ids": sids,
+#|             "limitations": [
+#|                 "Grant does not automatically explain every publication output.",
+#|                 "Funding acknowledgment is source-reported unless cross-checked.",
+#|             ],
+#|         }
+#|     if publication_id:
+#|         add_unique(grants[gid]["publication_ids"], publication_id)
+#|     return gid
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Author / publication ingestion
+#| # --------------------------------------------------------------------
+#| 
+#| def add_author_entry(
+#|     authors: Dict[str, Dict[str, Any]],
+#|     affiliations: List[Dict[str, Any]],
+#|     institutions: Dict[str, Dict[str, Any]],
+#|     entry: Any,
+#|     publication_id: str,
+#|     publication_year: Optional[int],
+#|     source_ids: Optional[List[str]],
+#|     default_institution: Any = None,
+#| ) -> Optional[str]:
+#|     if isinstance(entry, dict):
+#|         name = normalize_text(entry.get("name") or entry.get("canonical_name") or entry.get("author"))
+#|         orcid_raw = entry.get("orcid")
+#|         aff_refs = entry.get("affiliations", []) or []
+#|         roles = source_list(entry.get("roles", []))
+#|         order = entry.get("order")
+#|         equal = bool(entry.get("equal_contribution", False))
+#|         corresponding = bool(entry.get("corresponding", False))
+#|         sids = source_list(entry.get("source_ids", []), entry.get("source_id"), source_ids)
+#|         inst_id_hint = normalize_text(entry.get("institution_id")) or None
+#|     else:
+#|         name = normalize_text(entry)
+#|         orcid_raw = None
+#|         aff_refs = []
+#|         roles = []
+#|         order = None
+#|         equal = False
+#|         corresponding = False
+#|         sids = source_list(source_ids)
+#|         inst_id_hint = None
+#| 
+#|     if not name:
+#|         return None
+#| 
+#|     parsed_orcid, orcid_valid = parse_orcid(orcid_raw)
+#|     norm = normalize_person_name(name)
+#| 
+#|     if parsed_orcid and orcid_valid:
+#|         aid = f"ORCID:{parsed_orcid}"
+#|     elif parsed_orcid:
+#|         aid = stable_id("AUTH", norm, parsed_orcid)
+#|     else:
+#|         aid = stable_id("AUTH", norm, inst_id_hint or default_institution or "")
+#| 
+#|     if aid not in authors:
+#|         authors[aid] = {
+#|             "author_id": aid,
+#|             "canonical_name": name,
+#|             "normalized_name": norm,
+#|             "name_variants": [name],
+#|             "orcid": parsed_orcid,
+#|             "orcid_valid": bool(orcid_valid),
+#|             "roles": [],
+#|             "corresponding_publication_ids": [],
+#|             "equal_contribution_publication_ids": [],
+#|             "affiliation_ids": [],
+#|             "publication_ids": [],
+#|             "research_fields": [],
+#|             "coauthor_ids": [],
+#|             "first_year": publication_year,
+#|             "last_year": publication_year,
+#|             "source_ids": sids,
+#|             "confidence_score": 0.60,
+#|             "limitations": [
+#|                 "Author name alone is insufficient for identity resolution.",
+#|                 "ORCID is useful but self-maintained and may be incomplete/outdated.",
+#|                 "Co-authorship is scholarly collaboration, not personal relationship.",
+#|             ],
+#|         }
+#| 
+#|     a = authors[aid]
+#|     add_unique(a["name_variants"], name)
+#|     if parsed_orcid and not a.get("orcid"):
+#|         a["orcid"] = parsed_orcid
+#|         a["orcid_valid"] = bool(orcid_valid)
+#|     if not a.get("orcid_valid") and orcid_valid:
+#|         a["orcid_valid"] = True
+#|     for role in roles:
+#|         add_unique(a["roles"], role.upper())
+#|     if corresponding:
+#|         add_unique(a["corresponding_publication_ids"], publication_id)
+#|     if equal:
+#|         add_unique(a["equal_contribution_publication_ids"], publication_id)
+#|     add_unique(a["publication_ids"], publication_id)
+#|     for sid in sids:
+#|         add_unique(a["source_ids"], sid)
+#| 
+#|     if publication_year:
+#|         if a["first_year"] is None or publication_year < a["first_year"]:
+#|             a["first_year"] = publication_year
+#|         if a["last_year"] is None or publication_year > a["last_year"]:
+#|             a["last_year"] = publication_year
+#| 
+#|     aff_list = list(aff_refs)
+#|     if not aff_list and default_institution is not None:
+#|         aff_list = [default_institution]
+#| 
+#|     for aff in aff_list:
+#|         iid = ensure_institution(institutions, aff, sids, "author affiliation")
+#|         if iid:
+#|             add_unique(a["affiliation_ids"], iid)
+#|             affiliations.append({
+#|                 "affiliation_id": stable_id("AFF", aid, iid, publication_id),
+#|                 "author_id": aid,
+#|                 "institution_id": iid,
+#|                 "publication_id": publication_id,
+#|                 "affiliation_text": normalize_text(aff.get("name") if isinstance(aff, dict) else aff) or None,
+#|                 "valid_at_publication": publication_year,
+#|                 "source_ids": sids,
+#|                 "limitations": [
+#|                     "Affiliation on a publication supports affiliation around that work, not current employment.",
+#|                 ],
+#|             })
+#| 
+#|     if order is not None:
+#|         try:
+#|             a["last_order_seen"] = int(order)
+#|         except Exception:
+#|             pass
+#| 
+#|     return aid
+#| 
+#| 
+#| def ingest_publications(
+#|     manifest: Dict[str, Any],
+#|     authors: Dict[str, Dict[str, Any]],
+#|     affiliations: List[Dict[str, Any]],
+#|     institutions: Dict[str, Dict[str, Any]],
+#|     journals: Dict[str, Dict[str, Any]],
+#|     conferences: Dict[str, Dict[str, Any]],
+#|     publishers: Dict[str, Dict[str, Any]],
+#|     grants: Dict[str, Dict[str, Any]],
+#|     funders: Dict[str, Dict[str, Any]],
+#|     datasets: Dict[str, Dict[str, Any]],
+#|     repositories: Dict[str, Dict[str, Any]],
+#| ) -> Dict[str, Dict[str, Any]]:
+#|     publications: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     for idx, p in enumerate(manifest.get("publications", []) or []):
+#|         doi = normalize_doi(p.get("doi"))
+#|         title = normalize_text(p.get("title"))
+#|         pub_date = parse_time(p.get("publication_date") or p.get("published_at") or p.get("date"))
+#|         online_date = parse_time(p.get("online_date"))
+#|         year = year_from_any(p.get("year"), pub_date)
+#| 
+#|         author_entries = p.get("authors") or []
+#|         if isinstance(author_entries, str):
+#|             author_entries = [author_entries]
+#|         first_author_raw = ""
+#|         if author_entries:
+#|             first = author_entries[0]
+#|             first_author_raw = normalize_text(first.get("name") if isinstance(first, dict) else first)
+#| 
+#|         pid = normalize_text(p.get("publication_id"))
+#|         if not pid:
+#|             if doi:
+#|                 pid = f"DOI:{doi}"
+#|             else:
+#|                 pid = stable_id("PUB", normalize_title(title), normalize_person_name(first_author_raw), year or 0)
+#| 
+#|         author_ids = []
+#|         default_inst = p.get("institution") or p.get("affiliation")
+#|         for entry in author_entries:
+#|             aid = add_author_entry(
+#|                 authors,
+#|                 affiliations,
+#|                 institutions,
+#|                 entry,
+#|                 pid,
+#|                 year,
+#|                 source_list(p.get("source_ids", []), p.get("source_id")),
+#|                 default_institution=default_inst,
+#|             )
+#|             if aid:
+#|                 author_ids.append(aid)
+#| 
+#|         journal_id = ensure_journal(journals, p.get("journal"), publishers, source_list(p.get("source_ids", []), p.get("source_id")))
+#|         conference_id = ensure_conference(conferences, p.get("conference"), publishers, source_list(p.get("source_ids", []), p.get("source_id")))
+#|         publisher_id = ensure_publisher(publishers, p.get("publisher"), source_list(p.get("source_ids", []), p.get("source_id")))
+#| 
+#|         dataset_ids = []
+#|         for d in p.get("datasets", []) or []:
+#|             did = ensure_dataset(datasets, d, pid, source_list(p.get("source_ids", []), p.get("source_id")))
+#|             if did:
+#|                 dataset_ids.append(did)
+#| 
+#|         repository_ids = []
+#|         for r in p.get("repositories", []) or p.get("code", []) or []:
+#|             rid = ensure_repository(repositories, r, pid, source_list(p.get("source_ids", []), p.get("source_id")))
+#|             if rid:
+#|                 repository_ids.append(rid)
+#| 
+#|         grant_ids = []
+#|         for g in p.get("grants", []) or p.get("funding", []) or []:
+#|             gid = ensure_grant(grants, funders, g, pid, source_list(p.get("source_ids", []), p.get("source_id")))
+#|             if gid:
+#|                 grant_ids.append(gid)
+#| 
+#|         ptype = normalize_text(p.get("publication_type", "UNKNOWN")).upper()
+#|         vstate = normalize_text(p.get("version_state", "UNKNOWN")).upper()
+#|         prstate = normalize_text(p.get("peer_review_status", "UNKNOWN")).upper()
+#|         vorstate = normalize_text(p.get("version_of_record_status", "UNKNOWN")).upper()
+#|         status = normalize_text(p.get("status", "ACTIVE")).upper()
+#| 
+#|         publications[pid] = {
+#|             "publication_id": pid,
+#|             "doi": doi,
+#|             "title": title or None,
+#|             "normalized_title": normalize_title(title),
+#|             "publication_type": ptype if ptype in PUBLICATION_TYPES else "UNKNOWN",
+#|             "version_state": vstate if vstate in VERSION_STATES else "UNKNOWN",
+#|             "peer_review_status": prstate if prstate in PEER_REVIEW_STATES else "UNKNOWN",
+#|             "version_of_record_status": vorstate if vorstate in {"VERSION_OF_RECORD", "NOT_VERSION_OF_RECORD", "UNKNOWN"} else "UNKNOWN",
+#|             "status": status if status in PUBLICATION_STATUSES else "UNKNOWN",
+#|             "publication_date": pub_date,
+#|             "online_date": online_date,
+#|             "year": year,
+#|             "abstract": normalize_text(p.get("abstract")) or None,
+#|             "keywords": source_list(p.get("keywords", [])),
+#|             "fields": source_list(p.get("fields", []), p.get("research_fields", [])),
+#|             "journal_id": journal_id,
+#|             "conference_id": conference_id,
+#|             "publisher_id": publisher_id,
+#|             "author_ids": author_ids,
+#|             "canonical_author_ids": [],
+#|             "author_entries": author_entries,
+#|             "dataset_ids": dataset_ids,
+#|             "repository_ids": repository_ids,
+#|             "grant_ids": grant_ids,
+#|             "correction_ids": [],
+#|             "retraction_ids": [],
+#|             "expression_of_concern_ids": [],
+#|             "source_ids": source_list(p.get("source_ids", []), p.get("source_id")),
+#|             "evidence_ids": source_list(p.get("evidence_ids", [])),
+#|             "confidence_score": clamp(float(p.get("confidence", 0.70))),
+#|             "limitations": list(p.get("limitations", []) or []) + [
+#|                 "Publication existence/metadata is not automatic validation of claims.",
+#|                 "DOI is persistent identifier, not quality indicator.",
+#|                 "Preprint is not automatically bad research; peer review is not automatic truth.",
+#|             ],
+#|         }
+#| 
+#|     return publications
+#| 
+#| 
+#| def build_publication_lookup(publications: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+#|     lookup: Dict[str, str] = {}
+#|     for pid, p in publications.items():
+#|         lookup[pid] = pid
+#|         if p.get("doi"):
+#|             lookup[p["doi"]] = pid
+#|             lookup[f"https://doi.org/{p['doi']}"] = pid
+#|         if p.get("title"):
+#|             lookup[normalize_title(p["title"])] = pid
+#|     return lookup
+#| 
+#| 
+#| def resolve_publication_id(ref: Any, lookup: Dict[str, str], publications: Dict[str, Dict[str, Any]]) -> Optional[str]:
+#|     if ref is None:
+#|         return None
+#|     if isinstance(ref, dict):
+#|         for key in ("publication_id", "id"):
+#|             s = normalize_text(ref.get(key))
+#|             if s in publications:
+#|                 return s
+#|         doi = normalize_doi(ref.get("doi"))
+#|         if doi and doi in lookup:
+#|             return lookup[doi]
+#|         title = normalize_title(ref.get("title"))
+#|         if title and title in lookup:
+#|             return lookup[title]
+#|         return None
+#| 
+#|     s = normalize_text(ref)
+#|     if not s:
+#|         return None
+#|     if s in publications:
+#|         return s
+#|     doi = normalize_doi(s)
+#|     if doi and doi in lookup:
+#|         return lookup[doi]
+#|     nt = normalize_title(s)
+#|     if nt in lookup:
+#|         return lookup[nt]
+#|     return None
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Claims / citations / corrections / retractions / replications
+#| # --------------------------------------------------------------------
+#| 
+#| def ingest_claims(manifest: Dict[str, Any], publications: Dict[str, Dict[str, Any]], lookup: Dict[str, str]) -> List[Dict[str, Any]]:
+#|     claims = []
+#|     for idx, c in enumerate(manifest.get("claims", []) or []):
+#|         pub_id = resolve_publication_id(c.get("publication_id") or c.get("publication") or c.get("doi") or c.get("title"), lookup, publications)
+#|         text = normalize_text(c.get("text") or c.get("claim") or c.get("normalized_claim"))
+#|         normalized = normalize_claim_text(text)
+#|         group = normalize_text(c.get("claim_group_id")) or stable_id("CLAIMGROUP", normalized)
+#|         ctype = normalize_text(c.get("claim_type", "UNKNOWN")).upper()
+#|         design = normalize_text(c.get("study_design", "UNKNOWN")).upper()
+#|         claims.append({
+#|             "claim_id": normalize_text(c.get("claim_id")) or stable_id("CLAIM", pub_id or "UNKNOWN", idx, normalized),
+#|             "claim_group_id": group,
+#|             "publication_id": pub_id,
+#|             "claim_type": ctype if ctype in CLAIM_TYPES else "UNKNOWN",
+#|             "text": text or None,
+#|             "normalized_claim": normalized or None,
+#|             "population": normalize_text(c.get("population")) or None,
+#|             "intervention_or_variable": normalize_text(c.get("intervention_or_variable") or c.get("variable")) or None,
+#|             "outcome": normalize_text(c.get("outcome")) or None,
+#|             "method": normalize_text(c.get("method")) or None,
+#|             "study_design": design if design in STUDY_DESIGNS else "UNKNOWN",
+#|             "sample_size": c.get("sample_size"),
+#|             "effect_size": c.get("effect_size"),
+#|             "uncertainty": c.get("uncertainty"),
+#|             "limitations": list(c.get("limitations", []) or []) + [
+#|                 "A paper reporting X establishes that the paper reports X, not that X is universally true.",
+#|                 "Correlation is not causation; statistical significance is not practical importance.",
+#|             ],
+#|             "source_ids": source_list(c.get("source_ids", []), c.get("source_id")),
+#|             "evidence_ids": source_list(c.get("evidence_ids", [])),
+#|         })
+#|     return claims
+#| 
+#| 
+#| def classify_citation_purpose(context: str) -> str:
+#|     s = normalize_text(context).lower()
+#|     if not s:
+#|         return "UNKNOWN"
+#|     if re.search(r"replicat|reproduc|confirm(?:ed|s)?\b.*same|independent test", s):
+#|         return "REPLICATION"
+#|     if re.search(r"extend|build on|improve upon|we add", s):
+#|         return "EXTENSION"
+#|     if re.search(r"criticis|contrary|fail(?:ed)? to|does not support|dispute|challenge", s):
+#|         return "CRITICISM"
+#|     if re.search(r"method|protocol|procedure|following the approach|using the method", s):
+#|         return "METHOD"
+#|     if re.search(r"dataset|corpus|data from|benchmark data", s):
+#|         return "DATA_SOURCE"
+#|     if re.search(r"support|consistent with|agree|confirm|aligns with", s):
+#|         return "SUPPORT"
+#|     if re.search(r"background|prior work|review|literature|context", s):
+#|         return "BACKGROUND"
+#|     if re.search(r"contrast|unlike|whereas|however|different from", s):
+#|         return "CONTRAST"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def ingest_citations(manifest: Dict[str, Any], publications: Dict[str, Dict[str, Any]], lookup: Dict[str, str]) -> List[Dict[str, Any]]:
+#|     citations = []
+#|     for idx, c in enumerate(manifest.get("citations", []) or []):
+#|         citing = resolve_publication_id(c.get("citing_publication_id") or c.get("citing") or c.get("from"), lookup, publications)
+#|         cited = resolve_publication_id(c.get("cited_publication_id") or c.get("cited") or c.get("to"), lookup, publications)
+#|         if not citing or not cited:
+#|             continue
+#|         context = normalize_text(c.get("context") or c.get("citation_context"))
+#|         purpose = normalize_text(c.get("purpose") or c.get("citation_purpose") or classify_citation_purpose(context)).upper()
+#|         citations.append({
+#|             "citation_id": normalize_text(c.get("citation_id")) or stable_id("CIT", citing, cited, idx),
+#|             "citing_publication_id": citing,
+#|             "cited_publication_id": cited,
+#|             "context": context or None,
+#|             "purpose_candidate": purpose if purpose in CITATION_PURPOSES else "UNKNOWN",
+#|             "author_self_citation": False,
+#|             "version_self_citation": False,
+#|             "cited_version_family_id": None,
+#|             "cited_primary_publication_id": None,
+#|             "source_ids": source_list(c.get("source_ids", []), c.get("source_id")),
+#|             "limitations": [
+#|                 "Citation is not automatic endorsement.",
+#|                 "Citation count is not quality; negative citations can increase counts.",
+#|             ],
+#|         })
+#|     return citations
+#| 
+#| 
+#| def ingest_lifecycle_records(
+#|     manifest: Dict[str, Any],
+#|     publications: Dict[str, Dict[str, Any]],
+#|     lookup: Dict[str, str],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     corrections = []
+#|     retractions = []
+#|     eocs = []
+#| 
+#|     for idx, c in enumerate(manifest.get("corrections", []) or []):
+#|         pid = resolve_publication_id(c.get("publication_id") or c.get("publication"), lookup, publications)
+#|         if not pid:
+#|             continue
+#|         cid = normalize_text(c.get("correction_id")) or stable_id("CORR", pid, idx)
+#|         corrections.append({
+#|             "correction_id": cid,
+#|             "publication_id": pid,
+#|             "type": normalize_text(c.get("type", "CORRECTION")).upper(),
+#|             "date": parse_time(c.get("date") or c.get("published_at")),
+#|             "reason": normalize_text(c.get("reason")) or None,
+#|             "affects": source_list(c.get("affects", [])),
+#|             "source_ids": source_list(c.get("source_ids", []), c.get("source_id")),
+#|             "limitations": ["Correction is normal scholarly maintenance; minor correction does not invalidate paper."],
+#|         })
+#|         publications[pid]["correction_ids"].append(cid)
+#|         if normalize_text(publications[pid].get("status")) not in {"RETRACTED", "WITHDRAWN"}:
+#|             publications[pid]["status"] = "CORRECTED"
+#| 
+#|     for idx, r in enumerate(manifest.get("retractions", []) or []):
+#|         pid = resolve_publication_id(r.get("publication_id") or r.get("publication"), lookup, publications)
+#|         if not pid:
+#|             continue
+#|         rid = normalize_text(r.get("retraction_id")) or stable_id("RET", pid, idx)
+#|         retractions.append({
+#|             "retraction_id": rid,
+#|             "publication_id": pid,
+#|             "date": parse_time(r.get("date") or r.get("retracted_at")),
+#|             "reason": normalize_text(r.get("reason")) or None,
+#|             "scope": normalize_text(r.get("scope")) or None,
+#|             "source_ids": source_list(r.get("source_ids", []), r.get("source_id")),
+#|             "limitations": [
+#|                 "Retraction is not automatically fraud.",
+#|                 "Retraction weakens reliability but does not automatically make claim false if independent evidence exists.",
+#|             ],
+#|         })
+#|         publications[pid]["retraction_ids"].append(rid)
+#|         publications[pid]["status"] = "RETRACTED"
+#|         publications[pid]["version_state"] = "RETRACTED"
+#| 
+#|     for idx, e in enumerate(manifest.get("expressions_of_concern", []) or []):
+#|         pid = resolve_publication_id(e.get("publication_id") or e.get("publication"), lookup, publications)
+#|         if not pid:
+#|             continue
+#|         eid = normalize_text(e.get("eoc_id")) or stable_id("EOC", pid, idx)
+#|         eocs.append({
+#|             "eoc_id": eid,
+#|             "publication_id": pid,
+#|             "date": parse_time(e.get("date")),
+#|             "reason": normalize_text(e.get("reason")) or None,
+#|             "source_ids": source_list(e.get("source_ids", []), e.get("source_id")),
+#|             "limitations": ["Expression of concern is distinct from retraction."],
+#|         })
+#|         publications[pid]["expression_of_concern_ids"].append(eid)
+#|         if normalize_text(publications[pid].get("status")) not in {"RETRACTED", "WITHDRAWN"}:
+#|             publications[pid]["status"] = "EXPRESSION_OF_CONCERN"
+#| 
+#|     return corrections, retractions, eocs
+#| 
+#| 
+#| def ingest_replications(
+#|     manifest: Dict[str, Any],
+#|     publications: Dict[str, Dict[str, Any]],
+#|     lookup: Dict[str, str],
+#|     claims: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     claim_by_id = {c["claim_id"]: c for c in claims}
+#|     out = []
+#|     for idx, r in enumerate(manifest.get("replications", []) or []):
+#|         orig_pub = resolve_publication_id(r.get("original_publication_id") or r.get("original_publication"), lookup, publications)
+#|         repl_pub = resolve_publication_id(r.get("replication_publication_id") or r.get("replication_publication"), lookup, publications)
+#|         claim_id = normalize_text(r.get("original_claim_id") or r.get("claim_id")) or None
+#|         if claim_id and claim_id not in claim_by_id:
+#|             claim_id = None
+#|         direction = normalize_text(r.get("result_direction", "UNKNOWN")).upper()
+#|         out.append({
+#|             "replication_id": normalize_text(r.get("replication_id")) or stable_id("REP", orig_pub or "", repl_pub or "", claim_id or "", idx),
+#|             "original_publication_id": orig_pub,
+#|             "replication_publication_id": repl_pub,
+#|             "original_claim_id": claim_id,
+#|             "result_direction": direction if direction in REPLICATION_DIRECTIONS else "UNKNOWN",
+#|             "method_similarity": normalize_text(r.get("method_similarity")) or None,
+#|             "population_similarity": normalize_text(r.get("population_similarity")) or None,
+#|             "same_dataset": bool(r.get("same_dataset", False)),
+#|             "same_lab": bool(r.get("same_lab", False)),
+#|             "same_author": bool(r.get("same_author", False)),
+#|             "independence": normalize_text(r.get("independence", "UNKNOWN")).upper(),
+#|             "limitations": list(r.get("limitations", []) or []) + [
+#|                 "Failed replication is not automatically original fraud.",
+#|                 "Same dataset/cohort is analytical diversity, not fully independent empirical replication.",
+#|             ],
+#|             "source_ids": source_list(r.get("source_ids", []), r.get("source_id")),
+#|         })
+#|     return out
+#| 
+#| 
+#| def ingest_integrity_signals(
+#|     manifest: Dict[str, Any],
+#|     publications: Dict[str, Dict[str, Any]],
+#|     lookup: Dict[str, str],
+#|     claims: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     claim_ids = {c["claim_id"] for c in claims}
+#|     out = []
+#|     for idx, s in enumerate(manifest.get("integrity_signals", []) or []):
+#|         pid = resolve_publication_id(s.get("publication_id") or s.get("publication"), lookup, publications)
+#|         cid = normalize_text(s.get("claim_id")) or None
+#|         if cid and cid not in claim_ids:
+#|             cid = None
+#|         out.append({
+#|             "signal_id": normalize_text(s.get("signal_id")) or stable_id("INTEG", pid or "", cid or "", idx),
+#|             "publication_id": pid,
+#|             "claim_id": cid,
+#|             "type": normalize_text(s.get("type", "INTEGRITY_SIGNAL")).upper(),
+#|             "severity": normalize_text(s.get("severity", "LOW")).upper(),
+#|             "detail": normalize_text(s.get("detail")) or None,
+#|             "source_ids": source_list(s.get("source_ids", []), s.get("source_id")),
+#|             "limitations": [
+#|                 "Integrity signal is not misconduct finding.",
+#|                 "Plagiarism/image/statistical anomalies require contextual human review.",
+#|             ],
+#|         })
+#|     return out
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Author resolution
+#| # --------------------------------------------------------------------
+#| 
+#| def author_similarity(a1: Dict[str, Any], a2: Dict[str, Any]) -> float:
+#|     score = 0.45
+#|     if set(a1.get("affiliation_ids", [])) & set(a2.get("affiliation_ids", [])):
+#|         score += 0.15
+#|     if set(a1.get("research_fields", [])) & set(a2.get("research_fields", [])):
+#|         score += 0.10
+#|     if set(a1.get("publication_ids", [])) & set(a2.get("publication_ids", [])):
+#|         score += 0.05
+#|     # Coauthor overlap will be enriched later; approximate via publication coauthors if available.
+#|     c1 = set(a1.get("coauthor_ids", []))
+#|     c2 = set(a2.get("coauthor_ids", []))
+#|     if c1 & c2:
+#|         score += 0.20
+#|     y1 = (a1.get("first_year"), a1.get("last_year"))
+#|     y2 = (a2.get("first_year"), a2.get("last_year"))
+#|     if all(x is not None for x in y1 + y2):
+#|         if not (y1[1] < y2[0] or y2[1] < y1[0]):
+#|             score += 0.10
+#|     return clamp(score)
+#| 
+#| 
+#| def resolve_authors(
+#|     authors: Dict[str, Dict[str, Any]],
+#|     publications: Dict[str, Dict[str, Any]],
+#| ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+#|     # Build coauthor sets first.
+#|     for pid, p in publications.items():
+#|         aids = p.get("author_ids", [])
+#|         for a in aids:
+#|             if a in authors:
+#|                 for b in aids:
+#|                     if b != a:
+#|                         add_unique(authors[a]["coauthor_ids"], b)
+#|         for a in aids:
+#|             if a in authors:
+#|                 for f in p.get("fields", []):
+#|                     add_unique(authors[a]["research_fields"], f)
+#|                 for k in p.get("keywords", []):
+#|                     add_unique(authors[a]["research_fields"], k)
+#| 
+#|     canonical_map: Dict[str, str] = {}
+#| 
+#|     # ORCID verified identities.
+#|     orcid_groups: Dict[str, List[str]] = defaultdict(list)
+#|     for aid, a in authors.items():
+#|         if a.get("orcid") and a.get("orcid_valid"):
+#|             orcid_groups[a["orcid"]].append(aid)
+#|             canonical_map[aid] = f"ORCID:{a['orcid']}"
+#| 
+#|     # Non-ORCID name groups.
+#|     name_groups: Dict[str, List[str]] = defaultdict(list)
+#|     for aid, a in authors.items():
+#|         if aid in canonical_map:
+#|             continue
+#|         key = a.get("normalized_name") or normalize_person_name(a.get("canonical_name"))
+#|         if key:
+#|             name_groups[key].append(aid)
+#| 
+#|     identities: List[Dict[str, Any]] = []
+#| 
+#|     for orcid, aids in orcid_groups.items():
+#|         pub_ids = []
+#|         aff_ids = []
+#|         variants = []
+#|         fields = []
+#|         first_year = None
+#|         last_year = None
+#|         source_ids = []
+#|         for aid in aids:
+#|             a = authors[aid]
+#|             pub_ids.extend(a.get("publication_ids", []))
+#|             aff_ids.extend(a.get("affiliation_ids", []))
+#|             variants.extend(a.get("name_variants", []))
+#|             fields.extend(a.get("research_fields", []))
+#|             source_ids.extend(a.get("source_ids", []))
+#|             if a.get("first_year") is not None:
+#|                 first_year = a["first_year"] if first_year is None else min(first_year, a["first_year"])
+#|             if a.get("last_year") is not None:
+#|                 last_year = a["last_year"] if last_year is None else max(last_year, a["last_year"])
+#|         identities.append({
+#|             "identity_id": f"ORCID:{orcid}",
+#|             "canonical_name": authors[aids[0]].get("canonical_name"),
+#|             "name_variants": list(dict.fromkeys(variants)),
+#|             "orcid": orcid,
+#|             "orcid_valid": True,
+#|             "resolution_state": "VERIFIED_MATCH",
+#|             "member_author_ids": aids,
+#|             "publication_ids": list(dict.fromkeys(pub_ids)),
+#|             "affiliation_ids": list(dict.fromkeys(aff_ids)),
+#|             "research_fields": list(dict.fromkeys(fields)),
+#|             "first_year": first_year,
+#|             "last_year": last_year,
+#|             "source_ids": list(dict.fromkeys(source_ids)),
+#|             "confidence_score": 0.90,
+#|             "limitations": [
+#|                 "ORCID is strong but self-maintained; consequential identity claims need corroboration.",
+#|             ],
+#|         })
+#| 
+#|     for key, aids in name_groups.items():
+#|         parent = {aid: aid for aid in aids}
+#| 
+#|         def find(x: str) -> str:
+#|             while parent[x] != x:
+#|                 parent[x] = parent[parent[x]]
+#|                 x = parent[x]
+#|             return x
+#| 
+#|         def union(x: str, y: str) -> None:
+#|             rx, ry = find(x), find(y)
+#|             if rx != ry:
+#|                 parent[ry] = rx
+#| 
+#|         for i in range(len(aids)):
+#|             for j in range(i + 1, len(aids)):
+#|                 if author_similarity(authors[aids[i]], authors[aids[j]]) >= 0.75:
+#|                     union(aids[i], aids[j])
+#| 
+#|         clusters: Dict[str, List[str]] = defaultdict(list)
+#|         for aid in aids:
+#|             clusters[find(aid)].append(aid)
+#| 
+#|         for root, members in clusters.items():
+#|             canonical_id = root if len(members) == 1 else stable_id("AUTHIDENT", key, root)
+#|             for m in members:
+#|                 canonical_map[m] = canonical_id
+#| 
+#|             pub_ids = []
+#|             aff_ids = []
+#|             variants = []
+#|             fields = []
+#|             first_year = None
+#|             last_year = None
+#|             source_ids = []
+#|             orcid_invalid = False
+#|             for aid in members:
+#|                 a = authors[aid]
+#|                 pub_ids.extend(a.get("publication_ids", []))
+#|                 aff_ids.extend(a.get("affiliation_ids", []))
+#|                 variants.extend(a.get("name_variants", []))
+#|                 fields.extend(a.get("research_fields", []))
+#|                 source_ids.extend(a.get("source_ids", []))
+#|                 if a.get("orcid") and not a.get("orcid_valid"):
+#|                     orcid_invalid = True
+#|                 if a.get("first_year") is not None:
+#|                     first_year = a["first_year"] if first_year is None else min(first_year, a["first_year"])
+#|                 if a.get("last_year") is not None:
+#|                     last_year = a["last_year"] if last_year is None else max(last_year, a["last_year"])
+#| 
+#|             state = "PROBABLE_MATCH" if len(members) > 1 else "UNRESOLVED"
+#|             if orcid_invalid:
+#|                 state = "UNRESOLVED"
+#|             identities.append({
+#|                 "identity_id": canonical_id,
+#|                 "canonical_name": authors[members[0]].get("canonical_name"),
+#|                 "name_variants": list(dict.fromkeys(variants)),
+#|                 "orcid": None,
+#|                 "orcid_valid": False,
+#|                 "resolution_state": state,
+#|                 "member_author_ids": members,
+#|                 "publication_ids": list(dict.fromkeys(pub_ids)),
+#|                 "affiliation_ids": list(dict.fromkeys(aff_ids)),
+#|                 "research_fields": list(dict.fromkeys(fields)),
+#|                 "first_year": first_year,
+#|                 "last_year": last_year,
+#|                 "source_ids": list(dict.fromkeys(source_ids)),
+#|                 "confidence_score": 0.70 if state == "PROBABLE_MATCH" else 0.45,
+#|                 "limitations": [
+#|                     "Name-based author resolution is probabilistic.",
+#|                     "Same author name is not automatically same person.",
+#|                     "Affiliation on old publication is not current employment.",
+#|                 ],
+#|             })
+#| 
+#|     # Authors with invalid ORCID but no group? Already in name_groups if no valid ORCID.
+#|     for aid, a in authors.items():
+#|         if aid not in canonical_map:
+#|             canonical_map[aid] = aid
+#|             identities.append({
+#|                 "identity_id": aid,
+#|                 "canonical_name": a.get("canonical_name"),
+#|                 "name_variants": a.get("name_variants", []),
+#|                 "orcid": a.get("orcid"),
+#|                 "orcid_valid": a.get("orcid_valid", False),
+#|                 "resolution_state": "UNRESOLVED",
+#|                 "member_author_ids": [aid],
+#|                 "publication_ids": a.get("publication_ids", []),
+#|                 "affiliation_ids": a.get("affiliation_ids", []),
+#|                 "research_fields": a.get("research_fields", []),
+#|                 "first_year": a.get("first_year"),
+#|                 "last_year": a.get("last_year"),
+#|                 "source_ids": a.get("source_ids", []),
+#|                 "confidence_score": 0.35,
+#|                 "limitations": ["Author identity unresolved."],
+#|             })
+#| 
+#|     for pid, p in publications.items():
+#|         canon = [canonical_map.get(aid, aid) for aid in p.get("author_ids", [])]
+#|         p["canonical_author_ids"] = list(dict.fromkeys(canon))
+#| 
+#|     return identities, canonical_map
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Publication version clustering
+#| # --------------------------------------------------------------------
+#| 
+#| def cluster_publications(
+#|     publications: Dict[str, Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     families: List[Dict[str, Any]] = []
+#|     assigned: Set[str] = set()
+#| 
+#|     # DOI exact.
+#|     by_doi: Dict[str, List[str]] = defaultdict(list)
+#|     for pid, p in publications.items():
+#|         if p.get("doi"):
+#|             by_doi[p["doi"]].append(pid)
+#| 
+#|     for doi, pids in by_doi.items():
+#|         if len(pids) >= 1:
+#|             fam_id = stable_id("WORK", "doi", doi)
+#|             families.append(make_version_family(fam_id, pids, publications))
+#|             assigned.update(pids)
+#| 
+#|     # Title/author/year similarity.
+#|     remaining = [pid for pid in publications if pid not in assigned]
+#|     for i in range(len(remaining)):
+#|         pid_a = remaining[i]
+#|         if pid_a in assigned:
+#|             continue
+#|         p_a = publications[pid_a]
+#|         group = [pid_a]
+#|         for j in range(i + 1, len(remaining)):
+#|             pid_b = remaining[j]
+#|             if pid_b in assigned:
+#|                 continue
+#|             p_b = publications[pid_b]
+#|             title_sim = token_jaccard(set(normalize_title(p_a.get("title") or "").split()), set(normalize_title(p_b.get("title") or "").split()))
+#|             author_overlap = bool(set(p_a.get("canonical_author_ids", [])) & set(p_b.get("canonical_author_ids", [])))
+#|             year_a = p_a.get("year")
+#|             year_b = p_b.get("year")
+#|             year_close = (year_a is None or year_b is None or abs(int(year_a) - int(year_b)) <= 2)
+#|             if title_sim >= 0.85 and (author_overlap or not p_a.get("canonical_author_ids") or not p_b.get("canonical_author_ids")) and year_close:
+#|                 group.append(pid_b)
+#|         if len(group) > 1 or True:
+#|             fam_id = stable_id("WORK", normalize_title(p_a.get("title") or ""), (p_a.get("canonical_author_ids") or [""])[0], p_a.get("year") or 0)
+#|             families.append(make_version_family(fam_id, group, publications))
+#|             assigned.update(group)
+#| 
+#|     # Any unassigned.
+#|     for pid in publications:
+#|         if pid not in assigned:
+#|             p = publications[pid]
+#|             fam_id = stable_id("WORK", pid)
+#|             families.append(make_version_family(fam_id, [pid], publications))
+#| 
+#|     for fam in families:
+#|         for pid in fam["publication_ids"]:
+#|             publications[pid]["version_family_id"] = fam["family_id"]
+#|             publications[pid]["primary_publication_id"] = fam["primary_publication_id"]
+#| 
+#|     return families
+#| 
+#| 
+#| def make_version_family(family_id: str, pids: List[str], publications: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+#|     pubs = [publications[pid] for pid in pids if pid in publications]
+#|     vor_candidates = [
+#|         p for p in pubs
+#|         if p.get("version_state") == "VERSION_OF_RECORD"
+#|         or p.get("version_of_record_status") == "VERSION_OF_RECORD"
+#|         or (p.get("peer_review_status") == "PEER_REVIEWED_REPORTED" and p.get("publication_type") in {"JOURNAL_ARTICLE", "CONFERENCE_PAPER"})
+#|     ]
+#|     vor_candidates.sort(key=lambda p: (p.get("publication_date") or FAR_FUTURE, p.get("online_date") or FAR_FUTURE), reverse=True)
+#|     vor_id = vor_candidates[0]["publication_id"] if vor_candidates else None
+#|     primary_id = vor_id or sorted(pubs, key=lambda p: (p.get("publication_date") or FAR_FUTURE), reverse=True)[0]["publication_id"] if pubs else (pids[0] if pids else None)
+#|     preprint_ids = [p["publication_id"] for p in pubs if p.get("publication_type") == "PREPRINT" or p.get("version_state") == "PREPRINT"]
+#|     duplicate_ids = []
+#|     if len(pids) > 1 and vor_id:
+#|         duplicate_ids = [pid for pid in pids if pid != vor_id and publications[pid].get("doi") and publications[pid].get("doi") == publications[vor_id].get("doi")]
+#| 
+#|     state = "VERSION_FAMILY"
+#|     if len(pids) == 1:
+#|         state = "SINGLE_VERSION"
+#|     elif not vor_id:
+#|         state = "VERSION_OF_RECORD_UNRESOLVED"
+#| 
+#|     return {
+#|         "family_id": family_id,
+#|         "publication_ids": pids,
+#|         "primary_publication_id": primary_id,
+#|         "version_of_record_id": vor_id,
+#|         "preprint_ids": preprint_ids,
+#|         "duplicate_ids": duplicate_ids,
+#|         "state": state,
+#|         "limitations": [
+#|             "Version clustering is heuristic unless DOI/official metadata supports it.",
+#|             "Do not count preprint/journal versions as separate independent research outputs.",
+#|         ],
+#|     }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Citation / network / integrity / replication analysis
+#| # --------------------------------------------------------------------
+#| 
+#| def enrich_citations(
+#|     citations: List[Dict[str, Any]],
+#|     publications: Dict[str, Dict[str, Any]],
+#| ) -> None:
+#|     for cit in citations:
+#|         citing = publications.get(cit["citing_publication_id"], {})
+#|         cited = publications.get(cit["cited_publication_id"], {})
+#|         a1 = set(citing.get("canonical_author_ids", []))
+#|         a2 = set(cited.get("canonical_author_ids", []))
+#|         cit["author_self_citation"] = bool(a1 & a2)
+#|         if citing.get("version_family_id") and citing.get("version_family_id") == cited.get("version_family_id"):
+#|             cit["version_self_citation"] = True
+#|         cit["cited_version_family_id"] = cited.get("version_family_id")
+#|         cit["cited_primary_publication_id"] = cited.get("primary_publication_id")
+#| 
+#| 
+#| def build_citation_network(citations: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     incoming = Counter()
+#|     outgoing = Counter()
+#|     by_purpose = Counter()
+#|     self_citations = 0
+#|     version_self_citations = 0
+#|     for c in citations:
+#|         incoming[c["cited_publication_id"]] += 1
+#|         outgoing[c["citing_publication_id"]] += 1
+#|         by_purpose[c["purpose_candidate"]] += 1
+#|         if c.get("author_self_citation"):
+#|             self_citations += 1
+#|         if c.get("version_self_citation"):
+#|             version_self_citations += 1
+#|     return {
+#|         "incoming_counts": dict(incoming),
+#|         "outgoing_counts": dict(outgoing),
+#|         "purpose_counts": dict(by_purpose),
+#|         "self_citation_count": self_citations,
+#|         "version_self_citation_count": version_self_citations,
+#|         "limitations": [
+#|             "Citation counts are coverage- and field-dependent.",
+#|             "Citation purpose is heuristic unless context is explicit.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_coauthorship_network(publications: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     edges: Dict[Tuple[str, str], Dict[str, Any]] = {}
+#|     for pid, p in publications.items():
+#|         aids = p.get("canonical_author_ids", [])
+#|         for i in range(len(aids)):
+#|             for j in range(i + 1, len(aids)):
+#|                 a, b = sorted((aids[i], aids[j]))
+#|                 key = (a, b)
+#|                 if key not in edges:
+#|                     edges[key] = {
+#|                         "edge_id": stable_id("COAUTH", a, b),
+#|                         "author_a": a,
+#|                         "author_b": b,
+#|                         "publication_ids": [],
+#|                         "joint_publication_count": 0,
+#|                     }
+#|                 edges[key]["publication_ids"].append(pid)
+#|                 edges[key]["joint_publication_count"] += 1
+#|     out = list(edges.values())
+#|     for e in out:
+#|         e["publication_ids"] = list(dict.fromkeys(e["publication_ids"]))
+#|     return out
+#| 
+#| 
+#| def build_topic_trends(publications: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+#|     keyword_year: Dict[str, Counter] = defaultdict(Counter)
+#|     field_year: Dict[str, Counter] = defaultdict(Counter)
+#|     keyword_total = Counter()
+#|     field_total = Counter()
+#|     year_counts = Counter()
+#| 
+#|     for p in publications.values():
+#|         y = p.get("year")
+#|         if y:
+#|             year_counts[int(y)] += 1
+#|         for k in p.get("keywords", []):
+#|             kk = normalize_text(k).lower()
+#|             keyword_total[kk] += 1
+#|             if y:
+#|                 keyword_year[kk][int(y)] += 1
+#|         for f in p.get("fields", []):
+#|             ff = normalize_text(f).lower()
+#|             field_total[ff] += 1
+#|             if y:
+#|                 field_year[ff][int(y)] += 1
+#| 
+#|     return {
+#|         "top_keywords": keyword_total.most_common(50),
+#|         "top_fields": field_total.most_common(50),
+#|         "publications_by_year": dict(sorted(year_counts.items())),
+#|         "keyword_year_matrix": {k: dict(v) for k, v in list(keyword_year.items())[:100]},
+#|         "field_year_matrix": {k: dict(v) for k, v in list(field_year.items())[:100]},
+#|         "limitations": [
+#|             "Trend is not importance.",
+#|             "Database coverage and field citation practices affect trends.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def pubs_dependent(
+#|     pid1: str,
+#|     pid2: str,
+#|     publications: Dict[str, Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#| ) -> bool:
+#|     if pid1 == pid2:
+#|         return True
+#|     p1 = publications.get(pid1, {})
+#|     p2 = publications.get(pid2, {})
+#|     if p1.get("version_family_id") and p1.get("version_family_id") == p2.get("version_family_id"):
+#|         return True
+#|     if set(p1.get("canonical_author_ids", [])) & set(p2.get("canonical_author_ids", [])):
+#|         return True
+#|     if set(p1.get("dataset_ids", [])) & set(p2.get("dataset_ids", [])):
+#|         return True
+#|     fam1 = source_family_ids(p1.get("source_ids", []), source_roots)
+#|     fam2 = source_family_ids(p2.get("source_ids", []), source_roots)
+#|     if fam1 and fam2 and set(fam1) & set(fam2):
+#|         return True
+#|     return False
+#| 
+#| 
+#| def detect_integrity_signals(
+#|     publications: Dict[str, Dict[str, Any]],
+#|     citations: List[Dict[str, Any]],
+#|     version_families: List[Dict[str, Any]],
+#|     claims: List[Dict[str, Any]],
+#|     source_roots: Dict[str, str],
+#|     existing: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     signals = list(existing)
+#| 
+#|     for fam in version_families:
+#|         if fam.get("state") == "VERSION_OF_RECORD_UNRESOLVED" and len(fam.get("publication_ids", [])) > 1:
+#|             signals.append({
+#|                 "signal_id": stable_id("AUTOINTEG", "version_unresolved", fam["family_id"]),
+#|                 "publication_id": fam.get("primary_publication_id"),
+#|                 "claim_id": None,
+#|                 "type": "VERSION_OF_RECORD_UNRESOLVED",
+#|                 "severity": "LOW",
+#|                 "detail": "Multiple publication versions exist but version of record is unresolved.",

@@ -1,0 +1,1000 @@
+#|             "prohibited_alternatives": [
+#|                 "Do not create impersonation/phishing/fake assets.",
+#|                 "Do not submit credentials or interact with forms.",
+#|                 "Do not attempt domain/subdomain takeover or hack infrastructure.",
+#|                 "Do not autonomously file takedown/legal notices.",
+#|                 "Do not harass or dox suspected operators.",
+#|             ],
+#|         })
+#|     actions.sort(key=lambda x: prio.get(x.get("priority", "LOW"), 9))
+#|     return actions[:300]
+#| 
+#| 
+#| def build_handoffs(assets: List[Dict[str, Any]], brands: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     hands = []
+#|     seen = set()
+#| 
+#|     def add(spec: str, reason: str, payload: Dict[str, Any]) -> None:
+#|         key = (spec, json.dumps(json_safe(payload), sort_keys=True, ensure_ascii=False))
+#|         if key not in seen:
+#|             seen.add(key)
+#|             hands.append({"specialist": spec, "reason": reason, "payload": payload})
+#| 
+#|     if brands:
+#|         add("CORPINT", "Brand/legal entity/ownership resolution may be required.", {"brand_ids": list(brands.keys())[:100]})
+#|     if any(a.get("registrable_domain") for a in assets):
+#|         add("DOMAININT / DNSINT / CERTINT", "Domain lifecycle, DNS, and certificate context required for control-era analysis.", {"asset_ids": [a["asset_id"] for a in assets if a.get("registrable_domain")][:100]})
+#|     if any(a.get("asset_type") in {"URL", "WEBSITE"} for a in assets):
+#|         add("WEBINT", "Safe website preservation/content analysis required.", {"asset_ids": [a["asset_id"] for a in assets if a.get("asset_type") in {"URL", "WEBSITE"}][:100]})
+#|     if any(a.get("asset_type") == "SOCIAL_ACCOUNT" for a in assets):
+#|         add("SOCMINT", "Social account history/network context required.", {"asset_ids": [a["asset_id"] for a in assets if a.get("asset_type") == "SOCIAL_ACCOUNT"][:100]})
+#|     if any(a.get("asset_type") in {"APP", "BROWSER_EXTENSION"} for a in assets):
+#|         add("APPINT / MOBILEINT", "App/extension package, publisher, permissions, and behavior analysis required.", {"asset_ids": [a["asset_id"] for a in assets if a.get("asset_type") in {"APP", "BROWSER_EXTENSION"}][:100]})
+#|     if any(a.get("asset_type") == "MARKETPLACE_LISTING" for a in assets):
+#|         add("MARKETPLACEINT / TECHINT", "Seller/listing/authenticity context required.", {"asset_ids": [a["asset_id"] for a in assets if a.get("asset_type") == "MARKETPLACE_LISTING"][:100]})
+#|     if any(a.get("asset_type") == "ADVERTISEMENT" for a in assets):
+#|         add("ADINT", "Advertiser/destination/campaign context required.", {"asset_ids": [a["asset_id"] for a in assets if a.get("asset_type") == "ADVERTISEMENT"][:100]})
+#|     if any(a["risk_indicators"]["credential_solicitation"] or a["risk_indicators"]["payment_solicitation"] for a in assets):
+#|         add("FRAUDINT / FININT / CREDINT", "Credential/payment fraud context requires fraud/financial specialist.", {"asset_ids": [a["asset_id"] for a in assets if a["risk_indicators"]["credential_solicitation"] or a["risk_indicators"]["payment_solicitation"]][:100]})
+#|     if any(a["indicators"]["malware_artifact"] for a in assets):
+#|         add("MALINT", "Malware artifact handoff required; do not execute.", {"asset_ids": [a["asset_id"] for a in assets if a["indicators"]["malware_artifact"]][:100]})
+#|     if any(b.get("trademarks") for b in brands.values()):
+#|         add("LEGALINT", "Trademark/legal infringement determinations require human legal review.", {"brand_ids": [bid for bid, b in brands.items() if b.get("trademarks")][:100]})
+#|     return hands
+#| 
+#| 
+#| class GraphMemory:
+#|     def __init__(self) -> None:
+#|         self.nodes: List[Dict[str, Any]] = []
+#|         self.edges: List[Dict[str, Any]] = []
+#|         self.ids: Set[str] = set()
+#| 
+#|     def node(self, ntype: str, nid: str, props: Optional[Dict[str, Any]] = None) -> None:
+#|         if nid and nid not in self.ids:
+#|             self.ids.add(nid)
+#|             self.nodes.append({"type": ntype, "id": nid, "properties": props or {}})
+#| 
+#|     def edge(self, frm: str, to: str, etype: str, props: Optional[Dict[str, Any]] = None) -> None:
+#|         if frm and to:
+#|             self.edges.append({"from": frm, "to": to, "type": etype, "properties": props or {}})
+#| 
+#|     def to_dict(self) -> Dict[str, Any]:
+#|         return {
+#|             "nodes": self.nodes[:2000],
+#|             "edges": self.edges[:4000],
+#|             "note": "Brand graph preserves baseline, candidate relationships, uncertainty, and source dependence. It does not prove operator identity or authorize takedown.",
+#|         }
+#| 
+#| 
+#| def build_graph(assets: List[Dict[str, Any]], brands: Dict[str, Dict[str, Any]], clusters: List[Dict[str, Any]], contradictions: List[Dict[str, Any]], hypotheses: List[Dict[str, Any]], gaps: List[Dict[str, Any]], sources: Dict[str, Dict[str, Any]]) -> GraphMemory:
+#|     g = GraphMemory()
+#|     for bid, b in brands.items():
+#|         g.node("Brand", bid, {"name": b.get("name"), "legal_owner": b.get("legal_owner")})
+#|         for d in b.get("official_domains", []):
+#|             g.node("Domain", d, {"official": True})
+#|             g.edge(bid, d, "OFFICIAL_DOMAIN_OF", {})
+#|     for a in assets:
+#|         g.node("CandidateAsset", a["asset_id"], {
+#|             "asset_type": a.get("asset_type"),
+#|             "value_masked": mask_value(a.get("value"), 4),
+#|             "authorization_state": a.get("authorization_state"),
+#|             "abuse_state": a.get("abuse_state"),
+#|         })
+#|         if a.get("brand_id"):
+#|             g.edge(a["asset_id"], a["brand_id"], "RELATED_TO_BRAND_CANDIDATE", {"similarity": a.get("brand_resolution", {}).get("similarity_state")})
+#|         if a.get("registrable_domain"):
+#|             g.node("Domain", a["registrable_domain"], {"official": False})
+#|             g.edge(a["asset_id"], a["registrable_domain"], "RESOLVES_TO_DOMAIN", {})
+#|         for sid in a.get("source_ids", []):
+#|             g.node("Source", sid, {"source_type": sources.get(sid, {}).get("source_type")})
+#|             g.edge(a["asset_id"], sid, "SUPPORTED_BY_SOURCE", {})
+#|     for c in clusters:
+#|         g.node("CampaignCluster", c["cluster_id"], {"shared_feature": c.get("shared_feature"), "state": c.get("state")})
+#|         for aid in c.get("asset_ids", []):
+#|             g.edge(aid, c["cluster_id"], "RELATED_TO_CAMPAIGN_CANDIDATE", {})
+#|     for c in contradictions:
+#|         g.node("Contradiction", c["contradiction_id"], {"type": c.get("type"), "severity": c.get("severity")})
+#|     for h in hypotheses:
+#|         g.node("Hypothesis", h["hypothesis_id"], {"category": h.get("category"), "asset_id": h.get("asset_id")})
+#|     for gap in gaps:
+#|         g.node("Gap", gap["gap_id"], {"type": gap.get("type"), "importance": gap.get("importance")})
+#|     return g
+#| 
+#| 
+#| def dual_ai_review_stub(assets: List[Dict[str, Any]], contradictions: List[Dict[str, Any]], gaps: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     review = {
+#|         "status": "INSUFFICIENT_EVIDENCE",
+#|         "primary_conclusions": [],
+#|         "skeptic_challenges": [],
+#|         "comparison": "NO_SECOND_MODEL_CONFIGURED",
+#|         "notes": [
+#|             "Starter does not call an independent second model.",
+#|             "AI agreement is not independent evidence.",
+#|             "Human/legal review required for takedown, trademark infringement, operator attribution, or public accusation.",
+#|         ],
+#|     }
+#|     if any(a["abuse_state"] in {"IMPERSONATION_SUPPORTED", "ABUSE_SUPPORTED"} for a in assets):
+#|         review["primary_conclusions"].append("Some assets reach supported impersonation/abuse state under current evidence rules.")
+#|         review["skeptic_challenges"].append("Check official baseline completeness, reseller/partner scope, control-era changes, and source dependence.")
+#|     if contradictions:
+#|         review["primary_conclusions"].append(f"{len(contradictions)} brand-intelligence contradiction candidate(s) detected.")
+#|         review["skeptic_challenges"].append("Contradictions may reflect rebrand, migration, outdated baseline, compromise, or dependent complaints.")
+#|     if any(g["type"] == "OFFICIAL_BASELINE_INCOMPLETE" for g in gaps):
+#|         review["primary_conclusions"].append("Official baseline is incomplete; similarity-only conclusions are unsafe.")
+#|         review["skeptic_challenges"].append("Do not classify abuse until official/authorized assets are baselined.")
+#|     if review["primary_conclusions"]:
+#|         review["status"] = "PARTIAL_AGREEMENT"
+#|     return review
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Result / report
+#| # --------------------------------------------------------------------
+#| 
+#| def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+#|         "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+#|         "objective": manifest.get("objective", ""),
+#|         "questions": manifest.get("questions", []) or [],
+#|         "generated_at": utc_now(),
+#|         "version": VERSION,
+#|         "source_ids": [],
+#|         "evidence_ids": [],
+#|         "brands": [],
+#|         "official_baseline": {},
+#|         "candidate_assets": [],
+#|         "similarity_dimensions": [],
+#|         "authorization_states": [],
+#|         "abuse_states": [],
+#|         "campaign_clusters": [],
+#|         "contradictions": [],
+#|         "hypotheses": [],
+#|         "falsification_results": [],
+#|         "source_reliability": [],
+#|         "source_independence": [],
+#|         "privacy_flags": [
+#|             "No private-person identification attempted.",
+#|             "Sensitive payment/phone/email values masked in report.",
+#|         ],
+#|         "legal_flags": [
+#|             "BRANDINT does not make final trademark infringement or criminal determinations.",
+#|         ],
+#|         "unknowns": [],
+#|         "knowledge_gaps": [],
+#|         "recommended_next_actions": [],
+#|         "specialist_handoffs": [],
+#|         "limitations": [],
+#|         "dual_ai_review": {},
+#|         "graph_memory": {},
+#|         "status": "PARTIAL",
+#|     }
+#| 
+#| 
+#| def finalize_status(policy_blocked: List[str], auth_ok: bool, brands: Dict[str, Any], assets: List[Dict[str, Any]], gaps: List[Dict[str, Any]]) -> str:
+#|     if policy_blocked:
+#|         return "POLICY_BLOCKED"
+#|     if not auth_ok:
+#|         return "BLOCKED_PERMISSION"
+#|     if not brands:
+#|         return "BRAND_UNRESOLVED"
+#|     if not assets:
+#|         return "INSUFFICIENT_INPUT"
+#|     if any(g.get("importance") == "HIGH" for g in gaps):
+#|         return "PARTIAL"
+#|     return "SUCCEEDED"
+#| 
+#| 
+#| def analyze_brandint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     result = empty_result(manifest)
+#| 
+#|     policy_blocked = policy_screen(manifest)
+#|     if policy_blocked:
+#|         result["status"] = "POLICY_BLOCKED"
+#|         result["violations"] = policy_blocked
+#|         result["limitations"] = ["BRANDINT does not create impersonation assets, submit credentials, take over infrastructure, harass operators, or autonomously file takedown notices."]
+#|         return result
+#| 
+#|     auth_ok, auth_reasons = authorization_check(manifest)
+#|     if not auth_ok:
+#|         result["status"] = "BLOCKED_PERMISSION"
+#|         result["limitations"] = auth_reasons
+#|         return result
+#| 
+#|     sources = ingest_sources(manifest)
+#|     roots = build_source_roots(sources)
+#|     brands = ingest_brands(manifest)
+#|     assets = ingest_candidates(manifest)
+#|     assets = analyze_assets(assets, brands, sources, roots)
+#|     clusters = cluster_campaigns(assets)
+#|     contradictions = detect_contradictions(assets, brands)
+#|     hypotheses = build_hypotheses(assets)
+#|     gaps = build_gaps(assets, brands, contradictions)
+#|     actions = build_next_actions(gaps)
+#|     handoffs = build_handoffs(assets, brands)
+#|     graph = build_graph(assets, brands, clusters, contradictions, hypotheses, gaps, sources)
+#|     review = dual_ai_review_stub(assets, contradictions, gaps)
+#| 
+#|     result["brands"] = list(brands.values())
+#|     result["official_baseline"] = {
+#|         bid: {
+#|             "official_domains": b.get("official_domains", []),
+#|             "official_social_accounts": b.get("official_social_accounts", []),
+#|             "official_apps": b.get("official_apps", []),
+#|             "authorized_resellers": b.get("authorized_resellers", []),
+#|             "authorized_partners": b.get("authorized_partners", []),
+#|             "licensees": b.get("licensees", []),
+#|             "historical_domains": b.get("historical_domains", []),
+#|         }
+#|         for bid, b in brands.items()
+#|     }
+#|     result["candidate_assets"] = assets
+#|     result["similarity_dimensions"] = [
+#|         {
+#|             "asset_id": a["asset_id"],
+#|             "lexical_similarity": a["brand_resolution"]["similarity_state"],
+#|             "score": a["brand_resolution"]["similarity_score"],
+#|         }
+#|         for a in assets
+#|     ]
+#|     result["authorization_states"] = [{"asset_id": a["asset_id"], "state": a["authorization_state"]} for a in assets]
+#|     result["abuse_states"] = [{"asset_id": a["asset_id"], "state": a["abuse_state"]} for a in assets]
+#|     result["campaign_clusters"] = clusters
+#|     result["contradictions"] = contradictions
+#|     result["hypotheses"] = hypotheses
+#|     result["falsification_results"] = [
+#|         {"hypothesis_id": h["hypothesis_id"], "falsification_conditions": h.get("falsification_conditions", [])}
+#|         for h in hypotheses
+#|     ]
+#|     result["source_independence"] = [
+#|         {"asset_id": a["asset_id"], **a["source_independence"]}
+#|         for a in assets
+#|     ]
+#|     result["knowledge_gaps"] = gaps
+#|     result["recommended_next_actions"] = actions
+#|     result["specialist_handoffs"] = handoffs
+#|     result["dual_ai_review"] = review
+#|     result["graph_memory"] = graph.to_dict()
+#| 
+#|     for sid, src in sources.items():
+#|         result["source_ids"].append(sid)
+#|         result["source_reliability"].append({"source_id": sid, "source_type": src.get("source_type"), "reliability": src.get("reliability")})
+#| 
+#|     unknowns = []
+#|     for a in assets:
+#|         if a["authorization_state"] == "UNKNOWN":
+#|             unknowns.append(f"Authorization unresolved for {a['asset_id']}.")
+#|         if a["abuse_state"] in {"UNKNOWN", "INCONCLUSIVE"}:
+#|             unknowns.append(f"Abuse state unresolved for {a['asset_id']}.")
+#|     unknowns.append("Real-world operator identity is not inferred from domain/phone/email/social/payment alone.")
+#|     unknowns.append("Historical abuse does not automatically contaminate current control era.")
+#|     result["unknowns"] = list(dict.fromkeys(unknowns))[:300]
+#| 
+#|     result["limitations"] = list(dict.fromkeys([
+#|         "BRANDINT starter uses only provided/local authorized records; no network fetching, form interaction, credential submission, or artifact execution was performed.",
+#|         "Official baseline must be established before abuse classification.",
+#|         "Similarity is not impersonation; logo use is not fraud; domain privacy is not maliciousness; HTTPS is not legitimacy.",
+#|         "Authorized resellers, partners, licensees, franchises, fan/community/parody accounts may legitimately resemble a brand.",
+#|         "Campaign clustering is not actor attribution.",
+#|         "Takedown/legal notices require human authorization and independent verification.",
+#|         "Trademark infringement and counterfeit determinations require legal/technical specialist review.",
+#|     ] + auth_reasons))
+#| 
+#|     result["status"] = finalize_status(policy_blocked, auth_ok, brands, assets, gaps)
+#|     return result
+#| 
+#| 
+#| def generate_report(result: Dict[str, Any]) -> str:
+#|     lines = ["# BRANDINT Defensive Brand-Abuse Report", ""]
+#|     lines += [
+#|         f"- Case ID: `{result.get('case_id')}`",
+#|         f"- Task ID: `{result.get('task_id')}`",
+#|         f"- Generated: `{result.get('generated_at')}`",
+#|         f"- Status: `{result.get('status')}`",
+#|         "",
+#|     ]
+#|     if result.get("status") == "POLICY_BLOCKED":
+#|         lines += ["## POLICY BLOCKED", "Violations:", *[f"- `{v}`" for v in result.get("violations", [])], ""]
+#|         return "\n".join(lines)
+#| 
+#|     lines += ["## Objective", str(result.get("objective", "")), ""]
+#|     lines += ["## Boundaries",
+#|               "- Defensive analysis only.",
+#|               "- No impersonation creation, phishing deployment, credential submission, takeover, hacking, harassment, doxxing, or autonomous takedown.",
+#|               "- Candidate content treated as untrusted data.", ""]
+#| 
+#|     lines += ["## Official Baseline"]
+#|     for bid, base in (result.get("official_baseline") or {}).items():
+#|         lines.append(f"### `{bid}`")
+#|         lines.append(f"- Official domains: {', '.join(base.get('official_domains', [])[:30]) or 'None'}")
+#|         lines.append(f"- Official social: {', '.join(base.get('official_social_accounts', [])[:30]) or 'None'}")
+#|         lines.append(f"- Official apps: {', '.join(base.get('official_apps', [])[:30]) or 'None'}")
+#|         lines.append(f"- Authorized resellers: {', '.join(base.get('authorized_resellers', [])[:30]) or 'None'}")
+#|         lines.append(f"- Historical domains: {', '.join(base.get('historical_domains', [])[:30]) or 'None'}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Candidate Assets"]
+#|     for a in result.get("candidate_assets", [])[:300]:
+#|         lines.append(f"### `{a.get('asset_id')}`")
+#|         lines.append(f"- Type: `{a.get('asset_type')}` value=`{mask_value(a.get('value'), 6)}`")
+#|         lines.append(f"- Brand: `{a.get('brand_id')}` similarity=`{a.get('brand_resolution', {}).get('similarity_state')}` score=`{a.get('brand_resolution', {}).get('similarity_score')}`")
+#|         lines.append(f"- Authorization: `{a.get('authorization_state')}` abuse: `{a.get('abuse_state')}`")
+#|         lines.append(f"- Indicators: {json.dumps(a.get('risk_indicators', {}), ensure_ascii=False)}")
+#|         lines.append(f"- Source independence: `{a.get('source_independence', {}).get('state')}` families={a.get('source_independence', {}).get('families', [])}")
+#|         lines.append(f"- Takedown/current: `{a.get('takedown_status')}` / `{a.get('current_activity')}`")
+#|         lines.append("")
+#| 
+#|     lines += ["## Campaign Clusters"]
+#|     for c in result.get("campaign_clusters", [])[:200]:
+#|         lines.append(f"- `{c.get('cluster_id')}` feature=`{c.get('shared_feature')}` value=`{c.get('shared_value')}` assets={c.get('asset_ids', [])[:20]} state=`{c.get('state')}`")
+#|     lines.append("")
+#| 
+#|     lines += ["## Contradictions"]
+#|     for c in result.get("contradictions", [])[:300]:
+#|         lines.append(f"- `{c.get('contradiction_id')}` [{c.get('severity')}] {c.get('type')}: {c.get('detail')}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Hypotheses / Falsification"]
+#|     for h in result.get("hypotheses", [])[:500]:
+#|         lines.append(f"- `{h.get('hypothesis_id')}` [{h.get('category')}] {h.get('statement')}")
+#|         if h.get("falsification_conditions"):
+#|             lines.append(f"  - falsify if: {'; '.join(map(str, h['falsification_conditions'][:5]))}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Knowledge Gaps"]
+#|     for g in result.get("knowledge_gaps", [])[:500]:
+#|         lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Recommended Safe Next Actions"]
+#|     for a in result.get("recommended_next_actions", [])[:500]:
+#|         lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Specialist Handoffs"]
+#|     for h in result.get("specialist_handoffs", []):
+#|         lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+#|     lines.append("")
+#| 
+#|     lines += ["## Limitations"]
+#|     for lim in result.get("limitations", []):
+#|         lines.append(f"- {lim}")
+#|     return "\n".join(lines)
+#| 
+#| 
+#| def main() -> int:
+#|     p = argparse.ArgumentParser(description="TRACEATLAS BRANDINT short safe starter")
+#|     p.add_argument("--manifest", required=True)
+#|     p.add_argument("--output", default="brandint_result.json")
+#|     p.add_argument("--report", default="brandint_report.md")
+#|     args = p.parse_args()
+#| 
+#|     try:
+#|         manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+#|     except Exception as exc:
+#|         print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+#|         return 2
+#| 
+#|     result = analyze_brandint_manifest(manifest)
+#|     Path(args.output).write_text(json.dumps(json_safe(result), ensure_ascii=False, indent=2), encoding="utf-8")
+#|     Path(args.report).write_text(generate_report(result), encoding="utf-8")
+#|     print(f"Wrote: {args.output}")
+#|     print(f"Wrote: {args.report}")
+#|     return 0
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     raise SystemExit(main())
+#| 
+#| {
+#|   "case_id": "BRAND-CASE-001",
+#|   "task_id": "BRAND-TASK-001",
+#|   "objective": "Defensively assess a candidate domain resembling an official brand and presenting a login form. No credential submission and no automated takedown submission.",
+#|   "questions": [
+#|     "Is the candidate official or authorized?",
+#|     "Do combined signals support impersonation candidate status?",
+#|     "What safe next actions and handoffs are appropriate?"
+#|   ],
+#|   "authorization": {
+#|     "approved": true,
+#|     "scope": "public_and_authorized_records",
+#|     "model_mode": "LOCAL_ONLY",
+#|     "cloud_approved": false
+#|   },
+#|   "sources": [
+#|     {"source_id": "SBRAND", "source_type": "official_brand_source", "reliability": 0.92},
+#|     {"source_id": "SWEB", "source_type": "public_website", "reliability": 0.65},
+#|     {"source_id": "SCOMPLAINT", "source_type": "consumer_complaint", "upstream_source_id": "SWEB", "reliability": 0.50}
+#|   ],
+#|   "brands": [
+#|     {
+#|       "brand_id": "B1",
+#|       "name": "ExampleBank",
+#|       "official_domains": ["examplebank.com"],
+#|       "official_social_accounts": ["@examplebank"],
+#|       "official_apps": ["com.examplebank.mobile"],
+#|       "authorized_resellers": [],
+#|       "historical_domains": []
+#|     }
+#|   ],
+#|   "candidate_assets": [
+#|     {
+#|       "asset_id": "D1",
+#|       "brand_id": "B1",
+#|       "asset_type": "DOMAIN",
+#|       "value": "examp1ebank-login.com",
+#|       "display_name": "ExampleBank Secure Login",
+#|       "indicators": {
+#|         "presents_login_form": true,
+#|         "uses_brand_logo": true,
+#|         "claims_official": true
+#|       },
+#|       "features": {
+#|         "registrar": "RegistrarX",
+#|         "template_hash": "abc123"
+#|       },
+#|       "timestamps": {
+#|         "registered_at": "2026-09-20",
+#|         "first_seen": "2026-09-25"
+#|       },
+#|       "takedown_status": "OBSERVED",
+#|       "current_activity": true,
+#|       "source_ids": ["SWEB", "SCOMPLAINT"]
+#|     }
+#|   ]
+#| }
+#| 
+# TRACEATLAS EMBEDDED ORIGINAL MODULE brandint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE breachint BEGIN
+#| import tkinter as tk
+#| from tkinter import ttk, filedialog, messagebox
+#| 
+#| import json
+#| import re
+#| import csv
+#| import hashlib
+#| import uuid
+#| 
+#| from collections import defaultdict, Counter
+#| from datetime import datetime, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, List, Optional, Tuple
+#| from urllib.parse import urlparse
+#| 
+#| 
+#| APP_TITLE = "TraceAtlas BREACHINT AI Employee — Defensive / Authorized / Privacy-Aware Breach Intelligence Panel"
+#| APP_VERSION = "TraceAtlas BREACHINT Panel v0.1"
+#| 
+#| 
+#| FIELDS = [
+#|     ("case_id", "Case ID", "entry"),
+#|     ("task_id", "Task ID", "entry"),
+#|     ("objective", "Objective", "text"),
+#|     ("target", "Target / Organization / Domain / Breach Context", "entry"),
+#|     ("target_type", "Target Type", "combo"),
+#|     ("questions", "BREACHINT Questions", "text"),
+#| 
+#|     ("organizations", "Organizations / Companies", "text"),
+#|     ("brands", "Brands / Products", "text"),
+#|     ("domains", "Domains", "text"),
+#|     ("email_domains", "Email Domains", "text"),
+#|     ("subsidiaries", "Subsidiaries / Parent Entities", "text"),
+#|     ("third_parties", "Third Parties / Vendors / SaaS", "text"),
+#|     ("suppliers", "Suppliers / Processors", "text"),
+#| 
+#|     ("breach_claims", "Inline Breach Claims", "text"),
+#|     ("dataset_claims", "Inline Dataset Claims", "text"),
+#|     ("credential_claims", "Inline Credential Exposure Claims", "text"),
+#|     ("ransomware_claims", "Inline Ransomware / Extortion Claims", "text"),
+#|     ("exposure_sources", "Exposure Sources / Reports", "text"),
+#|     ("incident_context", "Incident Context", "text"),
+#|     ("known_accounts_if_authorized", "Known Accounts If Authorized", "text"),
+#|     ("known_assets_if_authorized", "Known Assets If Authorized", "text"),
+#| 
+#|     ("breach_claim_paths", "Breach Claim Export Paths", "text"),
+#|     ("dataset_metadata_paths", "Dataset Metadata Export Paths", "text"),
+#|     ("credential_exposure_paths", "Credential Exposure Metadata Paths", "text"),
+#|     ("ransomware_leak_paths", "Ransomware Leak-Site Metadata Paths", "text"),
+#|     ("exposure_report_paths", "Exposure Report Paths", "text"),
+#|     ("incident_data_paths", "Authorized Incident Data Paths", "text"),
+#|     ("historical_breach_paths", "Historical Breach / Known Leak Paths", "text"),
+#|     ("combo_list_paths", "Combo List Metadata Paths", "text"),
+#|     ("stealer_log_paths", "Stealer Log Metadata Paths", "text"),
+#|     ("supply_chain_paths", "Supply-Chain Exposure Paths", "text"),
+#|     ("repository_exposure_paths", "Repository Exposure Paths", "text"),
+#|     ("cloud_exposure_paths", "Cloud Exposure Paths", "text"),
+#|     ("document_exposure_paths", "Document Exposure Paths", "text"),
+#|     ("source_code_exposure_paths", "Source Code Exposure Paths", "text"),
+#|     ("stix_misp_paths", "STIX / MISP Export Paths", "text"),
+#| 
+#|     ("time_range", "Time Range", "text"),
+#|     ("jurisdiction", "Jurisdiction", "entry"),
+#|     ("scope", "Scope / Allowed Sources", "text"),
+#|     ("authorization", "Authorization Basis", "text"),
+#|     ("source_limits", "Source Limits / Safety Limits", "text"),
+#|     ("budget", "Budget", "entry"),
+#|     ("deadline", "Deadline", "entry"),
+#|     ("configured_connectors", "Configured Connectors (breach-monitoring/credential-monitoring/STIX/MISP/incident/etc.)", "text"),
+#| ]
+#| 
+#| 
+#| TARGET_TYPES = [
+#|     "breach_claim",
+#|     "dataset_claim",
+#|     "credential_exposure",
+#|     "ransomware_claim",
+#|     "exposure_report",
+#|     "incident_data",
+#|     "historical_breach",
+#|     "combo_list",
+#|     "stealer_log",
+#|     "supply_chain_exposure",
+#|     "repository_exposure",
+#|     "cloud_exposure",
+#|     "document_exposure",
+#|     "source_code_exposure",
+#|     "stix_misp",
+#|     "unknown",
+#| ]
+#| 
+#| 
+#| LIST_FIELDS = {
+#|     "questions",
+#|     "organizations",
+#|     "brands",
+#|     "domains",
+#|     "email_domains",
+#|     "subsidiaries",
+#|     "third_parties",
+#|     "suppliers",
+#|     "breach_claims",
+#|     "dataset_claims",
+#|     "credential_claims",
+#|     "ransomware_claims",
+#|     "exposure_sources",
+#|     "known_accounts_if_authorized",
+#|     "known_assets_if_authorized",
+#|     "breach_claim_paths",
+#|     "dataset_metadata_paths",
+#|     "credential_exposure_paths",
+#|     "ransomware_leak_paths",
+#|     "exposure_report_paths",
+#|     "incident_data_paths",
+#|     "historical_breach_paths",
+#|     "combo_list_paths",
+#|     "stealer_log_paths",
+#|     "supply_chain_paths",
+#|     "repository_exposure_paths",
+#|     "cloud_exposure_paths",
+#|     "document_exposure_paths",
+#|     "source_code_exposure_paths",
+#|     "stix_misp_paths",
+#|     "source_limits",
+#|     "configured_connectors",
+#| }
+#| 
+#| 
+#| DICT_FIELDS = {
+#|     "scope",
+#|     "authorization",
+#|     "time_range",
+#| }
+#| 
+#| 
+#| SENSITIVE_TARGET_TYPES = {
+#|     "breach_claim",
+#|     "dataset_claim",
+#|     "credential_exposure",
+#|     "ransomware_claim",
+#|     "exposure_report",
+#|     "incident_data",
+#|     "historical_breach",
+#|     "combo_list",
+#|     "stealer_log",
+#|     "supply_chain_exposure",
+#|     "repository_exposure",
+#|     "cloud_exposure",
+#|     "document_exposure",
+#|     "source_code_exposure",
+#|     "stix_misp",
+#| }
+#| 
+#| 
+#| POLICY_BLOCK_PATTERNS = [
+#|     r"\b(?:purchase|buy|acquire|obtain|download)\b[^\n]{0,140}\b(?:stolen data|breach data|credentials|credential|access|database|dump|combo list|ransomware data|personal data|pii)\b",
+#|     r"\b(?:test|validate|verify|check|login|log in|authenticate|use|redeem|replay)\b[^\n]{0,140}\b(?:password|credential|session cookie|token|api key|private key|exposed account|stolen account|leaked credential)\b",
+#|     r"\b(?:contact|message|negotiate|pay|ransom)\b[^\n]{0,140}\b(?:seller|criminal|actor|ransomware|victim|employee|customer|regulator|law enforcement)\b",
+#|     r"\b(?:redistribute|publish|expose|dox)\b[^\n]{0,140}\b(?:personal data|pii|credentials|private data|victim data|employee data|customer data)\b",
+#|     r"\b(?:exploit|unauthorized access|hack|intrusion)\b[^\n]{0,140}\b(?:breach|dataset|account|system|database|repository|cloud storage)\b",
+#|     r"\b(?:credential stuffing|password spraying|brute force)\b",
+#|     r"\b(?:use|deploy|execute)\b[^\n]{0,140}\b(?:malware|payload|exploit|script)\b",
+#| ]
+#| 
+#| 
+#| SAFE_ALTERNATIVES = [
+#|     "Provide defensive breach/exposure metadata intelligence: claim extraction, organization resolution, dataset metadata, record-count caution, data-category classification, credential/secret exposure metadata, first-party vs third-party analysis, supply-chain context, combo-list/stealer-log context, recycled-breach detection, dataset fingerprinting/lineage, source pedigree/independence, contradictions, competing hypotheses, falsification, privacy-aware impact assessment, and defensive handoffs.",
+#|     "Do not purchase stolen data/breach data/credentials/access, download unnecessary full stolen datasets, use exposed credentials, test passwords, perform credential stuffing, replay session tokens, use API/private keys, login to exposed accounts, contact sellers, negotiate ransoms, redistribute sensitive data, publish personal data, perform unauthorized access, or exploit resources.",
+#|     "Separate claim, fact, sample, dataset, record count, origin, freshness, credential exposure, organization impact, incident root cause, and actor attribution.",
+#|     "Preserve privacy: use metadata, hashes, redacted identifiers, schema, counts, timestamps, and limited authorized samples instead of full personal records.",
+#|     "Escalate defensively through authorized human workflows: EXPOSUREINT, INCIDENTINT, DARKINT, CTI/THREATACTORINT, MALINT, DOCINT, REPOINT, legal/compliance, and law-enforcement liaison.",
+#| ]
+#| 
+#| 
+#| SECRET_PATTERNS = [
+#|     (
+#|         "PRIVATE_KEY_BLOCK",
+#|         re.compile(
+#|             r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+#|             re.S | re.I,
+#|         ),
+#|     ),
+#|     (
+#|         "PGP_PRIVATE_KEY_BLOCK",
+#|         re.compile(
+#|             r"-----BEGIN PGP PRIVATE KEY BLOCK-----.*?-----END PGP PRIVATE KEY BLOCK-----",
+#|             re.S | re.I,
+#|         ),
+#|     ),
+#|     (
+#|         "PASSWORD_OR_TOKEN_ASSIGNMENT",
+#|         re.compile(
+#|             r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+#|             r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+#|             r"\s*[:=]\s*[^\s,;\"']+"
+#|         ),
+#|     ),
+#|     (
+#|         "BEARER_TOKEN",
+#|         re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}"),
+#|     ),
+#|     (
+#|         "AWS_ACCESS_KEY",
+#|         re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+#|     ),
+#|     (
+#|         "JWT_LIKE_TOKEN",
+#|         re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"),
+#|     ),
+#|     (
+#|         "USERNAME_PASSWORD_PAIR",
+#|         re.compile(r"(?i)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\s*[:|]\s*[^\s,;\"']+"),
+#|     ),
+#| ]
+#| 
+#| 
+#| PROMPT_INJECTION_PATTERNS = [
+#|     r"ignore\s+(?:all\s+)?previous\s+(?:instructions|rules)",
+#|     r"reveal\s+(?:the\s+)?system\s+prompt",
+#|     r"login\s+(?:here|to)",
+#|     r"use\s+(?:this\s+)?password",
+#|     r"run\s+(?:this|script)",
+#|     r"contact\s+seller",
+#|     r"download\s+dataset",
+#|     r"disable\s+safety",
+#| ]
+#| 
+#| 
+#| DOMAIN_RE = re.compile(r"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b")
+#| EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+#| IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+#| SHA256_RE = re.compile(r"\b[0-9a-fA-F]{64}\b")
+#| URL_RE = re.compile(r"\b(?:https?|ftp|hxxp)://[^\s<>()\"']+", re.I)
+#| RECORD_COUNT_RE = re.compile(
+#|     r"\b(\d[\d,]*(?:\.\d+)?)\s*(million|billion|thousand|k|m|bn|gb|tb|mb|records|rows|users|accounts)\b",
+#|     re.I,
+#| )
+#| EMAIL_PASS_RE = re.compile(
+#|     r"([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\s*[:|]\s*([^\s,;\"']+)"
+#| )
+#| 
+#| 
+#| BREACH_KEYWORDS = [
+#|     "breach", "breached", "compromised", "compromise", "hacked", "intrusion",
+#|     "exfiltrated", "stolen", "leaked", "data theft", "unauthorized access",
+#| ]
+#| 
+#| DATASET_KEYWORDS = [
+#|     "dataset", "database", "db", "dump", "records", "rows", "table", "schema",
+#|     "customers", "users", "accounts", "archive", "sql", "csv", "json", "parquet",
+#| ]
+#| 
+#| CREDENTIAL_KEYWORDS = [
+#|     "credential", "credentials", "password", "passwd", "pwd", "login",
+#|     "username", "hash", "md5", "sha1", "sha256", "token", "session",
+#|     "cookie", "api key", "apikey", "access key", "secret", "private key",
+#|     "stealer log", "combo list", "combo",
+#| ]
+#| 
+#| RANSOMWARE_KEYWORDS = [
+#|     "ransomware", "encrypt", "leak site", "victim list", "countdown",
+#|     "double extortion", "triple extortion", "extortion", "negotiation",
+#| ]
+#| 
+#| COMBO_KEYWORDS = [
+#|     "combo list", "combolist", "credential stuffing", "multiple breaches",
+#|     "aggregated credentials", "old passwords",
+#| ]
+#| 
+#| STEALER_KEYWORDS = [
+#|     "stealer log", "infostealer", "redline", "racoon", "venom", "lumi",
+#|     "cookies", "saved passwords", "browser data", "device metadata",
+#| ]
+#| 
+#| THIRD_PARTY_KEYWORDS = [
+#|     "third party", "third-party", "vendor", "saas", "crm", "marketing platform",
+#|     "payroll provider", "health provider", "processor", "service provider",
+#| ]
+#| 
+#| SUPPLY_CHAIN_KEYWORDS = [
+#|     "supply chain", "supplier", "partner", "msp", "managed service",
+#|     "contractor", "holds data for",
+#| ]
+#| 
+#| SOURCE_CODE_KEYWORDS = [
+#|     "source code", "proprietary code", "repository", "repo", "git",
+#|     "commit", "file tree",
+#| ]
+#| 
+#| REPOSITORY_KEYWORDS = [
+#|     "github", "gitlab", "bitbucket", "repository", "repo", "public repo",
+#|     "private repo",
+#| ]
+#| 
+#| CLOUD_KEYWORDS = [
+#|     "cloud", "s3", "blob", "bucket", "azure", "gcp", "storage account",
+#|     "misconfigured storage", "public storage",
+#| ]
+#| 
+#| DOCUMENT_KEYWORDS = [
+#|     "document", "pdf", "docx", "xlsx", "contract", "invoice", "internal doc",
+#|     "file metadata",
+#| ]
+#| 
+#| PUBLIC_DATA_KEYWORDS = [
+#|     "public data", "publicly available", "public website", "business directory",
+#|     "public filing", "open source",
+#| ]
+#| 
+#| SCRAPED_KEYWORDS = [
+#|     "scraped", "scraping", "crawler", "harvested", "publicly scraped",
+#| ]
+#| 
+#| MISCONFIG_KEYWORDS = [
+#|     "misconfiguration", "misconfigured", "open database", "public backup",
+#|     "exposed api", "default credentials",
+#| ]
+#| 
+#| RECYCLED_KEYWORDS = [
+#|     "recycled", "old breach", "previous breach", "historical", "reposted",
+#|     "republished", "previously leaked", "old data",
+#| ]
+#| 
+#| 
+#| DATA_CATEGORY_KEYWORDS = {
+#|     "EMAIL": ["email", "e-mail", "mailbox"],
+#|     "USERNAME": ["username", "user name", "login"],
+#|     "PASSWORD_OR_HASH": ["password", "passwd", "pwd", "hash", "md5", "sha1", "sha256"],
+#|     "NAME": ["name", "fullname", "first name", "last name"],
+#|     "PHONE": ["phone", "mobile", "telephone"],
+#|     "ADDRESS": ["address", "street", "city", "postal", "zip"],
+#|     "EMPLOYEE_DATA": ["employee", "staff", "hr", "payroll"],
+#|     "CUSTOMER_DATA": ["customer", "client", "user account"],
+#|     "FINANCIAL_DATA": ["financial", "bank", "payment", "card", "invoice", "transaction"],
+#|     "GOVERNMENT_IDENTIFIER": ["ssn", "national id", "passport", "driver license", "tax id"],
+#|     "HEALTH_DATA": ["health", "medical", "patient", "clinical"],
+#|     "AUTHENTICATION_SECRET": ["token", "session", "cookie", "api key", "private key", "secret"],
+#|     "SOURCE_CODE": ["source code", "repository", "repo", "git", "commit"],
+#|     "DOCUMENT": ["document", "pdf", "docx", "xlsx", "contract", "invoice"],
+#|     "DATABASE_RECORD": ["database", "db", "table", "row", "record", "dump"],
+#| }
+#| 
+#| 
+#| SENSITIVE_FLAG_KEYWORDS = {
+#|     "CREDENTIAL_DATA": ["password", "passwd", "pwd", "hash", "token", "session", "cookie", "api key", "private key"],
+#|     "FINANCIAL_DATA": ["financial", "bank", "payment", "card", "transaction", "invoice"],
+#|     "HEALTH_DATA": ["health", "medical", "patient", "clinical"],
+#|     "IDENTITY_DOCUMENT": ["passport", "driver license", "national id", "ssn", "tax id"],
+#|     "AUTHENTICATION_SECRET": ["token", "session", "cookie", "api key", "private key", "secret"],
+#|     "PRIVATE_COMMUNICATION": ["private message", "dm", "chat log", "email content", "inbox"],
+#|     "MINOR_RELATED_DATA": ["child", "minor", "pediatric", "student under 18"],
+#| }
+#| 
+#| 
+#| ORIGIN_CLAIM_TYPES = {
+#|     "FIRST_PARTY_CANDIDATE",
+#|     "THIRD_PARTY_CANDIDATE",
+#|     "SUPPLY_CHAIN_CANDIDATE",
+#|     "COMBO_LIST",
+#|     "STEALER_LOG",
+#|     "PUBLIC_DATA_CANDIDATE",
+#|     "SCRAPED_DATA_CANDIDATE",
+#|     "RECYCLED_CANDIDATE",
+#|     "REPOSITORY_EXPOSURE_CANDIDATE",
+#|     "CLOUD_EXPOSURE_CANDIDATE",
+#|     "DOCUMENT_EXPOSURE_CANDIDATE",
+#|     "SOURCE_CODE_EXPOSURE_CANDIDATE",
+#|     "MISCONFIGURATION_CANDIDATE",
+#| }
+#| 
+#| 
+#| def now_utc() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+#| 
+#| 
+#| def normalize_key(value: Any) -> str:
+#|     s = str(value or "").strip().lower()
+#|     s = re.sub(r"[^a-z0-9]+", "_", s)
+#|     return s.strip("_")
+#| 
+#| 
+#| def parse_list(value: str) -> List[Any]:
+#|     value = str(value or "").strip()
+#|     if not value:
+#|         return []
+#| 
+#|     try:
+#|         parsed = json.loads(value)
+#|         if isinstance(parsed, list):
+#|             return parsed
+#|         if isinstance(parsed, dict):
+#|             return [parsed]
+#|     except Exception:
+#|         pass
+#| 
+#|     normalized = value.replace(",", "\n")
+#|     parts = [p.strip() for p in normalized.splitlines()]
+#|     return [p for p in parts if p]
+#| 
+#| 
+#| def parse_dict(value: str) -> Dict[str, Any]:
+#|     value = str(value or "").strip()
+#|     if not value:
+#|         return {}
+#| 
+#|     try:
+#|         parsed = json.loads(value)
+#|         if isinstance(parsed, dict):
+#|             return parsed
+#|     except Exception:
+#|         pass
+#| 
+#|     result: Dict[str, Any] = {}
+#|     for line in value.splitlines():
+#|         line = line.strip()
+#|         if not line or ":" not in line:
+#|             continue
+#|         key, val = line.split(":", 1)
+#|         result[key.strip()] = val.strip()
+#|     return result
+#| 
+#| 
+#| def listify(value: Any) -> List[Any]:
+#|     if value is None:
+#|         return []
+#|     if isinstance(value, list):
+#|         return value
+#|     if isinstance(value, dict):
+#|         return [value]
+#|     return [value]
+#| 
+#| 
+#| def unique_preserve_order(items: List[Any]) -> List[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         key = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str) if isinstance(item, (dict, list)) else str(item)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def truncate_list(items: List[Any], limit: int) -> Tuple[List[Any], bool]:
+#|     if len(items) <= limit:
+#|         return items, False
+#|     return items[:limit], True
+#| 
+#| 
+#| def sha256_text(text: str) -> str:
+#|     return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+#| 
+#| 
+#| def sha256_file(path: Path) -> str:
+#|     h = hashlib.sha256()
+#|     with path.open("rb") as f:
+#|         for chunk in iter(lambda: f.read(1024 * 1024), b""):
+#|             h.update(chunk)
+#|     return h.hexdigest()
+#| 
+#| 
+#| def redact_secrets(text: str) -> Tuple[str, List[str]]:
+#|     flags: List[str] = []
+#|     if not text:
+#|         return "", flags
+#| 
+#|     out = text
+#|     for name, rx in SECRET_PATTERNS:
+#|         if rx.search(out):
+#|             flags.append(name)
+#|             out = rx.sub("[REDACTED_SECRET]", out)
+#| 
+#|     return out, sorted(set(flags))
+#| 
+#| 
+#| def detect_prompt_injection(text: str) -> List[str]:
+#|     flags: List[str] = []
+#|     low = normalize_text(text)
+#|     for pattern in PROMPT_INJECTION_PATTERNS:
+#|         if re.search(pattern, low, re.I):
+#|             flags.append(pattern)
+#|     return sorted(set(flags))
+#| 
+#| 
+#| def safe_str(value: Any, limit: int = 300) -> str:
+#|     return redact_secrets(str(value or ""))[0].strip()[:limit]
+#| 
+#| 
+#| def normalize_domain(value: Any) -> str:
+#|     original = str(value or "").strip().lower().rstrip(".")
+#|     if not original:
+#|         return ""
+#| 
+#|     if "://" in original:
+#|         try:
+#|             parsed = urlparse(original)
+#|             original = (parsed.netloc or "").lower()
+#|             if "@" in original:
+#|                 original = original.split("@", 1)[1]
+#|             if ":" in original and not original.startswith("["):
+#|                 original = original.split(":", 1)[0]
+#|         except Exception:
+#|             pass
+#| 
+#|     if original.startswith("[") and original.endswith("]"):
+#|         original = original[1:-1]
+#| 
+#|     try:
+#|         original = original.encode("idna").decode("ascii")
+#|     except Exception:
+#|         pass
+#| 
+#|     return original
+#| 
+#| 
+#| def redact_email_identifier(email: Any) -> str:
+#|     raw = str(email or "").strip().lower()
+#|     if "@" not in raw:
+#|         return safe_str(raw, 120)
+#|     local, domain = raw.split("@", 1)
+#|     if len(local) <= 2:
+#|         redacted_local = local[:1] + "***"
+#|     else:
+#|         redacted_local = local[:2] + "***"
+#|     return f"{redacted_local}@{domain}"
+#| 
+#| 
+#| def parse_datetime(value: Any) -> Optional[datetime]:
+#|     if value in (None, ""):
+#|         return None
+#| 
+#|     s = str(value).strip()
+#|     if not s:
+#|         return None
+#| 
+#|     s = s.replace("Z", "+00:00")
+#| 
+#|     try:
+#|         dt = datetime.fromisoformat(s)
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt
+#|     except Exception:
+#|         pass
+#| 
+#|     m = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
+#|     if m:
+#|         try:

@@ -1,0 +1,1000 @@
+#|         "repositories": [],
+#|         "software": [],
+#|         "models": [],
+#|         "benchmarks": [],
+#|         "grants": [],
+#|         "funders": [],
+#|         "funding_relationships": [],
+#|         "conflict_of_interest_context": [],
+#|         "ethics_context": [],
+#|         "citations": [],
+#|         "citation_contexts": [],
+#|         "self_citations": [],
+#|         "citation_networks": {},
+#|         "coauthorship_networks": [],
+#|         "collaboration_networks": [],
+#|         "research_fields": [],
+#|         "topics": [],
+#|         "topic_trends": {},
+#|         "corrections": [],
+#|         "retractions": [],
+#|         "expressions_of_concern": [],
+#|         "replications": [],
+#|         "reproducibility_context": [],
+#|         "research_integrity_signals": [],
+#|         "research_consensus": [],
+#|         "research_gaps": [],
+#|         "institutional_output": [],
+#|         "bibliometrics": {},
+#|         "timeline_updates": [],
+#|         "observations": [],
+#|         "candidate_facts": [],
+#|         "supported_facts": [],
+#|         "partial_facts": [],
+#|         "disputed_facts": [],
+#|         "source_reliability": [],
+#|         "source_bias": [],
+#|         "source_limitations": [],
+#|         "source_pedigree": [],
+#|         "source_independence": [],
+#|         "contradictions": [],
+#|         "hypotheses": [],
+#|         "ach_matrix": [],
+#|         "falsification_results": [],
+#|         "privacy_flags": [],
+#|         "unknowns": [],
+#|         "knowledge_gaps": [],
+#|         "recommended_next_actions": [],
+#|         "specialist_handoffs": [],
+#|         "limitations": [],
+#|         "dual_ai_review": {},
+#|         "graph_memory": {},
+#|         "status": "PARTIAL",
+#|     }
+#| 
+#| 
+#| def summarize_publication(p: Dict[str, Any]) -> Dict[str, Any]:
+#|     out = dict(p)
+#|     out["publication_date"] = iso(p.get("publication_date"))
+#|     out["online_date"] = iso(p.get("online_date"))
+#|     return out
+#| 
+#| 
+#| def compute_source_bias(sources: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     out = []
+#|     for sid, src in sources.items():
+#|         st = normalize_text(src.get("source_type", "unknown")).lower()
+#|         bias = []
+#|         if st in {"preprint_server", "bibliographic_index", "author_profile", "lab_page"}:
+#|             bias.append("coverage/self-reporting bias; metadata may be incomplete or outdated")
+#|         if st in {"media_summary", "secondary_review"}:
+#|             bias.append("selection/interpretation bias; may simplify or overstate findings")
+#|         if st in {"official_publisher", "version_of_record", "doi_registry"}:
+#|             bias.append("publication bias; positive/significant results may be overrepresented")
+#|         if st in {"grant_database", "funder_record"}:
+#|             bias.append("funding visibility bias; not all support may be disclosed uniformly")
+#|         out.append({
+#|             "source_id": sid,
+#|             "source_type": st,
+#|             "potential_bias": bias,
+#|             "limitations": src.get("limitations", []),
+#|         })
+#|     return out
+#| 
+#| 
+#| def compute_bibliometrics(
+#|     publications: Dict[str, Dict[str, Any]],
+#|     citations: List[Dict[str, Any]],
+#|     author_identities: List[Dict[str, Any]],
+#|     citation_network: Dict[str, Any],
+#| ) -> Dict[str, Any]:
+#|     pub_count = len(publications)
+#|     cited_pubs = {c["cited_publication_id"] for c in citations}
+#|     unique_cited = len(cited_pubs)
+#|     by_year = Counter(p.get("year") for p in publications.values() if p.get("year"))
+#|     author_pub_counts = {ident["identity_id"]: len(ident.get("publication_ids", [])) for ident in author_identities}
+#|     return {
+#|         "publication_count": pub_count,
+#|         "cited_publication_count": unique_cited,
+#|         "citation_count": len(citations),
+#|         "publications_by_year": dict(sorted(by_year.items())),
+#|         "author_publication_counts": author_pub_counts,
+#|         "self_citation_count": citation_network.get("self_citation_count", 0),
+#|         "limitations": [
+#|             "Bibliometrics are coverage-dependent and field-normalization matters.",
+#|             "h-index-like metrics are not universal researcher quality.",
+#|             "Citation count is not quality; review papers and controversial papers can accumulate citations.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def compute_institutional_output(
+#|     publications: Dict[str, Dict[str, Any]],
+#|     affiliations: List[Dict[str, Any]],
+#|     institutions: Dict[str, Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     inst_pubs: Dict[str, Set[str]] = defaultdict(set)
+#|     for aff in affiliations:
+#|         iid = aff.get("institution_id")
+#|         pid = aff.get("publication_id")
+#|         if iid and pid:
+#|             inst_pubs[iid].add(pid)
+#|     out = []
+#|     for iid, pids in inst_pubs.items():
+#|         inst = institutions.get(iid, {})
+#|         years = [publications[pid].get("year") for pid in pids if pid in publications and publications[pid].get("year")]
+#|         out.append({
+#|             "institution_id": iid,
+#|             "institution_name": inst.get("name"),
+#|             "publication_count": len(pids),
+#|             "first_year": min(years) if years else None,
+#|             "last_year": max(years) if years else None,
+#|             "limitations": [
+#|                 "Affiliation on publications is not current employment.",
+#|                 "Output volume is not research quality; institution size/field/mission differ.",
+#|             ],
+#|         })
+#|     return sorted(out, key=lambda x: x.get("publication_count", 0), reverse=True)
+#| 
+#| 
+#| def finalize_status(
+#|     result: Dict[str, Any],
+#|     publications: Dict[str, Dict[str, Any]],
+#|     auth_ok: bool,
+#|     policy_blocked: List[str],
+#| ) -> str:
+#|     if policy_blocked:
+#|         return "POLICY_BLOCKED"
+#|     if not auth_ok:
+#|         return "BLOCKED_PERMISSION"
+#|     if not publications:
+#|         return "INSUFFICIENT_INPUT"
+#|     if result.get("contradictions"):
+#|         return "PARTIAL"
+#|     if result.get("knowledge_gaps"):
+#|         return "PARTIAL"
+#|     if any(p.get("status") in {"RETRACTED", "EXPRESSION_OF_CONCERN"} for p in publications.values()):
+#|         return "PARTIAL"
+#|     return "SUCCEEDED"
+#| 
+#| 
+#| def analyze_academicint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     result = empty_result(manifest)
+#| 
+#|     policy_blocked = policy_screen(manifest)
+#|     if policy_blocked:
+#|         result["status"] = "POLICY_BLOCKED"
+#|         result["violations"] = policy_blocked
+#|         result["limitations"] = [
+#|             "ACADEMICINT does not fabricate scholarship, manipulate peer review/citations, bypass access controls, deanonymize reviewers, dox researchers, or enable plagiarism/paper-mill/exam cheating."
+#|         ]
+#|         return result
+#| 
+#|     auth_ok, auth_reasons = authorization_check(manifest)
+#|     if not auth_ok:
+#|         result["status"] = "BLOCKED_PERMISSION"
+#|         result["limitations"] = auth_reasons
+#|         return result
+#| 
+#|     sources = ingest_sources(manifest)
+#|     source_roots = build_source_roots(sources)
+#| 
+#|     authors: Dict[str, Dict[str, Any]] = {}
+#|     affiliations: List[Dict[str, Any]] = []
+#|     institutions: Dict[str, Dict[str, Any]] = {}
+#|     journals: Dict[str, Dict[str, Any]] = {}
+#|     conferences: Dict[str, Dict[str, Any]] = {}
+#|     publishers: Dict[str, Dict[str, Any]] = {}
+#|     grants: Dict[str, Dict[str, Any]] = {}
+#|     funders: Dict[str, Dict[str, Any]] = {}
+#|     datasets: Dict[str, Dict[str, Any]] = {}
+#|     repositories: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     publications = ingest_publications(
+#|         manifest,
+#|         authors,
+#|         affiliations,
+#|         institutions,
+#|         journals,
+#|         conferences,
+#|         publishers,
+#|         grants,
+#|         funders,
+#|         datasets,
+#|         repositories,
+#|     )
+#|     lookup = build_publication_lookup(publications)
+#| 
+#|     # Explicit entities from manifest.
+#|     for inst in manifest.get("institutions", []) or []:
+#|         ensure_institution(institutions, inst, source_list(inst.get("source_ids", []), inst.get("source_id")), "explicit institution record")
+#|     for j in manifest.get("journals", []) or []:
+#|         ensure_journal(journals, j, publishers, source_list(j.get("source_ids", []), j.get("source_id")))
+#|     for c in manifest.get("conferences", []) or []:
+#|         ensure_conference(conferences, c, publishers, source_list(c.get("source_ids", []), c.get("source_id")))
+#|     for pub in manifest.get("publishers", []) or []:
+#|         ensure_publisher(publishers, pub, source_list(pub.get("source_ids", []), pub.get("source_id")))
+#|     for d in manifest.get("datasets", []) or []:
+#|         ensure_dataset(datasets, d, None, source_list(d.get("source_ids", []), d.get("source_id")))
+#|     for r in manifest.get("repositories", []) or []:
+#|         ensure_repository(repositories, r, None, source_list(r.get("source_ids", []), r.get("source_id")))
+#|     for g in manifest.get("grants", []) or []:
+#|         ensure_grant(grants, funders, g, None, source_list(g.get("source_ids", []), g.get("source_id")))
+#|     for f in manifest.get("funders", []) or []:
+#|         ensure_funder(funders, f, source_list(f.get("source_ids", []), f.get("source_id")))
+#| 
+#|     claims = ingest_claims(manifest, publications, lookup)
+#|     citations = ingest_citations(manifest, publications, lookup)
+#|     corrections, retractions, eocs = ingest_lifecycle_records(manifest, publications, lookup)
+#|     replications = ingest_replications(manifest, publications, lookup, claims)
+#|     integrity_signals = ingest_integrity_signals(manifest, publications, lookup, claims)
+#| 
+#|     author_identities, canonical_map = resolve_authors(authors, publications)
+#|     version_families = cluster_publications(publications)
+#|     enrich_citations(citations, publications)
+#|     citation_network = build_citation_network(citations)
+#|     coauthorship = build_coauthorship_network(publications)
+#|     topic_trends = build_topic_trends(publications)
+#|     integrity_signals = detect_integrity_signals(publications, citations, version_families, claims, source_roots, integrity_signals)
+#|     replications = analyze_replications(replications, publications, source_roots)
+#|     consensus = assess_claim_consensus(claims, citations, replications, publications, sources, source_roots, integrity_signals)
+#|     contradictions = detect_contradictions(publications, citations, replications, consensus, version_families, integrity_signals)
+#|     hypotheses = build_hypotheses(consensus, contradictions, integrity_signals, replications)
+#|     gaps = build_gaps(publications, author_identities, claims, citations, replications, datasets, repositories, consensus, contradictions, version_families)
+#|     actions = build_next_actions(gaps)
+#|     handoffs = build_handoffs(publications, datasets, repositories, institutions, grants, integrity_signals, contradictions)
+#|     graph = build_graph_memory(
+#|         publications, author_identities, institutions, journals, conferences, publishers,
+#|         claims, citations, datasets, repositories, grants, funders, corrections, retractions,
+#|         eocs, replications, integrity_signals, consensus, contradictions, gaps, version_families,
+#|         coauthorship,
+#|     )
+#|     dual_review = dual_ai_review_stub(consensus, contradictions, integrity_signals, gaps)
+#|     bibliometrics = compute_bibliometrics(publications, citations, author_identities, citation_network)
+#|     institutional_output = compute_institutional_output(publications, affiliations, institutions)
+#| 
+#|     observations = [
+#|         f"Publications ingested/resolved: {len(publications)}.",
+#|         f"Author identities resolved: {len(author_identities)}.",
+#|         f"Version families clustered: {len(version_families)}.",
+#|         f"Claims ingested: {len(claims)}.",
+#|         f"Citations ingested: {len(citations)}.",
+#|         f"Replications ingested: {len(replications)}.",
+#|         f"Corrections/retractions/EOCs: {len(corrections)}/{len(retractions)}/{len(eocs)}.",
+#|         f"Research-integrity signals: {len(integrity_signals)}.",
+#|         f"Claim-group consensus assessments: {len(consensus)}.",
+#|         f"Contradiction candidates: {len(contradictions)}.",
+#|         "No fabricated papers, DOIs, citations, datasets, results, peer review, or ethics approvals were generated.",
+#|         "No paywall bypass, stolen credentials, reviewer deanonymization, researcher doxxing, or citation manipulation was performed.",
+#|         "Publication is not automatic validation; peer review is not automatic truth; citation is not automatic endorsement.",
+#|         "Version families were used to avoid double-counting preprint/journal/conference variants.",
+#|         "Source independence and replication independence were assessed separately from raw counts.",
+#|     ]
+#| 
+#|     unknowns = []
+#|     for ident in author_identities:
+#|         if ident.get("resolution_state") == "UNRESOLVED":
+#|             unknowns.append(f"Author identity {ident['identity_id']} unresolved.")
+#|     for pid, p in publications.items():
+#|         if p.get("version_of_record_status") == "UNKNOWN":
+#|             unknowns.append(f"Publication {pid} version-of-record status unresolved.")
+#|         if p.get("peer_review_status") == "UNKNOWN":
+#|             unknowns.append(f"Publication {pid} peer-review status unresolved.")
+#|     for r in replications:
+#|         if r.get("computed_independence") == "UNKNOWN":
+#|             unknowns.append(f"Replication {r['replication_id']} independence unresolved.")
+#|     unknowns.append("Database coverage may omit null results, preprints, non-English literature, or paywalled records.")
+#|     unknowns.append("Research topic does not reveal researcher belief, ideology, or personal attributes.")
+#|     result["unknowns"] = list(dict.fromkeys(unknowns))[:500]
+#| 
+#|     result["researchers"] = author_identities
+#|     result["author_identities"] = author_identities
+#|     result["orcids"] = [
+#|         {"identity_id": ident["identity_id"], "orcid": ident.get("orcid"), "valid": ident.get("orcid_valid")}
+#|         for ident in author_identities if ident.get("orcid")
+#|     ]
+#|     result["name_variants"] = [
+#|         {"identity_id": ident["identity_id"], "name_variants": ident.get("name_variants", [])}
+#|         for ident in author_identities
+#|     ]
+#|     result["institutions"] = list(institutions.values())
+#|     result["affiliations"] = affiliations
+#|     result["affiliation_history"] = affiliations
+#|     result["publications"] = [summarize_publication(p) for p in publications.values()]
+#|     result["publication_types"] = [{"publication_id": pid, "type": p.get("publication_type")} for pid, p in publications.items()]
+#|     result["dois"] = [{"publication_id": pid, "doi": p.get("doi")} for pid, p in publications.items() if p.get("doi")]
+#|     result["publication_versions"] = [
+#|         {"publication_id": pid, "version_state": p.get("version_state"), "version_family_id": p.get("version_family_id")}
+#|         for pid, p in publications.items()
+#|     ]
+#|     result["version_families"] = version_families
+#|     result["preprints"] = [pid for pid, p in publications.items() if p.get("publication_type") == "PREPRINT" or p.get("version_state") == "PREPRINT"]
+#|     result["versions_of_record"] = [pid for pid, p in publications.items() if p.get("version_state") == "VERSION_OF_RECORD" or p.get("version_of_record_status") == "VERSION_OF_RECORD"]
+#|     result["peer_review_states"] = [{"publication_id": pid, "state": p.get("peer_review_status")} for pid, p in publications.items()]
+#|     result["journals"] = list(journals.values())
+#|     result["conferences"] = list(conferences.values())
+#|     result["publishers"] = list(publishers.values())
+#|     result["claims"] = claims
+#|     result["claim_types"] = [{"claim_id": c["claim_id"], "type": c.get("claim_type")} for c in claims]
+#|     result["methodologies"] = [{"claim_id": c["claim_id"], "method": c.get("method"), "study_design": c.get("study_design")} for c in claims]
+#|     result["study_designs"] = [{"claim_id": c["claim_id"], "design": c.get("study_design")} for c in claims]
+#|     result["samples"] = [{"claim_id": c["claim_id"], "sample_size": c.get("sample_size"), "population": c.get("population")} for c in claims]
+#|     result["effect_context"] = [{"claim_id": c["claim_id"], "effect_size": c.get("effect_size"), "uncertainty": c.get("uncertainty")} for c in claims]
+#|     result["datasets"] = list(datasets.values())
+#|     result["dataset_versions"] = [{"dataset_id": did, "version": d.get("version")} for did, d in datasets.items()]
+#|     result["repositories"] = list(repositories.values())
+#|     result["grants"] = list(grants.values())
+#|     result["funders"] = list(funders.values())
+#|     result["funding_relationships"] = [
+#|         {"grant_id": gid, "funder_id": g.get("funder_id"), "publication_ids": g.get("publication_ids", [])}
+#|         for gid, g in grants.items()
+#|     ]
+#|     result["citations"] = citations
+#|     result["citation_contexts"] = [{"citation_id": c["citation_id"], "purpose": c.get("purpose_candidate"), "context": c.get("context")} for c in citations]
+#|     result["self_citations"] = [c for c in citations if c.get("author_self_citation") or c.get("version_self_citation")]
+#|     result["citation_networks"] = citation_network
+#|     result["coauthorship_networks"] = coauthorship
+#|     result["collaboration_networks"] = coauthorship
+#|     result["research_fields"] = sorted({f for p in publications.values() for f in p.get("fields", [])})
+#|     result["topics"] = sorted({k for p in publications.values() for k in p.get("keywords", [])})
+#|     result["topic_trends"] = topic_trends
+#|     result["corrections"] = corrections
+#|     result["retractions"] = retractions
+#|     result["expressions_of_concern"] = eocs
+#|     result["replications"] = replications
+#|     result["reproducibility_context"] = [
+#|         {
+#|             "publication_id": pid,
+#|             "dataset_ids": p.get("dataset_ids", []),
+#|             "repository_ids": p.get("repository_ids", []),
+#|             "code_availability": "UNKNOWN" if not p.get("repository_ids") else "CODE_AVAILABLE_CANDIDATE",
+#|             "data_availability": "UNKNOWN" if not p.get("dataset_ids") else "DATA_AVAILABLE_CANDIDATE",
+#|         }
+#|         for pid, p in publications.items()
+#|     ]
+#|     result["research_integrity_signals"] = integrity_signals
+#|     result["research_consensus"] = consensus
+#|     result["institutional_output"] = institutional_output
+#|     result["bibliometrics"] = bibliometrics
+#|     result["contradictions"] = contradictions
+#|     result["hypotheses"] = hypotheses
+#|     result["falsification_results"] = [
+#|         {
+#|             "hypothesis_id": h["hypothesis_id"],
+#|             "subject_type": h.get("subject_type"),
+#|             "subject_id": h.get("subject_id"),
+#|             "opposition": h.get("opposition", []),
+#|             "falsification_conditions": h.get("falsification_conditions", []),
+#|         }
+#|         for h in hypotheses
+#|     ]
+#|     result["knowledge_gaps"] = gaps
+#|     result["recommended_next_actions"] = actions
+#|     result["specialist_handoffs"] = handoffs
+#|     result["dual_ai_review"] = dual_review
+#|     result["graph_memory"] = graph.to_dict()
+#|     result["observations"] = observations
+#| 
+#|     for sid, src in sources.items():
+#|         result["source_ids"].append(sid)
+#|         result["source_reliability"].append({
+#|             "source_id": sid,
+#|             "source_type": src.get("source_type"),
+#|             "reliability": src.get("reliability"),
+#|         })
+#|         result["source_limitations"].append({
+#|             "source_id": sid,
+#|             "limitations": src.get("limitations", []),
+#|         })
+#|         result["source_pedigree"].append({
+#|             "source_id": sid,
+#|             "upstream_source_id": src.get("upstream_source_id"),
+#|             "root_source_id": source_roots.get(sid, sid),
+#|         })
+#|     result["source_bias"] = compute_source_bias(sources)
+#| 
+#|     for pid, p in publications.items():
+#|         fam = source_family_ids(p.get("source_ids", []), source_roots)
+#|         max_rel, avg_rel = source_quality(p.get("source_ids", []), sources)
+#|         result["source_independence"].append({
+#|             "publication_id": pid,
+#|             "source_families": fam,
+#|             "state": independence_state(fam, sources, p.get("source_ids", [])),
+#|             "max_reliability": round(max_rel, 4),
+#|             "avg_reliability": round(avg_rel, 4),
+#|         })
+#| 
+#|     for c in claims:
+#|         for evid in c.get("evidence_ids", []):
+#|             result["evidence_ids"].append(evid)
+#| 
+#|     for cons in consensus:
+#|         if cons.get("consensus_state") in {"STRONG_CONSENSUS", "MODERATE_CONSENSUS"}:
+#|             result["supported_facts"].append({
+#|                 "claim_group_id": cons["claim_group_id"],
+#|                 "statement": f"Claim group has {cons['consensus_state']} based on provided independent evidence.",
+#|             })
+#|         elif cons.get("consensus_state") in {"EMERGING_CONSENSUS", "WEAK_EVIDENCE"}:
+#|             result["partial_facts"].append({
+#|                 "claim_group_id": cons["claim_group_id"],
+#|                 "statement": f"Claim group evidence is {cons['consensus_state']}: {cons.get('reason')}",
+#|             })
+#|         else:
+#|             result["candidate_facts"].append({
+#|                 "claim_group_id": cons["claim_group_id"],
+#|                 "statement": f"Claim group consensus unresolved: {cons.get('consensus_state')}",
+#|             })
+#| 
+#|     for c in contradictions:
+#|         result["disputed_facts"].append({
+#|             "contradiction_id": c["contradiction_id"],
+#|             "statement": c.get("detail", "Academic contradiction candidate."),
+#|         })
+#| 
+#|     for sig in integrity_signals:
+#|         result["candidate_facts"].append({
+#|             "signal_id": sig["signal_id"],
+#|             "statement": f"Research-integrity signal {sig.get('type')} detected; not misconduct finding.",
+#|         })
+#| 
+#|     base_limits = [
+#|         "ACADEMICINT starter uses only provided/local authorized records; no live search, paywall bypass, private database access, or credential use was performed.",
+#|         "Publication is not automatic validation; peer review is not automatic truth.",
+#|         "Preprint is not automatically low quality; DOI is not quality; citation count is not quality.",
+#|         "Citation is not automatic endorsement; citation context matters.",
+#|         "Version families must be resolved to avoid double-counting preprint/journal/conference variants.",
+#|         "Author name alone is insufficient for identity resolution; ORCID is useful but self-maintained.",
+#|         "Affiliation on a publication is not current employment.",
+#|         "Co-authorship is scholarly collaboration, not personal relationship.",
+#|         "Funding is not automatic funder control or research invalidity.",
+#|         "Conflict of interest requires disclosure/context and does not automatically invalidate findings.",
+#|         "Retraction is not automatically fraud; expression of concern is not retraction.",
+#|         "Failed replication is not automatically misconduct; population/method/power differences matter.",
+#|         "Same dataset/cohort is not fully independent empirical replication.",
+#|         "Research-integrity signals are not misconduct findings and require human governance.",
+#|         "Research topic does not reveal researcher belief, ideology, or sensitive personal traits.",
+#|         "No fabricated papers, DOIs, citations, datasets, results, peer review, or ethics approvals were generated.",
+#|         "No citation manipulation, peer-review manipulation, reviewer deanonymization, doxxing, piracy, or exam cheating was performed.",
+#|     ]
+#|     if auth_reasons:
+#|         base_limits.extend(auth_reasons)
+#|     result["limitations"] = list(dict.fromkeys(base_limits))
+#| 
+#|     result["status"] = finalize_status(result, publications, auth_ok, policy_blocked)
+#|     return result
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Report generation
+#| # --------------------------------------------------------------------
+#| 
+#| def generate_report(result: Dict[str, Any]) -> str:
+#|     lines = []
+#|     lines.append("# ACADEMICINT Evidence-Linked Research Intelligence Report")
+#|     lines.append("")
+#|     lines.append(f"- Case ID: `{result.get('case_id')}`")
+#|     lines.append(f"- Task ID: `{result.get('task_id')}`")
+#|     lines.append(f"- Generated: `{result.get('generated_at')}`")
+#|     lines.append(f"- Version: `{result.get('version')}`")
+#|     lines.append(f"- Status: `{result.get('status')}`")
+#|     lines.append("")
+#| 
+#|     if result.get("status") == "POLICY_BLOCKED":
+#|         lines.append("## POLICY BLOCKED")
+#|         lines.append("The request violated ACADEMICINT hard restrictions:")
+#|         for v in result.get("violations", []):
+#|             lines.append(f"- `{v}`")
+#|         lines.append("")
+#|         lines.append("No academic intelligence was performed.")
+#|         return "\n".join(lines)
+#| 
+#|     lines.append("## Objective")
+#|     lines.append(str(result.get("objective", "")))
+#|     lines.append("")
+#| 
+#|     lines.append("## Required Analyst Summary")
+#|     for s in result.get("observations", [])[:80]:
+#|         lines.append(f"- {s}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Privacy / Research-Ethics Boundaries")
+#|     lines.append("- No fabricated papers, DOIs, citations, datasets, results, peer review, or ethics approvals.")
+#|     lines.append("- No plagiarism, paper-mill enablement, ghostwriting, or exam/assignment cheating.")
+#|     lines.append("- No citation rings, coercive citation, h-index gaming, or peer-review manipulation.")
+#|     lines.append("- No paywall bypass, stolen library credentials, piracy, or private lab access.")
+#|     lines.append("- No reviewer deanonymization, researcher doxxing, harassment, or sensitive-trait inference.")
+#|     lines.append("- Publication ≠ validation; peer review ≠ truth; citation ≠ endorsement; citation count ≠ quality.")
+#|     lines.append("- Preprint ≠ bad research; DOI ≠ quality; open access ≠ low quality; paywall ≠ high quality.")
+#|     lines.append("- Affiliation on paper ≠ current employment; co-authorship ≠ personal relationship.")
+#|     lines.append("- Retraction ≠ fraud; failed replication ≠ misconduct; integrity signal ≠ misconduct finding.")
+#|     lines.append("")
+#| 
+#|     lines.append("## Researcher / Author Resolution")
+#|     for ident in result.get("author_identities", [])[:200]:
+#|         lines.append(f"### `{ident.get('identity_id')}`")
+#|         lines.append(f"- Canonical name: `{ident.get('canonical_name')}`")
+#|         lines.append(f"- ORCID: `{ident.get('orcid')}` valid={ident.get('orcid_valid')}")
+#|         lines.append(f"- Resolution: `{ident.get('resolution_state')}` confidence={ident.get('confidence_score')}")
+#|         lines.append(f"- Name variants: {', '.join(ident.get('name_variants', [])[:10]) or 'None'}")
+#|         lines.append(f"- Publications: {len(ident.get('publication_ids', []))}; years={ident.get('first_year')}-{ident.get('last_year')}")
+#|         lines.append(f"- Affiliations: {', '.join(ident.get('affiliation_ids', [])[:10]) or 'None'}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Institutions / Journals / Conferences / Publishers")
+#|     for inst in result.get("institutions", [])[:200]:
+#|         lines.append(f"- Institution `{inst.get('institution_id')}` name=`{inst.get('name')}` type=`{inst.get('type')}` country=`{inst.get('country')}`")
+#|     for j in result.get("journals", [])[:200]:
+#|         lines.append(f"- Journal `{j.get('journal_id')}` title=`{j.get('title')}` ISSN=`{j.get('issn')}` risk=`{j.get('risk_state')}`")
+#|     for c in result.get("conferences", [])[:200]:
+#|         lines.append(f"- Conference `{c.get('conference_id')}` name=`{c.get('name')}` year=`{c.get('year')}` review=`{c.get('review_context')}`")
+#|     for p in result.get("publishers", [])[:200]:
+#|         lines.append(f"- Publisher `{p.get('publisher_id')}` name=`{p.get('name')}`")
+#|     lines.append("")
+#| 
+#|     lines.append("## Publication Inventory / Versions")
+#|     for p in result.get("publications", [])[:300]:
+#|         lines.append(f"### `{p.get('publication_id')}`")
+#|         lines.append(f"- Title: {p.get('title')}")
+#|         lines.append(f"- DOI: `{p.get('doi')}` type=`{p.get('publication_type')}` version=`{p.get('version_state')}`")
+#|         lines.append(f"- Peer review: `{p.get('peer_review_status')}` VoR: `{p.get('version_of_record_status')}` status=`{p.get('status')}`")
+#|         lines.append(f"- Year: `{p.get('year')}` publication_date=`{p.get('publication_date')}` online_date=`{p.get('online_date')}`")
+#|         lines.append(f"- Version family: `{p.get('version_family_id')}` primary=`{p.get('primary_publication_id')}`")
+#|         lines.append(f"- Authors: {', '.join(p.get('canonical_author_ids', [])[:20]) or 'None'}")
+#|         lines.append(f"- Datasets: {', '.join(p.get('dataset_ids', [])[:20]) or 'None'}")
+#|         lines.append(f"- Repositories: {', '.join(p.get('repository_ids', [])[:20]) or 'None'}")
+#|         lines.append(f"- Grants: {', '.join(p.get('grant_ids', [])[:20]) or 'None'}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Version Families")
+#|     for fam in result.get("version_families", [])[:300]:
+#|         lines.append(f"- `{fam.get('family_id')}` state=`{fam.get('state')}` primary=`{fam.get('primary_publication_id')}` VoR=`{fam.get('version_of_record_id')}` pubs={fam.get('publication_ids', [])[:20]}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Claims / Methods / Study Designs")
+#|     for c in result.get("claims", [])[:500]:
+#|         lines.append(f"### `{c.get('claim_id')}` group=`{c.get('claim_group_id')}`")
+#|         lines.append(f"- Publication: `{c.get('publication_id')}`")
+#|         lines.append(f"- Type: `{c.get('claim_type')}` design=`{c.get('study_design')}`")
+#|         lines.append(f"- Text: {c.get('text')}")
+#|         lines.append(f"- Population: {c.get('population')} variable={c.get('intervention_or_variable')} outcome={c.get('outcome')}")
+#|         lines.append(f"- Method: {c.get('method')} sample={c.get('sample_size')} effect={c.get('effect_size')} uncertainty={c.get('uncertainty')}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Citations / Self-Citations / Citation Network")
+#|     cn = result.get("citation_networks", {})
+#|     lines.append(f"- Total citations: {len(result.get('citations', []))}")
+#|     lines.append(f"- Self-citations: {cn.get('self_citation_count', 0)}")
+#|     lines.append(f"- Version self-citations: {cn.get('version_self_citation_count', 0)}")
+#|     lines.append(f"- Purpose counts: `{json.dumps(cn.get('purpose_counts', {}), ensure_ascii=False, default=str)}`")
+#|     for c in result.get("citations", [])[:500]:
+#|         lines.append(f"- `{c.get('citation_id')}` `{c.get('citing_publication_id')}` --CITES--> `{c.get('cited_publication_id')}` purpose=`{c.get('purpose_candidate')}` self={c.get('author_self_citation')} version_self={c.get('version_self_citation')}")
+#|         if c.get("context"):
+#|             lines.append(f"  - context: {c['context'][:500]}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Coauthorship / Collaboration Networks")
+#|     for e in result.get("coauthorship_networks", [])[:300]:
+#|         lines.append(f"- `{e.get('author_a')}` ↔ `{e.get('author_b')}` joint_publications={e.get('joint_publication_count')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Topics / Fields / Trends")
+#|     tt = result.get("topic_trends", {})
+#|     lines.append(f"- Top keywords: `{json.dumps(tt.get('top_keywords', [])[:30], ensure_ascii=False, default=str)}`")
+#|     lines.append(f"- Top fields: `{json.dumps(tt.get('top_fields', [])[:30], ensure_ascii=False, default=str)}`")
+#|     lines.append(f"- Publications by year: `{json.dumps(tt.get('publications_by_year', {}), ensure_ascii=False, default=str)}`")
+#|     lines.append("")
+#| 
+#|     lines.append("## Datasets / Repositories / Grants / Funders")
+#|     for d in result.get("datasets", [])[:200]:
+#|         lines.append(f"- Dataset `{d.get('dataset_id')}` name=`{d.get('name')}` version=`{d.get('version')}` availability=`{d.get('availability')}` license=`{d.get('license')}`")
+#|     for r in result.get("repositories", [])[:200]:
+#|         lines.append(f"- Repository `{r.get('repository_id')}` name=`{r.get('name')}` url=`{r.get('url')}` availability=`{r.get('availability')}` archived={r.get('archived')}")
+#|     for g in result.get("grants", [])[:200]:
+#|         lines.append(f"- Grant `{g.get('grant_id')}` funder=`{g.get('funder_id')}` program=`{g.get('program')}` publications={g.get('publication_ids', [])[:10]}")
+#|     for f in result.get("funders", [])[:200]:
+#|         lines.append(f"- Funder `{f.get('funder_id')}` name=`{f.get('name')}` country=`{f.get('country')}`")
+#|     lines.append("")
+#| 
+#|     lines.append("## Corrections / Retractions / Expressions of Concern")
+#|     for c in result.get("corrections", [])[:200]:
+#|         lines.append(f"- Correction `{c.get('correction_id')}` pub=`{c.get('publication_id')}` type=`{c.get('type')}` date=`{c.get('date')}` reason={c.get('reason')}")
+#|     for r in result.get("retractions", [])[:200]:
+#|         lines.append(f"- Retraction `{r.get('retraction_id')}` pub=`{r.get('publication_id')}` date=`{r.get('date')}` reason={r.get('reason')}")
+#|     for e in result.get("expressions_of_concern", [])[:200]:
+#|         lines.append(f"- EoC `{e.get('eoc_id')}` pub=`{e.get('publication_id')}` date=`{e.get('date')}` reason={e.get('reason')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Replications / Reproducibility")
+#|     for r in result.get("replications", [])[:300]:
+#|         lines.append(f"- Replication `{r.get('replication_id')}` original=`{r.get('original_publication_id')}` replication=`{r.get('replication_publication_id')}` direction=`{r.get('result_direction')}` independence=`{r.get('computed_independence')}`")
+#|         lines.append(f"  - same_dataset={r.get('same_dataset')} same_author={r.get('same_author')} same_lab={r.get('same_lab')}")
+#|     for rc in result.get("reproducibility_context", [])[:300]:
+#|         lines.append(f"- Reproducibility `{rc.get('publication_id')}` data={rc.get('data_availability')} code={rc.get('code_availability')} datasets={rc.get('dataset_ids')} repos={rc.get('repository_ids')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Research-Integrity Signals")
+#|     for s in result.get("research_integrity_signals", [])[:500
+#|                                                           
+# TRACEATLAS EMBEDDED ORIGINAL MODULE academicint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE acoustint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS ACOUSTINT main.py
+#| ============================
+#| 
+#| Authorized, passive-first, defensive acoustic intelligence scaffold.
+#| 
+#| This module:
+#| - Does NOT activate microphones.
+#| - Does NOT record private conversations.
+#| - Does NOT perform voice biometrics or speaker-to-person identification.
+#| - Does NOT track private persons by voice, footsteps, or acoustic signature.
+#| - Does NOT design sonic weapons or harmful acoustic exposure.
+#| - Does NOT provide weapon/shooter targeting.
+#| - Does NOT provide submarine/military target localization.
+#| - Does NOT provide sonar evasion, acoustic stealth, or detection avoidance.
+#| - Does NOT jam or tamper with public-safety acoustic systems.
+#| - Does NOT fetch live audio.
+#| - Does NOT invent measurements, events, frequencies, dB values, or locations.
+#| 
+#| It consumes deterministic feature-level acoustic records supplied by authorized/public sources:
+#| - sensor metadata
+#| - recording metadata
+#| - calibration / clock synchronization state
+#| - signal quality flags
+#| - acoustic event detections
+#| - spectral/temporal feature exports
+#| - DOA/TDOA observations or precomputed localization candidates
+#| - environment / weather / propagation context
+#| - reference signatures
+#| - source pedigree / independence metadata
+#| 
+#| It produces an evidence-linked ACOUSTINTResult with:
+#| - sensor/recording validation
+#| - quality control
+#| - event correlation
+#| - conservative source-category classification
+#| - signature similarity without identity claims
+#| - multi-sensor independence checks
+#| - localization uncertainty handling
+#| - duplicate/provenance checks
+#| - contradiction preservation
+#| - competing hypotheses and falsification
+#| - dual-AI style skeptic review
+#| - privacy/safety flags
+#| - graphical memory scaffold
+#| - analyst summary and report-ready result object
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import math
+#| import statistics
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, List, Optional, Tuple
+#| 
+#| VERSION = "0.1.0"
+#| 
+#| ALLOWED_CALIBRATION = {
+#|     "CALIBRATED",
+#|     "PARTIALLY_CALIBRATED",
+#|     "UNCALIBRATED",
+#|     "CALIBRATION_UNKNOWN",
+#| }
+#| 
+#| ALLOWED_SYNC = {
+#|     "SYNCHRONIZED",
+#|     "OFFSET_CORRECTED",
+#|     "APPROXIMATELY_ALIGNED",
+#|     "UNSYNCHRONIZED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| EVENT_TYPES = {
+#|     "SPEECH_PRESENT",
+#|     "MACHINERY",
+#|     "ENGINE",
+#|     "VEHICLE",
+#|     "AIRCRAFT_LIKE",
+#|     "RAIL_LIKE",
+#|     "MARINE_VESSEL_LIKE",
+#|     "HUMAN_ACTIVITY",
+#|     "ANIMAL",
+#|     "WEATHER",
+#|     "WATER",
+#|     "ALARM",
+#|     "SIREN",
+#|     "BELL",
+#|     "GLASS_BREAK_LIKE",
+#|     "IMPACT",
+#|     "EXPLOSION_LIKE",
+#|     "GUNSHOT_LIKE",
+#|     "CONSTRUCTION",
+#|     "ROTATING_MACHINE",
+#|     "PUMP",
+#|     "FAN",
+#|     "MOTOR",
+#|     "COMPRESSOR",
+#|     "ELECTRICAL_BUZZ",
+#|     "MECHANICAL_FAILURE_LIKE",
+#|     "HYDROACOUSTIC_EVENT",
+#|     "UNKNOWN_IMPULSIVE",
+#|     "UNKNOWN_TONAL",
+#|     "UNKNOWN_BROADBAND",
+#|     "UNKNOWN",
+#| }
+#| 
+#| SOURCE_CATEGORIES = {
+#|     "environment",
+#|     "machine",
+#|     "vehicle",
+#|     "infrastructure",
+#|     "animal",
+#|     "human_activity",
+#|     "weather",
+#|     "marine",
+#|     "unknown",
+#| }
+#| 
+#| CLASSIFICATION_STATES = {
+#|     "VERIFIED_CATEGORY",
+#|     "SUPPORTED_CATEGORY",
+#|     "PROBABLE_CATEGORY",
+#|     "POSSIBLE_CATEGORY",
+#|     "UNRESOLVED",
+#|     "DISPUTED",
+#| }
+#| 
+#| LOCALIZATION_PRECISION = {
+#|     "DIRECTION_ONLY",
+#|     "AREA",
+#|     "REGION",
+#|     "SITE",
+#|     "POINT_CANDIDATE",
+#|     "EXACT_SUPPORTED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| SENSITIVE_EVENT_TYPES = {
+#|     "SPEECH_PRESENT",
+#|     "HUMAN_ACTIVITY",
+#|     "GUNSHOT_LIKE",
+#|     "EXPLOSION_LIKE",
+#|     "ALARM",
+#|     "SIREN",
+#|     "GLASS_BREAK_LIKE",
+#| }
+#| 
+#| PERSON_RELATED_EVENT_TYPES = {
+#|     "SPEECH_PRESENT",
+#|     "HUMAN_ACTIVITY",
+#| }
+#| 
+#| SEVERE_QUALITY_FLAGS = {
+#|     "clipping",
+#|     "saturation",
+#|     "dropout",
+#|     "clock_unsynchronized",
+#|     "uncalibrated",
+#|     "calibration_unknown",
+#|     "low_snr",
+#|     "agc_active",
+#|     "generated_audio",
+#|     "synthetic_candidate",
+#|     "above_nyquist",
+#|     "missing_event_time",
+#|     "sensor_position_missing",
+#|     "tdoa_sound_speed_missing",
+#|     "doa_uncertainty_missing",
+#| }
+#| 
+#| BLOCK_PHRASES = [
+#|     # covert / privacy
+#|     "covert listening",
+#|     "hidden microphone",
+#|     "secret microphone",
+#|     "wiretap",
+#|     "eavesdrop",
+#|     "private conversation",
+#|     "intercept private speech",
+#|     "record private conversation",
+#|     "deploy listening device",
+#|     "surveillance microphone placement",
+#|     "track private person",
+#|     "person tracking",
+#|     "stalk",
+#|     "stalking",
+#|     "harass",
+#|     "private residence monitoring",
+#| 
+#|     # voice biometrics / sensitive inference
+#|     "voiceprint",
+#|     "voice print",
+#|     "speaker identification",
+#|     "speaker recognition",
+#|     "speaker-to-name",
+#|     "voice-to-name",
+#|     "biometric voice",
+#|     "identify person by voice",
+#|     "voice stress",
+#|     "lie detector",
+#|     "truthfulness detection",
+#|     "deception detection",
+#|     "emotion-based deception",
+#|     "infer guilt from voice",
+#|     "infer ethnicity from voice",
+#|     "infer religion from voice",
+#|     "infer political belief from voice",
+#|     "infer criminal propensity from voice",
+#| 
+#|     # weapons / harmful acoustics
+#|     "sonic weapon",
+#|     "ultrasonic harassment",
+#|     "harmful acoustic exposure",
+#|     "blast optimization",
+#|     "weapon targeting",
+#|     "shooter targeting",
+#|     "shooter location",
+#|     "weapon location after movement",
+#|     "acoustic homing",
+#|     "targeting solution",
+#|     "fire control",
+#|     "strike coordinate",
+#| 
+#|     # military / evasion
+#|     "submarine detection",
+#|     "submarine localization",
+#|     "warship acoustic tracking",
+#|     "torpedo localization",
+#|     "sonar evasion",
+#|     "acoustic stealth",
+#|     "detection avoidance",
+#|     "counter-detection tactic",
+#|     "jam public-safety acoustic",
+#|     "tamper public-safety acoustic",
+#| ]
+#| 
+#| FEATURE_KEYS = [
+#|     "spectral_centroid_hz",
+#|     "spectral_rolloff_hz",
+#|     "spectral_flatness",
+#|     "dominant_frequency_hz",
+#|     "band_energy_total",
+#|     "duration_s",
+#|     "periodicity_interval_s",
+#|     "impulsiveness",
+#|     "snr_db",
+#|     "rise_time_ms",
+#| ]
+#| 
+#| TYPE_TO_CATEGORY = {
+#|     "MACHINERY": "machine",
+#|     "ROTATING_MACHINE": "machine",
+#|     "PUMP": "machine",
+#|     "FAN": "machine",
+#|     "MOTOR": "machine",
+#|     "COMPRESSOR": "machine",
+#|     "ELECTRICAL_BUZZ": "machine",
+#|     "MECHANICAL_FAILURE_LIKE": "machine",
+#|     "ENGINE": "vehicle",
+#|     "VEHICLE": "vehicle",
+#|     "AIRCRAFT_LIKE": "vehicle",
+#|     "RAIL_LIKE": "vehicle",
+#|     "MARINE_VESSEL_LIKE": "marine",
+#|     "HYDROACOUSTIC_EVENT": "marine",
+#|     "SPEECH_PRESENT": "human_activity",
+#|     "HUMAN_ACTIVITY": "human_activity",
+#|     "ANIMAL": "animal",
+#|     "WEATHER": "weather",
+#|     "WATER": "environment",
+#|     "ALARM": "infrastructure",
+#|     "SIREN": "infrastructure",
+#|     "BELL": "infrastructure",
+#|     "GLASS_BREAK_LIKE": "impact",
+#|     "IMPACT": "impact",
+#|     "EXPLOSION_LIKE": "impact",
+#|     "GUNSHOT_LIKE": "impact",
+#|     "CONSTRUCTION": "machine",
+#|     "UNKNOWN_IMPULSIVE": "unknown",
+#|     "UNKNOWN_TONAL": "unknown",
+#|     "UNKNOWN_BROADBAND": "unknown",
+#|     "UNKNOWN": "unknown",
+#| }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Small helpers
+#| # -----------------------------------------------------------------------------
+#| 
+#| def utcnow_iso() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def parse_dt(value: Any) -> Optional[datetime]:
+#|     if value is None:
+#|         return None
+#|     if isinstance(value, datetime):
+#|         dt = value
+#|     else:
+#|         try:
+#|             dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+#|         except Exception:
+#|             return None
+#|     if dt.tzinfo is None:
+#|         dt = dt.replace(tzinfo=timezone.utc)
+#|     return dt
+#| 
+#| 
+#| def to_float(value: Any) -> Optional[float]:
+#|     if value is None or isinstance(value, bool):
+#|         return None
+#|     try:
+#|         f = float(value)
+#|         if math.isnan(f) or math.isinf(f):
+#|             return None
+#|         return f
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def public_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {k: v for k, v in d.items() if not str(k).startswith("_")}
+#| 
+#| 
+#| def ensure_list(value: Any) -> List[Any]:
+#|     if value is None:
+#|         return []
+#|     if isinstance(value, list):
+#|         return value
+#|     return [value]
+#| 
+#| 
+#| def iso_or_none(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def add_flag(obj: Dict[str, Any], flag: str) -> None:
+#|     flags = obj.setdefault("_quality_flags", [])
+#|     f = str(flag).strip().lower()
+#|     if f and f not in flags:
+#|         flags.append(f)
+#| 
+#| 
+#| def safe_std(values: List[float]) -> Optional[float]:
+#|     vals = [v for v in values if v is not None]
+#|     if len(vals) < 2:
+#|         return None
+#|     try:
+#|         return statistics.stdev(vals)
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def numeric_summary(values: List[Any]) -> Dict[str, Any]:
+#|     arr: List[float] = []
+#|     for v in values:
+#|         f = to_float(v)
+#|         if f is not None:
+#|             arr.append(f)
+#|     if not arr:
+#|         return {"count": 0, "min": None, "max": None, "median": None, "mean": None, "std": None}
+#|     return {
+#|         "count": len(arr),
+#|         "min": min(arr),
+#|         "max": max(arr),
+#|         "median": statistics.median(arr),
+#|         "mean": statistics.fmean(arr),
+#|         "std": safe_std(arr),
+#|     }
+#| 
+#| 
+#| def haversine_km(
+#|     lat1: Optional[float],
+#|     lon1: Optional[float],
+#|     lat2: Optional[float],
+#|     lon2: Optional[float],

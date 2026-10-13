@@ -1,0 +1,1000 @@
+#|         limitations=["SBOM may correspond to different build variant or be stale."],
+#|         specialist_handoff="PACKAGEINT / SUPPLYCHAININT",
+#|         remediation=["Regenerate SBOM from authoritative lockfile/build artifact."],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-TEST-GAP",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.TEST_COVERAGE_GAP,
+#|         state=FindingState.OBSERVED,
+#|         title="No authorization regression test for user lookup route",
+#|         description="Test corpus includes health test but lacks authorization regression test for GET /users/{user_id}.",
+#|         file_path="tests/test_health.py",
+#|         symbol=None,
+#|         severity="MEDIUM",
+#|         source_ids=["SRC-TEST"],
+#|         evidence_ids=["EV-TEST"],
+#|         limitations=["Missing tests reduce assurance but do not prove vulnerability."],
+#|         remediation=["Add authorized authorization regression tests."],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-CI-SUPPLY",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.CI_SUPPLY_CHAIN_CONTEXT,
+#|         state=FindingState.OBSERVED,
+#|         title="Mutable third-party CI action reference",
+#|         description="CI workflow uses some-org/action@v1 without immutable commit pin.",
+#|         file_path=".github/workflows/ci.yml",
+#|         symbol=None,
+#|         severity="MEDIUM",
+#|         source_ids=["SRC-CI"],
+#|         evidence_ids=["EV-CI"],
+#|         limitations=["CI config observation is not pipeline compromise evidence."],
+#|         specialist_handoff="SUPPLYCHAININT",
+#|         remediation=["Pin third-party actions to immutable commit SHAs."],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-FORK",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-ANCIENT",
+#|         finding_type=FindingType.FORK_LINEAGE,
+#|         state=FindingState.OBSERVED,
+#|         title="Repository lineage from template fork",
+#|         description="Repository metadata indicates supported fork/common ancestor from fastapi-template.",
+#|         file_path=None,
+#|         symbol=None,
+#|         severity="INFO",
+#|         source_ids=["SRC-UPSTREAM", "SRC-REPO"],
+#|         evidence_ids=["EV-UPSTREAM"],
+#|         limitations=["Fork does not imply ownership, endorsement, or authorship of all code."],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-SIMILAR",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.CODE_SIMILARITY,
+#|         state=FindingState.OBSERVED,
+#|         title="Template similarity in helper code",
+#|         description="Helper code shows structural similarity consistent with common template origin.",
+#|         file_path="app/utils.py",
+#|         symbol=None,
+#|         severity="INFO",
+#|         source_ids=["SRC-UPSTREAM"],
+#|         evidence_ids=["EV-UPSTREAM"],
+#|         limitations=["Similarity is not plagiarism or authorship proof."],
+#|     ))
+#| 
+#|     c.prepare()
+#|     return c
+#| 
+#| 
+#| # =====================================================================
+#| # RESULT BUILDER
+#| # =====================================================================
+#| 
+#| def graph_version_hash(c: CodeInt) -> str:
+#|     seed_obj = {
+#|         "repo": sorted((rid, r.current_commit, r.visibility.value) for rid, r in c.repositories.items()),
+#|         "files": sorted((fid, f.repository_id, f.commit_id, f.path, f.language.value) for fid, f in c.files.items()),
+#|         "symbols": sorted((sid, s.repository_id, s.commit_id, s.name, s.symbol_type.value, s.reachability_state.value) for sid, s in c.symbols.items()),
+#|         "deps": sorted((did, d.package, d.declared_version or "", d.resolved_version or "", d.directness) for did, d in c.dependencies.items()),
+#|         "findings": sorted((fid, f.finding_type.value, f.state.value, round(float(f.confidence), 3)) for fid, f in c.findings.items()),
+#|     }
+#|     return sha256_short(json.dumps(jsonable(seed_obj), sort_keys=True))
+#| 
+#| 
+#| def build_source_graph(c: CodeInt) -> Dict[str, Any]:
+#|     edges = []
+#|     for src in c.sources.values():
+#|         if src.derived_from:
+#|             edges.append({
+#|                 "source": src.derived_from,
+#|                 "target": src.id,
+#|                 "relationship_type": "DERIVED_FROM",
+#|             })
+#|     return {
+#|         "nodes": [s.id for s in c.sources.values()],
+#|         "edges": edges,
+#|     }
+#| 
+#| 
+#| def build_source_dependency_graph(c: CodeInt) -> Dict[str, List[str]]:
+#|     families: Dict[str, List[str]] = defaultdict(list)
+#|     for sid in c.sources:
+#|         fam = c.get_source_family(sid) or "UNKNOWN"
+#|         families[fam].append(sid)
+#|     return {k: sorted(v) for k, v in families.items()}
+#| 
+#| 
+#| def build_code_graph(c: CodeInt) -> Dict[str, Any]:
+#|     nodes = []
+#|     edges = []
+#| 
+#|     for fid, f in c.files.items():
+#|         nodes.append({"id": fid, "type": "SourceFile", "label": f.path, "language": f.language.value})
+#|     for sid, s in c.symbols.items():
+#|         nodes.append({
+#|             "id": sid,
+#|             "type": "Symbol",
+#|             "label": s.name,
+#|             "symbol_type": s.symbol_type.value,
+#|             "reachability": s.reachability_state.value,
+#|         })
+#|         edges.append({"source": s.file_id, "target": sid, "relationship_type": "CONTAINS"})
+#|         for callee in s.calls:
+#|             edges.append({"source": sid, "target": callee, "relationship_type": "CALLS"})
+#|         if s.route:
+#|             edges.append({"source": sid, "target": s.handler or "", "relationship_type": "HANDLED_BY"})
+#|             edges.append({"source": sid, "target": s.route, "relationship_type": "EXPOSES_ROUTE"})
+#| 
+#|     for did, d in c.dependencies.items():
+#|         nodes.append({"id": did, "type": "Dependency", "label": f"{d.package}@{d.resolved_version or d.declared_version}"})
+#|         edges.append({"source": d.consumer, "target": did, "relationship_type": "DEPENDS_ON"})
+#| 
+#|     return {"nodes": nodes, "edges": edges}
+#| 
+#| 
+#| def build_reachability_payload(c: CodeInt) -> Dict[str, Any]:
+#|     return {
+#|         "entrypoints": sorted(c.entrypoint_ids),
+#|         "reachable_symbols": sorted(c.reachable_symbols),
+#|         "route_handler_map": c.route_handler_map,
+#|         "deployment_context_known": c.deployment_context_known,
+#|         "guardrails": [
+#|             "Code-level reachability is not production reachability.",
+#|             "Reachability is not exploitability.",
+#|             "No live endpoint probing performed.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_secret_handling_payload(c: CodeInt) -> Dict[str, Any]:
+#|     return {
+#|         "secret_candidates": list(c.secret_candidates.values()),
+#|         "raw_secret_exposed": False,
+#|         "secret_tested": False,
+#|         "secret_used": False,
+#|         "policy": [
+#|             "CODEINT fingerprints and redacts secret candidates.",
+#|             "CODEINT does not use, test, redeem, or authenticate with secrets.",
+#|             "Historical removal does not equal revocation.",
+#|             "Exposed secret handling is handed to CREDINT.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_result(c: CodeInt, status: Status) -> Dict[str, Any]:
+#|     dual = c.dual_ai_review()
+#|     summary = c.analyst_summary(dual)
+#|     source_families = build_source_dependency_graph(c)
+#| 
+#|     finding_independence = {
+#|         fid: c.independence_state(f.source_ids)
+#|         for fid, f in c.findings.items()
+#|     }
+#| 
+#|     supported_facts = [f for f in c.findings.values() if f.state in {FindingState.OBSERVED, FindingState.RISKY_PATTERN}]
+#|     vulnerability_candidates = [f for f in c.findings.values() if f.state == FindingState.VULNERABILITY_CANDIDATE]
+#|     inconclusive = [f for f in c.findings.values() if f.state == FindingState.INCONCLUSIVE]
+#| 
+#|     replay_manifest = {
+#|         "generated_at": now_iso(),
+#|         "pipeline_version": PIPELINE_VERSION,
+#|         "graph_version": graph_version_hash(c),
+#|         "core_principle": (
+#|             "SOURCE ARTIFACT -> PRESERVE -> IDENTIFY -> PARSE -> NORMALIZE -> SYMBOL/COMPONENT EXTRACTION -> "
+#|             "DEPENDENCY GRAPH -> CONTROL/DATA FLOW -> SECURITY-RELEVANT OBSERVATIONS -> PROVENANCE -> "
+#|             "TEMPORAL ANALYSIS -> SOURCE RELIABILITY -> FACT GATE -> TECHNICAL ASSESSMENT"
+#|         ),
+#|         "static_first": True,
+#|         "code_execution": "NOT_PERFORMED",
+#|         "secret_use": "NOT_PERFORMED",
+#|         "exploit_generation": "NOT_PERFORMED",
+#|         "source_lineage": source_families,
+#|         "finding_independence": finding_independence,
+#|         "temporal_rule": "Findings are pinned to repository/commit; historical code states preserved.",
+#|         "policy_exclusions": [
+#|             "No unauthorized repository access.",
+#|             "No stolen credentials/tokens.",
+#|             "No secret use/testing.",
+#|             "No unknown code execution.",
+#|             "No exploit/payload generation.",
+#|             "No malware improvement.",
+#|             "No EDR/AV bypass.",
+#|             "No persistence/stealth design.",
+#|             "No third-party repository tampering.",
+#|         ],
+#|     }
+#| 
+#|     return {
+#|         "case_id": c.case.case_id,
+#|         "task_id": c.case.task_id,
+#|         "objective": c.case.objective,
+#|         "questions": c.case.questions,
+#|         "scope": c.case.scope,
+#|         "authorization": c.case.authorization,
+#|         "status": status.value,
+#|         "source_ids": sorted(c.sources.keys()),
+#|         "evidence_ids": sorted(c.evidence.keys()),
+#|         "repositories": list(c.repositories.values()),
+#|         "branches": list(c.branches.values()),
+#|         "commits": list(c.commits.values()),
+#|         "tags": list(c.tags.values()),
+#|         "releases": list(c.releases.values()),
+#|         "languages": sorted({l.value for r in c.repositories.values() for l in r.languages}),
+#|         "frameworks": sorted({f.value for r in c.repositories.values() for f in r.frameworks}),
+#|         "build_systems": sorted({b.value for r in c.repositories.values() for b in r.build_systems}),
+#|         "package_managers": sorted({p.value for r in c.repositories.values() for p in r.package_managers}),
+#|         "source_files": list(c.files.values()),
+#|         "symbols": list(c.symbols.values()),
+#|         "components": list(c.components.values()),
+#|         "services": list(c.services.values()),
+#|         "entrypoints": sorted(c.entrypoint_ids),
+#|         "routes": [s for s in c.symbols.values() if s.symbol_type == SymbolType.ROUTE],
+#|         "api_endpoints": [s for s in c.symbols.values() if s.route],
+#|         "cli_commands": [],
+#|         "schemas": [],
+#|         "databases": ["COMPONENT-DB"],
+#|         "queues": [],
+#|         "external_services": [],
+#|         "cloud_sdks": [],
+#|         "configurations": list(c.config_items.values()),
+#|         "environment_variables": [item for item in c.config_items.values() if item.value_type == "environment_variable_reference"],
+#|         "secret_candidates": build_secret_handling_payload(c),
+#|         "dependencies": list(c.dependencies.values()),
+#|         "direct_dependencies": [d for d in c.dependencies.values() if d.directness == "DIRECT"],
+#|         "transitive_dependencies": [d for d in c.dependencies.values() if d.directness == "TRANSITIVE"],
+#|         "packages": sorted({d.package for d in c.dependencies.values()}),
+#|         "resolved_versions": {d.package: d.resolved_version for d in c.dependencies.values() if d.resolved_version},
+#|         "sboms": list(c.sbom_components.values()),
+#|         "vex_records": [],
+#|         "licenses": list(c.licenses.values()),
+#|         "ci_cd_pipelines": [
+#|             {
+#|                 "source_id": "SRC-CI",
+#|                 "file_path": ".github/workflows/ci.yml",
+#|                 "third_party_actions": [
+#|                     {"uses": "some-org/action@v1", "pinned_to_sha": False}
+#|                 ],
+#|                 "limitations": ["CI config is not actual pipeline execution evidence."],
+#|             }
+#|         ],
+#|         "build_jobs": [],
+#|         "artifacts": [
+#|             {
+#|                 "type": "release",
+#|                 "id": "REL-V120",
+#|                 "version": "1.2.0",
+#|                 "artifact_hashes": ["sha256:release-artifact-placeholder"],
+#|                 "deployment_known": False,
+#|             }
+#|         ],
+#|         "containers": [
+#|             {
+#|                 "file_path": "Dockerfile",
+#|                 "base_image": "python:3.12-slim-placeholder",
+#|                 "limitations": ["Container file presence does not prove deployed image."],
+#|             }
+#|         ],
+#|         "iac_resources": [],
+#|         "tests": list(c.tests.values()),
+#|         "coverage_context": list(c.coverages.values()),
+#|         "security_controls": [
+#|             "AUTHENTICATION_DEPENDENCY_PRESENT",
+#|             "AUTHORIZATION_DEPENDENCY_PARTIAL",
+#|             "PARAMETERIZED_QUERY_OBSERVED_PLACEHOLDER",
+#|             "TESTS_PRESENT_PARTIAL",
+#|         ],
+#|         "authentication_context": ["Auth dependency module observed."],
+#|         "authorization_context": ["Authorization dependency observed on some routes; gap candidate on user lookup route."],
+#|         "session_context": [],
+#|         "crypto_context": [],
+#|         "database_context": ["Database query helper observed; parameterization static observation only."],
+#|         "filesystem_context": [],
+#|         "network_context": [],
+#|         "process_execution_context": [],
+#|         "serialization_context": [],
+#|         "input_validation_context": ["Path parameter user_id reaches database helper; parameterized query observed statically."],
+#|         "logging_context": [],
+#|         "telemetry_context": [],
+#|         "code_similarity": list(c.similarities.values()),
+#|         "fork_lineage": [p for p in c.provenance.values() if p.state == ProvenanceState.FORK_DERIVED],
+#|         "code_provenance": list(c.provenance.values()),
+#|         "code_ownership_context": [
+#|             {
+#|                 "type": "MAINTAINER_METADATA_PLACEHOLDER",
+#|                 "note": "Git/CODEOWNERS metadata is responsibility context, not verified authorship or blame."
+#|             }
+#|         ],
+#|         "maintainer_context": [],
+#|         "documentation_drift": [f for f in c.findings.values() if f.finding_type == FindingType.DOCUMENTATION_DRIFT],
+#|         "security_findings": list(c.findings.values()),
+#|         "vulnerability_candidates": vulnerability_candidates,
+#|         "malicious_behavior_candidates": [f for f in c.findings.values() if f.finding_type == FindingType.MALICIOUS_BEHAVIOR_CANDIDATE],
+#|         "reachability_states": {sid: s.reachability_state.value for sid, s in c.symbols.items()},
+#|         "reachability_analysis": build_reachability_payload(c),
+#|         "timeline_updates": [
+#|             {
+#|                 "time": "2025-01-01T00:00:00Z",
+#|                 "event": "Upstream template ancestor commit C-ANCIENT.",
+#|                 "commit_id": "C-ANCIENT",
+#|             },
+#|             {
+#|                 "time": "2026-03-01T00:00:00Z",
+#|                 "event": "Historical secret-shaped candidate introduced in C-SECRET.",
+#|                 "commit_id": "C-SECRET",
+#|             },
+#|             {
+#|                 "time": "2026-08-01T00:00:00Z",
+#|                 "event": "User lookup route added in C-ROUTE-ADDED.",
+#|                 "commit_id": "C-ROUTE-ADDED",
+#|             },
+#|             {
+#|                 "time": "2026-09-15T00:00:00Z",
+#|                 "event": "Secret-shaped value removed in C-FIX-SECRET.",
+#|                 "commit_id": "C-FIX-SECRET",
+#|             },
+#|             {
+#|                 "time": "2026-10-08T00:00:00Z",
+#|                 "event": "Analyzed HEAD commit C-HEAD.",
+#|                 "commit_id": "C-HEAD",
+#|             },
+#|         ],
+#|         "observations": list(c.evidence.values()),
+#|         "candidate_facts": list(c.findings.values()),
+#|         "supported_facts": supported_facts,
+#|         "partial_facts": inconclusive,
+#|         "disputed_facts": [],
+#|         "source_reliability": {sid: s.reliability for sid, s in c.sources.items()},
+#|         "source_limitations": {sid: [s.notes] for sid, s in c.sources.items() if s.notes},
+#|         "source_pedigree": {sid: c.get_source_family(sid) for sid in c.sources},
+#|         "source_independence": {
+#|             "source_families": source_families,
+#|             "finding_independence": finding_independence,
+#|         },
+#|         "contradictions": c.contradictions,
+#|         "hypotheses": c.hypotheses,
+#|         "falsification_results": [
+#|             {
+#|                 "hypothesis_id": h.id,
+#|                 "status": h.status.value,
+#|                 "falsification_conditions": h.falsification_conditions,
+#|                 "limitations": h.limitations,
+#|             }
+#|             for h in c.hypotheses
+#|         ],
+#|         "privacy_flags": [
+#|             PrivacyFlag.CASE_SCOPED.value,
+#|             PrivacyFlag.AUTHORIZED_SOURCE_ONLY.value,
+#|             PrivacyFlag.NO_PRIVATE_REPO_ACCESS.value,
+#|             PrivacyFlag.NO_SECRET_USE.value,
+#|             PrivacyFlag.NO_RAW_SECRET_EXPOSURE.value,
+#|             PrivacyFlag.NO_UNKNOWN_CODE_EXECUTION.value,
+#|             PrivacyFlag.LOCAL_ONLY_DEFAULT.value,
+#|             PrivacyFlag.PROPRIETARY_CODE_CONFIDENTIAL.value,
+#|         ],
+#|         "legal_flags": [
+#|             "License interpretation requires LEGALINT/human review.",
+#|             "Authorship/blame claims require explicit authorized metadata and human review.",
+#|         ],
+#|         "unknowns": [
+#|             "Deployed production commit/artifact unknown.",
+#|             "Runtime middleware/feature flags unknown.",
+#|             "Secret validity unknown.",
+#|             "Vulnerability exploitability unknown.",
+#|             "SBOM correspondence to deployed artifact unknown.",
+#|             "CI actual execution history unavailable.",
+#|         ],
+#|         "knowledge_gaps": c.gaps,
+#|         "recommended_next_actions": c.actions,
+#|         "specialist_handoffs": c.handoffs,
+#|         "recommendations": c.recommendations,
+#|         "limitations": [
+#|             "Local synthetic demo; no live repository access.",
+#|             "Static-first; no unknown code execution.",
+#|             "Secret candidates are not tested or used.",
+#|             "Source-code risk is not production vulnerability.",
+#|             "Reachability is not exploitability.",
+#|             "Documentation is not implementation truth.",
+#|             "SBOM is not deployed runtime truth.",
+#|         ] + c.validation_errors,
+#|         "analyst_summary": summary,
+#|         "dual_ai_review": dual,
+#|         "code_graph": build_code_graph(c),
+#|         "source_graph": build_source_graph(c),
+#|         "source_dependency_graph": source_families,
+#|         "replay_manifest": replay_manifest,
+#|     }
+#| 
+#| 
+#| # =====================================================================
+#| # PIPELINES
+#| # =====================================================================
+#| 
+#| def run_sample_pipeline() -> Dict[str, Any]:
+#|     c = build_sample_codeint()
+#|     return build_result(c, Status.PARTIAL)
+#| 
+#| 
+#| def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+#|     c = CodeInt(case)
+#| 
+#|     c.gaps.append(KnowledgeGap(
+#|         id="GAP-NO-SOURCE",
+#|         gap_type=GapType.DEPLOYED_VERSION_UNKNOWN,
+#|         description="No authorized source corpus, repository snapshot, lockfile, SBOM, CI config, tests, or documentation is configured.",
+#|         importance="HIGH",
+#|         recommended_source="Provide authorized repository snapshot or sanitized local source corpus.",
+#|         specialist="CODEINT",
+#|         expected_information_value=0.95,
+#|     ))
+#| 
+#|     c.actions = [NextAction(
+#|         id="ACT-CONFIGURE-SOURCE",
+#|         description=(
+#|             "Configure authorized source-code inputs or supply sanitized local repository snapshot. "
+#|             "Do not access private repos without authorization, use stolen credentials, test secrets, "
+#|             "execute unknown code, or generate exploits."
+#|         ),
+#|         priority=1,
+#|         privacy_impact="LOW",
+#|         expected_gain=0.95,
+#|         specialist=None,
+#|         requires_human_approval=False,
+#|     )]
+#| 
+#|     c.handoffs = []
+#|     c.recommendations = []
+#|     c.hypotheses = []
+#| 
+#|     dual = {
+#|         "primary_code_analyst": "No source evidence available.",
+#|         "independent_code_skeptic_issues": [
+#|             "No repository/source corpus configured.",
+#|             "No parser output available.",
+#|             "No dependency/SBOM/reachability conclusion possible.",
+#|             "No security finding can be validated.",
+#|         ],
+#|         "verdict": "INSUFFICIENT_EVIDENCE",
+#|         "note": "AI agreement is not independent technical verification.",
+#|     }
+#| 
+#|     summary = (
+#|         "CODE UNRESOLVED: No configured source corpus. "
+#|         "No files, functions, dependencies, secrets, vulnerabilities, authors, or deployments were fabricated. "
+#|         "Provide authorized source or run sample mode."
+#|     )
+#| 
+#|     result = build_result(c, Status.BLOCKED_CONFIGURATION)
+#|     result["analyst_summary"] = summary
+#|     result["dual_ai_review"] = dual
+#|     return result
+#| 
+#| 
+#| def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": case.case_id,
+#|         "task_id": case.task_id,
+#|         "objective": case.objective,
+#|         "status": Status.BLOCKED_POLICY.value,
+#|         "policy_violations": violations,
+#|         "message": (
+#|             "Prohibited source-code intelligence request detected. CODEINT supports authorized defensive, "
+#|             "static-first source-code intelligence only. It does not access private repos without authorization, "
+#|             "use/test secrets, execute unknown code, generate exploits/payloads, improve malware, bypass EDR/AV, "
+#|             "create persistence, or tamper with repositories/CI."
+#|         ),
+#|         "lawful_alternatives": [
+#|             "Analyze authorized/public/user-supplied source statically.",
+#|             "Fingerprint and redact secret candidates; hand off exposure to CREDINT.",
+#|             "Identify risky patterns and access-control gap candidates without exploit steps.",
+#|             "Resolve dependencies/SBOM/provenance defensively.",
+#|             "Require human approval for patches, disclosure, or consequential engineering decisions.",
+#|         ],
+#|         "privacy_flags": [
+#|             PrivacyFlag.NO_SECRET_USE.value,
+#|             PrivacyFlag.NO_UNKNOWN_CODE_EXECUTION.value,
+#|             PrivacyFlag.NO_PRIVATE_REPO_ACCESS.value,
+#|             PrivacyFlag.PROPRIETARY_CODE_CONFIDENTIAL.value,
+#|         ],
+#|         "limitations": [
+#|             "No source-code analysis performed.",
+#|             "No files/functions/dependencies fabricated.",
+#|             "No secrets exposed or used.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def run_pipeline(case: Case) -> Dict[str, Any]:
+#|     text = " ".join(
+#|         [
+#|             case.objective,
+#|             *case.questions,
+#|             *case.repositories,
+#|             *case.commits,
+#|             case.authorization or "",
+#|             " ".join(case.scope),
+#|         ]
+#|     )
+#|     violations = policy_guard(text)
+#|     if violations:
+#|         return blocked_policy_result(case, violations)
+#| 
+#|     if case.sample:
+#|         return run_sample_pipeline()
+#| 
+#|     return run_unconfigured_pipeline(case)
+#| 
+#| 
+#| # =====================================================================
+#| # CLI
+#| # =====================================================================
+#| 
+#| def main() -> None:
+#|     parser = argparse.ArgumentParser(
+#|         description=(
+#|             "TRACEATLAS CODEINT local defensive static-first source-code intelligence pipeline. "
+#|             "Sample mode uses synthetic authorized-repository-style data."
+#|         )
+#|     )
+#|     parser.add_argument("--sample", action="store_true", help="Run built-in synthetic CODEINT sample.")
+#|     parser.add_argument("--objective", help="Defensive source-code intelligence objective.")
+#|     parser.add_argument("--question", action="append", default=[], help="Analytic question. Repeatable.")
+#|     parser.add_argument("--repo", action="append", default=[], help="Repository ID. Repeatable.")
+#|     parser.add_argument("--commit", action="append", default=[], help="Commit ID. Repeatable.")
+#|     parser.add_argument("--time-range", help="Time range hint.")
+#| 
+#|     args = parser.parse_args()
+#| 
+#|     if args.sample or not args.objective:
+#|         case = sample_case()
+#|     else:
+#|         case = Case(
+#|             case_id=new_id("CASE-", args.objective),
+#|             task_id=new_id("TASK-", args.objective),
+#|             objective=args.objective,
+#|             questions=args.question,
+#|             repositories=args.repo,
+#|             commits=args.commit,
+#|             time_range=args.time_range,
+#|             sample=False,
+#|         )
+#| 
+#|     result = run_pipeline(case)
+#|     print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     main()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE codeint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE comint BEGIN
+#| import tkinter as tk
+#| from tkinter import ttk, filedialog, messagebox
+#| 
+#| import json
+#| import re
+#| import csv
+#| import hashlib
+#| import uuid
+#| import mailbox
+#| 
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, List, Optional, Tuple
+#| from urllib.parse import urlparse
+#| 
+#| from email.parser import Parser
+#| from email.utils import parsedate_to_datetime
+#| 
+#| 
+#| APP_TITLE = "TraceAtlas COMINT AI Employee — Planning + Local Authorized Communication Evidence Panel"
+#| APP_VERSION = "TraceAtlas COMINT Panel v0.1"
+#| 
+#| 
+#| FIELDS = [
+#|     ("case_id", "Case ID", "entry"),
+#|     ("task_id", "Task ID", "entry"),
+#|     ("objective", "Objective", "text"),
+#|     ("target", "Target / Communication Context", "entry"),
+#|     ("target_type", "Target Type", "combo"),
+#|     ("questions", "COMINT Questions", "text"),
+#|     ("communication_paths", "Local Authorized Communication Export Paths", "text"),
+#|     ("communication_sources", "Communication Sources / Public Channels / Exports", "text"),
+#|     ("known_accounts", "Known Accounts / Handles / Emails / Phone IDs", "text"),
+#|     ("known_entities", "Known Entities", "text"),
+#|     ("known_channels", "Known Channels / Threads / Groups", "text"),
+#|     ("known_events", "Known Events", "text"),
+#|     ("time_range", "Time Range", "text"),
+#|     ("jurisdiction", "Jurisdiction", "entry"),
+#|     ("scope", "Scope / Allowed Sources", "text"),
+#|     ("authorization", "Authorization Basis", "text"),
+#|     ("source_limits", "Source Limits / Retention Limits", "text"),
+#|     ("budget", "Budget", "entry"),
+#|     ("deadline", "Deadline", "entry"),
+#|     ("configured_models", "Configured NLP / Translation / Summarization / Similarity Models", "text"),
+#|     ("configured_connectors", "Configured Connectors / DOCINT / IMINT / AUDINT / WEBINT / CTI / GEOINT", "text"),
+#| ]
+#| 
+#| 
+#| TARGET_TYPES = [
+#|     "communication_export",
+#|     "email_export",
+#|     "chat_export",
+#|     "messaging_export",
+#|     "public_channel",
+#|     "public_forum",
+#|     "public_mailing_list",
+#|     "public_broadcast",
+#|     "call_transcript",
+#|     "voice_note_transcript",
+#|     "meeting_transcript",
+#|     "incident_communications",
+#|     "enterprise_communications",
+#|     "screenshot_context",
+#|     "unknown",
+#| ]
+#| 
+#| 
+#| LIST_FIELDS = {
+#|     "questions",
+#|     "communication_paths",
+#|     "communication_sources",
+#|     "known_accounts",
+#|     "known_entities",
+#|     "known_channels",
+#|     "known_events",
+#|     "source_limits",
+#|     "configured_models",
+#|     "configured_connectors",
+#| }
+#| 
+#| 
+#| DICT_FIELDS = {
+#|     "scope",
+#|     "authorization",
+#|     "time_range",
+#| }
+#| 
+#| 
+#| SENSITIVE_TARGET_TYPES = {
+#|     "email_export",
+#|     "chat_export",
+#|     "messaging_export",
+#|     "call_transcript",
+#|     "voice_note_transcript",
+#|     "meeting_transcript",
+#|     "incident_communications",
+#|     "enterprise_communications",
+#|     "screenshot_context",
+#| }
+#| 
+#| 
+#| POLICY_BLOCK_PATTERNS = [
+#|     r"\bintercept\s+(?:private|personal|subscriber|voice|call|message|email|communication)s?\b",
+#|     r"\bwiretap(?:ping|ped)?\b",
+#|     r"\bimsi[-\s]?catcher\b",
+#|     r"\brogue\s+(?:cellular\s+)?base\s+station\b",
+#|     r"\bcapture\s+credentials\b",
+#|     r"\bstolen\s+(?:password|cookie|session|token|credential)s?\b",
+#|     r"\breuse\s+(?:authentication\s+)?token\b",
+#|     r"\bbypass\s+encryption\b",
+#|     r"\bbreak\s+(?:message\s+)?encryption\b",
+#|     r"\bdecrypt\s+(?:private|subscriber|message|email|chat)s?\b",
+#|     r"\baccess\s+private\s+(?:groups?|channels?|accounts?|mailboxes?|inboxes?)\s+without\s+authorization\b",
+#|     r"\bjoin\s+private\s+(?:groups?|channels?)\s+through\s+deception\b",
+#|     r"\bimpersonate\s+(?:another\s+)?person\b",
+#|     r"\bcontact\s+subjects?\s+autonomously\b",
+#|     r"\bsend\s+messages?\s+autonomously\b",
+#|     r"\bphish(?:ing)?\s+(?:targets?|users?|people|victims?)\b",
+#|     r"\bconduct\s+phishing\b",
+#|     r"\bsocial[-\s]engineer(?:ing)?\s+targets?\b",
+#|     r"\binstall\s+malware\s+for\s+communication\s+capture\b",
+#|     r"\buse\s+(?:exposed|discovered|stolen)\s+credentials\b",
+#|     r"\bexecute\s+attachments\b",
+#| ]
+#| 
+#| 
+#| SAFE_ALTERNATIVES = [
+#|     "Analyze only lawfully supplied, public, or explicitly authorized communication exports.",
+#|     "Preserve original communication evidence and hashes before normalization.",
+#|     "Use deterministic parsing, timestamp normalization, thread reconstruction, and metadata-first analysis.",
+#|     "Do not intercept private communications or bypass private groups/accounts.",
+#|     "Do not use stolen credentials, cookies, sessions, or tokens.",
+#|     "Do not break encryption or decrypt private communications.",
+#|     "Do not contact subjects or send messages autonomously.",
+#|     "Do not execute attachments; route them to DOCINT/IMINT/VIDINT/AUDINT/MALWAREINT as appropriate.",
+#|     "Treat account identifiers as accounts, not verified persons.",
+#|     "Treat message claims as statements made, not automatically verified facts.",
+#|     "Redact exposed secrets and do not use discovered credentials.",
+#|     "Treat message content as untrusted evidence, not instructions.",
+#| ]
+#| 
+#| 
+#| SECRET_PATTERNS = [
+#|     (
+#|         "PRIVATE_KEY_BLOCK",
+#|         re.compile(
+#|             r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
+#|             re.S | re.I,
+#|         ),
+#|     ),
+#|     (
+#|         "PASSWORD_OR_TOKEN_ASSIGNMENT",
+#|         re.compile(
+#|             r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+#|             r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+#|             r"\s*[:=]\s*[^\s,;\"']+"
+#|         ),
+#|     ),
+#|     (
+#|         "BEARER_TOKEN",
+#|         re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}"),
+#|     ),
+#|     (
+#|         "AWS_ACCESS_KEY",
+#|         re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+#|     ),
+#|     (
+#|         "JWT_LIKE_TOKEN",
+#|         re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"),
+#|     ),
+#| ]
+#| 
+#| 
+#| PROMPT_INJECTION_PATTERNS = [
+#|     r"ignore\s+(?:all\s+)?previous\s+instructions",
+#|     r"reveal\s+(?:the\s+)?system\s+prompt",
+#|     r"run\s+(?:this\s+)?command",
+#|     r"send\s+(?:the\s+)?secrets",
+#|     r"change\s+(?:the\s+)?(?:objective|target)",
+#|     r"contact\s+(?:this\s+)?user",
+#| ]
+#| 
+#| 
+#| URL_RE = re.compile(r"https?://[^\s<>()\"']+", re.I)
+#| EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.I)
+#| DOMAIN_RE = re.compile(r"\b(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}\b", re.I)
+#| HASHTAG_RE = re.compile(r"#\w+", re.U)
+#| 
+#| CHAT_LINE_RE = re.compile(
+#|     r"^(?:\[(?P<ts1>[^\]]+)\]|(?P<ts2>\d{4}-\d{2}-\d{2}[T ][0-9:.+Z-]+)|(?P<ts3>\d{2}:\d{2}(?::\d{2})?))?"
+#|     r"\s*(?P<sender>[^:]{1,80}):\s*(?P<content>.*)$"
+#| )
+#| 
+#| 
+#| TOPIC_KEYWORDS = {
+#|     "business": ["meeting", "contract", "invoice", "vendor", "client", "deal", "proposal", "partner"],
+#|     "event": ["event", "conference", "rally", "protest", "ceremony", "venue", "gather"],
+#|     "technical": ["server", "api", "bug", "outage", "deploy", "network", "system", "database"],
+#|     "incident": ["incident", "breach", "attack", "malware", "phishing", "exploit", "alert"],
+#|     "payment": ["payment", "paid", "invoice", "transfer", "wallet", "bank", "transaction"],
+#|     "travel": ["flight", "train", "hotel", "trip", "airport", "station", "travel"],
+#|     "meeting": ["meeting", "call", "zoom", "teams", "schedule", "agenda"],
+#|     "product": ["product", "release", "version", "feature", "launch"],
+#|     "malware": ["malware", "ransomware", "trojan", "c2", "ioc", "payload"],
+#|     "domain": ["domain", "dns", "website", "url", "host"],
+#|     "company": ["company", "corporation", "ltd", "inc", "llc", "ceo", "director"],
+#|     "news": ["news", "report", "article", "press", "announcement"],
+#|     "legal": ["contract", "agreement", "lawsuit", "court", "subpoena", "legal", "counsel"],
+#|     "location": ["address", "location", "coordinates", "latitude", "longitude", "venue", "city"],
+#| }
+#| 
+#| 
+#| LOCATION_WORDS = ["address", "location", "coordinates", "latitude", "longitude", "meeting at", "venue", "city"]
+#| PAYMENT_WORDS = ["paid", "payment", "invoice", "transfer", "wallet", "bank", "transaction"]
+#| LEGAL_WORDS = ["contract", "agreement", "lawsuit", "court", "subpoena", "legal"]
+#| COMPANY_WORDS = ["company", "corporation", "ltd", "inc", "llc", "ceo", "director", "founder"]
+#| 
+#| 
+#| def now_utc() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def normalize_text(value: str) -> str:
+#|     return re.sub(r"\s+", " ", value or "").strip().lower()
+#| 
+#| 
+#| def unique_preserve_order(items: List[Any]) -> List[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         key = json.dumps(item, ensure_ascii=False, sort_keys=True) if isinstance(item, (dict, list)) else str(item)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def truncate_list(items: List[Any], limit: int) -> Tuple[List[Any], bool]:
+#|     if len(items) <= limit:
+#|         return items, False
+#|     return items[:limit], True
+#| 
+#| 
+#| def parse_list(value: str) -> List[Any]:
+#|     value = value.strip()
+#|     if not value:
+#|         return []
+#| 
+#|     try:
+#|         parsed = json.loads(value)
+#|         if isinstance(parsed, list):
+#|             return parsed
+#|         if isinstance(parsed, dict):
+#|             return [parsed]
+#|     except Exception:
+#|         pass
+#| 
+#|     normalized = value.replace(",", "\n")
+#|     parts = [p.strip() for p in normalized.splitlines()]
+#|     return [p for p in parts if p]
+#| 
+#| 
+#| def parse_dict(value: str) -> Dict[str, Any]:
+#|     value = value.strip()
+#|     if not value:
+#|         return {}
+#| 
+#|     try:
+#|         parsed = json.loads(value)
+#|         if isinstance(parsed, dict):
+#|             return parsed
+#|     except Exception:
+#|         pass
+#| 
+#|     result: Dict[str, Any] = {}
+#|     for line in value.splitlines():
+#|         line = line.strip()
+#|         if not line or ":" not in line:
+#|             continue
+#|         key, val = line.split(":", 1)
+#|         result[key.strip()] = val.strip()
+#|     return result
+#| 
+#| 
+#| def as_list(value: Any) -> List[str]:
+#|     if value is None:
+#|         return []
+#|     if isinstance(value, list):
+#|         return [str(x).strip() for x in value if str(x).strip()]
+#|     if isinstance(value, dict):
+#|         return [json.dumps(value, ensure_ascii=False)]
+#|     text = str(value).strip()
+#|     if not text:
+#|         return []
+#|     parts = re.split(r"[,;\n]+", text)
+#|     return [p.strip() for p in parts if p.strip()]
+#| 
+#| 
+#| def sha256_text(text: str) -> str:
+#|     return hashlib.sha256((text or "").encode("utf-8", errors="replace")).hexdigest()
+#| 
+#| 
+#| def sha256_file(path: Path) -> str:
+#|     h = hashlib.sha256()
+#|     with path.open("rb") as f:
+#|         for chunk in iter(lambda: f.read(1024 * 1024), b""):
+#|             h.update(chunk)
+#|     return h.hexdigest()
+#| 
+#| 
+#| def redact_secrets(text: str) -> Tuple[str, List[str]]:
+#|     flags: List[str] = []
+#|     if not text:
+#|         return "", flags
+#| 
+#|     out = text
+#|     for name, rx in SECRET_PATTERNS:
+#|         if rx.search(out):
+#|             flags.append(name)
+#|             out = rx.sub("[REDACTED_SECRET]", out)
+#| 
+#|     return out, sorted(set(flags))
+#| 
+#| 
+#| def detect_prompt_injection(text: str) -> List[str]:
+#|     flags: List[str] = []
+#|     low = normalize_text(text)
+#|     for pattern in PROMPT_INJECTION_PATTERNS:
+#|         if re.search(pattern, low, re.I):
+#|             flags.append(pattern)
+#|     return sorted(set(flags))
+#| 
+#| 
+#| def normalize_timestamp(value: Any) -> Dict[str, Any]:
+#|     original = "" if value is None else str(value).strip()
+#|     result: Dict[str, Any] = {
+#|         "original": original,
+#|         "normalized_utc": None,
+#|         "timezone": None,
+#|         "method": None,
+#|         "uncertainty": "UNKNOWN",
+#|     }
+#| 
+#|     if not original:
+#|         result["method"] = "MISSING"
+#|         result["uncertainty"] = "HIGH"
+#|         return result
+#| 
+#|     dt: Optional[datetime] = None
+#|     method: Optional[str] = None
+#| 
+#|     try:
+#|         num = float(original)
+#|         if num > 1_000_000_000_000:
+#|             dt = datetime.fromtimestamp(num / 1000.0, tz=timezone.utc)
+#|             method = "unix_ms"
+#|         elif num > 1_000_000_000:
+#|             dt = datetime.fromtimestamp(num, tz=timezone.utc)
+#|             method = "unix_s"
+#|     except Exception:
+#|         pass
+#| 
+#|     if dt is None:
+#|         s = original.replace("Z", "+00:00")
+#|         try:
+#|             dt = datetime.fromisoformat(s)
+#|             method = "iso"
+#|         except Exception:
+#|             pass
+#| 
+#|     if dt is None:
+#|         try:
+#|             dt = parsedate_to_datetime(original)
+#|             method = "rfc2822"
+#|         except Exception:
+#|             pass
+#| 
+#|     if dt is None:
+#|         formats = [
+#|             "%Y-%m-%d %H:%M:%S%z",
+#|             "%Y-%m-%dT%H:%M:%S%z",
+#|             "%Y-%m-%d %H:%M:%S",
+#|             "%Y-%m-%dT%H:%M:%S",
+#|             "%Y/%m/%d %H:%M:%S",
+#|             "%d/%m/%Y %H:%M:%S",
+#|             "%m/%d/%Y %H:%M:%S",
+#|             "%d %b %Y %H:%M:%S",
+#|             "%b %d %Y %H:%M:%S",
+#|         ]
+#|         for fmt in formats:
+#|             try:
+#|                 dt = datetime.strptime(original, fmt)
+#|                 if dt.tzinfo is None:
+#|                     dt = dt.replace(tzinfo=timezone.utc)
+#|                 method = f"strptime:{fmt}"
+#|                 break
+#|             except Exception:
+#|                 continue
+#| 
+#|     if dt is not None:
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         result["normalized_utc"] = dt.astimezone(timezone.utc).isoformat()
+#|         result["timezone"] = dt.tzname() or "UTC"
+#|         result["method"] = method
+#|         result["uncertainty"] = "LOW" if method in {"iso", "rfc2822", "unix_s", "unix_ms"} else "MODERATE"
+#|     else:
+#|         result["method"] = "UNPARSED"
+#|         result["uncertainty"] = "HIGH"
+#| 
+#|     return result
+#| 
+#| 
+#| def parse_dt_safe(value: Optional[str]) -> Optional[datetime]:
+#|     if not value:
+#|         return None
+#|     try:
+#|         return datetime.fromisoformat(value.replace("Z", "+00:00"))
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def extract_urls(text: str) -> List[str]:
+#|     return unique_preserve_order(URL_RE.findall(text or ""))[:100]
+#| 
+#| 
+#| def extract_emails(text: str) -> List[str]:

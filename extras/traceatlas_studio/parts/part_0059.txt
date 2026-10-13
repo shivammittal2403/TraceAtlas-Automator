@@ -1,0 +1,1000 @@
+#|     return unique_preserve_order(EMAIL_RE.findall(text or ""))[:100]
+#| 
+#| 
+#| def extract_hashtags(text: str) -> List[str]:
+#|     return unique_preserve_order(HASHTAG_RE.findall(text or ""))[:100]
+#| 
+#| 
+#| def extract_domains(text: str) -> List[str]:
+#|     domains = set()
+#| 
+#|     for url in extract_urls(text):
+#|         try:
+#|             net = urlparse(url).netloc
+#|             if net:
+#|                 domains.add(net.lower())
+#|         except Exception:
+#|             pass
+#| 
+#|     for m in DOMAIN_RE.finditer(text or ""):
+#|         domains.add(m.group(0).lower())
+#| 
+#|     return sorted(domains)[:100]
+#| 
+#| 
+#| def classify_topics(text: str) -> List[str]:
+#|     low = normalize_text(text)
+#|     topics = []
+#|     for topic, words in TOPIC_KEYWORDS.items():
+#|         if any(w in low for w in words):
+#|             topics.append(topic)
+#|     return topics or ["unknown"]
+#| 
+#| 
+#| def first_value(obj: Dict[str, Any], keys: List[str]) -> Any:
+#|     for key in keys:
+#|         if key in obj and obj[key] not in (None, ""):
+#|             return obj[key]
+#|     return None
+#| 
+#| 
+#| def make_message(
+#|     *,
+#|     case_id: str = "",
+#|     task_id: str = "",
+#|     source_id: str = "",
+#|     platform: str = "unknown",
+#|     source_type: str = "authorized_communication_export",
+#|     message_id: Optional[str] = None,
+#|     thread_id: Optional[str] = None,
+#|     sender_account: Optional[str] = None,
+#|     receiver_accounts: Any = None,
+#|     channel_id: Optional[str] = None,
+#|     timestamp_original: Any = None,
+#|     content: Any = None,
+#|     attachment_references: Any = None,
+#|     reply_to: Optional[str] = None,
+#|     forwarded_from: Optional[str] = None,
+#|     quoted_message: Optional[str] = None,
+#|     message_type: str = "message",
+#| ) -> Dict[str, Any]:
+#|     content_str = str(content or "")
+#|     redacted, secret_flags = redact_secrets(content_str)
+#|     injection_flags = detect_prompt_injection(content_str)
+#|     ts = normalize_timestamp(timestamp_original)
+#| 
+#|     normalized_preview = normalize_text(redacted)
+#|     dedup_hash = sha256_text(normalized_preview) if normalized_preview else ""
+#| 
+#|     attachments = attachment_references if isinstance(attachment_references, list) else as_list(attachment_references)
+#| 
+#|     return {
+#|         "communication_id": f"COM-{uuid.uuid4()}",
+#|         "message_id": str(message_id or f"MSG-{uuid.uuid4()}"),
+#|         "thread_id": str(thread_id) if thread_id else None,
+#|         "source_id": source_id,
+#|         "case_id": case_id,
+#|         "task_id": task_id,
+#|         "platform": platform,
+#|         "source_type": source_type,
+#|         "sender_account": str(sender_account or "UNKNOWN_PARTICIPANT"),
+#|         "receiver_accounts": as_list(receiver_accounts),
+#|         "channel_id": str(channel_id) if channel_id else None,
+#|         "timestamp_original": ts["original"],
+#|         "timestamp_normalized": ts["normalized_utc"],
+#|         "timezone": ts["timezone"],
+#|         "timestamp_method": ts["method"],
+#|         "timestamp_uncertainty": ts["uncertainty"],
+#|         "message_type": message_type,
+#|         "content_reference": {
+#|             "content_hash_original": sha256_text(content_str),
+#|             "dedup_hash": dedup_hash,
+#|             "preview_redacted": redacted[:500],
+#|             "length": len(content_str),
+#|         },
+#|         "attachment_references": attachments,
+#|         "reply_to": reply_to,
+#|         "forwarded_from": forwarded_from,
+#|         "quoted_message": quoted_message,
+#|         "urls": extract_urls(redacted),
+#|         "domains": extract_domains(redacted),
+#|         "emails": extract_emails(redacted),
+#|         "hashtags": extract_hashtags(redacted),
+#|         "topics": classify_topics(redacted),
+#|         "secret_flags": secret_flags,
+#|         "prompt_injection_flags": injection_flags,
+#|         "retrieved_at": now_utc(),
+#|         "parser_version": "0.1",
+#|         "analysis_version": APP_VERSION,
+#|     }
+#| 
+#| 
+#| def detect_communication_format(path: Path) -> str:
+#|     suffix = path.suffix.lower()
+#|     try:
+#|         with path.open("rb") as f:
+#|             head = f.read(256)
+#|     except Exception:
+#|         head = b""
+#| 
+#|     stripped = head.lstrip()
+#|     if suffix == ".json" or stripped.startswith(b"{") or stripped.startswith(b"["):
+#|         return "JSON"
+#|     if suffix in {".csv", ".tsv"}:
+#|         return "CSV"
+#|     if suffix == ".mbox" or head.startswith(b"From "):
+#|         return "MBOX"
+#|     return "TEXT"
+#| 
+#| 
+#| def message_from_json_obj(obj: Dict[str, Any], source_id: str, case_id: str, task_id: str, idx: int) -> Dict[str, Any]:
+#|     message_id = first_value(obj, ["message_id", "id", "msg_id", "uid"])
+#|     thread_id = first_value(obj, ["thread_id", "conversation_id", "topic_id", "room_id", "channel_thread_id"])
+#|     sender = first_value(obj, ["sender_account", "from", "author", "user", "speaker", "sender"])
+#|     receiver = first_value(obj, ["receiver_accounts", "to", "recipient", "recipients", "receivers"])
+#|     channel = first_value(obj, ["channel_id", "channel", "group", "room"])
+#|     timestamp = first_value(obj, ["timestamp", "date", "sent_at", "created_at", "time", "datetime"])
+#|     content = first_value(obj, ["content", "body", "text", "message", "message_content", "transcript"])
+#|     attachments = obj.get("attachments") or obj.get("attachment_references") or []
+#|     reply_to = first_value(obj, ["reply_to", "in_reply_to", "parent_id", "parent_message_id"])
+#|     forwarded_from = first_value(obj, ["forwarded_from", "forwarded", "origin_message_id"])
+#|     quoted = first_value(obj, ["quoted_message", "quote", "quoted_text"])
+#|     platform = first_value(obj, ["platform", "provider"]) or "unknown"
+#|     source_type = first_value(obj, ["source_type", "export_type", "kind"]) or "authorized_communication_export"
+#|     message_type = first_value(obj, ["message_type", "type"]) or "message"
+#| 
+#|     return make_message(
+#|         case_id=case_id,
+#|         task_id=task_id,
+#|         source_id=source_id,
+#|         platform=str(platform),
+#|         source_type=str(source_type),
+#|         message_id=str(message_id) if message_id else f"MSG-JSON-{idx}",
+#|         thread_id=str(thread_id) if thread_id else None,
+#|         sender_account=str(sender) if sender else None,
+#|         receiver_accounts=receiver,
+#|         channel_id=str(channel) if channel else None,
+#|         timestamp_original=timestamp,
+#|         content=content,
+#|         attachment_references=attachments,
+#|         reply_to=str(reply_to) if reply_to else None,
+#|         forwarded_from=str(forwarded_from) if forwarded_from else None,
+#|         quoted_message=str(quoted) if quoted else None,
+#|         message_type=str(message_type),
+#|     )
+#| 
+#| 
+#| def parse_json_communications(path: Path, source_id: str, case_id: str, task_id: str) -> List[Dict[str, Any]]:
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:20_000_000]
+#|     data = json.loads(raw)
+#| 
+#|     objs: List[Any] = []
+#|     if isinstance(data, list):
+#|         objs = data
+#|     elif isinstance(data, dict):
+#|         for key in ["messages", "communications", "items", "records", "exports"]:
+#|             if isinstance(data.get(key), list):
+#|                 objs = data[key]
+#|                 break
+#|         else:
+#|             objs = [data]
+#| 
+#|     messages = []
+#|     for idx, obj in enumerate(objs[:5000]):
+#|         if isinstance(obj, dict):
+#|             messages.append(message_from_json_obj(obj, source_id, case_id, task_id, idx))
+#|     return messages
+#| 
+#| 
+#| def parse_csv_communications(path: Path, source_id: str, case_id: str, task_id: str) -> List[Dict[str, Any]]:
+#|     messages = []
+#| 
+#|     with path.open("r", encoding="utf-8", errors="replace", newline="") as f:
+#|         sample = f.read(1_000_000)
+#|         f.seek(0)
+#| 
+#|         try:
+#|             dialect = csv.Sniffer().sniff(sample, delimiters=",;\t| ")
+#|         except csv.Error:
+#|             dialect = csv.excel
+#| 
+#|         reader = csv.DictReader(f, dialect=dialect)
+#|         if not reader.fieldnames:
+#|             return messages
+#| 
+#|         field_map = {str(k).strip().lower(): k for k in reader.fieldnames}
+#| 
+#|         def get(row: Dict[str, str], keys: List[str]) -> Any:
+#|             for key in keys:
+#|                 actual = field_map.get(key)
+#|                 if actual and actual in row and row[actual] not in (None, ""):
+#|                     return row[actual]
+#|             return None
+#| 
+#|         for idx, row in enumerate(reader):
+#|             if idx >= 5000:
+#|                 break
+#| 
+#|             content = get(row, ["content", "body", "text", "message", "message_content", "transcript"])
+#|             if content is None:
+#|                 continue
+#| 
+#|             messages.append(
+#|                 make_message(
+#|                     case_id=case_id,
+#|                     task_id=task_id,
+#|                     source_id=source_id,
+#|                     platform=str(get(row, ["platform", "provider"]) or "unknown"),
+#|                     source_type=str(get(row, ["source_type", "export_type", "kind"]) or "authorized_communication_export"),
+#|                     message_id=str(get(row, ["message_id", "id", "msg_id", "uid"]) or f"MSG-CSV-{idx}"),
+#|                     thread_id=get(row, ["thread_id", "conversation_id", "topic_id", "room_id"]),
+#|                     sender_account=get(row, ["sender_account", "from", "author", "user", "speaker", "sender"]),
+#|                     receiver_accounts=get(row, ["receiver_accounts", "to", "recipient", "recipients", "receivers"]),
+#|                     channel_id=get(row, ["channel_id", "channel", "group", "room"]),
+#|                     timestamp_original=get(row, ["timestamp", "date", "sent_at", "created_at", "time", "datetime"]),
+#|                     content=content,
+#|                     attachment_references=get(row, ["attachments", "attachment_references"]),
+#|                     reply_to=get(row, ["reply_to", "in_reply_to", "parent_id", "parent_message_id"]),
+#|                     forwarded_from=get(row, ["forwarded_from", "forwarded", "origin_message_id"]),
+#|                     quoted_message=get(row, ["quoted_message", "quote", "quoted_text"]),
+#|                     message_type=str(get(row, ["message_type", "type"]) or "message"),
+#|                 )
+#|             )
+#| 
+#|     return messages
+#| 
+#| 
+#| def decode_email_part(part: Any) -> str:
+#|     try:
+#|         payload = part.get_payload(decode=True)
+#|     except Exception:
+#|         return ""
+#| 
+#|     if isinstance(payload, bytes):
+#|         charset = part.get_content_charset() or "utf-8"
+#|         try:
+#|             return payload.decode(charset, errors="replace")
+#|         except LookupError:
+#|             return payload.decode("utf-8", errors="replace")
+#| 
+#|     return str(payload or "")
+#| 
+#| 
+#| def strip_html(text: str) -> str:
+#|     text = re.sub(r"(?is)<script.*?>.*?</script>", " ", text)
+#|     text = re.sub(r"(?is)<style.*?>.*?</style>", " ", text)
+#|     text = re.sub(r"(?s)<[^>]+>", " ", text)
+#|     return re.sub(r"\s+", " ", text).strip()
+#| 
+#| 
+#| def first_message_id_from_header(value: Optional[str]) -> Optional[str]:
+#|     if not value:
+#|         return None
+#|     m = re.search(r"<([^>]+)>", value)
+#|     return m.group(1) if m else value.strip()
+#| 
+#| 
+#| def parse_mbox_communications(path: Path, source_id: str, case_id: str, task_id: str) -> List[Dict[str, Any]]:
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:20_000_000]
+#|     mb = mailbox.mboxString(raw)
+#| 
+#|     messages = []
+#|     for idx, msg in enumerate(mb):
+#|         if idx >= 5000:
+#|             break
+#| 
+#|         message_id = msg.get("Message-ID") or msg.get("message-id") or f"MSG-MBOX-{idx}"
+#|         sender = msg.get("From")
+#|         to = msg.get("To")
+#|         cc = msg.get("Cc")
+#|         bcc = msg.get("Bcc")
+#|         date = msg.get("Date")
+#|         subject = msg.get("Subject") or ""
+#|         references = msg.get("References")
+#|         in_reply_to = msg.get("In-Reply-To")
+#| 
+#|         first_ref = first_message_id_from_header(references)
+#|         reply_id = first_message_id_from_header(in_reply_to)
+#|         thread_id = first_ref or reply_id or message_id
+#| 
+#|         body_parts: List[str] = []
+#|         attachment_refs: List[Dict[str, str]] = []
+#| 
+#|         if msg.is_multipart():
+#|             for part in msg.walk():
+#|                 if part.is_multipart():
+#|                     continue
+#| 
+#|                 filename = part.get_filename()
+#|                 disposition = part.get_content_disposition()
+#|                 content_type = part.get_content_type()
+#|                 maintype = part.get_content_maintype()
+#|                 subtype = part.get_content_subtype()
+#| 
+#|                 if filename or disposition == "attachment":
+#|                     attachment_refs.append(
+#|                         {
+#|                             "filename": str(filename or "unnamed"),
+#|                             "content_type": str(content_type),
+#|                             "note": "metadata_only_not_extracted",
+#|                         }
+#|                     )
+#|                     continue
+#| 
+#|                 if maintype == "text" and subtype in {"plain", "html"}:
+#|                     text = decode_email_part(part)
+#|                     if subtype == "html":
+#|                         text = strip_html(text)
+#|                     if text:
+#|                         body_parts.append(text)
+#|         else:
+#|             maintype = msg.get_content_maintype()
+#|             subtype = msg.get_content_subtype()
+#|             if maintype == "text" and subtype in {"plain", "html"}:
+#|                 text = decode_email_part(msg)
+#|                 if subtype == "html":
+#|                     text = strip_html(text)
+#|                 body_parts.append(text)
+#|             else:
+#|                 attachment_refs.append(
+#|                     {
+#|                         "filename": str(msg.get_filename() or "unnamed"),
+#|                         "content_type": str(msg.get_content_type()),
+#|                         "note": "metadata_only_not_extracted",
+#|                     }
+#|                 )
+#| 
+#|         content = "\n".join([subject] + body_parts).strip()
+#| 
+#|         receivers = []
+#|         for value in [to, cc, bcc]:
+#|             receivers.extend(as_list(value))
+#| 
+#|         messages.append(
+#|             make_message(
+#|                 case_id=case_id,
+#|                 task_id=task_id,
+#|                 source_id=source_id,
+#|                 platform="email",
+#|                 source_type="authorized_email_export",
+#|                 message_id=message_id,
+#|                 thread_id=thread_id,
+#|                 sender_account=sender,
+#|                 receiver_accounts=receivers,
+#|                 channel_id=None,
+#|                 timestamp_original=date,
+#|                 content=content,
+#|                 attachment_references=attachment_refs,
+#|                 reply_to=reply_id,
+#|                 forwarded_from=None,
+#|                 quoted_message=None,
+#|                 message_type="email",
+#|             )
+#|         )
+#| 
+#|     return messages
+#| 
+#| 
+#| def parse_text_communications(path: Path, source_id: str, case_id: str, task_id: str) -> List[Dict[str, Any]]:
+#|     raw = path.read_text(encoding="utf-8", errors="replace")[:20_000_000]
+#|     lines = raw.splitlines()
+#| 
+#|     messages = []
+#|     for idx, line in enumerate(lines[:20000]):
+#|         m = CHAT_LINE_RE.match(line.strip())
+#|         if not m:
+#|             continue
+#| 
+#|         sender = (m.group("sender") or "").strip()
+#|         content = (m.group("content") or "").strip()
+#|         timestamp = m.group("ts1") or m.group("ts2") or m.group("ts3")
+#| 
+#|         if not sender and not content:
+#|             continue
+#| 
+#|         messages.append(
+#|             make_message(
+#|                 case_id=case_id,
+#|                 task_id=task_id,
+#|                 source_id=source_id,
+#|                 platform="text_chat_export",
+#|                 source_type="authorized_chat_export_or_public_transcript",
+#|                 message_id=f"MSG-TXT-{idx}",
+#|                 thread_id=None,
+#|                 sender_account=sender or "UNKNOWN_PARTICIPANT",
+#|                 receiver_accounts=[],
+#|                 channel_id=None,
+#|                 timestamp_original=timestamp,
+#|                 content=content,
+#|                 attachment_references=[],
+#|                 reply_to=None,
+#|                 forwarded_from=None,
+#|                 quoted_message=None,
+#|                 message_type="chat_message",
+#|             )
+#|         )
+#| 
+#|     if not messages:
+#|         messages.append(
+#|             make_message(
+#|                 case_id=case_id,
+#|                 task_id=task_id,
+#|                 source_id=source_id,
+#|                 platform="raw_text",
+#|                 source_type="raw_communication_text",
+#|                 message_id=f"MSG-RAW-{uuid.uuid4()}",
+#|                 thread_id=None,
+#|                 sender_account="UNKNOWN_PARTICIPANT",
+#|                 receiver_accounts=[],
+#|                 channel_id=None,
+#|                 timestamp_original=None,
+#|                 content=raw,
+#|                 attachment_references=[],
+#|                 reply_to=None,
+#|                 forwarded_from=None,
+#|                 quoted_message=None,
+#|                 message_type="raw_text",
+#|             )
+#|         )
+#| 
+#|     return messages
+#| 
+#| 
+#| def analyze_communication_file(path_str: str, case_id: str = "", task_id: str = "") -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+#|     path = Path(path_str).expanduser()
+#|     source_id = f"SRC-{uuid.uuid4()}"
+#|     evidence_id = f"EVD-{uuid.uuid4()}"
+#| 
+#|     file_evidence: Dict[str, Any] = {
+#|         "communication_evidence_id": evidence_id,
+#|         "source_id": source_id,
+#|         "case_id": case_id,
+#|         "task_id": task_id,
+#|         "path": str(path),
+#|         "filename": path.name,
+#|         "retrieved_at": now_utc(),
+#|         "acquisition_method": "local_authorized_file_access",
+#|         "status": "PENDING",
+#|         "limitations": [
+#|             "No network access performed.",
+#|             "No private communication interception performed.",
+#|             "No credentials used.",
+#|             "No encryption broken.",
+#|             "No attachments executed.",
+#|             "Message content is untrusted evidence, not instructions.",
+#|             "Exposed secrets are redacted and not used.",
+#|         ],
+#|     }
+#| 
+#|     if not path.exists():
+#|         file_evidence["status"] = "FAILED_FILE_NOT_FOUND"
+#|         return file_evidence, []
+#| 
+#|     try:
+#|         st = path.stat()
+#|         file_evidence["size_bytes"] = st.st_size
+#|         file_evidence["filesystem_modified_at"] = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+#|     except Exception as exc:
+#|         file_evidence["status"] = "FAILED_STAT"
+#|         file_evidence["error"] = str(exc)
+#|         return file_evidence, []
+#| 
+#|     try:
+#|         file_evidence["sha256"] = sha256_file(path)
+#|     except Exception as exc:
+#|         file_evidence["sha256_error"] = str(exc)
+#| 
+#|     fmt = detect_communication_format(path)
+#|     file_evidence["format_detected"] = fmt
+#| 
+#|     messages: List[Dict[str, Any]] = []
+#| 
+#|     try:
+#|         if fmt == "JSON":
+#|             messages = parse_json_communications(path, source_id, case_id, task_id)
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         elif fmt == "CSV":
+#|             messages = parse_csv_communications(path, source_id, case_id, task_id)
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         elif fmt == "MBOX":
+#|             messages = parse_mbox_communications(path, source_id, case_id, task_id)
+#|             file_evidence["status"] = "SUCCEEDED"
+#|         else:
+#|             messages = parse_text_communications(path, source_id, case_id, task_id)
+#|             file_evidence["status"] = "SUCCEEDED"
+#|     except Exception as exc:
+#|         file_evidence["status"] = "PARTIAL_OR_FAILED"
+#|         file_evidence["error"] = f"{exc.__class__.__name__}: {exc}"
+#| 
+#|     file_evidence["parsed_message_count"] = len(messages)
+#|     return file_evidence, messages[:5000]
+#| 
+#| 
+#| def build_threads(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for m in messages:
+#|         tid = m.get("thread_id") or "NO_THREAD_ID"
+#|         groups[tid].append(m)
+#| 
+#|     threads = []
+#|     for tid, msgs in groups.items():
+#|         sorted_msgs = sorted(
+#|             msgs,
+#|             key=lambda x: (
+#|                 x.get("timestamp_normalized") or "9999",
+#|                 x.get("timestamp_original") or "",
+#|                 x.get("message_id") or "",
+#|             ),
+#|         )
+#| 
+#|         ids = {m.get("message_id") for m in sorted_msgs}
+#|         missing_parents = []
+#|         for m in sorted_msgs:
+#|             rt = m.get("reply_to")
+#|             if rt and rt not in ids:
+#|                 missing_parents.append({"message_id": m.get("message_id"), "missing_parent_id": rt})
+#| 
+#|         gaps = []
+#|         for a, b in zip(sorted_msgs, sorted_msgs[1:]):
+#|             da = parse_dt_safe(a.get("timestamp_normalized"))
+#|             db = parse_dt_safe(b.get("timestamp_normalized"))
+#|             if da and db:
+#|                 delta = (db - da).total_seconds()
+#|                 if delta > 86400:
+#|                     gaps.append(
+#|                         {
+#|                             "from_message_id": a.get("message_id"),
+#|                             "to_message_id": b.get("message_id"),
+#|                             "seconds_gap": delta,
+#|                             "status": "UNKNOWN_GAP_CANDIDATE",
+#|                         }
+#|                     )
+#| 
+#|         threads.append(
+#|             {
+#|                 "thread_id": tid,
+#|                 "message_count": len(sorted_msgs),
+#|                 "message_ids": [m.get("message_id") for m in sorted_msgs][:200],
+#|                 "participants": sorted(
+#|                     unique_preserve_order(
+#|                         [m.get("sender_account") for m in sorted_msgs]
+#|                         + [r for m in sorted_msgs for r in m.get("receiver_accounts", [])]
+#|                     )
+#|                 )[:100],
+#|                 "first_timestamp": sorted_msgs[0].get("timestamp_normalized") if sorted_msgs else None,
+#|                 "last_timestamp": sorted_msgs[-1].get("timestamp_normalized") if sorted_msgs else None,
+#|                 "missing_parent_candidates": missing_parents[:50],
+#|                 "sequence_gap_candidates": gaps[:50],
+#|                 "identity_resolution": "ACCOUNTS_ONLY_NO_PERSON_MERGE",
+#|             }
+#|         )
+#| 
+#|     return threads[:200]
+#| 
+#| 
+#| def build_patterns(messages: List[Dict[str, Any]], threads: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     day_counts: Counter = Counter()
+#|     for m in messages:
+#|         ts = m.get("timestamp_normalized")
+#|         if ts:
+#|             day_counts[ts[:10]] += 1
+#| 
+#|     bursts = [
+#|         {
+#|             "date": day,
+#|             "message_count": count,
+#|             "status": "COMMUNICATION_BURST_CANDIDATE",
+#|             "caution": "Burst is behavioral metadata, not proof of coordination.",
+#|         }
+#|         for day, count in day_counts.most_common(50)
+#|         if count >= 5
+#|     ]
+#| 
+#|     response_times = []
+#|     for thread in threads:
+#|         thread_msgs = [m for m in messages if m.get("thread_id") == thread.get("thread_id")]
+#|         thread_msgs = sorted(thread_msgs, key=lambda x: x.get("timestamp_normalized") or "9999")
+#|         for a, b in zip(thread_msgs, thread_msgs[1:]):
+#|             if a.get("sender_account") == b.get("sender_account"):
+#|                 continue
+#|             da = parse_dt_safe(a.get("timestamp_normalized"))
+#|             db = parse_dt_safe(b.get("timestamp_normalized"))
+#|             if da and db:
+#|                 delta = (db - da).total_seconds()
+#|                 if 0 < delta < 7 * 86400:
+#|                     response_times.append(
+#|                         {
+#|                             "thread_id": thread.get("thread_id"),
+#|                             "from_message_id": a.get("message_id"),
+#|                             "to_message_id": b.get("message_id"),
+#|                             "seconds": delta,
+#|                         }
+#|                     )
+#| 
+#|     rt_values = [x["seconds"] for x in response_times]
+#|     response_summary = {
+#|         "count": len(rt_values),
+#|         "min_seconds": min(rt_values) if rt_values else None,
+#|         "max_seconds": max(rt_values) if rt_values else None,
+#|         "avg_seconds": sum(rt_values) / len(rt_values) if rt_values else None,
+#|         "caution": "Response time does not prove urgency, guilt, deception, or relationship strength.",
+#|     }
+#| 
+#|     return {
+#|         "messages_per_day": dict(day_counts.most_common(100)),
+#|         "communication_burst_candidates": bursts,
+#|         "response_time_summary": response_summary,
+#|         "response_time_samples": response_times[:100],
+#|     }
+#| 
+#| 
+#| def build_claims(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     claims = []
+#|     for m in messages:
+#|         preview = (m.get("content_reference", {}) or {}).get("preview_redacted", "")
+#|         if not preview:
+#|             continue
+#| 
+#|         claims.append(
+#|             {
+#|                 "claim_id": f"CLM-{uuid.uuid4()}",
+#|                 "message_id": m.get("message_id"),
+#|                 "sender_account": m.get("sender_account"),
+#|                 "statement": preview[:300],
+#|                 "subject": None,
+#|                 "predicate": None,
+#|                 "object_value": None,
+#|                 "timestamp": m.get("timestamp_normalized") or m.get("timestamp_original"),
+#|                 "evidence_id": m.get("source_id"),
+#|                 "verification_status": "UNVERIFIED_EXTERNAL_TRUTH",
+#|                 "supported_status": "STATEMENT_MADE_IN_PRESERVED_MESSAGE",
+#|                 "limitations": [
+#|                     "Message content is attributed writing/speech, not verified reality.",
+#|                     "Sender account is not verified person identity.",
+#|                     "Prompt-injection-like text is treated as untrusted evidence.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     claims, _ = truncate_list(claims, 300)
+#|     return claims
+#| 
+#| 
+#| def build_duplicate_clusters(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     buckets: Dict[str, List[str]] = defaultdict(list)
+#|     for m in messages:
+#|         h = (m.get("content_reference", {}) or {}).get("dedup_hash")
+#|         if h:
+#|             buckets[h].append(m.get("message_id"))
+#| 
+#|     clusters = []
+#|     for h, ids in buckets.items():
+#|         if len(ids) > 1:
+#|             clusters.append(
+#|                 {
+#|                     "cluster_id": f"DUP-{uuid.uuid4()}",
+#|                     "dedup_hash": h,
+#|                     "message_ids": ids[:100],
+#|                     "count": len(ids),
+#|                     "relationship": "DUPLICATE_OR_REPOST_CANDIDATE",
+#|                     "source_independence": "DEPENDENT",
+#|                     "caution": "Repeated messages are not independent confirmations.",
+#|                 }
+#|             )
+#| 
+#|     clusters, _ = truncate_list(clusters, 100)
+#|     return clusters
+#| 
+#| 
+#| def build_forward_chains(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     chains = []
+#|     for m in messages:
+#|         ff = m.get("forwarded_from")
+#|         if ff:
+#|             chains.append(
+#|                 {
+#|                     "message_id": m.get("message_id"),
+#|                     "forwarded_from": ff,
+#|                     "sender_account": m.get("sender_account"),
+#|                     "timestamp": m.get("timestamp_normalized") or m.get("timestamp_original"),
+#|                     "caution": "Forwarded text may have unknown origin, changed context, or partial content.",
+#|                 }
+#|             )
+#| 
+#|     chains, _ = truncate_list(chains, 200)
+#|     return chains
+#| 
+#| 
+#| def build_participants(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     accounts: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     def touch(account: str, role: str):
+#|         if not account:
+#|             return
+#|         item = accounts.setdefault(
+#|             account,
+#|             {
+#|                 "account_id": account,
+#|                 "entity_type": "ACCOUNT",
+#|                 "identity_state": "UNRESOLVED",
+#|                 "sent_message_count": 0,
+#|                 "received_message_count": 0,
+#|                 "thread_ids": set(),
+#|                 "limitations": [
+#|                     "Account identifier is not verified person identity.",
+#|                     "Account may be shared, automated, compromised, organizational, or pseudonymous.",
+#|                 ],
+#|             },
+#|         )
+#|         if role == "sender":
+#|             item["sent_message_count"] += 1
+#|         else:
+#|             item["received_message_count"] += 1
+#| 
+#|     for m in messages:
+#|         sender = m.get("sender_account")
+#|         touch(sender, "sender")
+#|         for r in m.get("receiver_accounts", []):
+#|             touch(r, "receiver")
+#|         if m.get("thread_id"):
+#|             if sender in accounts:
+#|                 accounts[sender]["thread_ids"].add(m.get("thread_id"))
+#|             for r in m.get("receiver_accounts", []):
+#|                 if r in accounts:
+#|                     accounts[r]["thread_ids"].add(m.get("thread_id"))
+#| 
+#|     out = []
+#|     for acc, data in accounts.items():
+#|         data = dict(data)
+#|         data["thread_ids"] = sorted(list(data["thread_ids"]))[:50]
+#|         out.append(data)
+#| 
+#|     out, _ = truncate_list(out, 300)
+#|     return out
+#| 
+#| 
+#| def build_attachments_summary(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     attachments = []
+#|     for m in messages:
+#|         for a in m.get("attachment_references", []):
+#|             if isinstance(a, dict):
+#|                 attachments.append(
+#|                     {
+#|                         "message_id": m.get("message_id"),
+#|                         "filename": a.get("filename"),
+#|                         "content_type": a.get("content_type"),
+#|                         "note": a.get("note", "metadata_only_not_extracted"),
+#|                     }
+#|                 )
+#|             else:
+#|                 attachments.append({"message_id": m.get("message_id"), "reference": str(a)})
+#| 
+#|     types = Counter([a.get("content_type") or "unknown" for a in attachments])
+#|     return {
+#|         "count": len(attachments),
+#|         "samples": attachments[:100],
+#|         "content_type_counts": dict(types.most_common(50)),
+#|         "handling": "Metadata only. Attachments were not executed or opened.",
+#|         "handoff": "Route to DOCINT / IMINT / VIDINT / AUDINT / MALWAREINT as appropriate.",
+#|     }
+#| 
+#| 
+#| def build_url_domain_summary(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     urls = []
+#|     domains = []
+#|     emails = []
+#|     hashtags = []
+#| 
+#|     for m in messages:
+#|         urls.extend(m.get("urls", []))
+#|         domains.extend(m.get("domains", []))
+#|         emails.extend(m.get("emails", []))
+#|         hashtags.extend(m.get("hashtags", []))
+#| 
+#|     return {
+#|         "urls": unique_preserve_order(urls)[:200],
+#|         "domains": unique_preserve_order(domains)[:200],
+#|         "emails": unique_preserve_order(emails)[:200],
+#|         "hashtags": unique_preserve_order(hashtags)[:200],
+#|         "handling": "Extracted as evidence references only. No links were visited.",
+#|         "handoff": "Route to WEBINT / DOMAININT / CTI / MALWAREINT as appropriate.",
+#|     }
+#| 
+#| 
+#| def build_topic_analysis(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     counts: Counter = Counter()
+#|     for m in messages:
+#|         for t in m.get("topics", []):
+#|             counts[t] += 1
+#| 
+#|     return {
+#|         "topic_counts": dict(counts.most_common(100)),
+#|         "caution": "Topic classification supports routing and segmentation, not intent or criminality inference.",
+#|     }
+#| 
+#| 
+#| def build_topic_shifts(threads: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     msg_by_id = {m.get("message_id"): m for m in messages}
+#|     shifts = []
+#| 
+#|     for thread in threads:
+#|         prev_topic = None
+#|         for mid in thread.get("message_ids", []):
+#|             m = msg_by_id.get(mid)
+#|             if not m:
+#|                 continue
+#|             topics = m.get("topics") or ["unknown"]
+#|             primary = topics[0]
+#|             if prev_topic and primary != prev_topic:
+#|                 shifts.append(
+#|                     {
+#|                         "thread_id": thread.get("thread_id"),
+#|                         "message_id": mid,
+#|                         "from_topic": prev_topic,
+#|                         "to_topic": primary,
+#|                         "status": "TOPIC_SHIFT_OBSERVATION",
+#|                         "caution": "Topic shift is structural, not intent evidence.",
+#|                     }
+#|                 )
+#|             prev_topic = primary
+#| 
+#|     shifts, _ = truncate_list(shifts, 200)
+#|     return shifts
+#| 
+#| 
+#| def build_source_assessments(files: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     assessments = []
+#| 
+#|     platform_counts: Counter = Counter()
+#|     source_type_counts: Counter = Counter()
+#|     for m in messages:
+#|         platform_counts[m.get("platform", "unknown")] += 1
+#|         source_type_counts[m.get("source_type", "unknown")] += 1
+#| 
+#|     for f in files:
+#|         reliability = "LOW"
+#|         if f.get("sha256") and f.get("status") == "SUCCEEDED":
+#|             reliability = "MODERATE"
+#| 
+#|         assessments.append(
+#|             {
+#|                 "source_id": f.get("source_id"),
+#|                 "evidence_id": f.get("communication_evidence_id"),
+#|                 "filename": f.get("filename"),
+#|                 "format": f.get("format_detected"),
+#|                 "parse_status": f.get("status"),
+#|                 "preliminary_reliability": reliability,
+#|                 "limitations": [
+#|                     "Parser success does not prove communication authenticity.",
+#|                     "Export provenance must be independently verified.",
+#|                     "Missing messages, edited exports, screenshots, and forwarded copies reduce reliability.",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     assessments.append(
+#|         {
+#|             "source_id": "AGGREGATE",
+#|             "platform_counts": dict(platform_counts.most_common(50)),
+#|             "source_type_counts": dict(source_type_counts.most_common(50)),
+#|             "preliminary_reliability": "MIXED_PENDING_PROVENANCE",
+#|             "limitations": ["Aggregate counts are structural observations, not truth assessments."],
+#|         }
+#|     )
+#| 
+#|     return assessments
+#| 
+#| 
+#| def build_observations(
+#|     files: List[Dict[str, Any]],
+#|     messages: List[Dict[str, Any]],
+#|     threads: List[Dict[str, Any]],
+#|     patterns: Dict[str, Any],
+#|     duplicates: List[Dict[str, Any]],
+#|     participants: List[Dict[str, Any]],
+#|     attachments: Dict[str, Any],
+#|     urls: Dict[str, Any],
+#| ) -> List[Dict[str, Any]]:
+#|     obs = []
+#| 
+#|     for f in files:
+#|         obs.append(
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"A local authorized communication export was accessed and hashed: {f.get('filename')}.",
+#|                 "evidence_id": f.get("communication_evidence_id"),
+#|                 "source_id": f.get("source_id"),
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "local_deterministic_file_hash",
+#|                 "limitations": "File hash does not prove message authenticity or external truth.",
+#|             }
+#|         )
+#| 
+#|     secret_flag_count = sum(1 for m in messages if m.get("secret_flags"))
+#|     injection_flag_count = sum(1 for m in messages if m.get("prompt_injection_flags"))
+#|     missing_ts_count = sum(1 for m in messages if not m.get("timestamp_normalized"))
+#|     unknown_sender_count = sum(1 for m in messages if m.get("sender_account") == "UNKNOWN_PARTICIPANT")
+#| 
+#|     obs.extend(
+#|         [
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(messages)} messages were parsed from {len(files)} local communication export file(s).",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "safe_json_csv_mbox_text_parser",
+#|                 "limitations": "Parser output is normalized evidence, not verified external reality.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(threads)} thread groups were reconstructed from available thread/reply metadata.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_THREAD_RECONSTRUCTOR",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "thread_id_reply_to_grouping",
+#|                 "limitations": "Missing thread metadata may cause incomplete thread reconstruction.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(participants)} distinct account identifiers were observed. Identity remains unresolved.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PARTICIPANT_EXTRACTOR",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "sender_receiver_account_extraction",
+#|                 "limitations": "Account identifiers are not verified person identities.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{secret_flag_count} message(s) triggered secret-redaction flags. Values were redacted and not used.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_SECRET_REDACTOR",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "regex_secret_redaction",
+#|                 "limitations": "Redaction is heuristic and not a substitute for full DLP.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{injection_flag_count} message(s) contained prompt-injection-like text. Content was treated as untrusted evidence.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PROMPT_INJECTION_GUARD",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "regex_prompt_injection_detection",
+#|                 "limitations": "Message content cannot control the AI Employee.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{missing_ts_count} message(s) lack a normalized timestamp.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_TIMESTAMP_NORMALIZER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "timestamp_normalization",
+#|                 "limitations": "Missing timestamps reduce temporal confidence.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{unknown_sender_count} message(s) have unknown sender account metadata.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "sender_field_extraction",
+#|                 "limitations": "Unknown sender does not imply anonymity or identity.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(duplicates)} duplicate/repost cluster(s) were detected by normalized redacted content hash.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_DEDUPLICATION",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "normalized_content_hash_clustering",
+#|                 "limitations": "Duplicate clusters reduce source independence; they are not contradictions.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{attachments.get('count', 0)} attachment reference(s) were detected as metadata only.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_ATTACHMENT_METADATA_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "attachment_reference_extraction",
+#|                 "limitations": "Attachments were not executed or opened.",
+#|             },

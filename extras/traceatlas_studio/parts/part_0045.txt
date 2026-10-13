@@ -1,0 +1,1000 @@
+#|                 "event_id": e["event_id"],
+#|                 "recommended_source": "Sensor operational log, retention policy, alternate independent telemetry.",
+#|                 "specialist": "BEHAVINT / LOGINT",
+#|                 "expected_information_value": "Distinguish missing data from non-occurrence.",
+#|             })
+#| 
+#|     for a in anomalies:
+#|         if a.get("status") in {"CANDIDATE", "UNRESOLVED", "MISUSE_CANDIDATE_UNRESOLVED"}:
+#|             gaps.append({
+#|                 "gap_id": stable_id("GAP", "anomaly", a["anomaly_id"]),
+#|                 "type": "ANOMALY_UNRESOLVED",
+#|                 "importance": "HIGH" if a.get("severity") == "HIGH" else "MEDIUM",
+#|                 "anomaly_id": a["anomaly_id"],
+#|                 "recommended_source": "Independent telemetry, authorized context record, peer cohort, or endpoint/session correlation.",
+#|                 "specialist": "BEHAVINT / INCIDENTINT / FRAUDINT",
+#|                 "expected_information_value": "Test benign explanations before any serious hypothesis.",
+#|             })
+#| 
+#|     for c in coordination:
+#|         gaps.append({
+#|             "gap_id": stable_id("GAP", "coordination", c["coordination_id"]),
+#|             "type": "COORDINATION_UNRESOLVED",
+#|             "importance": "MEDIUM",
+#|             "coordination_id": c["coordination_id"],
+#|             "recommended_source": "Independent infrastructure, content, scheduling, or relationship evidence.",
+#|             "specialist": "BEHAVINT / RELATIONSHIPINT / CAMPAIGNINT",
+#|             "expected_information_value": "Distinguish synchronization from coordination or common control.",
+#|         })
+#| 
+#|     for pf in privacy_flags:
+#|         gaps.append({
+#|             "gap_id": stable_id("GAP", "privacy", pf.get("event_index"), pf.get("type")),
+#|             "type": "SENSITIVE_DATA_EXCLUDED",
+#|             "importance": "HIGH",
+#|             "event_index": pf.get("event_index"),
+#|             "recommended_source": "Do not seek sensitive traits/content/exact location unless exceptional lawful necessity and explicit policy permission.",
+#|             "specialist": "PRIVACY / HUMAN_REVIEW",
+#|             "expected_information_value": "Maintain privacy boundary.",
+#|         })
+#| 
+#|     return gaps[:500]
+#| 
+#| 
+#| def build_next_actions(gaps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     actions = []
+#|     priority_map = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+#| 
+#|     for g in gaps:
+#|         if g["type"] == "BASELINE_INSUFFICIENT":
+#|             action = "Extend clean baseline window, exclude contaminated periods, and compare peer cohort before escalating anomalies."
+#|         elif g["type"] == "SOURCE_COVERAGE_INCOMPLETE":
+#|             action = "Verify sensor operational status, retention, and alternate independent telemetry; absence of record is not absence of event."
+#|         elif g["type"] == "ANOMALY_UNRESOLVED":
+#|             action = "Test benign explanations: automation, role change, project, maintenance, shared account, data artifact, and source dependence."
+#|         elif g["type"] == "COORDINATION_UNRESOLVED":
+#|             action = "Seek independent infrastructure/content/relationship evidence before interpreting synchronization as coordination."
+#|         elif g["type"] == "SENSITIVE_DATA_EXCLUDED":
+#|             action = "Maintain privacy boundary; do not pursue sensitive traits, private content, or exact location."
+#|         else:
+#|             action = "Gather additional authorized observable evidence."
+#| 
+#|         actions.append({
+#|             "action": action,
+#|             "gap_id": g.get("gap_id"),
+#|             "priority": g.get("importance", "MEDIUM"),
+#|             "expected_information_value": g.get("expected_information_value"),
+#|             "prohibited_alternatives": [
+#|                 "Do not stalk or track private persons in real time.",
+#|                 "Do not perform biometric identification.",
+#|                 "Do not infer intent, motive, personality, mental health, religion, ethnicity, politics, health, or criminality.",
+#|                 "Do not generate dangerousness, criminality, or loyalty scores.",
+#|                 "Do not manipulate, coerce, or optimize persuasion against individuals.",
+#|                 "Do not make autonomous consequential employment, credit, insurance, or law-enforcement decisions.",
+#|             ],
+#|         })
+#| 
+#|     actions.sort(key=lambda x: priority_map.get(x.get("priority", "LOW"), 9))
+#|     return actions[:200]
+#| 
+#| 
+#| def build_handoffs(
+#|     manifest: Dict[str, Any],
+#|     events: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     coordination: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     blob = collect_user_intent_text(manifest).lower()
+#|     event_types = {e.get("event_type", "").lower() for e in events}
+#|     hands = []
+#| 
+#|     def add(spec: str, reason: str) -> None:
+#|         hands.append({
+#|             "specialist": spec,
+#|             "reason": reason,
+#|             "payload": ["entity_ids_masked", "event_ids", "anomaly_ids", "time_range", "source_ids", "known_facts", "unknowns", "limitations"],
+#|         })
+#| 
+#|     if any(x in t for t in event_types for x in ["login", "auth", "privilege", "admin", "endpoint", "network"]) or "cyber" in blob:
+#|         add("INCIDENTINT / CYBINT / LOGINT", "Cyber behavioural anomalies require incident/security specialist interpretation.")
+#|     if any(x in t for t in event_types for x in ["payment", "transaction", "transfer", "invoice"]) or "fraud" in blob:
+#|         add("FININT / FRAUDINT", "Transaction/payment behavioural patterns require financial/fraud specialist interpretation.")
+#|     if any(x in t for t in event_types for x in ["role", "hr", "employee", "org"]) or "role" in blob:
+#|         add("ORGINT", "Role/organizational context may explain behavioural drift.")
+#|     if coordination:
+#|         add("RELATIONSHIPINT / CAMPAIGNINT / NARRATIVEINT", "Coordination signals require relationship/campaign/narrative specialist analysis.")
+#|     if any(a.get("status") == "MISUSE_CANDIDATE_UNRESOLVED" for a in anomalies):
+#|         add("HUMAN_REVIEW", "Serious candidate requires authorized human review before any consequential action.")
+#|     return hands
+#| 
+#| 
+#| def dual_ai_review_stub(
+#|     anomalies: List[Dict[str, Any]],
+#|     baselines: List[Dict[str, Any]],
+#|     coordination: List[Dict[str, Any]],
+#| ) -> Dict[str, Any]:
+#|     review = {
+#|         "status": "INSUFFICIENT_EVIDENCE",
+#|         "primary_conclusions": [],
+#|         "skeptic_challenges": [],
+#|         "comparison": "NO_SECOND_MODEL_CONFIGURED",
+#|         "notes": [
+#|             "This starter does not call an independent second model.",
+#|             "AI agreement is not independent behavioural evidence.",
+#|             "Human review is required for consequential person-level or misconduct conclusions.",
+#|         ],
+#|     }
+#|     if any(b.get("quality", {}).get("confidence") in {"INSUFFICIENT", "LOW"} for b in baselines):
+#|         review["primary_conclusions"].append("Some baselines are weak.")
+#|         review["skeptic_challenges"].append("Do not escalate anomalies from weak baselines without independent context.")
+#|     if any(a.get("benign_explanations") for a in anomalies):
+#|         review["primary_conclusions"].append("Benign explanations were generated for some anomalies.")
+#|         review["skeptic_challenges"].append("Check whether benign context is authorized, contemporaneous, and independent.")
+#|     if coordination:
+#|         review["primary_conclusions"].append("Coordination candidates detected.")
+#|         review["skeptic_challenges"].append("Synchronization may be schedule/news/automation/shared service; do not infer common controller.")
+#|     if review["primary_conclusions"]:
+#|         review["status"] = "PARTIAL_AGREEMENT"
+#|     return review
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Result assembly
+#| # --------------------------------------------------------------------
+#| 
+#| def empty_result(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": manifest.get("case_id", "CASE-UNKNOWN"),
+#|         "task_id": manifest.get("task_id", "TASK-UNKNOWN"),
+#|         "objective": manifest.get("objective", ""),
+#|         "questions": manifest.get("questions", []) or [],
+#|         "generated_at": utc_now(),
+#|         "version": VERSION,
+#|         "source_ids": [],
+#|         "evidence_ids": [],
+#|         "entities": [],
+#|         "accounts": [],
+#|         "systems": [],
+#|         "devices": [],
+#|         "sessions": [],
+#|         "events": [],
+#|         "event_sequences": [],
+#|         "event_chains": [],
+#|         "baselines": [],
+#|         "baseline_quality": [],
+#|         "peer_groups": [],
+#|         "routines": [],
+#|         "patterns": [],
+#|         "periodicity": [],
+#|         "bursts": [],
+#|         "change_points": [],
+#|         "behavioral_drift": [],
+#|         "anomalies": [],
+#|         "anomaly_types": [],
+#|         "anomaly_scores": [],
+#|         "state_transitions": [],
+#|         "interaction_patterns": [],
+#|         "coordination_signals": [],
+#|         "campaign_behavior": [],
+#|         "transaction_behavior": [],
+#|         "cyber_behavior": [],
+#|         "organizational_context": [],
+#|         "source_coverage": [],
+#|         "data_completeness": [],
+#|         "timeline_updates": [],
+#|         "observations": [],
+#|         "candidate_facts": [],
+#|         "supported_facts": [],
+#|         "partial_facts": [],
+#|         "disputed_facts": [],
+#|         "source_reliability": [],
+#|         "source_bias": [],
+#|         "source_limitations": [],
+#|         "source_pedigree": [],
+#|         "source_independence": [],
+#|         "benign_explanations": [],
+#|         "contradictions": [],
+#|         "hypotheses": [],
+#|         "ach_matrix": [],
+#|         "falsification_results": [],
+#|         "privacy_flags": [],
+#|         "unknowns": [],
+#|         "knowledge_gaps": [],
+#|         "recommended_next_actions": [],
+#|         "specialist_handoffs": [],
+#|         "limitations": [],
+#|         "dual_ai_review": {},
+#|         "graph_memory": {},
+#|         "status": "PARTIAL",
+#|     }
+#| 
+#| 
+#| def summarize_event(e: Dict[str, Any], privacy_cfg: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "event_id": e["event_id"],
+#|         "entity_display": mask_entity(e["entity_id"], privacy_cfg.get("mask_entity_display", True)),
+#|         "entity_type": e.get("entity_type"),
+#|         "event_type": e.get("event_type"),
+#|         "action": e.get("action"),
+#|         "object": e.get("object"),
+#|         "target_display": mask_entity(e.get("target_entity"), privacy_cfg.get("mask_entity_display", True)) if e.get("target_entity") else None,
+#|         "session_id": e.get("session_id"),
+#|         "device_context": e.get("device_context"),
+#|         "location_context": e.get("location_context"),
+#|         "start_utc": iso(e.get("start_utc")),
+#|         "end_utc": iso(e.get("end_utc")),
+#|         "time_precision": e.get("time_precision"),
+#|         "timezone_state": e.get("timezone_state"),
+#|         "timestamp_type": e.get("timestamp_type"),
+#|         "source_ids": e.get("source_ids", []),
+#|         "source_coverage_state": e.get("source_coverage_state"),
+#|         "evidence_ids": e.get("evidence_ids", []),
+#|         "attributes": e.get("attributes", {}),
+#|         "limitations": e.get("limitations", []),
+#|     }
+#| 
+#| 
+#| def summarize_baseline(b: Dict[str, Any]) -> Dict[str, Any]:
+#|     stats = b.get("stats", {})
+#|     return {
+#|         "baseline_id": b["baseline_id"],
+#|         "baseline_type": b["baseline_type"],
+#|         "entity_display": mask_entity(b["entity_id"]),
+#|         "peer_group_id": b.get("peer_group_id"),
+#|         "training_start": iso(b.get("training_start")),
+#|         "training_end": iso(b.get("training_end")),
+#|         "evaluation_start": iso(b.get("evaluation_start")),
+#|         "evaluation_end": iso(b.get("evaluation_end")),
+#|         "sample_size": stats.get("event_count"),
+#|         "span_days": stats.get("span_days"),
+#|         "top_event_types": dict(Counter(stats.get("type_counts", {})).most_common(10)),
+#|         "hour_distribution": stats.get("hour_counts", {}),
+#|         "weekday_distribution": stats.get("dow_counts", {}),
+#|         "daily_mean": stats.get("daily_mean"),
+#|         "daily_std": stats.get("daily_std"),
+#|         "interval_median_seconds": stats.get("interval_median"),
+#|         "quality": b.get("quality", {}),
+#|         "limitations": b.get("limitations", []),
+#|     }
+#| 
+#| 
+#| def summarize_anomaly(a: Dict[str, Any]) -> Dict[str, Any]:
+#|     out = dict(a)
+#|     out["entity_display"] = mask_entity(a.get("entity_id"))
+#|     out.pop("entity_id", None)
+#|     return out
+#| 
+#| 
+#| def finalize_status(
+#|     result: Dict[str, Any],
+#|     events: List[Dict[str, Any]],
+#|     anomalies: List[Dict[str, Any]],
+#|     auth_ok: bool,
+#|     policy_blocked: List[str],
+#| ) -> str:
+#|     if policy_blocked:
+#|         return "POLICY_BLOCKED"
+#|     if not auth_ok:
+#|         return "BLOCKED_PERMISSION"
+#|     if not events:
+#|         return "INSUFFICIENT_INPUT"
+#|     if any(a.get("status") in {"MISUSE_CANDIDATE_UNRESOLVED", "CANDIDATE", "UNRESOLVED"} for a in anomalies):
+#|         return "PARTIAL"
+#|     if result.get("knowledge_gaps"):
+#|         return "PARTIAL"
+#|     return "SUCCEEDED"
+#| 
+#| 
+#| def analyze_behavint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     result = empty_result(manifest)
+#| 
+#|     policy_blocked = policy_screen(manifest)
+#|     if policy_blocked:
+#|         result["status"] = "POLICY_BLOCKED"
+#|         result["violations"] = policy_blocked
+#|         result["privacy_flags"] = [{"type": label, "action": "PROHIBITED_REQUEST_NOT_PERFORMED"} for label in policy_blocked]
+#|         result["limitations"] = [
+#|             "BEHAVINT does not stalk, track privately, biometrically identify, psychologically profile, lie-detect, infer sensitive traits, score dangerousness/criminality/loyalty, manipulate, or make autonomous consequential decisions."
+#|         ]
+#|         return result
+#| 
+#|     auth_ok, auth_reasons = authorization_check(manifest)
+#|     if not auth_ok:
+#|         result["status"] = "BLOCKED_PERMISSION"
+#|         result["limitations"] = auth_reasons
+#|         return result
+#| 
+#|     privacy_cfg = privacy_config(manifest)
+#|     sources = ingest_sources(manifest)
+#|     source_roots = build_source_roots(sources)
+#|     coverage_by_source = ingest_source_coverage(manifest)
+#|     contexts = ingest_contexts(manifest)
+#| 
+#|     events, privacy_flags = ingest_events(manifest, sources, coverage_by_source, privacy_cfg)
+#|     if not events:
+#|         result["status"] = "INSUFFICIENT_INPUT"
+#|         result["limitations"].append("No observable events provided.")
+#|         return result
+#| 
+#|     sessions, session_rule = sessionize(events, gap_minutes=float(manifest.get("session_gap_minutes", 30.0)))
+#|     baselines = build_baselines(manifest, events, contexts)
+#|     peer_baselines_by_entity = {
+#|         b["entity_id"]: b for b in baselines if b.get("baseline_type") == "PEER"
+#|     }
+#| 
+#|     anomalies = detect_anomalies(events, baselines)
+#|     enrich_anomalies(
+#|         anomalies,
+#|         {e["event_id"]: e for e in events},
+#|         contexts,
+#|         detect_periodicity(events),
+#|         peer_baselines_by_entity,
+#|         sources,
+#|         source_roots,
+#|     )
+#| 
+#|     periodicity = detect_periodicity(events)
+#|     routines = detect_routines(events)
+#|     bursts = detect_bursts(events)
+#|     change_points = detect_change_points(events)
+#|     drift = detect_behavioral_drift(events)
+#|     coordination = detect_coordination(events, sources, source_roots)
+#|     interactions = detect_interactions(events)
+#| 
+#|     patterns = periodicity + routines + bursts + change_points + drift + coordination + interactions
+#| 
+#|     apply_known_facts(anomalies, patterns, manifest.get("known_facts", []) or [])
+#|     hypotheses, ach_results = generate_hypotheses_and_ach(
+#|         anomalies,
+#|         {e["event_id"]: e for e in events},
+#|         periodicity,
+#|         peer_baselines_by_entity,
+#|     )
+#| 
+#|     observations = build_observations(events, sessions, baselines, anomalies, patterns, privacy_flags)
+#|     unknowns = build_unknowns(events, baselines, anomalies, coordination)
+#|     gaps = build_gaps(events, baselines, anomalies, coordination, privacy_flags)
+#|     actions = build_next_actions(gaps)
+#|     handoffs = build_handoffs(manifest, events, anomalies, coordination)
+#|     dual_review = dual_ai_review_stub(anomalies, baselines, coordination)
+#|     graph = build_graph_memory(events, sessions, baselines, anomalies, patterns, hypotheses, gaps)
+#| 
+#|     result["events"] = [summarize_event(e, privacy_cfg) for e in events]
+#|     result["sessions"] = sessions
+#|     result["sessionization_rule"] = session_rule
+#|     result["baselines"] = [summarize_baseline(b) for b in baselines]
+#|     result["baseline_quality"] = [{"baseline_id": b["baseline_id"], "quality": b.get("quality", {})} for b in baselines]
+#|     result["anomalies"] = [summarize_anomaly(a) for a in anomalies]
+#|     result["anomaly_types"] = [{"anomaly_id": a["anomaly_id"], "type": a["anomaly_type"]} for a in anomalies]
+#|     result["anomaly_scores"] = [{"anomaly_id": a["anomaly_id"], "score": a.get("statistical_score"), "method": a.get("method")} for a in anomalies]
+#|     result["periodicity"] = periodicity
+#|     result["routines"] = routines
+#|     result["bursts"] = bursts
+#|     result["change_points"] = change_points
+#|     result["behavioral_drift"] = drift
+#|     result["coordination_signals"] = coordination
+#|     result["interaction_patterns"] = interactions
+#|     result["patterns"] = patterns
+#|     result["hypotheses"] = hypotheses
+#|     result["ach_matrix"] = ach_results
+#|     result["falsification_results"] = [
+#|         {
+#|             "anomaly_id": r["anomaly_id"],
+#|             "status": r["status"],
+#|             "limitations": r["limitations"],
+#|         }
+#|         for r in ach_results
+#|     ]
+#|     result["benign_explanations"] = [
+#|         {"anomaly_id": a["anomaly_id"], "explanations": a.get("benign_explanations", [])}
+#|         for a in anomalies
+#|         if a.get("benign_explanations")
+#|     ]
+#|     result["observations"] = observations
+#|     result["unknowns"] = unknowns
+#|     result["knowledge_gaps"] = gaps
+#|     result["recommended_next_actions"] = actions
+#|     result["specialist_handoffs"] = handoffs
+#|     result["dual_ai_review"] = dual_review
+#|     result["graph_memory"] = graph.to_dict()
+#|     result["privacy_flags"] = privacy_flags
+#| 
+#|     for sid, src in sources.items():
+#|         result["source_ids"].append(sid)
+#|         result["source_reliability"].append({
+#|             "source_id": sid,
+#|             "source_type": src.get("source_type"),
+#|             "reliability": src.get("reliability"),
+#|         })
+#|         result["source_pedigree"].append({
+#|             "source_id": sid,
+#|             "upstream_source_id": src.get("upstream_source_id"),
+#|             "root_source_id": source_roots.get(sid, sid),
+#|         })
+#| 
+#|     for e in events:
+#|         for evid in e.get("evidence_ids", []):
+#|             result["evidence_ids"].append(evid)
+#|         result["data_completeness"].append({
+#|             "event_id": e["event_id"],
+#|             "source_coverage_state": e.get("source_coverage_state"),
+#|         })
+#| 
+#|     for a in anomalies:
+#|         result["source_independence"].append({
+#|             "anomaly_id": a["anomaly_id"],
+#|             "state": a.get("source_independence_state"),
+#|             "raw_source_count": a.get("raw_source_count"),
+#|             "independent_source_family_count": a.get("independent_source_family_count"),
+#|         })
+#|         if a.get("status") in {"BENIGN_EXPLANATION_SUPPORTED", "BENIGN_EXPLANATION_CANDIDATE"}:
+#|             result["partial_facts"].append({"anomaly_id": a["anomaly_id"], "statement": "Benign explanation candidate supported but not conclusive."})
+#|         elif a.get("status") == "REFUTED_BY_KNOWN_FACT":
+#|             result["disputed_facts"].append({"anomaly_id": a["anomaly_id"], "statement": "Anomaly candidate refuted by known fact."})
+#|         else:
+#|             result["candidate_facts"].append({"anomaly_id": a["anomaly_id"], "statement": "Behavioural anomaly candidate."})
+#| 
+#|     base_limits = [
+#|         "BEHAVINT starter uses only provided/local authorized observable records; no external network lookup was performed.",
+#|         "Observable behaviour is not intent, motive, personality, mental health, guilt, or criminality.",
+#|         "Account/device/session activity is not automatically attributed to a real person.",
+#|         "Anomaly means deviation from a baseline, not malice.",
+#|         "Coordination signals are candidates only and do not prove common controller, collusion, or conspiracy.",
+#|         "Weak or contaminated baselines produce weak anomaly conclusions.",
+#|         "Dependent/copied telemetry is not independent corroboration.",
+#|         "Absence of event in available telemetry is not proof the event did not occur.",
+#|         "No stalking, real-time private tracking, biometric identification, psychological profiling, lie detection, sensitive-trait inference, dangerousness scoring, manipulation, or autonomous consequential decision was performed.",
+#|     ]
+#|     if auth_reasons:
+#|         base_limits.extend(auth_reasons)
+#|     result["limitations"] = list(dict.fromkeys(base_limits))
+#| 
+#|     result["status"] = finalize_status(result, events, anomalies, auth_ok, policy_blocked)
+#|     return result
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Report generation
+#| # --------------------------------------------------------------------
+#| 
+#| def generate_report(result: Dict[str, Any]) -> str:
+#|     lines = []
+#|     lines.append("# BEHAVINT Evidence-Linked Report")
+#|     lines.append("")
+#|     lines.append(f"- Case ID: `{result.get('case_id')}`")
+#|     lines.append(f"- Task ID: `{result.get('task_id')}`")
+#|     lines.append(f"- Generated: `{result.get('generated_at')}`")
+#|     lines.append(f"- Version: `{result.get('version')}`")
+#|     lines.append(f"- Status: `{result.get('status')}`")
+#|     lines.append("")
+#| 
+#|     if result.get("status") == "POLICY_BLOCKED":
+#|         lines.append("## POLICY BLOCKED")
+#|         lines.append("The request violated BEHAVINT hard restrictions:")
+#|         for v in result.get("violations", []):
+#|             lines.append(f"- `{v}`")
+#|         lines.append("")
+#|         lines.append("No behavioural analysis was performed.")
+#|         return "\n".join(lines)
+#| 
+#|     lines.append("## Objective")
+#|     lines.append(str(result.get("objective", "")))
+#|     lines.append("")
+#| 
+#|     lines.append("## Required Analyst Summary")
+#|     events = result.get("events", [])
+#|     anomalies = result.get("anomalies", [])
+#|     baselines = result.get("baselines", [])
+#|     coordination = result.get("coordination_signals", [])
+#|     lines.append(f"- OBSERVABLE EVENTS: {len(events)}")
+#|     lines.append(f"- SESSIONS: {len(result.get('sessions', []))}")
+#|     lines.append(f"- BASELINES: {len(baselines)}")
+#|     lines.append(f"- ANOMALY CANDIDATES: {len(anomalies)}")
+#|     lines.append(f"- COORDINATION SIGNALS: {len(coordination)}")
+#|     lines.append(f"- BENIGN EXPLANATION ITEMS: {len(result.get('benign_explanations', []))}")
+#|     lines.append(f"- PRIVACY FLAGS: {len(result.get('privacy_flags', []))}")
+#|     lines.append(f"- UNKNOWN ITEMS: {len(result.get('unknowns', []))}")
+#|     lines.append("- ATTRIBUTION STATUS: ACCOUNT_LEVEL_ONLY; REAL_PERSON_ATTRIBUTION=NOT_PERFORMED")
+#|     lines.append("- INTENT STATUS: NOT_INFERRED")
+#|     lines.append("- NEXT ACTION: " + (result.get("recommended_next_actions", [{}])[0].get("action", "None") if result.get("recommended_next_actions") else "None"))
+#|     lines.append("")
+#| 
+#|     lines.append("## Privacy / Behavioural Boundaries")
+#|     lines.append("- Observable behaviour only; no mind reading, intent inference, motive inference, or psychological diagnosis.")
+#|     lines.append("- No stalking, real-time private tracking, biometric identification, or private-location inference.")
+#|     lines.append("- No sensitive-trait inference: religion, ethnicity, race, political belief, sexual orientation, health, mental health, disability.")
+#|     lines.append("- No dangerousness, criminality, loyalty, or predictive-policing scores.")
+#|     lines.append("- No manipulation, coercion, or persuasion optimization.")
+#|     lines.append("- Account/device/session activity is not automatically person activity.")
+#|     lines.append("")
+#| 
+#|     lines.append("## Source Coverage / Data Completeness")
+#|     coverage_counter = Counter(e.get("source_coverage_state", "UNKNOWN") for e in events)
+#|     lines.append("- Source coverage states: " + ", ".join(f"{k}={v}" for k, v in coverage_counter.most_common()))
+#|     lines.append("- Absence of record is not absence of event.")
+#|     lines.append("")
+#| 
+#|     lines.append("## Event Inventory")
+#|     for e in events[:200]:
+#|         lines.append(f"### `{e.get('event_id')}` — {e.get('event_type')}")
+#|         lines.append(f"- Entity: `{e.get('entity_display')}` type=`{e.get('entity_type')}`")
+#|         lines.append(f"- Time: `{e.get('start_utc')}` precision=`{e.get('time_precision')}` tz_state=`{e.get('timezone_state')}`")
+#|         lines.append(f"- Source coverage: `{e.get('source_coverage_state')}`")
+#|         if e.get("target_display"):
+#|             lines.append(f"- Target: `{e.get('target_display')}`")
+#|         if e.get("session_id"):
+#|             lines.append(f"- Session: `{e.get('session_id')}`")
+#|         if e.get("attributes"):
+#|             lines.append(f"- Attributes: `{json.dumps(e['attributes'], ensure_ascii=False)}`"[:500])
+#|         lines.append("")
+#| 
+#|     lines.append("## Sessions")
+#|     for s in result.get("sessions", [])[:100]:
+#|         lines.append(f"- `{s.get('session_id')}` entity=`{mask_entity(s.get('entity_id'))}` events={s.get('event_count')} start=`{iso(s.get('start_utc')) if isinstance(s.get('start_utc'), datetime) else s.get('start_utc')}` method=`{s.get('method')}`")
+#|     lines.append("")
+#| 
+#|     lines.append("## Baselines")
+#|     for b in baselines[:100]:
+#|         q = b.get("quality", {})
+#|         lines.append(f"### `{b.get('baseline_id')}`")
+#|         lines.append(f"- Entity: `{b.get('entity_display')}` type=`{b.get('baseline_type')}`")
+#|         lines.append(f"- Training: `{b.get('training_start')}` to `{b.get('training_end')}`")
+#|         lines.append(f"- Sample: `{b.get('sample_size')}` span_days=`{b.get('span_days')}`")
+#|         lines.append(f"- Quality: `{q.get('confidence')}` completeness=`{q.get('data_completeness')}` seasonality=`{q.get('seasonality')}`")
+#|         if q.get("contamination_contexts"):
+#|             lines.append(f"- Contamination contexts: {', '.join(q['contamination_contexts'])}")
+#|         lines.append("")
+#| 
+#|     lines.append("## Patterns")
+#|     for p in result.get("periodicity", [])[:100]:
+#|         lines.append(f"- Periodicity `{p.get('periodicity_id')}` entity=`{mask_entity(p.get('entity_id'))}` type=`{p.get('event_type')}` median_interval_s=`{p.get('median_interval_seconds')}` cv=`{p.get('coefficient_of_variation')}`")
+#|     for p in result.get("routines", [])[:100]:
+#|         lines.append(f"- Routine `{p.get('routine_id')}` entity=`{mask_entity(p.get('entity_id'))}` dominant_hour=`{p.get('dominant_hour_utc')}` dominant_weekday=`{p.get('dominant_weekday')}`")
+#|     for p in result.get("bursts", [])[:100]:
+#|         lines.append(f"- Burst `{p.get('burst_id')}` entity=`{mask_entity(p.get('entity_id'))}` date=`{p.get('date')}` z=`{p.get('z_score')}`")
+#|     for p in result.get("change_points", [])[:100]:
+#|         lines.append(f"- Change point `{p.get('change_point_id')}` entity=`{mask_entity(p.get('entity_id'))}` date=`{p.get('date')}` label=`{p.get('label')}` effect=`{p.get('effect_size')}`")
+#|     for p in result.get("behavioral_drift", [])[:100]:
+#|         lines.append(f"- Drift `{p.get('drift_id')}` entity=`{mask_entity(p.get('entity_id'))}` tv=`{p.get('type_distribution_tv_distance')}` interval_shift=`{p.get('interval_median_shift_ratio')}`")
+#|     lines.append("")
+#| 
+#|     lines.append("## Anomalies")
+#|     for a in anomalies[:200]:
+#|         lines.append(f"### `{a.get('anomaly_id')}`")
+#|         lines.append(f"- Entity: `{a.get('entity_display')}`")
+#|         lines.append(f"- Type: `{a.get('anomaly_type')}` severity=`{a.get('severity')}` confidence=`{a.get('confidence')}` status=`{a.get('status')}`")
+#|         lines.append(f"- Method: `{a.get('method')}` score=`{a.get('statistical_score')}`")
+#|         lines.append(f"- Baseline: `{a.get('baseline_id')}`")
+#|         lines.append(f"- Events: {', '.join(a.get('event_ids', [])[:20])}")
+#|         lines.append(f"- Source independence: `{a.get('source_independence_state')}` raw_sources=`{a.get('raw_source_count')}` independent_families=`{a.get('independent_source_family_count')}`")
+#|         if a.get("benign_explanations"):
+#|             lines.append("- Benign explanations:")
+#|             for exp in a["benign_explanations"][:10]:
+#|                 lines.append(f"  - {exp}")
+#|         if a.get("details"):
+#|             lines.append(f"- Details: `{json.dumps(a['details'], ensure_ascii=False, default=str)}`"[:700])
+#|         lines.append("")
+#| 
+#|     lines.append("## Coordination Signals")
+#|     for c in result.get("coordination_signals", [])[:100]:
+#|         lines.append(f"- `{c.get('coordination_id')}` entities={[mask_entity(x) for x in c.get('entities', [])]} count={c.get('synchronized_event_count')} independence=`{c.get('source_independence_state')}`")
+#|         for lim in c.get("limitations", [])[:3]:
+#|             lines.append(f"  - {lim}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Interaction Patterns")
+#|     for i in result.get("interaction_patterns", [])[:100]:
+#|         lines.append(f"- `{i.get('source_entity')}` -> `{i.get('target_entity')}` count={i.get('count')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Hypotheses / ACH")
+#|     for r in result.get("ach_matrix", [])[:100]:
+#|         lines.append(f"### Anomaly `{r.get('anomaly_id')}` status=`{r.get('status')}`")
+#|         for ev in r.get("evidence", [])[:20]:
+#|             lines.append(f"- Evidence `{ev.get('evidence_id')}` [{ev.get('type')}]: {ev.get('description')}")
+#|         for row in r.get("matrix", [])[:20]:
+#|             lines.append(f"  - {row.get('evidence_id')}: {json.dumps(row.get('assessments', {}), ensure_ascii=False)}"[:700])
+#|     lines.append("")
+#| 
+#|     lines.append("## Knowledge Gaps")
+#|     for g in result.get("knowledge_gaps", [])[:200]:
+#|         lines.append(f"- `{g.get('gap_id')}` [{g.get('importance')}] {g.get('type')}: {g.get('recommended_source')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Recommended Next Actions")
+#|     for a in result.get("recommended_next_actions", [])[:200]:
+#|         lines.append(f"- [{a.get('priority')}] {a.get('action')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Specialist Handoffs")
+#|     for h in result.get("specialist_handoffs", []):
+#|         lines.append(f"- {h.get('specialist')}: {h.get('reason')}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Dual-AI Review Stub")
+#|     dr = result.get("dual_ai_review", {})
+#|         lines.append(f"- Comparison: `{dr.get('comparison')}`")
+#|     for n in dr.get("notes", []):
+#|         lines.append(f"- {n}")
+#|     for c in dr.get("primary_conclusions", [])[:50]:
+#|         lines.append(f"- Primary: {c}")
+#|     for c in dr.get("skeptic_challenges", [])[:50]:
+#|         lines.append(f"- Skeptic: {c}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Limitations")
+#|     for lim in result.get("limitations", []):
+#|         lines.append(f"- {lim}")
+#|     lines.append("")
+#| 
+#|     lines.append("## Non-Negotiable Boundary")
+#|     lines.append("- Observe first.")
+#|     lines.append("- Normalize events and timestamps.")
+#|     lines.append("- Check source coverage before interpreting absence.")
+#|     lines.append("- Build a clean baseline before calling something anomalous.")
+#|     lines.append("- Test benign explanations before serious hypotheses.")
+#|     lines.append("- Separate account/device/session activity from real-person attribution.")
+#|     lines.append("- Separate anomaly from malice, intent, motive, guilt, personality, or criminality.")
+#|     lines.append("- Attribute last, and only with independent authorized evidence.")
+#| 
+#|     return "\n".join(lines)
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # CLI
+#| # --------------------------------------------------------------------
+#| 
+#| def main() -> int:
+#|     parser = argparse.ArgumentParser(description="TRACEATLAS BEHAVINT safe starter")
+#|     parser.add_argument("--manifest", required=True, help="Path to BEHAVINT manifest JSON")
+#|     parser.add_argument("--output", default="behavint_result.json", help="Output JSON path")
+#|     parser.add_argument("--report", default="behavint_report.md", help="Output Markdown report path")
+#|     args = parser.parse_args()
+#| 
+#|     try:
+#|         manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+#|     except Exception as exc:
+#|         print(f"ERROR reading manifest: {exc}", file=sys.stderr)
+#|         return 2
+#| 
+#|     result = analyze_behavint_manifest(manifest)
+#| 
+#|     Path(args.output).write_text(
+#|         json.dumps(json_safe(result), ensure_ascii=False, indent=2),
+#|         encoding="utf-8",
+#|     )
+#|     Path(args.report).write_text(generate_report(result), encoding="utf-8")
+#| 
+#|     print(f"Wrote: {args.output}")
+#|     print(f"Wrote: {args.report}")
+#|     return 0
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     raise SystemExit(main())
+#| 
+#| 
+#| 
+#| 
+#| 
+#| {
+#|   "case_id": "BEH-CASE-001",
+#|   "task_id": "BEH-TASK-001",
+#|   "objective": "Analyze authorized observable account behaviour, build baselines, detect routines, bursts, drift, and anomaly candidates, while testing benign explanations and avoiding person-level intent or guilt inference.",
+#|   "questions": [
+#|     "What observable activity patterns exist?",
+#|     "Are there routine or periodic behaviours?",
+#|     "Are there statistically unusual events relative to baseline?",
+#|     "What benign explanations could account for anomalies?",
+#|     "What remains unresolved?"
+#|   ],
+#|   "authorization": {
+#|     "approved": true,
+#|     "scope": "authorized_enterprise_telemetry",
+#|     "model_mode": "LOCAL_ONLY",
+#|     "cloud_approved": false,
+#|     "person_level_approved": false,
+#|     "privacy": {
+#|       "minimize_personal_data": true,
+#|       "mask_entity_display": true,
+#|       "hash_entities": false
+#|     }
+#|   },
+#|   "session_gap_minutes": 30,
+#|   "sources": [
+#|     {
+#|       "source_id": "S1",
+#|       "source_type": "application_log",
+#|       "reliability": 0.82
+#|     },
+#|     {
+#|       "source_id": "S2",
+#|       "source_type": "identity_log",
+#|       "reliability": 0.88
+#|     },
+#|     {
+#|       "source_id": "S3",
+#|       "source_type": "authorized_workflow",
+#|       "reliability": 0.80
+#|     }
+#|   ],
+#|   "source_coverage": [
+#|     {
+#|       "coverage_id": "COV-S1",
+#|       "source_id": "S1",
+#|       "coverage_start": "2026-10-01T00:00:00Z",
+#|       "coverage_end": "2026-10-09T23:59:59Z",
+#|       "operational": true
+#|     },
+#|     {
+#|       "coverage_id": "COV-S2",
+#|       "source_id": "S2",
+#|       "coverage_start": "2026-10-01T00:00:00Z",
+#|       "coverage_end": "2026-10-09T23:59:59Z",
+#|       "operational": true
+#|     },
+#|     {
+#|       "coverage_id": "COV-S3",
+#|       "source_id": "S3",
+#|       "coverage_start": "2026-10-05T00:00:00Z",
+#|       "coverage_end": "2026-10-09T23:59:59Z",
+#|       "operational": true
+#|     }
+#|   ],
+#|   "context": [
+#|     {
+#|       "context_id": "CTX-ROLE-CHANGE",
+#|       "context_type": "role_change",
+#|       "entity_ids": ["acct:user-a"],
+#|       "valid_from": "2026-10-06T00:00:00Z",
+#|       "valid_to": "2026-10-09T23:59:59Z",
+#|       "description": "Authorized role change to overnight migration support.",
+#|       "source_id": "S3"
+#|     },
+#|     {
+#|       "context_id": "CTX-MAINT",
+#|       "context_type": "maintenance",
+#|       "entity_ids": ["acct:svc-backup"],
+#|       "valid_from": "2026-10-08T01:00:00Z",
+#|       "valid_to": "2026-10-08T03:00:00Z",
+#|       "description": "Scheduled maintenance window.",
+#|       "source_id": "S3"
+#|     }
+#|   ],
+#|   "peer_groups": [
+#|     {
+#|       "peer_group_id": "PEER-OFFICE-ACCTS",
+#|       "entities": ["acct:user-a", "acct:user-b"],
+#|       "training_start": "2026-10-01T00:00:00Z",
+#|       "training_end": "2026-10-05T23:59:59Z"
+#|     }
+#|   ],
+#|   "events": [
+#|     {
+#|       "event_id": "E-A-001",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-01T09:05:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-A-002",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-01T09:15:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "12"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-003",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-02T09:03:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-A-004",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-02T09:20:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "10"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-005",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-03T09:10:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-A-006",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-03T09:25:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "15"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-007",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-04T09:00:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-A-008",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-04T09:18:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "11"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-009",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-05T09:07:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-A-010",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-05T09:22:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "13"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-011",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "BULK_DOWNLOAD",
+#|       "timestamp": "2026-10-07T02:14:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-alpha",
+#|         "volume": "9500"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-A-012",
+#|       "entity_id": "acct:user-a",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "PRIVILEGED_ACTION",
+#|       "timestamp": "2026-10-07T02:18:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "system:storage",
+#|         "volume": "1"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-B-001",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-01T10:00:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-B-002",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-01T10:10:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-beta",
+#|         "volume": "9"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-B-003",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-02T10:02:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-B-004",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-02T10:12:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-beta",
+#|         "volume": "8"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-B-005",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-03T10:01:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-B-006",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-03T10:14:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-beta",
+#|         "volume": "10"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-B-007",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-04T10:03:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-B-008",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-04T10:16:00Z",
+#|       "source_id": "S1",
+#|       "attributes": {
+#|         "object": "repo:project-beta",
+#|         "volume": "9"
+#|       }
+#|     },
+#|     {
+#|       "event_id": "E-B-009",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "LOGIN",
+#|       "timestamp": "2026-10-05T10:04:00Z",
+#|       "source_id": "S2",
+#|       "attributes": {}
+#|     },
+#|     {
+#|       "event_id": "E-B-010",
+#|       "entity_id": "acct:user-b",
+#|       "entity_type": "ACCOUNT",
+#|       "event_type": "FILE_ACCESS",
+#|       "timestamp": "2026-10-05T10:15:00Z",

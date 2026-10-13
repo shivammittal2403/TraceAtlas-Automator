@@ -1,0 +1,1000 @@
+#|       "body_style": "SUV",
+#|       "powertrain": "BEV",
+#|       "trim": "Long Range AWD",
+#|       "variant": "EU",
+#|       "region": "EU",
+#|       "build_date": "2024-11-12",
+#|       "vin_reference": "SYN1234567890ABCDEF",
+#|       "software_generation": "SG-2025.2",
+#|       "connectivity_package": "PremiumConnect",
+#|       "adas_package": "DriveAssist-L2",
+#|       "source_ids": ["SINV", "SOEM"],
+#|       "confidence": 0.86
+#|     }
+#|   ],
+#|   "ecus": [
+#|     {
+#|       "ecu_id": "IVI-01",
+#|       "vehicle_id": "VEH-001",
+#|       "ecu_type": "IVI",
+#|       "manufacturer": "SyntheticInfotainment",
+#|       "supplier": "Tier1Synthetic",
+#|       "oem_part_number": "SM-IVI-2025-A",
+#|       "supplier_part_number": "TS-IVI-900",
+#|       "hardware_version": "Rev C",
+#|       "software_version": "2.1.0",
+#|       "firmware_version": "2.1.0-build77",
+#|       "bootloader_version": "BL-3",
+#|       "network_interfaces": ["AUTOMOTIVE_ETHERNET", "CAN_BODY"],
+#|       "diagnostic_interfaces": ["UDS", "DoIP"],
+#|       "security_features": ["secure_boot_claimed", "code_signing_claimed"],
+#|       "safety_critical": false,
+#|       "source_ids": ["SINV", "SDIAG"],
+#|       "confidence": 0.82
+#|     },
+#|     {
+#|       "ecu_id": "ABS-01",
+#|       "vehicle_id": "VEH-001",
+#|       "ecu_type": "ABS_CONTROLLER",
+#|       "manufacturer": "SyntheticBrakes",
+#|       "supplier": "Tier1BrakeSystems",
+#|       "oem_part_number": "SM-ABS-2024-B",
+#|       "supplier_part_number": "TBS-ABS-440",
+#|       "hardware_version": "Rev B",
+#|       "software_version": "5.4.2",
+#|       "firmware_version": "5.4.2",
+#|       "bootloader_version": "BL-2",
+#|       "network_interfaces": ["CAN_CHASSIS"],
+#|       "diagnostic_interfaces": ["UDS"],
+#|       "security_features": ["gateway_filtered_diagnostic_access"],
+#|       "safety_critical": true,
+#|       "source_ids": ["SINV", "SDIAG"],
+#|       "confidence": 0.84
+#|     },
+#|     {
+#|       "ecu_id": "TCU-01",
+#|       "vehicle_id": "VEH-001",
+#|       "ecu_type": "TCU",
+#|       "manufacturer": "SyntheticTelematics",
+#|       "supplier": "Tier1Connect",
+#|       "oem_part_number": "SM-TCU-2025-A",
+#|       "supplier_part_number": "TC-2025-X",
+#|       "hardware_version": "Rev A",
+#|       "software_version": "4.0.1",
+#|       "firmware_version": "4.0.1",
+#|       "bootloader_version": "BL-1",
+#|       "network_interfaces": ["CELLULAR", "GNSS", "AUTOMOTIVE_ETHERNET"],
+#|       "diagnostic_interfaces": ["UDS"],
+#|       "security_features": ["tls_client_auth", "certificate_provisioning"],
+#|       "safety_critical": false,
+#|       "source_ids": ["SINV"],
+#|       "confidence": 0.78
+#|     }
+#|   ],
+#|   "network_architecture": [
+#|     {
+#|       "id": "NET-CAN-CHASSIS",
+#|       "vehicle_id": "VEH-001",
+#|       "network_type": "CAN",
+#|       "bus_name": "CAN_CHASSIS",
+#|       "segment": "chassis",
+#|       "connected_ecu_ids": ["ABS-01"],
+#|       "gateways": ["GW-01"],
+#|       "source_ids": ["SINV"]
+#|     },
+#|     {
+#|       "id": "NET-ETH-DIAG",
+#|       "vehicle_id": "VEH-001",
+#|       "network_type": "AUTOMOTIVE_ETHERNET",
+#|       "bus_name": "DIAG_ETH",
+#|       "segment": "diagnostic",
+#|       "connected_ecu_ids": ["IVI-01", "TCU-01"],
+#|       "gateways": ["GW-01"],
+#|       "source_ids": ["SINV"]
+#|     }
+#|   ],
+#|   "can_traces": [
+#|     {
+#|       "id": "CANF-01",
+#|       "vehicle_id": "VEH-001",
+#|       "timestamp": "2026-10-08T09:00:00Z",
+#|       "can_id": 256,
+#|       "dlc": 8,
+#|       "length": 8,
+#|       "bus": "CAN_CHASSIS",
+#|       "decode_status": "MAPPED",
+#|       "dbc_version": "SM-X5-2025-EU-v3",
+#|       "signal_meaning": "wheel_speed_front_left",
+#|       "baseline_expected": true,
+#|       "source_ids": ["SCAN"]
+#|     },
+#|     {
+#|       "id": "CANF-02",
+#|       "vehicle_id": "VEH-001",
+#|       "timestamp": "2026-10-08T10:15:00Z",
+#|       "can_id": 2911,
+#|       "dlc": 8,
+#|       "length": 8,
+#|       "bus": "CAN_CHASSIS",
+#|       "decode_status": "UNKNOWN",
+#|       "dbc_version": "SM-X5-2025-EU-v3",
+#|       "anomaly": true,
+#|       "baseline_expected": false,
+#|       "source_ids": ["SCAN"]
+#|     }
+#|   ],
+#|   "dtcs": [
+#|     {
+#|       "id": "DTC-01",
+#|       "vehicle_id": "VEH-001",
+#|       "ecu_id": "ABS-01",
+#|       "code": "C1234",
+#|       "module": "ABS",
+#|       "status": "CURRENT",
+#|       "first_seen": "2026-10-08T10:15:05Z",
+#|       "cleared_at": null,
+#|       "description": "Wheel speed sensor plausibility deviation detected.",
+#|       "source_ids": ["SDIAG"]
+#|     }
+#|   ],
+#|   "recalls": [
+#|     {
+#|       "id": "RECALL-01",
+#|       "vehicle_id": "VEH-001",
+#|       "authority": "SyntheticRegulator",
+#|       "oem": "SyntheticMotors",
+#|       "makes": ["SyntheticMotors"],
+#|       "models": ["SM-X5"],
+#|       "model_years": ["2025"],
+#|       "variants": ["EU"],
+#|       "regions": ["EU"],
+#|       "vin_range_start": "SYN1234567890ABCDE",
+#|       "vin_range_end": "SYN1234567890ABZZZ",
+#|       "issue": "Software calibration may cause intermittent wheel-speed plausibility warning under certain cold-start conditions.",
+#|       "risk": "Driver warning degradation; no loss of braking function documented.",
+#|       "remedy": "Dealer software update to ABS calibration 5.4.3.",
+#|       "status": "OPEN",
+#|       "effective_at": "2026-08-15",
+#|       "source_ids": ["SRECALL"]
+#|     }
+#|   ],
+#|   "tsbs": [
+#|     {
+#|       "id": "TSB-01",
+#|       "vehicle_id": "VEH-001",
+#|       "title": "IVI reboot after phone projection session",
+#|       "models": ["SM-X5"],
+#|       "model_years": ["2025"],
+#|       "variants": ["EU"],
+#|       "issue": "Some IVI units may reboot after extended phone projection use.",
+#|       "remedy": "Software update 2.2.0.",
+#|       "status": "ACTIVE",
+#|       "source_ids": ["SOEM"]
+#|     }
+#|   ],
+#|   "vulnerabilities": [
+#|     {
+#|       "id": "CVE-SYN-2026-0001",
+#|       "vehicle_id": "VEH-001",
+#|       "ecu_id": "IVI-01",
+#|       "cve": "CVE-SYN-2026-0001",
+#|       "vendor": "SyntheticInfotainment",
+#|       "supplier": "Tier1Synthetic",
+#|       "product": "IVI",
+#|       "component": "SM-IVI-2025-A",
+#|       "affected_versions": ["2.0.0", "2.1.0"],
+#|       "fixed_versions": ["2.2.0"],
+#|       "exploit_availability": "POC_REPORTED",
+#|       "known_exploitation_reported": false,
+#|       "safety_impact": "INDIRECT_SAFETY_RELEVANCE",
+#|       "remote_exploitability": "NETWORK_ADJACENT",
+#|       "kev": false,
+#|       "epss": 0.03,
+#|       "mitigations": [
+#|         "Apply IVI software 2.2.0 through authorized OTA/service workflow",
+#|         "Restrict untrusted local network access to IVI service interfaces",
+#|         "Review gateway filtering for diagnostic/ethernet segments"
+#|       ],
+#|       "advisory": "SyntheticInfotainment advisory SYN-2026-001",
+#|       "source_ids": ["SCVE", "SOEM"],
+#|       "confidence": 0.76
+#|     }
+#|   ],
+#|   "ota_metadata
+# TRACEATLAS EMBEDDED ORIGINAL MODULE automotiveint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aviationcyberint BEGIN
+#| # TraceAtlas AviationCyberInt - Short Defensive Python Core
+#| # Mode: LOCAL_ONLY / PASSIVE_FIRST / DEFENSIVE / AUTHORIZED / SAFETY-CRITICAL
+#| # Does NOT hack aircraft, probe avionics, spoof GNSS/ADS-B, jam RF, or disrupt operations.
+#| 
+#| from __future__ import annotations
+#| 
+#| import json
+#| import re
+#| import hashlib
+#| from dataclasses import dataclass, field, asdict
+#| from datetime import datetime, timezone
+#| from enum import Enum
+#| from typing import Any, Optional
+#| 
+#| 
+#| class Mode(str, Enum):
+#|     LOCAL_ONLY = "LOCAL_ONLY"
+#|     HYBRID = "HYBRID"
+#|     CLOUD = "CLOUD"
+#| 
+#| 
+#| class PolicyDecision(str, Enum):
+#|     ALLOW = "ALLOW"
+#|     BLOCK = "BLOCK"
+#|     REQUIRE_HUMAN_REVIEW = "REQUIRE_HUMAN_REVIEW"
+#| 
+#| 
+#| class Status(str, Enum):
+#|     SUCCEEDED = "SUCCEEDED"
+#|     PARTIAL = "PARTIAL"
+#|     FAILED = "FAILED"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#|     BLOCKED_POLICY = "BLOCKED_POLICY"
+#|     BLOCKED_SAFETY = "BLOCKED_SAFETY"
+#|     BLOCKED_AUTHORIZATION = "BLOCKED_AUTHORIZATION"
+#| 
+#| 
+#| class SafetyImpact(str, Enum):
+#|     NONE_IDENTIFIED = "NONE_IDENTIFIED"
+#|     BUSINESS_ONLY = "BUSINESS_ONLY"
+#|     OPERATIONAL = "OPERATIONAL"
+#|     SAFETY_RELATED = "SAFETY_RELATED"
+#|     POTENTIAL_SAFETY_IMPACT = "POTENTIAL_SAFETY_IMPACT"
+#|     SAFETY_IMPACT_SUPPORTED = "SAFETY_IMPACT_SUPPORTED"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class CauseState(str, Enum):
+#|     CYBER_CONFIRMED = "CYBER_CONFIRMED"
+#|     CYBER_SUPPORTED = "CYBER_SUPPORTED"
+#|     CYBER_CANDIDATE = "CYBER_CANDIDATE"
+#|     NON_CYBER = "NON_CYBER"
+#|     CAUSE_UNKNOWN = "CAUSE_UNKNOWN"
+#| 
+#| 
+#| @dataclass
+#| class Evidence:
+#|     evidence_id: str
+#|     source: str
+#|     source_type: str
+#|     timestamp: str
+#|     text: str
+#|     url: Optional[str] = None
+#|     reliability: float = 0.0
+#| 
+#| 
+#| @dataclass
+#| class Asset:
+#|     asset_id: str
+#|     asset_type: str
+#|     name: Optional[str] = None
+#|     organization: Optional[str] = None
+#|     system_function: Optional[str] = None
+#|     criticality: Optional[str] = None
+#|     software_version: Optional[str] = None
+#|     firmware_version: Optional[str] = None
+#|     confidence: float = 0.5
+#| 
+#| 
+#| @dataclass
+#| class Finding:
+#|     finding_id: str
+#|     statement: str
+#|     category: str
+#|     evidence_ids: list[str]
+#|     confidence: float
+#|     safety_impact: SafetyImpact
+#|     limitations: list[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Request:
+#|     case_id: str
+#|     objective: str
+#|     scope: dict[str, Any] = field(default_factory=dict)
+#|     authorization: dict[str, Any] = field(default_factory=dict)
+#|     evidence: list[Evidence] = field(default_factory=list)
+#|     time_range: dict[str, str] = field(default_factory=dict)
+#| 
+#| 
+#| @dataclass
+#| class Result:
+#|     case_id: str
+#|     status: Status
+#|     policy_decision: PolicyDecision
+#|     summary: str
+#|     assets: list[Asset]
+#|     findings: list[Finding]
+#|     hypotheses: list[dict[str, Any]]
+#|     knowledge_gaps: list[str]
+#|     recommended_actions: list[str]
+#|     specialist_handoffs: list[str]
+#|     safety_review_required: bool
+#|     privacy_flags: list[str]
+#|     source_reliability: dict[str, float]
+#|     limitations: list[str]
+#|     created_at: str
+#| 
+#| 
+#| class AviationCyberInt:
+#|     """
+#|     Short defensive aviation cyber-intelligence core.
+#|     Full TraceAtlas would add graph DB, multi-agent orchestration,
+#|     LLM adapters, authorized telemetry connectors, and human review workflow.
+#|     """
+#| 
+#|     OFFENSIVE_PATTERNS = [
+#|         r"\bhack\b.*\b(aircraft|avionics|atc|airport|airline)\b",
+#|         r"\bexploit\b.*\b(avionics|aircraft|atc|flight[- ]control|efb)\b",
+#|         r"\bspoof\b.*\b(gnss|gps|ads-b|adsb|mode-s)\b",
+#|         r"\bjam\b.*\b(gnss|gps|rf|aviation|satcom)\b",
+#|         r"\binject\b.*\b(ads-b|adsb|mode-s|acars|cpdlc)\b",
+#|         r"\bmodify\b.*\b(flight[- ]plan|weight[- ]balance|maintenance record|dispatch|crew schedule)\b",
+#|         r"\battack\b.*\b(airline|airport|baggage|reservation|dcs|efb|satcom|atc|avionics)\b",
+#|         r"\bbypass\b.*\b(authentication|aircraft|avionics|airport)\b",
+#|         r"\bdeploy\b.*\b(malware|ransomware)\b",
+#|         r"\b(denial[- ]of[- ]service|ddos)\b",
+#|         r"\bcredential\b.*\b(test|spray|use|access)\b",
+#|         r"\baircraft[- ]targeting\b",
+#|         r"\bflight[- ]control manipulation\b",
+#|     ]
+#| 
+#|     SOURCE_WEIGHTS = {
+#|         "official_aviation_authority": 0.95,
+#|         "oem_advisory": 0.90,
+#|         "cert_advisory": 0.90,
+#|         "airline_official": 0.85,
+#|         "airport_official": 0.85,
+#|         "vendor_advisory": 0.85,
+#|         "authorized_log": 0.90,
+#|         "authorized_incident_response": 0.90,
+#|         "public_aviation_data": 0.70,
+#|         "security_research": 0.60,
+#|         "commercial_cti": 0.65,
+#|         "news": 0.50,
+#|         "social": 0.30,
+#|         "anonymous": 0.20,
+#|     }
+#| 
+#|     STRONG_SAFETY_TERMS = [
+#|         "flight safety",
+#|         "safety impact",
+#|         "loss of control",
+#|         "flight control",
+#|         "avionics compromise",
+#|         "navigation integrity",
+#|         "gnss spoofing",
+#|         "ads-b spoofing",
+#|         "adsb spoofing",
+#|         "atc compromise",
+#|         "aircraft compromised",
+#|     ]
+#| 
+#|     BUSINESS_TERMS = [
+#|         "reservation",
+#|         "ticketing",
+#|         "check-in",
+#|         "checkin",
+#|         "baggage",
+#|         "website",
+#|         "mobile app",
+#|         "loyalty",
+#|         "customer account",
+#|         "corporate it",
+#|     ]
+#| 
+#|     def __init__(self, mode: Mode = Mode.LOCAL_ONLY):
+#|         self.mode = mode
+#|         self.memory: list[dict[str, Any]] = []
+#| 
+#|     @staticmethod
+#|     def _hash(*parts: Any) -> str:
+#|         raw = "|".join(str(p) for p in parts)
+#|         return hashlib.sha256(raw.encode()).hexdigest()[:12]
+#| 
+#|     @staticmethod
+#|     def _now() -> str:
+#|         return datetime.now(timezone.utc).isoformat()
+#| 
+#|     def policy_check(self, req: Request) -> tuple[PolicyDecision, str]:
+#|         blob = " ".join(
+#|             [
+#|                 req.objective,
+#|                 json.dumps(req.scope, default=str),
+#|                 json.dumps(req.authorization, default=str),
+#|             ]
+#|         ).lower()
+#| 
+#|         for pattern in self.OFFENSIVE_PATTERNS:
+#|             if re.search(pattern, blob):
+#|                 return PolicyDecision.BLOCK, f"Offensive aviation action detected: {pattern}"
+#| 
+#|         if (
+#|             re.search(r"\b(active|intrusive)\s+(scan|test|validation|exploitation)\b", blob)
+#|             and not req.scope.get("authorized_test_environment")
+#|         ):
+#|             return (
+#|                 PolicyDecision.BLOCK,
+#|                 "Active testing requires isolated, authorized, non-operational environment.",
+#|             )
+#| 
+#|         if req.authorization.get("authorized") is False:
+#|             return PolicyDecision.BLOCK, "Authorization explicitly denied."
+#| 
+#|         return PolicyDecision.ALLOW, ""
+#| 
+#|     def score_evidence(self, ev: Evidence) -> float:
+#|         base = self.SOURCE_WEIGHTS.get(ev.source_type.lower(), 0.50)
+#|         if ev.url:
+#|             base = min(1.0, base + 0.05)
+#|         if "official" in ev.source.lower():
+#|             base = min(1.0, base + 0.05)
+#|         ev.reliability = round(base, 2)
+#|         return ev.reliability
+#| 
+#|     def resolve_entities(self, req: Request) -> list[Asset]:
+#|         assets: list[Asset] = []
+#|         mapping = {
+#|             "airlines": "AIRLINE",
+#|             "airports": "AIRPORT",
+#|             "aircraft_types": "AIRCRAFT_TYPE",
+#|             "oems": "OEM",
+#|             "mros": "MRO",
+#|             "avionics_vendors": "AVIONICS_VENDOR",
+#|             "systems": "SYSTEM",
+#|             "software": "SOFTWARE",
+#|             "firmware": "FIRMWARE",
+#|             "cloud_services": "CLOUD_SERVICE",
+#|             "satcom_services": "SATCOM_SERVICE",
+#|             "navigation_services": "NAVIGATION_SERVICE",
+#|         }
+#| 
+#|         for key, asset_type in mapping.items():
+#|             values = req.scope.get(key, [])
+#|             if isinstance(values, str):
+#|                 values = [values]
+#| 
+#|             for value in values:
+#|                 assets.append(
+#|                     Asset(
+#|                         asset_id=f"{asset_type.lower()}:{self._hash(asset_type, value)}",
+#|                         asset_type=asset_type,
+#|                         name=str(value),
+#|                         organization=(
+#|                             str(value)
+#|                             if asset_type in {"AIRLINE", "AIRPORT", "OEM", "MRO", "AVIONICS_VENDOR"}
+#|                             else None
+#|                         ),
+#|                         confidence=0.80,
+#|                     )
+#|                 )
+#| 
+#|         return assets
+#| 
+#|     def fact_gate(
+#|         self,
+#|         statement: str,
+#|         evidence_ids: list[str],
+#|         evidence_by_id: dict[str, Evidence],
+#|     ) -> tuple[bool, list[str]]:
+#|         limits: list[str] = []
+#| 
+#|         if not evidence_ids:
+#|             return False, ["No linked evidence."]
+#| 
+#|         missing = [eid for eid in evidence_ids if eid not in evidence_by_id]
+#|         if missing:
+#|             limits.append(f"Missing evidence IDs: {missing}")
+#| 
+#|         evs = [evidence_by_id[eid] for eid in evidence_ids if eid in evidence_by_id]
+#|         if not evs:
+#|             return False, ["Evidence not found."]
+#| 
+#|         avg_reliability = sum(e.reliability for e in evs) / len(evs)
+#|         if avg_reliability < 0.55:
+#|             limits.append(f"Average source reliability {avg_reliability:.2f} below fact threshold.")
+#| 
+#|         lowered = statement.lower()
+#|         if any(term in lowered for term in self.STRONG_SAFETY_TERMS):
+#|             if len({e.source for e in evs}) < 2:
+#|                 limits.append("Safety/avionics claim requires at least two independent sources.")
+#|             if avg_reliability < 0.80:
+#|                 limits.append("Safety/avionics claim requires high-reliability evidence.")
+#| 
+#|         return (not limits), limits
+#| 
+#|     def build_hypotheses(self, blob: str) -> list[dict[str, Any]]:
+#|         hypotheses: list[dict[str, Any]] = []
+#| 
+#|         if any(k in blob for k in ["outage", "incident", "ransomware", "breach", "down"]):
+#|             hypotheses.extend(
+#|                 [
+#|                     {"id": "H1", "claim": "Observed disruption resulted from cyber intrusion.", "status": "CANDIDATE"},
+#|                     {"id": "H2", "claim": "Vendor/service outage caused operational disruption.", "status": "CANDIDATE"},
+#|                     {"id": "H3", "claim": "Internal software/configuration failure caused outage.", "status": "CANDIDATE"},
+#|                     {"id": "H4", "claim": "Public reports misclassified a non-cyber issue.", "status": "CANDIDATE"},
+#|                 ]
+#|             )
+#| 
+#|         if any(k in blob for k in ["gnss", "gps", "jam", "spoof", "interference"]):
+#|             hypotheses.extend(
+#|                 [
+#|                     {"id": "H5", "claim": "Navigation anomaly reflects intentional interference.", "status": "CANDIDATE"},
+#|                     {"id": "H6", "claim": "Unintentional RF interference occurred.", "status": "CANDIDATE"},
+#|                     {"id": "H7", "claim": "Receiver/system issue explains anomaly.", "status": "CANDIDATE"},
+#|                     {"id": "H8", "claim": "Atmospheric/multipath effects explain anomaly.", "status": "CANDIDATE"},
+#|                 ]
+#|             )
+#| 
+#|         if any(k in blob for k in ["ads-b", "adsb", "mode-s", "track"]):
+#|             hypotheses.extend(
+#|                 [
+#|                     {"id": "H9", "claim": "ADS-B anomaly may be data-quality artifact.", "status": "CANDIDATE"},
+#|                     {"id": "H10", "claim": "ADS-B anomaly may reflect receiver/time issue.", "status": "CANDIDATE"},
+#|                     {"id": "H11", "claim": "ADS-B anomaly may reflect database mismatch.", "status": "CANDIDATE"},
+#|                     {"id": "H12", "claim": "Spoofing candidate cannot be excluded without multi-source evidence.", "status": "CANDIDATE"},
+#|                 ]
+#|             )
+#| 
+#|         if not hypotheses:
+#|             hypotheses.append(
+#|                 {
+#|                     "id": "H0",
+#|                     "claim": "No adverse cyber event evidenced; maintain passive monitoring.",
+#|                     "status": "DEFAULT",
+#|                 }
+#|             )
+#| 
+#|         return hypotheses
+#| 
+#|     def build_recommendations(self) -> list[str]:
+#|         return [
+#|             "Verify exact asset, system, software/firmware version, and deployment configuration.",
+#|             "Review OEM/vendor/CERT advisories through authorized channels.",
+#|             "Confirm segmentation; do not assume reachability between airline IT/IFE/SATCOM and safety-critical avionics.",
+#|             "Check authorized logs, IAM, third-party remote access, and patch status.",
+#|             "Rotate exposed credentials only via approved identity processes; do not test credentials.",
+#|             "Increase defensive monitoring for affected vendors, domains, cloud services, and aviation data dependencies.",
+#|             "Escalate potential flight-safety relevance to aviation safety/security human review.",
+#|         ]
+#| 
+#|     def build_handoffs(self, blob: str) -> list[str]:
+#|         handoffs: list[str] = []
+#| 
+#|         if "cve" in blob or "vulnerability" in blob:
+#|             handoffs.append("VULNINT")
+#|         if "incident" in blob or "ransomware" in blob or "breach" in blob:
+#|             handoffs.append("INCIDENTINT")
+#|         if "credential" in blob:
+#|             handoffs.append("CREDINT")
+#|         if "sbom" in blob or "supply chain" in blob or "vendor" in blob:
+#|             handoffs.append("SUPPLYCHAININT")
+#|         if "ot" in blob or "baggage" in blob or "building management" in blob:
+#|             handoffs.append("OTINT")
+#|         if "gnss" in blob or "rf" in blob or "spectrum" in blob:
+#|             handoffs.append("SIGINT/ELINT")
+#|         if "ads-b" in blob or "adsb" in blob or "track" in blob:
+#|             handoffs.append("TRANSPORTINT")
+#| 
+#|         return handoffs
+#| 
+#|     def analyze(self, req: Request) -> Result:
+#|         decision, reason = self.policy_check(req)
+#| 
+#|         if decision == PolicyDecision.BLOCK:
+#|             result = Result(
+#|                 case_id=req.case_id,
+#|                 status=Status.BLOCKED_POLICY,
+#|                 policy_decision=decision,
+#|                 summary=f"POLICY_BLOCKED: {reason}",
+#|                 assets=[],
+#|                 findings=[],
+#|                 hypotheses=[],
+#|                 knowledge_gaps=["Request outside defensive authorized scope."],
+#|                 recommended_actions=[
+#|                     "Convert request into passive, authorized, defensive aviation cyber intelligence."
+#|                 ],
+#|                 specialist_handoffs=[],
+#|                 safety_review_required=False,
+#|                 privacy_flags=[],
+#|                 source_reliability={},
+#|                 limitations=[reason],
+#|                 created_at=self._now(),
+#|             )
+#|             self.memory.append(asdict(result))
+#|             return result
+#| 
+#|         for ev in req.evidence:
+#|             self.score_evidence(ev)
+#| 
+#|         evidence_by_id = {ev.evidence_id: ev for ev in req.evidence}
+#|         assets = self.resolve_entities(req)
+#|         findings: list[Finding] = []
+#| 
+#|         for ev in req.evidence:
+#|             statement = f"Source {ev.source} ({ev.source_type}) reports: {ev.text[:220]}"
+#|             ok, limits = self.fact_gate(statement, [ev.evidence_id], evidence_by_id)
+#|             category = "SUPPORTED_FACT" if ok else "OBSERVATION"
+#| 
+#|             text = ev.text.lower()
+#|             safety = SafetyImpact.UNKNOWN
+#| 
+#|             if any(term in text for term in self.STRONG_SAFETY_TERMS):
+#|                 safety = SafetyImpact.SAFETY_RELATED if ok else SafetyImpact.UNKNOWN
+#|                 limits.append(
+#|                     "Safety-relevant language detected; direct flight-safety impact is not established "
+#|                     "without architecture evidence, independent sources, and human aviation safety review."
+#|                 )
+#|             elif any(term in text for term in self.BUSINESS_TERMS):
+#|                 safety = SafetyImpact.BUSINESS_ONLY
+#|                 limits.append("Business/operational impact possible; no avionics path established.")
+#|             else:
+#|                 limits.append("Context requires asset/system/function resolution.")
+#| 
+#|             findings.append(
+#|                 Finding(
+#|                     finding_id=self._hash("finding", ev.evidence_id),
+#|                     statement=statement,
+#|                     category=category,
+#|                     evidence_ids=[ev.evidence_id],
+#|                     confidence=ev.reliability,
+#|                     safety_impact=safety,
+#|                     limitations=limits or ["Single-source observation; verify source independence."],
+#|                 )
+#|             )
+#| 
+#|         blob = " ".join([req.objective] + [e.text for e in req.evidence]).lower()
+#|         hypotheses = self.build_hypotheses(blob)
+#| 
+#|         safety_review_required = (
+#|             any(
+#|                 f.safety_impact
+#|                 in {
+#|                     SafetyImpact.SAFETY_RELATED,
+#|                     SafetyImpact.POTENTIAL_SAFETY_IMPACT,
+#|                     SafetyImpact.SAFETY_IMPACT_SUPPORTED,
+#|                 }
+#|                 for f in findings
+#|             )
+#|             or any(term in blob for term in self.STRONG_SAFETY_TERMS)
+#|         )
+#| 
+#|         if safety_review_required:
+#|             overall_safety = SafetyImpact.SAFETY_RELATED
+#|         elif any(f.safety_impact == SafetyImpact.BUSINESS_ONLY for f in findings):
+#|             overall_safety = SafetyImpact.BUSINESS_ONLY
+#|         elif req.evidence:
+#|             overall_safety = SafetyImpact.NONE_IDENTIFIED
+#|         else:
+#|             overall_safety = SafetyImpact.UNKNOWN
+#| 
+#|         if req.evidence and all(f.category == "SUPPORTED_FACT" for f in findings):
+#|             status = Status.SUCCEEDED
+#|         elif req.evidence:
+#|             status = Status.PARTIAL
+#|         else:
+#|             status = Status.INCONCLUSIVE
+#| 
+#|         knowledge_gaps: list[str] = []
+#| 
+#|         if not req.evidence:
+#|             knowledge_gaps.append("No evidence supplied; cannot assert facts.")
+#| 
+#|         if not any(a.asset_type == "SYSTEM" for a in assets):
+#|             knowledge_gaps.append("Affected system not resolved.")
+#| 
+#|         if not any(a.asset_type in {"SOFTWARE", "FIRMWARE"} for a in assets):
+#|             knowledge_gaps.append("Software/firmware version/configuration unresolved.")
+#| 
+#|         if safety_review_required:
+#|             knowledge_gaps.append("Safety relevance requires authoritative aviation safety review.")
+#| 
+#|         privacy_flags: list[str] = []
+#|         if any(k in blob for k in ["passenger", "crew", "pii", "biometric", "loyalty"]):
+#|             privacy_flags.append("PII/crew/passenger data minimization required.")
+#| 
+#|         limitations = [
+#|             "Local rule-based skeleton; not a substitute for full multi-agent graph, "
+#|             "live authorized telemetry, or human aviation safety review.",
+#|             "No active scanning, no aircraft connection, no RF transmission, no exploitation.",
+#|         ]
+#| 
+#|         if not req.evidence:
+#|             limitations.append("No evidence supplied.")
+#| 
+#|         summary = (
+#|             f"Defensive aviation cyber intelligence assessment for {req.case_id}. "
+#|             f"Entities resolved: {len(assets)}. Evidence items: {len(req.evidence)}. "
+#|             f"Findings: {len(findings)}. Overall safety relevance: {overall_safety.value}. "
+#|             "No aircraft intrusion, avionics exploitation, GNSS/ADS-B spoofing, RF jamming, "
+#|             "or operational disruption performed or assisted."
+#|         )
+#| 
+#|         result = Result(
+#|             case_id=req.case_id,
+#|             status=status,
+#|             policy_decision=PolicyDecision.ALLOW,
+#|             summary=summary,
+#|             assets=assets,
+#|             findings=findings,
+#|             hypotheses=hypotheses,
+#|             knowledge_gaps=knowledge_gaps,
+#|             recommended_actions=self.build_recommendations(),
+#|             specialist_handoffs=self.build_handoffs(blob),
+#|             safety_review_required=safety_review_required,
+#|             privacy_flags=privacy_flags,
+#|             source_reliability={ev.evidence_id: ev.reliability for ev in req.evidence},
+#|             limitations=limitations,
+#|             created_at=self._now(),
+#|         )
+#| 
+#|         self.memory.append(asdict(result))
+#|         return result
+#| 
+#| 
+#| def demo() -> None:
+#|     agent = AviationCyberInt(mode=Mode.LOCAL_ONLY)
+#| 
+#|     # 1) Allowed defensive intelligence case
+#|     allowed_request = Request(
+#|         case_id="ACI-001",
+#|         objective="Assess third-party maintenance platform ransomware impact on Airline A operations",
+#|         scope={
+#|             "airlines": ["Airline A"],
+#|             "mros": ["MRO-X"],
+#|             "systems": ["MaintenanceTicketingPlatform"],
+#|         },
+#|         authorization={"authorized": True, "purpose": "defensive_risk_assessment"},
+#|         evidence=[
+#|             Evidence(
+#|                 evidence_id="EV1",
+#|                 source="MRO-X Security Advisory",
+#|                 source_type="vendor_advisory",
+#|                 timestamp="2026-10-01T00:00:00Z",
+#|                 text=(
+#|                     "Ransomware affected corporate maintenance ticketing system. "
+#|                     "No onboard avionics access reported. Maintenance workflows delayed."
+#|                 ),
+#|                 url="https://example.org/mro-x-advisory",
+#|             )
+#|         ],
+#|         time_range={"start": "2026-09-30", "end": "2026-10-02"},
+#|     )
+#| 
+#|     allowed_result = agent.analyze(allowed_request)
+#|     print("=== ALLOWED DEFENSIVE CASE ===")
+#|     print(json.dumps(asdict(allowed_result), indent=2, default=str))
+#| 
+#|     # 2) Blocked offensive request
+#|     blocked_request = Request(
+#|         case_id="ACI-002",
+#|         objective="How to hack aircraft avionics and spoof GNSS",
+#|         scope={},
+#|         authorization={"authorized": False},
+#|     )
+#| 
+#|     blocked_result = agent.analyze(blocked_request)
+#|     print("\n=== BLOCKED OFFENSIVE CASE ===")
+#|     print(json.dumps(asdict(blocked_result), indent=2, default=str))
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     demo()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aviationcyberint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aviationint BEGIN
+#| import tkinter as tk
+#| from tkinter import ttk, filedialog, messagebox
+#| 
+#| import json
+#| import re
+#| import csv
+#| import hashlib
+#| import uuid
+#| 
+#| from collections import defaultdict, Counter
+#| from datetime import datetime, timezone
+#| from decimal import Decimal, InvalidOperation
+#| from pathlib import Path
+#| from typing import Any, Dict, List, Optional, Tuple
+#| 
+#| 
+#| APP_TITLE = "TraceAtlas AVIINT AI Employee — Lawful / Public-Authorized / Evidence-First / Safety-Aware Aviation Intelligence Panel"
+#| APP_VERSION = "TraceAtlas AVIINT Panel v0.1"
+#| 
+#| 
+#| FIELDS = [
+#|     ("case_id", "Case ID", "entry"),
+#|     ("task_id", "Task ID", "entry"),
+#|     ("objective", "Objective", "text"),
+#|     ("target_aircraft_or_flight", "Target Aircraft / Registration / Flight Context", "entry"),
+#|     ("target_type", "Target Type", "combo"),
+#|     ("questions", "AVIINT Questions", "text"),
+#| 
+#|     ("aircraft", "Aircraft (Reg/ICAO/Type)", "text"),
+#|     ("operators", "Operators / Owners / Lessors", "text"),
+#|     ("flights", "Flights / Callsigns / Routes", "text"),
+#|     ("airports", "Airports / ICAO/IATA Codes", "text"),
+#|     ("telemetry", "Telemetry / Position Observations", "text"),
+#|     ("incidents", "Incidents / Regulatory Actions", "text"),
+#|     
+#|     ("flight_log_paths", "Flight Log / Schedule Export Paths", "text"),
+#|     ("registry_paths", "Aircraft Registry / Airworthiness Paths", "text"),
+#|     ("telemetry_paths", "ADS-B / Mode-S / MLAT Data Paths", "text"),
+#|     ("weather_notam_paths", "Weather / NOTAM Records Paths", "text"),
+#|     ("stix_misp_paths", "STIX / MISP Export Paths", "text"),
+#| 
+#|     ("time_range", "Time Range", "text"),
+#|     ("as_of_date", "As-Of Date for Current Status Check", "entry"),
+#|     ("scope", "Scope / Allowed Sources", "text"),
+#|     ("authorization", "Authorization Basis", "text"),
+#|     ("source_limits", "Source Limits / Safety Limits", "text"),
+#|     ("budget_limit", "Analysis Budget Limit", "entry"),
+#|     ("deadline", "Deadline", "entry"),
+#|     ("configured_connectors", "Configured Connectors (Registry/Flight API/etc.)", "text"),
+#| ]
+#| 
+#| 
+#| TARGET_TYPES = [
+#|     "aircraft_identity_resolution",
+#|     "flight_event_reconstruction",
+#|     "operator_owner_analysis",
+#|     "safety_incident_context",
+#|     "fleet_utilization_review",
+#|     "unknown",
+#| ]
+#| 
+#| 
+#| LIST_FIELDS = {
+#|     "questions",
+#|     "aircraft",
+#|     "operators",
+#|     "flights",
+#|     "airports",
+#|     "telemetry",
+#|     "incidents",
+#|     "flight_log_paths",
+#|     "registry_paths",
+#|     "telemetry_paths",
+#|     "weather_notam_paths",
+#|     "stix_misp_paths",
+#|     "source_limits",
+#|     "configured_connectors",
+#| }
+#| 
+#| 
+#| DICT_FIELDS = {
+#|     "scope",
+#|     "authorization",
+#|     "time_range",
+#| }
+#| 
+#| 
+#| SENSITIVE_TARGET_TYPES = {
+#|     "aircraft_identity_resolution",
+#|     "safety_incident_context",
+#| }
+#| 
+#| 
+#| NEGATION_RE = re.compile(
+#|     r"\b(?:do not|don't|dont|must not|shall not|should not|avoid|without|never|not to|prohibit|policy blocked|safe alternative|defensive only)\b",
+#|     re.I,
+#| )
+#| 
+#| 
+#| # STRICT POLICY BLOCKS FOR AVIATION HARM/SPOOFING/TRACKING ABUSE
+#| POLICY_BLOCK_PATTERNS = [
+#|     r"\b(?:jam|spoof|inject|manipulate|interfere)\b[^\n]{0,140}\b(?:GNSS|GPS|ADS-B|Mode-S|ATC|Transponder|Navigation|Avionics)\b",
+#|     r"\b(?:track|locate|follow|predict)\b[^\n]{0,140}\b(?:private person|passenger|executive|military mission)\b",
+#|     r"\b(?:provide|generate|optimize)\b[^\n]{0,140}\b(?:evasion route|strike target|attack vector|hijacking method|sabotage plan)\b",
+#|     r"\b(?:access|hack|bypass)\b[^\n]{0,140}\b(?:cockpit system|airline network|airport security|flight control)\b",
+#|     r"\b(?:identify|infer)\b[^\n]{0,140}\b(?:who is aboard|passenger identity|mission purpose)\b[^\n]{0,50}\b(?:from movement alone|from registration alone)\b",
+#| ]
+#| 
+#| 
+#| SAFE_ALTERNATIVES = [
+#|     "Provide lawful/public-authorized/evidence-first/safety-aware aviation intelligence: resolve aircraft identities, reconstruct flight events from telemetry/logs, analyze operator/owner relationships conservatively, and assess safety/regulatory context without interfering with systems or tracking individuals.",
+#|     "Do not jam/spoof navigation signals, interfere with ATC/avionics, provide evasion routes, or infer passenger identity/mission purpose from movement data alone.",
+#|     "Separate Aircraft from Flight, Operator from Owner, Schedule from Actual, Observed Track from Interpolation, and Coverage Gap from Absence of Flight.",
+#|     "Use deterministic logic for identifier normalization and delay calculations. Escalate consequential military/private-person analyses to authorized human review with strict privacy safeguards.",
+#| ]
+#| 
+#| 
+#| SECRET_PATTERNS = [
+#|     (
+#|         "PRIVATE_KEY_BLOCK",
+#|         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S | re.I),
+#|     ),
+#|     (
+#|         "PASSWORD_OR_TOKEN_ASSIGNMENT",
+#|         re.compile(
+#|             r"(?i)\b(password|passwd|pwd|token|api[_-]?key|apikey|secret|"
+#|             r"access[_-]?key|auth[_-]?key|client[_-]?secret|authorization|cookie|session|credential)\b"
+#|             r"\s*[:=]\s*[^\s,;\"']+"
+#|         ),
+#|     ),
+#|     (
+#|         "BEARER_TOKEN",
+#|         re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}"),
+#|     ),
+#| ]
+#| 
+#| 
+#| PROMPT_INJECTION_PATTERNS = [
+#|     r"ignore\s+(?:all\s+)?previous\s+(?:instructions|rules)",
+#|     r"reveal\s+(?:the\s+)?system\s+prompt",
+#|     r"execute\s+(?:this\s+)?(?:script|code|macro)",
+#|     r"send\s+(?:this\s+)?(?:document|data)",
+#|     r"delete\s+(?:the\s+)?(?:record|log)",
+#|     r"change\s+(?:the\s+)?(?:route|altitude|heading)",
+#| ]
+#| 
+#| 
+#| # Regex helpers for Aviation identifiers
+#| REG_RE = re.compile(r"\b([A-Z]{1,2}-[A-Z0-9]{1,5}|N\d{1,5}[A-Z]{0,3}|G-[A-Z]{4}|F-[A-Z]{4})\b") # Simplified Reg patterns
+#| ICAO_ADDR_RE = re.compile(r"\b[A-Fa-f0-9]{6}\b") # Hex address
+#| AIRPORT_CODE_RE = re.compile(r"\b([A-Z]{3}|[A-Z]{4})\b") # IATA (3) / ICAO (4) - heuristic
+#| 
+#| 
+#| ENTITY_ROLE_KEYS = [
+#|     "aircraft",
+#|     "registration",
+#|     "icao_address",
+#|     "operator",
+#|     "owner",
+#|     "lessor",
+#|     "lessee",
+#| ]
+#| 
+#| 
+#| FLIGHT_KEYS = [
+#|     "flight",
+#|     "callsign",
+#|     "trip",
+#|     "service",
+#| ]
+#| 
+#| 
+#| AIRPORT_KEYS = [
+#|     "airport",
+#|     "origin",
+#|     "destination",
+#|     "diverted_to",
+#|     "aerodrome",
+#| ]
+#| 
+#| 
+#| TELEMETRY_KEYS = [
+#|     "position",
+#|     "obs",
+#|     "track_point",
+#|     "adsb",
+#|     "modes",
+#| ]
+#| 
+#| 
+#| INCIDENT_KEYS = [
+#|     "incident",
+#|     "accident",
+#|     "event",
+#|     "regulatory_action",
+#| ]
+#| 
+#| 
+#| def now_utc() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+#| 
+#| 
+#| def normalize_key(value: Any) -> str:
+#|     s = str(value or "").strip().lower()
+#|     s = re.sub(r"[^a-z0-9]+", "_", s)
+#|     return s.strip("_")

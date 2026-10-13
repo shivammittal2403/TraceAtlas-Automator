@@ -1,0 +1,1000 @@
+#|             "independent_code_skeptic_issues": issues,
+#|             "verdict": verdict,
+#|             "adversarial_checks": [
+#|                 "Is repository HEAD assumed to be production? No; deployment unknown.",
+#|                 "Is package presence assumed runtime reachable? No; reachability graph used.",
+#|                 "Is route existence assumed publicly reachable? No; deployment/network unknown.",
+#|                 "Is secret candidate treated as valid? No; not tested.",
+#|                 "Is README treated as implementation truth? No; drift preserved.",
+#|                 "Is SBOM treated as deployed artifact? No; conflict flagged.",
+#|                 "Were unknown code or secrets executed/used? No.",
+#|             ],
+#|             "note": "AI agreement is analytical agreement, not independent technical verification.",
+#|         }
+#| 
+#|     def analyst_summary(self, dual: Dict[str, Any]) -> str:
+#|         repo = next(iter(self.repositories.values()), None)
+#|         commit = self.commits.get(repo.current_commit) if repo else None
+#|         auth_findings = [f for f in self.findings.values() if f.finding_type == FindingType.ACCESS_CONTROL_GAP_CANDIDATE]
+#|         secret_findings = [f for f in self.findings.values() if f.finding_type == FindingType.SECRET_CANDIDATE]
+#| 
+#|         lines = [
+#|             f"REPOSITORY: {repo.name if repo else 'UNKNOWN'} at commit {commit.hash if commit else 'UNKNOWN'}.",
+#|             f"LANGUAGES: {', '.join(l.value for l in repo.languages) if repo else 'UNKNOWN'}.",
+#|             f"FRAMEWORKS: {', '.join(f.value for f in repo.frameworks) if repo else 'UNKNOWN'}.",
+#|             "ARCHITECTURE: FastAPI-like backend service with API routes, auth dependency module, database query helper, tests, CI, container build context.",
+#|             "",
+#|             "SECURITY FINDINGS:",
+#|         ]
+#| 
+#|         if auth_findings:
+#|             f = auth_findings[0]
+#|             lines.append(
+#|                 f"- {f.id}: {f.title}; state={f.state.value}; reachability={f.reachability.value}; "
+#|                 f"confidence={f.confidence}; production_impact=UNKNOWN."
+#|             )
+#|         else:
+#|             lines.append("- No access-control gap candidate identified.")
+#| 
+#|         if secret_findings:
+#|             f = secret_findings[0]
+#|             lines.append(
+#|                 f"- {f.id}: {f.title}; state={f.state.value}; secret validity=NOT_TESTED; raw value=NOT EXPOSED."
+#|             )
+#|         else:
+#|             lines.append("- No secret candidate identified.")
+#| 
+#|         lines.extend([
+#|             "",
+#|             "CONTRADICTIONS:",
+#|             f"- {len(self.contradictions)} open contradiction(s), including documentation/code and SBOM/lockfile conflicts.",
+#|             "",
+#|             "NOT ESTABLISHED:",
+#|             "- Production vulnerability.",
+#|             "- Exploitability.",
+#|             "- Real-world authorship or blame.",
+#|             "- Secret validity.",
+#|             "- Deployed artifact identity.",
+#|             "",
+#|             f"DUAL-AI REVIEW: {dual['verdict']}.",
+#|             "PRIVACY/POLICY: Defensive static-first analysis only. No private repo access, no secret use/testing, no unknown code execution, no exploit generation.",
+#|             "NEXT ACTION: Resolve deployed commit, hand off secret candidate to CREDINT, hand off access-control finding to VULNINT, regenerate SBOM, add authorization tests.",
+#|         ])
+#|         return "\n".join(lines)
+#| 
+#|     # -----------------------------------------------------------------
+#|     # Prepare
+#|     # -----------------------------------------------------------------
+#| 
+#|     def prepare(self) -> None:
+#|         self.detect_languages_and_frameworks()
+#|         self.resolve_dependencies()
+#|         self.reconcile_sbom()
+#|         self.compute_reachability()
+#|         self.detect_documentation_drift()
+#|         self.fact_gate_findings()
+#|         self.build_knowledge_gaps()
+#|         self.build_next_actions()
+#|         self.build_recommendations()
+#|         self.build_handoffs()
+#|         self.build_hypotheses()
+#| 
+#| 
+#| # =====================================================================
+#| # SAMPLE DATA
+#| # =====================================================================
+#| 
+#| def sample_case() -> Case:
+#|     return Case(
+#|         case_id="SAMPLE-CODEINT-001",
+#|         task_id="TASK-CODEINT-001",
+#|         objective=(
+#|             "Authorized static-first analysis of synthetic payments API repository to identify architecture, "
+#|             "dependencies, secret candidates, access-control gap candidates, provenance, SBOM conflicts, "
+#|             "documentation drift, and defensive remediation priorities without executing code or using secrets."
+#|         ),
+#|         questions=[
+#|             "What is this codebase?",
+#|             "Which languages/frameworks/components/services exist?",
+#|             "Which dependencies are direct/transitive and what versions are resolved?",
+#|             "Is the SBOM consistent with lockfile/source?",
+#|             "Which API routes exist and are they reachable from entrypoints?",
+#|             "Are there access-control gap candidates?",
+#|             "Are there secret candidates, and how are they handled safely?",
+#|             "What provenance/fork/similarity evidence exists?",
+#|             "What remains unknown about production impact?",
+#|             "What defensive next actions are justified?",
+#|         ],
+#|         scope=["authorized_source_only", "static_first", "case_scoped", "no_secret_use", "no_code_execution"],
+#|         authorization="demo_authorized_code_intelligence",
+#|         repositories=["REPO-PAYMENTS-API"],
+#|         commits=["C-HEAD"],
+#|         time_range="2026-09-01/2026-10-09",
+#|         sample=True,
+#|     )
+#| 
+#| 
+#| def build_sample_codeint() -> CodeInt:
+#|     c = CodeInt(sample_case())
+#|     retrieved = now_iso()
+#| 
+#|     # Sources
+#|     c.add_source(Source(
+#|         id="SRC-REPO",
+#|         title="Authorized repository snapshot: payments-api",
+#|         url="https://repo.example/payments-api",
+#|         source_type=SourceType.AUTHORIZED_REPO,
+#|         independence_group="REPO_ROOT",
+#|         reliability=0.95,
+#|         published_at="2026-10-08T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="Authorized source snapshot. Not live repository access.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-LOCK",
+#|         title="Lockfile artifact from repository snapshot",
+#|         url="https://repo.example/payments-api/poetry.lock",
+#|         source_type=SourceType.LOCKFILE,
+#|         independence_group="LOCK_DERIVED_REPO",
+#|         reliability=0.90,
+#|         derived_from="SRC-REPO",
+#|         published_at="2026-10-08T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="Lockfile provides resolved versions stronger than manifest ranges.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-SBOM",
+#|         title="SBOM export associated with build pipeline",
+#|         url="https://build.example/payments-api/sbom.cdx.json",
+#|         source_type=SourceType.SBOM,
+#|         independence_group="SBOM_DERIVED_BUILD",
+#|         reliability=0.75,
+#|         derived_from="SRC-REPO",
+#|         published_at="2026-10-07T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="SBOM may be build-specific and stale.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-README",
+#|         title="README documentation from repository snapshot",
+#|         url="https://repo.example/payments-api/README.md",
+#|         source_type=SourceType.DOCUMENTATION,
+#|         independence_group="DOC_DERIVED_REPO",
+#|         reliability=0.55,
+#|         derived_from="SRC-REPO",
+#|         published_at="2026-10-08T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="Documentation is a claim source, not implementation truth.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-CI",
+#|         title="CI configuration from repository snapshot",
+#|         url="https://repo.example/payments-api/.github/workflows/ci.yml",
+#|         source_type=SourceType.CI_CD_CONFIG,
+#|         independence_group="CI_DERIVED_REPO",
+#|         reliability=0.82,
+#|         derived_from="SRC-REPO",
+#|         published_at="2026-10-08T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="CI config is not actual pipeline execution evidence.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-TEST",
+#|         title="Authorized test result for analyzed commit",
+#|         url="https://ci.example/payments-api/test-results",
+#|         source_type=SourceType.TEST_RESULT,
+#|         independence_group="TEST_ROOT",
+#|         reliability=0.78,
+#|         published_at="2026-10-08T01:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="Test pass does not prove security.",
+#|     ))
+#|     c.add_source(Source(
+#|         id="SRC-UPSTREAM",
+#|         title="Upstream template repository metadata",
+#|         url="https://repo.example/fastapi-template",
+#|         source_type=SourceType.PUBLIC_REPO,
+#|         independence_group="UPSTREAM_REPO_ROOT",
+#|         reliability=0.85,
+#|         published_at="2026-01-01T00:00:00Z",
+#|         retrieved_at=retrieved,
+#|         notes="Used for fork/lineage context only.",
+#|     ))
+#| 
+#|     # Repository
+#|     c.add_repository(Repository(
+#|         id="REPO-PAYMENTS-API",
+#|         name="payments-api",
+#|         remote_reference="https://repo.example/payments-api",
+#|         visibility=Visibility.PRIVATE_AUTHORIZED,
+#|         default_branch="main",
+#|         current_commit="C-HEAD",
+#|         languages=[Language.PYTHON, Language.YAML, Language.TOML, Language.MARKDOWN, Language.DOCKERFILE],
+#|         frameworks=[Framework.FASTAPI, Framework.PYTEST],
+#|         build_systems=[BuildSystem.POETRY, BuildSystem.DOCKER, BuildSystem.GITHUB_ACTIONS],
+#|         package_managers=[PackageManager.POETRY],
+#|         components=["COMPONENT-API", "COMPONENT-AUTH", "COMPONENT-DB"],
+#|         services=["SERVICE-PAYMENTS-API"],
+#|         entrypoints=["SYM-APP"],
+#|         security_controls=["AUTHENTICATION_DEPENDENCY_PRESENT", "AUTHORIZATION_DEPENDENCY_PARTIAL", "TESTS_PRESENT"],
+#|         sources=["SRC-REPO", "SRC-LOCK", "SRC-SBOM", "SRC-README", "SRC-CI", "SRC-TEST"],
+#|         confidence=0.93,
+#|         limitations=[
+#|             "Repository snapshot is not deployed production artifact.",
+#|             "Private authorized source treated as confidential.",
+#|         ],
+#|     ))
+#| 
+#|     # Commits
+#|     c.add_commit(Commit(
+#|         id="C-HEAD",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         hash="abc123def456",
+#|         parents=["C-FIX-SECRET"],
+#|         author_metadata={"name": "CI Bot or configured author", "email": "bot@example.invalid"},
+#|         committer_metadata={"name": "CI Bot or configured committer", "email": "bot@example.invalid"},
+#|         timestamp="2026-10-08T00:00:00Z",
+#|         message="Update dependencies and remove historical secret-shaped placeholder.",
+#|         changed_files=["poetry.lock", "config/settings.py", "app/api/routes.py"],
+#|         signature_status="UNSIGNED",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-REPO-META"],
+#|         limitations=["Git author/committer metadata is not verified real-person identity."],
+#|     ))
+#|     c.add_commit(Commit(
+#|         id="C-SECRET",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         hash="111122223333",
+#|         parents=["C-ANCIENT"],
+#|         author_metadata={"name": "developer-configured", "email": "dev@example.invalid"},
+#|         committer_metadata={"name": "developer-configured", "email": "dev@example.invalid"},
+#|         timestamp="2026-03-01T00:00:00Z",
+#|         message="Add local configuration.",
+#|         changed_files=["config/settings.py"],
+#|         signature_status="UNSIGNED",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-HIST-SECRET"],
+#|         limitations=["Historical commit may contain secret-shaped candidate."],
+#|     ))
+#|     c.add_commit(Commit(
+#|         id="C-FIX-SECRET",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         hash="444455556666",
+#|         parents=["C-SECRET"],
+#|         author_metadata={"name": "maintainer-configured", "email": "maint@example.invalid"},
+#|         committer_metadata={"name": "maintainer-configured", "email": "maint@example.invalid"},
+#|         timestamp="2026-09-15T00:00:00Z",
+#|         message="Remove secret-shaped value from settings.",
+#|         changed_files=["config/settings.py"],
+#|         signature_status="UNSIGNED",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-HIST-SECRET"],
+#|         limitations=["Removal from HEAD does not equal revocation."],
+#|     ))
+#|     c.add_commit(Commit(
+#|         id="C-ROUTE-ADDED",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         hash="777788889999",
+#|         parents=["C-ANCIENT"],
+#|         author_metadata={"name": "developer-configured", "email": "dev@example.invalid"},
+#|         committer_metadata={"name": "developer-configured", "email": "dev@example.invalid"},
+#|         timestamp="2026-08-01T00:00:00Z",
+#|         message="Add user lookup route.",
+#|         changed_files=["app/api/routes.py"],
+#|         signature_status="UNSIGNED",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-ROUTES"],
+#|     ))
+#|     c.add_commit(Commit(
+#|         id="C-ANCIENT",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         hash="000011112222",
+#|         parents=[],
+#|         author_metadata={"name": "upstream-template", "email": "template@example.invalid"},
+#|         committer_metadata={"name": "upstream-template", "email": "template@example.invalid"},
+#|         timestamp="2025-01-01T00:00:00Z",
+#|         message="Initial template import.",
+#|         changed_files=["app/main.py", "app/utils.py"],
+#|         signature_status="UNSIGNED",
+#|         source_ids=["SRC-REPO", "SRC-UPSTREAM"],
+#|         evidence_ids=["EV-UPSTREAM"],
+#|     ))
+#| 
+#|     # Branch / Tag / Release
+#|     c.add_branch(Branch(
+#|         id="BRANCH-MAIN",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="main",
+#|         is_default=True,
+#|         head_commit_id="C-HEAD",
+#|         protected=True,
+#|         source_ids=["SRC-REPO"],
+#|     ))
+#|     c.add_tag(Tag(
+#|         id="TAG-V120",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="v1.2.0",
+#|         commit_id="C-HEAD",
+#|         annotated=True,
+#|         signature_status="UNSIGNED",
+#|         date="2026-10-08T00:00:00Z",
+#|         source_ids=["SRC-REPO"],
+#|     ))
+#|     c.add_release(Release(
+#|         id="REL-V120",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         version="1.2.0",
+#|         tag_id="TAG-V120",
+#|         artifact_hashes=["sha256:release-artifact-placeholder"],
+#|         publication_date="2026-10-08T01:00:00Z",
+#|         release_notes="Synthetic release notes.",
+#|         source_ids=["SRC-REPO"],
+#|         limitations=["Published release does not prove production deployment."],
+#|     ))
+#| 
+#|     # Files
+#|     file_defs = [
+#|         ("FILE-MAIN", "app/main.py", Language.PYTHON, "HIGH"),
+#|         ("FILE-ROUTES", "app/api/routes.py", Language.PYTHON, "HIGH"),
+#|         ("FILE-AUTH", "app/auth/deps.py", Language.PYTHON, "HIGH"),
+#|         ("FILE-DB", "app/db/query.py", Language.PYTHON, "MEDIUM"),
+#|         ("FILE-SETTINGS", "config/settings.py", Language.PYTHON, "HIGH"),
+#|         ("FILE-PYPROJECT", "pyproject.toml", Language.TOML, "MEDIUM"),
+#|         ("FILE-LOCK", "poetry.lock", Language.TEXT, "MEDIUM"),
+#|         ("FILE-SBOM", "sbom.cdx.json", Language.JSON, "MEDIUM"),
+#|         ("FILE-README", "README.md", Language.MARKDOWN, "LOW"),
+#|         ("FILE-DOCKER", "Dockerfile", Language.DOCKERFILE, "MEDIUM"),
+#|         ("FILE-CI", ".github/workflows/ci.yml", Language.YAML, "MEDIUM"),
+#|         ("FILE-TEST-HEALTH", "tests/test_health.py", Language.PYTHON, "LOW"),
+#|     ]
+#|     for fid, path, lang, sec in file_defs:
+#|         c.add_file(SourceFile(
+#|             id=fid,
+#|             repository_id="REPO-PAYMENTS-API",
+#|             commit_id="C-HEAD",
+#|             path=path,
+#|             language=lang,
+#|             size=1024,
+#|             security_relevance=sec,
+#|             test_status="TEST" if path.startswith("tests/") else "NOT_TEST",
+#|             configuration_status="CONFIG" if path.startswith("config/") or path in {"pyproject.toml", "poetry.lock", "sbom.cdx.json"} else "NOT_CONFIG",
+#|         ))
+#| 
+#|     # Evidence
+#|     c.add_evidence(Evidence(
+#|         id="EV-REPO-META",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path=None,
+#|         excerpt="Repository snapshot metadata: default branch main, current commit abc123def456, Python FastAPI-like service.",
+#|         parsed_fields={
+#|             "default_branch": "main",
+#|             "current_commit": "C-HEAD",
+#|             "languages": ["PYTHON"],
+#|             "frameworks": ["FASTAPI"],
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-MAIN",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="app/main.py",
+#|         symbol="SYM-APP",
+#|         start_line=1,
+#|         end_line=20,
+#|         excerpt="Application startup creates FastAPI app and includes API router.",
+#|         parsed_fields={
+#|             "entrypoint": True,
+#|             "framework": "FASTAPI",
+#|             "calls": ["SYM-INCLUDE-ROUTER"],
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-ROUTES",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="app/api/routes.py",
+#|         symbol="SYM-GET-USER",
+#|         start_line=12,
+#|         end_line=28,
+#|         excerpt="Route GET /users/{user_id} handled by get_user; handler calls fetch_user_by_id. No explicit authorization dependency observed on this route.",
+#|         parsed_fields={
+#|             "route": "/users/{user_id}",
+#|             "method": "GET",
+#|             "handler": "SYM-GET-USER",
+#|             "auth_dependency_observed": False,
+#|             "authorization_dependency_observed": False,
+#|             "calls": ["SYM-FETCH-USER"],
+#|             "input_sources": ["path_parameter:user_id"],
+#|             "sinks": ["database_query:fetch_user_by_id"],
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-AUTH",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="app/auth/deps.py",
+#|         symbol="SYM-REQUIRE-ADMIN",
+#|         start_line=5,
+#|         end_line=15,
+#|         excerpt="Authorization dependency require_admin exists and is used by some admin routes, but not observed on user lookup route.",
+#|         parsed_fields={
+#|             "authorization_control": "require_admin",
+#|             "used_by_routes": ["/admin/*"],
+#|             "not_used_by_routes": ["/users/{user_id}"],
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-DB",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="app/db/query.py",
+#|         symbol="SYM-FETCH-USER",
+#|         start_line=8,
+#|         end_line=18,
+#|         excerpt="Database helper fetch_user_by_id uses parameterized query pattern according to static parser.",
+#|         parsed_fields={
+#|             "parameterized_query_observed": True,
+#|             "input_sources": ["function_argument:user_id"],
+#|             "sinks": ["database_query"],
+#|         },
+#|         limitations=["Parameterization observation is static and does not prove all runtime paths safe."],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-HIST-SECRET",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-SECRET",
+#|         file_path="config/settings.py",
+#|         symbol=None,
+#|         start_line=10,
+#|         end_line=10,
+#|         excerpt="Historical configuration contained an AWS-access-key-shaped candidate. Value redacted and fingerprinted only. Removed in later commit C-FIX-SECRET.",
+#|         parsed_fields={
+#|             "secret_type": "aws_access_key_candidate",
+#|             "redacted_preview": "AKIA****",
+#|             "fingerprint": fingerprint_secret("AKIAIOSFODNN7EXAMPLE-SYNTHETIC"),
+#|             "removed_in_head": True,
+#|             "tested": False,
+#|             "used": False,
+#|         },
+#|         limitations=[
+#|             "Raw secret not stored.",
+#|             "Candidate validity not tested.",
+#|             "History removal does not equal revocation.",
+#|         ],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-MANIFEST",
+#|         source_id="SRC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="pyproject.toml",
+#|         excerpt="Manifest declares fastapi>=0.110, pydantic>=2, pytest as dev dependency.",
+#|         parsed_fields={
+#|             "declared_dependencies": {
+#|                 "fastapi": ">=0.110",
+#|                 "pydantic": ">=2",
+#|                 "pytest": "^8.0",
+#|             }
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-LOCK",
+#|         source_id="SRC-LOCK",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="poetry.lock",
+#|         excerpt="Lockfile resolves fastapi 0.111.0, pydantic 2.7.1, starlette 0.37.2, pytest 8.2.0.",
+#|         parsed_fields={
+#|             "resolved_dependencies": {
+#|                 "fastapi": "0.111.0",
+#|                 "pydantic": "2.7.1",
+#|                 "starlette": "0.37.2",
+#|                 "pytest": "8.2.0",
+#|             }
+#|         },
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-SBOM",
+#|         source_id="SRC-SBOM",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="sbom.cdx.json",
+#|         excerpt="SBOM lists fastapi 0.110.2 and pydantic 2.7.1; fastapi version conflicts with lockfile.",
+#|         parsed_fields={
+#|             "components": {
+#|                 "fastapi": "0.110.2",
+#|                 "pydantic": "2.7.1",
+#|             }
+#|         },
+#|         limitations=["SBOM may be stale or build-specific."],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-README",
+#|         source_id="SRC-README",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="README.md",
+#|         excerpt="README states: all API routes require authentication and authorization.",
+#|         parsed_fields={
+#|             "claim": "all_api_routes_require_authorization",
+#|             "scope": "routes",
+#|         },
+#|         limitations=["Documentation claim is not implementation truth."],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-CI",
+#|         source_id="SRC-CI",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path=".github/workflows/ci.yml",
+#|         excerpt="CI workflow uses third-party action some-org/action@v1 without immutable commit pin.",
+#|         parsed_fields={
+#|             "third_party_actions": [
+#|                 {"uses": "some-org/action@v1", "pinned_to_sha": False}
+#|             ],
+#|             "secrets_references": ["CI_SECRET_REF_PLACEHOLDER"],
+#|         },
+#|         limitations=["CI config is not actual pipeline execution evidence."],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-TEST",
+#|         source_id="SRC-TEST",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_path="tests/test_health.py",
+#|         excerpt="Test suite includes health endpoint test passing; no authorization regression test for /users/{user_id}.",
+#|         parsed_fields={
+#|             "tests": ["test_health"],
+#|             "missing_tests": ["test_users_route_authorization"],
+#|             "passed": True,
+#|         },
+#|         limitations=["Test pass does not prove security."],
+#|     ))
+#|     c.add_evidence(Evidence(
+#|         id="EV-UPSTREAM",
+#|         source_id="SRC-UPSTREAM",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-ANCIENT",
+#|         excerpt="Repository metadata indicates fork/common ancestor with fastapi-template at commit 000011112222.",
+#|         parsed_fields={
+#|             "upstream_repository": "REPO-FASTAPI-TEMPLATE",
+#|             "common_ancestor_commit": "C-ANCIENT",
+#|             "fork_state": "SUPPORTED_FORK",
+#|         },
+#|     ))
+#| 
+#|     # Documentation claims
+#|     c.add_documentation_claim({
+#|         "claim": "all_api_routes_require_authorization",
+#|         "scope": "routes",
+#|         "source_ids": ["SRC-README"],
+#|         "evidence_ids": ["EV-README"],
+#|     })
+#| 
+#|     # Symbols
+#|     c.add_symbol(Symbol(
+#|         id="SYM-APP",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-MAIN",
+#|         name="app",
+#|         symbol_type=SymbolType.ENTRYPOINT,
+#|         start_line=1,
+#|         end_line=20,
+#|         calls=["SYM-INCLUDE-ROUTER"],
+#|         entrypoint=True,
+#|         confidence=0.95,
+#|         evidence_ids=["EV-MAIN"],
+#|     ))
+#|     c.add_symbol(Symbol(
+#|         id="SYM-INCLUDE-ROUTER",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-MAIN",
+#|         name="include_router",
+#|         symbol_type=SymbolType.FUNCTION,
+#|         calls=["SYM-ROUTE-USERS"],
+#|         confidence=0.92,
+#|         evidence_ids=["EV-MAIN"],
+#|     ))
+#|     c.add_symbol(Symbol(
+#|         id="SYM-ROUTE-USERS",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-ROUTES",
+#|         name="GET /users/{user_id}",
+#|         symbol_type=SymbolType.ROUTE,
+#|         route="/users/{user_id}",
+#|         method="GET",
+#|         handler="SYM-GET-USER",
+#|         calls=["SYM-GET-USER"],
+#|         confidence=0.94,
+#|         evidence_ids=["EV-ROUTES"],
+#|     ))
+#|     c.add_symbol(Symbol(
+#|         id="SYM-GET-USER",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-ROUTES",
+#|         name="get_user",
+#|         symbol_type=SymbolType.HANDLER,
+#|         start_line=12,
+#|         end_line=28,
+#|         calls=["SYM-FETCH-USER"],
+#|         confidence=0.94,
+#|         evidence_ids=["EV-ROUTES"],
+#|         limitations=["No explicit authorization dependency observed."],
+#|     ))
+#|     c.add_symbol(Symbol(
+#|         id="SYM-FETCH-USER",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-DB",
+#|         name="fetch_user_by_id",
+#|         symbol_type=SymbolType.FUNCTION,
+#|         start_line=8,
+#|         end_line=18,
+#|         confidence=0.90,
+#|         evidence_ids=["EV-DB"],
+#|     ))
+#|     c.add_symbol(Symbol(
+#|         id="SYM-REQUIRE-ADMIN",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         file_id="FILE-AUTH",
+#|         name="require_admin",
+#|         symbol_type=SymbolType.FUNCTION,
+#|         start_line=5,
+#|         end_line=15,
+#|         confidence=0.92,
+#|         evidence_ids=["EV-AUTH"],
+#|     ))
+#| 
+#|     # Components / Services
+#|     c.add_component(Component(
+#|         id="COMPONENT-API",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="payments-api",
+#|         component_type="WEB_SERVICE",
+#|         files=["FILE-MAIN", "FILE-ROUTES"],
+#|         symbols=["SYM-APP", "SYM-ROUTE-USERS", "SYM-GET-USER"],
+#|         description="FastAPI-like HTTP API component.",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-MAIN", "EV-ROUTES"],
+#|         confidence=0.92,
+#|     ))
+#|     c.add_component(Component(
+#|         id="COMPONENT-AUTH",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="auth",
+#|         component_type="SECURITY_CONTROL",
+#|         files=["FILE-AUTH"],
+#|         symbols=["SYM-REQUIRE-ADMIN"],
+#|         description="Authentication/authorization dependency module.",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-AUTH"],
+#|         confidence=0.90,
+#|     ))
+#|     c.add_component(Component(
+#|         id="COMPONENT-DB",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="db",
+#|         component_type="DATA_ACCESS",
+#|         files=["FILE-DB"],
+#|         symbols=["SYM-FETCH-USER"],
+#|         description="Database query helper component.",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-DB"],
+#|         confidence=0.88,
+#|     ))
+#|     c.add_service(Service(
+#|         id="SERVICE-PAYMENTS-API",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         name="payments-api",
+#|         deployment_unit="Dockerfile",
+#|         entrypoint_symbol_ids=["SYM-APP"],
+#|         route_symbols=["SYM-ROUTE-USERS"],
+#|         dependencies=["DEP-FRA", "DEP-PYDANTIC", "DEP-STARLETTE"],
+#|         source_ids=["SRC-REPO", "SRC-LOCK"],
+#|         evidence_ids=["EV-MAIN", "EV-LOCK"],
+#|         confidence=0.90,
+#|         limitations=["Deployment unit presence does not prove deployed runtime."],
+#|     ))
+#| 
+#|     # Dependencies
+#|     c.add_dependency(Dependency(
+#|         id="DEP-FRA",
+#|         consumer="REPO-PAYMENTS-API",
+#|         provider="PyPI-like",
+#|         package="fastapi",
+#|         ecosystem="pypi",
+#|         declared_version=">=0.110",
+#|         resolved_version="0.111.0",
+#|         scope="RUNTIME",
+#|         directness="DIRECT",
+#|         source_ids=["SRC-REPO", "SRC-LOCK"],
+#|         evidence_ids=["EV-MANIFEST", "EV-LOCK"],
+#|         license="MIT",
+#|     ))
+#|     c.add_dependency(Dependency(
+#|         id="DEP-PYDANTIC",
+#|         consumer="REPO-PAYMENTS-API",
+#|         provider="PyPI-like",
+#|         package="pydantic",
+#|         ecosystem="pypi",
+#|         declared_version=">=2",
+#|         resolved_version="2.7.1",
+#|         scope="RUNTIME",
+#|         directness="DIRECT",
+#|         source_ids=["SRC-REPO", "SRC-LOCK"],
+#|         evidence_ids=["EV-MANIFEST", "EV-LOCK"],
+#|         license="MIT",
+#|     ))
+#|     c.add_dependency(Dependency(
+#|         id="DEP-STARLETTE",
+#|         consumer="REPO-PAYMENTS-API",
+#|         provider="PyPI-like",
+#|         package="starlette",
+#|         ecosystem="pypi",
+#|         declared_version=None,
+#|         resolved_version="0.37.2",
+#|         scope="RUNTIME",
+#|         directness="TRANSITIVE",
+#|         source_ids=["SRC-LOCK"],
+#|         evidence_ids=["EV-LOCK"],
+#|         license="BSD-3-Clause",
+#|     ))
+#|     c.add_dependency(Dependency(
+#|         id="DEP-PYTEST",
+#|         consumer="REPO-PAYMENTS-API",
+#|         provider="PyPI-like",
+#|         package="pytest",
+#|         ecosystem="pypi",
+#|         declared_version="^8.0",
+#|         resolved_version="8.2.0",
+#|         scope="DEV",
+#|         directness="DIRECT",
+#|         source_ids=["SRC-REPO", "SRC-LOCK"],
+#|         evidence_ids=["EV-MANIFEST", "EV-LOCK"],
+#|         license="MIT",
+#|     ))
+#| 
+#|     # SBOM components
+#|     c.add_sbom_component(SBOMComponent(
+#|         id="SBOM-FASTAPI",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         purl="pkg:pypi/fastapi@0.110.2",
+#|         name="fastapi",
+#|         version="0.110.2",
+#|         license="MIT",
+#|         source_ids=["SRC-SBOM"],
+#|         evidence_ids=["EV-SBOM"],
+#|         limitations=["Version conflicts with lockfile."],
+#|     ))
+#|     c.add_sbom_component(SBOMComponent(
+#|         id="SBOM-PYDANTIC",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         purl="pkg:pypi/pydantic@2.7.1",
+#|         name="pydantic",
+#|         version="2.7.1",
+#|         license="MIT",
+#|         source_ids=["SRC-SBOM"],
+#|         evidence_ids=["EV-SBOM"],
+#|     ))
+#| 
+#|     # License
+#|     c.add_license(LicenseInfo(
+#|         id="LIC-REPO",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         declared_license="Proprietary or internal license placeholder",
+#|         file_level_notices=["README license section present"],
+#|         dependency_licenses={
+#|             "fastapi": "MIT",
+#|             "pydantic": "MIT",
+#|             "starlette": "BSD-3-Clause",
+#|             "pytest": "MIT",
+#|         },
+#|         conflict_candidates=[],
+#|         source_ids=["SRC-REPO", "SRC-LOCK"],
+#|         evidence_ids=["EV-REPO-META", "EV-LOCK"],
+#|         legal_review_required=True,
+#|         limitations=["CODEINT does not make legal compliance determinations."],
+#|     ))
+#| 
+#|     # Secret candidate
+#|     c.add_secret_candidate(SecretCandidate(
+#|         id="SEC-HIST-AWS",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-SECRET",
+#|         file_path="config/settings.py",
+#|         line=10,
+#|         secret_type="aws_access_key_candidate",
+#|         redacted_preview="AKIA****",
+#|         fingerprint=fingerprint_secret("AKIAIOSFODNN7EXAMPLE-SYNTHETIC"),
+#|         state=SecretState.REMOVED_IN_HEAD_NOT_REVOKED,
+#|         first_seen="2026-03-01T00:00:00Z",
+#|         last_seen="2026-09-15T00:00:00Z",
+#|         removed_in_head=True,
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-HIST-SECRET"],
+#|         limitations=[
+#|             "Raw secret not exposed.",
+#|             "Validity not tested.",
+#|             "No credential use/authentication performed.",
+#|         ],
+#|     ))
+#| 
+#|     # Config item
+#|     c.add_config_item(ConfigItem(
+#|         id="CFG-DATABASE-URL",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         key="DATABASE_URL",
+#|         value_type="environment_variable_reference",
+#|         redacted_value="${DATABASE_URL}",
+#|         fingerprint=sha256_short("DATABASE_URL"),
+#|         environment="RUNTIME",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-REPO-META"],
+#|         limitations=["Environment variable reference is not a secret value."],
+#|     ))
+#| 
+#|     # Tests / Coverage
+#|     c.add_test(Test(
+#|         id="TEST-HEALTH",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         name="test_health",
+#|         target_symbols=[],
+#|         passed=True,
+#|         coverage="unknown",
+#|         source_ids=["SRC-TEST"],
+#|         evidence_ids=["EV-TEST"],
+#|         limitations=["Test pass does not prove security."],
+#|     ))
+#|     c.add_coverage(Coverage(
+#|         id="COV-PARTIAL",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         line_coverage=0.42,
+#|         branch_coverage=None,
+#|         function_coverage=None,
+#|         scope="tests/test_health.py only",
+#|         source_ids=["SRC-TEST"],
+#|         evidence_ids=["EV-TEST"],
+#|         limitations=["Coverage report partial; security-relevant route not covered."],
+#|     ))
+#| 
+#|     # Provenance / Similarity
+#|     c.add_provenance(Provenance(
+#|         id="PROV-FORK",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-ANCIENT",
+#|         subject="REPO-PAYMENTS-API",
+#|         origin="REPO-FASTAPI-TEMPLATE",
+#|         state=ProvenanceState.FORK_DERIVED,
+#|         upstream_repository_id="REPO-FASTAPI-TEMPLATE",
+#|         upstream_commit_id="C-ANCIENT",
+#|         evidence_ids=["EV-UPSTREAM"],
+#|         limitations=["Fork does not imply ownership, endorsement, or authorship of all code."],
+#|     ))
+#|     c.add_similarity(CodeSimilarity(
+#|         id="SIM-UTIL-TEMPLATE",
+#|         left_repository_id="REPO-PAYMENTS-API",
+#|         right_repository_id="REPO-FASTAPI-TEMPLATE",
+#|         left_commit_id="C-HEAD",
+#|         right_commit_id="C-ANCIENT",
+#|         scope="app/utils.py-like helper",
+#|         state=SimilarityState.COMMON_TEMPLATE,
+#|         similarity_score=0.82,
+#|         method="AST/token similarity placeholder",
+#|         evidence_ids=["EV-UPSTREAM"],
+#|         limitations=["Similarity can arise from templates/tutorials/common standards; not plagiarism proof."],
+#|     ))
+#| 
+#|     # Security findings
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-AUTH-GAP",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.ACCESS_CONTROL_GAP_CANDIDATE,
+#|         state=FindingState.INCONCLUSIVE,
+#|         title="User lookup route lacks explicit authorization dependency",
+#|         description=(
+#|             "Static analysis observes route GET /users/{user_id} handled by get_user calling fetch_user_by_id. "
+#|             "An authorization dependency require_admin exists in the codebase but is not observed on this route. "
+#|             "This is an access-control gap candidate, not a proven vulnerability."
+#|         ),
+#|         file_path="app/api/routes.py",
+#|         symbol="SYM-GET-USER",
+#|         start_line=12,
+#|         end_line=28,
+#|         severity="HIGH",
+#|         reachability=ReachabilityState.UNKNOWN,
+#|         deployment_context="UNKNOWN",
+#|         source_ids=["SRC-REPO", "SRC-README"],
+#|         evidence_ids=["EV-ROUTES", "EV-AUTH", "EV-README"],
+#|         introduced_in="C-ROUTE-ADDED",
+#|         limitations=[
+#|             "Global middleware may mitigate; runtime configuration unresolved.",
+#|             "No live probing or bypass testing performed.",
+#|             "Production deployment commit unknown.",
+#|         ],
+#|         remediation=[
+#|             "Apply shared authorization dependency/guard to route.",
+#|             "Add regression tests for resource-level authorization.",
+#|             "Validate middleware order and global guards.",
+#|         ],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-SECRET-HIST",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-SECRET",
+#|         finding_type=FindingType.SECRET_CANDIDATE,
+#|         state=FindingState.OBSERVED,
+#|         title="Historical secret-shaped candidate in configuration",
+#|         description=(
+#|             "A secret-shaped string candidate was observed in historical commit C-SECRET and removed in C-FIX-SECRET. "
+#|             "The value is redacted and fingerprinted only. Validity was not tested."
+#|         ),
+#|         file_path="config/settings.py",
+#|         symbol=None,
+#|         start_line=10,
+#|         end_line=10,
+#|         severity="MEDIUM",
+#|         reachability=ReachabilityState.UNKNOWN,
+#|         deployment_context="UNKNOWN",
+#|         source_ids=["SRC-REPO"],
+#|         evidence_ids=["EV-HIST-SECRET"],
+#|         introduced_in="C-SECRET",
+#|         fixed_in="C-FIX-SECRET",
+#|         limitations=[
+#|             "Candidate may be example/test/fake/expired/rotated.",
+#|             "Removal from HEAD does not equal revocation.",
+#|             "No secret use/testing/redeeming performed.",
+#|         ],
+#|         specialist_handoff="CREDINT",
+#|         remediation=[
+#|             "Route to CREDINT for authorized exposure handling.",
+#|             "Rotate through authorized workflow if confirmed valid.",
+#|             "Review history/forks/artifacts/cache for persistence.",
+#|         ],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-DOC-DRIFT",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.DOCUMENTATION_DRIFT,
+#|         state=FindingState.OBSERVED,
+#|         title="README authorization claim conflicts with observed route dependency",
+#|         description="README claims all API routes require authorization, but static analysis observes a route without explicit authorization dependency.",
+#|         file_path="README.md",
+#|         symbol=None,
+#|         severity="MEDIUM",
+#|         source_ids=["SRC-README", "SRC-REPO"],
+#|         evidence_ids=["EV-README", "EV-ROUTES"],
+#|         limitations=["Documentation may be stale; implementation is stronger evidence for code behavior."],
+#|         remediation=["Update documentation or implementation to eliminate drift."],
+#|     ))
+#|     c.add_finding(SecurityFinding(
+#|         id="FIND-SBOM-STALE",
+#|         repository_id="REPO-PAYMENTS-API",
+#|         commit_id="C-HEAD",
+#|         finding_type=FindingType.SBOM_STALE,
+#|         state=FindingState.INCONCLUSIVE,
+#|         title="SBOM fastapi version conflicts with lockfile",
+#|         description="SBOM lists fastapi 0.110.2 while lockfile resolves fastapi 0.111.0.",
+#|         file_path="sbom.cdx.json",
+#|         symbol=None,
+#|         severity="LOW",
+#|         source_ids=["SRC-SBOM", "SRC-LOCK"],
+#|         evidence_ids=["EV-SBOM", "EV-LOCK"],

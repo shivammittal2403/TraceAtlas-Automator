@@ -1,0 +1,1000 @@
+#|     gaps, _ = truncate_list(gaps, 500)
+#|     return gaps
+#| 
+#| 
+#| def build_specialist_handoffs(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     handoffs = []
+#|     incidents = parsed.get("incidents", [])
+#|     owners = parsed.get("owners", []) # Note: Owners are parsed into 'operators' table with role OWNER usually
+#|     
+#|     if incidents:
+#|         handoffs.append({
+#|             "specialist": "INCIDENTINT / SAFETY_BOARD",
+#|             "reason": "Safety incidents detected.",
+#|             "expected_output": "Root cause analysis, preliminary/final report retrieval.",
+#|             "question": "What caused the incident and what is the official classification?",
+#|         })
+#|         
+#|     if any(o.get("role") == "LESSOR" for o in parsed.get("operators", [])):
+#|         handoffs.append({
+#|             "specialist": "FININT / CORPINT",
+#|             "reason": "Lease/Lessor relationships detected.",
+#|             "expected_output": "Financial ownership verification, corporate structure resolution.",
+#|             "question": "Who is the beneficial owner behind the lessor entity?",
+#|         })
+#| 
+#|     if not handoffs:
+#|         handoffs.append({
+#|             "specialist": "AVIINT Manager",
+#|             "reason": "Standard analysis completed.",
+#|             "expected_output": "Review findings, approve closure or deep dive.",
+#|             "question": "Is current aviation awareness sufficient for decision support?",
+#|         })
+#| 
+#|     return handoffs
+#| 
+#| 
+#| def finalize_parsed(parsed: Dict[str, Any], payload: Optional[Dict[str, Any]] = None, files: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+#|     payload = payload or {}
+#|     build_source_independence(parsed)
+#|     parsed["risk_dimensions"]["telemetry_quality"] = analyze_telemetry_quality(parsed)
+#|     parsed["contradictions"] = detect_contradictions(parsed)
+#|     parsed["hypotheses"] = build_hypotheses(parsed)
+#|     parsed["knowledge_gaps"] = build_knowledge_gaps(payload, files or [], parsed)
+#|     parsed["specialist_handoffs"] = build_specialist_handoffs(parsed)
+#|     return parsed
+#| 
+#| 
+#| def build_next_best_action(
+#|     payload: Dict[str, Any],
+#|     policy: Dict[str, Any],
+#|     files: List[Dict[str, Any]],
+#|     parsed: Dict[str, Any],
+#| ) -> Dict[str, str]:
+#|     tq = parsed.get("risk_dimensions", {}).get("telemetry_quality", {})
+#|     gaps = tq.get("total_positions", 0) - tq.get("direct_observations", 0)
+#|     
+#|     if policy.get("status") == "POLICY_BLOCKED":
+#|         return {
+#|             "action": "Revise task to remove prohibited interference, spoofing, or tracking behavior.",
+#|             "reason": "AVIINT is defensive intelligence, not an attack/enabler tool.",
+#|             "owner": "AVIINT Manager",
+#|             "expected_output": "Policy-compliant defensive scope.",
+#|         }
+#| 
+#|     if not files:
+#|         return {
+#|             "action": "Attach lawful/authorized Flight/Registry/Telemetry exports before analysis.",
+#|             "reason": "No AVIINT evidence artifact available.",
+#|             "owner": "AVIINT AI Employee",
+#|             "expected_output": "Evidence inventory.",
+#|         }
+#| 
+#|     if gaps > 0:
+#|         return {
+#|             "action": "Seek independent telemetry source or airport ground record to verify continuity.",
+#|             "reason": "Track discontinuity detected. Cause unknown (coverage vs config).",
+#|             "owner": "AVIINT Analyst",
+#|             "expected_output": "Verified continuous track or confirmed gap reason.",
+#|         }
+#| 
+#|     return {
+#|         "action": "Monitor fleet utilization. Verify schedule adherence against actuals.",
+#|         "reason": "Track data appears consistent.",
+#|         "owner": "AVIINT Analyst",
+#|         "expected_output": "Updated operational picture.",
+#|     }
+#| 
+#| 
+#| def build_collection_plan(
+#|     payload: Dict[str, Any],
+#|     questions: List[Any],
+#|     files: List[Dict[str, Any]],
+#|     parsed: Dict[str, Any],
+#| ) -> List[Dict[str, Any]]:
+#|     plan = []
+#|     priority = 1
+#|     questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+#| 
+#|     has_files = bool(files)
+#|     has_ac = bool(parsed.get("aircraft"))
+#|     has_pos = bool(parsed.get("positions"))
+#| 
+#|     def add(operation: str, tool: str, purpose: str, status: str, expected_output: str, safety_risk: str = "LOW") -> None:
+#|         nonlocal priority
+#|         plan.append({
+#|             "question": questions_limited[0] if questions_limited else "General AVIINT planning",
+#|             "operation": operation,
+#|             "tool_or_provider": tool,
+#|             "purpose": purpose,
+#|             "status": status,
+#|             "expected_output": expected_output,
+#|             "priority": priority,
+#|             "safety_risk": safety_risk,
+#|             "policy_note": "Lawful / public-authorized / evidence-first / safety-aware aviation intelligence only.",
+#|             "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED",
+#|             "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+#|         })
+#|         priority += 1
+#| 
+#|     add(
+#|         "define_aviation_questions_scope",
+#|         "AVIINT Manager",
+#|         "Convert objective into aviation questions, allowed sources, and safety boundaries.",
+#|         "COMPLETED_LOCAL" if payload.get("questions") else "REQUIRED_BEFORE_COLLECTION",
+#|         "Requirement-driven collection plan.",
+#|     )
+#| 
+#|     add(
+#|         "preserve_original_aviation_records",
+#|         "local evidence store",
+#|         "Store original logs/registries and hashes without modification.",
+#|         "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+#|         "AvEvidenceObject with SHA256.",
+#|     )
+#| 
+#|     add(
+#|         "parse_aircraft_flight_telemetry_metadata",
+#|         "local deterministic parser",
+#|         "Parse JSON/CSV/TXT aviation metadata safely.",
+#|         "COMPLETED_LOCAL" if has_files else "PLANNED_REQUIRES_EVIDENCE",
+#|         "Normalized aircraft/flights/positions.",
+#|     )
+#| 
+#|     add(
+#|         "validate_identifiers_and_registrations",
+#|         "local analyzer",
+#|         "Check registration structures and ICAO formats. Flag conflicts.",
+#|         "COMPLETED_LOCAL" if has_ac else "PLANNED_ANALYTIC",
+#|         "Identifier Validation Report.",
+#|         safety_risk="HIGH_IF_IDENTITY_ERROR",
+#|     )
+#| 
+#|     add(
+#|         "assess_telemetry_coverage_quality",
+#|         "AVIINT Analyst",
+#|         "Identify interpolation/gaps and propose benign explanations.",
+#|         "COMPLETED_LOCAL" if has_pos else "PLANNED_ANALYTIC",
+#|         "Telemetry Quality Assessment.",
+#|         safety_risk="HIGH_IF_GAP_CALLED_ABSENCE",
+#|     )
+#| 
+#|     return plan
+#| 
+#| 
+#| def policy_screen(payload: Dict[str, Any]) -> Dict[str, Any]:
+#|     scanned_fields = [
+#|         "objective",
+#|         "target_aircraft_or_flight",
+#|         "questions",
+#|         "aircraft",
+#|         "operators",
+#|         "flights",
+#|     ]
+#| 
+#|     parts: List[str] = []
+#|     for key in scanned_fields:
+#|         val = payload.get(key)
+#|         if isinstance(val, list):
+#|             parts.extend(str(x) for x in val)
+#|         elif isinstance(val, dict):
+#|             parts.append(json.dumps(val, ensure_ascii=False, default=str))
+#|         else:
+#|             parts.append(str(val or ""))
+#| 
+#|     scanned = " \n ".join(parts).lower()
+#| 
+#|     blocked_reasons: List[str] = []
+#|     for pat in POLICY_BLOCK_PATTERNS:
+#|         rx = re.compile(pat, re.I)
+#|         for m in rx.finditer(scanned):
+#|             start = max(0, m.start() - 180)
+#|             prefix = scanned[start:m.start()]
+#|             if NEGATION_RE.search(prefix):
+#|                 continue
+#|             blocked_reasons.append(pat)
+#|             break
+#| 
+#|     human_review_required = False
+#|     safety_notes: List[str] = []
+#| 
+#|     if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Sensitive aviation context detected. Analysis must remain lawful, evidence-first, and safety-aware. "
+#|             "No interference, no spoofing, no private tracking."
+#|         )
+#| 
+#|     if payload.get("incidents") or "incident" in scanned:
+#|         human_review_required = True
+#|         safety_notes.append(
+#|             "Incident context detected. Correlate impact carefully. Do not assign fault without official investigation."
+#|         )
+#| 
+#|     if blocked_reasons:
+#|         return {
+#|             "status": "POLICY_BLOCKED",
+#|             "reasons": sorted(set(blocked_reasons)),
+#|             "human_review_required": True,
+#|             "safety_notes": safety_notes,
+#|             "explanation": (
+#|                 "The requested task appears to require illegal interference, spoofing, or tracking abuse."
+#|             ),
+#|             "safe_alternatives": SAFE_ALTERNATIVES,
+#|         }
+#| 
+#|     if human_review_required:
+#|         return {
+#|             "status": "HUMAN_REVIEW_REQUIRED",
+#|             "reasons": [],
+#|             "human_review_required": True,
+#|             "safety_notes": safety_notes,
+#|             "explanation": (
+#|                 "No obvious hard policy violation detected, but sensitive aviation/incident context applies. "
+#|                 "Conclusions must remain defensive, evidence-linked, and human-reviewed before consequential action."
+#|             ),
+#|             "safe_alternatives": SAFE_ALTERNATIVES,
+#|         }
+#| 
+#|     return {
+#|         "status": "ALLOWED_DEFENSIVE_AUTHORIZED",
+#|         "reasons": [],
+#|         "human_review_required": False,
+#|         "safety_notes": [],
+#|         "explanation": (
+#|             "No obvious policy violation detected. Execution remains planning-only unless authorized/lawful aviation evidence is configured."
+#|         ),
+#|         "safe_alternatives": [],
+#|     }
+#| 
+#| 
+#| def validate_payload(payload: Dict[str, Any]) -> List[str]:
+#|     warnings: List[str] = []
+#| 
+#|     required = ["case_id", "task_id", "objective", "target_aircraft_or_flight", "target_type"]
+#|     for field in required:
+#|         if not payload.get(field):
+#|             warnings.append(f"Missing required field: {field}")
+#| 
+#|     if not payload.get("questions"):
+#|         warnings.append("No AVIINT questions provided. Default questions will be inferred.")
+#| 
+#|     evidence_keys = [
+#|         "flight_log_paths",
+#|         "registry_paths",
+#|         "telemetry_paths",
+#|     ]
+#| 
+#|     if not any(payload.get(k) for k in evidence_keys):
+#|         warnings.append("No aviation evidence provided. Output remains planning-only.")
+#| 
+#|     if not payload.get("as_of_date"):
+#|         warnings.append("No As-Of Date provided. Aviation status is highly temporal.")
+#| 
+#|     return warnings
+#| 
+#| 
+#| def default_questions(payload: Dict[str, Any]) -> List[str]:
+#|     return [
+#|         "Which aircraft is being referenced?",
+#|         "What is its current/historical registration and ICAO address?",
+#|         "Who is the operator vs the owner/lessor?",
+#|         "What flight/route events are supported by telemetry?",
+#|         "Are there coverage gaps or interpolation issues?",
+#|         "Was the scheduled departure/arrival actually observed?",
+#|         "How reliable and independent are the sources?",
+#|         "Are we confusing marketing carrier with operating carrier?",
+#|         "What remains unknown regarding intent or passengers?",
+#|         "What is the safest next investigative step?",
+#|     ]
+#| 
+#| 
+#| class TraceAtlasAVIINTPanel(tk.Tk):
+#|     def __init__(self) -> None:
+#|         super().__init__()
+#|         self.title(APP_TITLE)
+#|         self.geometry("1380x940")
+#|         self.minsize(1100, 760)
+#| 
+#|         self.entries: Dict[str, Any] = {}
+#|         self.last_result: Dict[str, Any] = {}
+#| 
+#|         self.analyzed_files: List[Dict[str, Any]] = []
+#|         self.parsed: Dict[str, Any] = empty_parsed()
+#| 
+#|         self._configure_style()
+#|         self._build_ui()
+#|         self._set_defaults()
+#| 
+#|     def _configure_style(self) -> None:
+#|         style = ttk.Style(self)
+#|         try:
+#|             style.theme_use("clam")
+#|         except tk.TclError:
+#|             pass
+#| 
+#|         self.configure(bg="#0b0f19")
+#|         style.configure("TFrame", background="#0b0f19")
+#|         style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+#|         style.configure("Header.TLabel", background="#0b0f19", foreground="#8b5cf6", font=("Segoe UI", 17, "bold")) # Purple/Violet accent for Sky/Aviation
+#|         style.configure("Subheader.TLabel", background="#0b0f19", foreground="#94a3b8", font=("Segoe UI", 9))
+#|         style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+#|         style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+#|         style.configure("TEntry", fieldbackground="#111827", foreground="#e5e7eb", insertcolor="#ffffff", bordercolor="#334155")
+#|         style.configure("TCombobox", fieldbackground="#111827", foreground="#e5e7eb", arrowcolor="#e5e7eb", bordercolor="#334155")
+#|         style.configure("TButton", padding=7, font=("Segoe UI", 10, "bold"), background="#1f2937", foreground="#e5e7eb", bordercolor="#475569")
+#|         style.map("TButton", background=[("active", "#334155")], foreground=[("active", "#ffffff")])
+#|         style.configure("Vertical.TScrollbar", background="#1f2937", troughcolor="#0b0f19", arrowcolor="#e5e7eb")
+#| 
+#|     def _build_ui(self) -> None:
+#|         header = ttk.Frame(self)
+#|         header.pack(fill="x", padx=16, pady=(14, 8))
+#|         ttk.Label(header, text="TraceAtlas AVIINT AI Employee", style="Header.TLabel").pack(anchor="w")
+#|         ttk.Label(
+#|             header,
+#|             text=(
+#|                 "Lawful / public-authorized / evidence-first / safety-aware aviation intelligence • Planning-only by default • "
+#|                 "Local deterministic JSON/CSV/TXT aircraft/flight/telemetry parsing only • "
+#|                 "No interference / No spoofing / No ATC manipulation / No private tracking • "
+#|                 "Aircraft != Flight • Operator != Owner • Schedule != Actual"
+#|             ),
+#|             style="Subheader.TLabel",
+#|             wraplength=1280,
+#|             justify="left",
+#|         ).pack(anchor="w", pady=(2, 0))
+#| 
+#|         self.notebook = ttk.Notebook(self)
+#|         self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+#| 
+#|         self.input_tab = ttk.Frame(self.notebook)
+#|         self.output_tab = ttk.Frame(self.notebook)
+#| 
+#|         self.notebook.add(self.input_tab, text="AVIINT Task Input")
+#|         self.notebook.add(self.output_tab, text="Output / Av Plan / Evidence")
+#| 
+#|         self._build_input_tab()
+#|         self._build_output_tab()
+#| 
+#|     def _build_input_tab(self) -> None:
+#|         container = ttk.Frame(self.input_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+#|         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+#|         self.form = ttk.Frame(self.canvas)
+#| 
+#|         self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+#|         self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+#|         self.canvas.configure(yscrollcommand=scrollbar.set)
+#| 
+#|         self.canvas.pack(side="left", fill="both", expand=True)
+#|         scrollbar.pack(side="right", fill="y")
+#| 
+#|         row = 0
+#|         for key, label, kind in FIELDS:
+#|             ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+#|             if kind == "entry":
+#|                 widget = ttk.Entry(self.form, width=102)
+#|             elif kind == "combo":
+#|                 widget = ttk.Combobox(self.form, values=TARGET_TYPES if key == "target_type" else [], width=100, state="readonly")
+#|             else:
+#|                 widget = tk.Text(self.form, height=3, width=102, bg="#111827", fg="#e5e7eb", insertbackground="white", relief="flat", highlightthickness=1, highlightbackground="#334155", font=("Segoe UI", 10), wrap="word")
+#|             widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+#|             self.entries[key] = widget
+#|             row += 1
+#| 
+#|         self.form.columnconfigure(1, weight=1)
+#| 
+#|         buttons1 = ttk.Frame(self.input_tab)
+#|         buttons1.pack(fill="x", padx=10, pady=(12, 4))
+#|         buttons2 = ttk.Frame(self.input_tab)
+#|         buttons2.pack(fill="x", padx=10, pady=(0, 12))
+#| 
+#|         ttk.Button(buttons1, text="Add Flight Logs / Schedules", command=self.add_flights).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Registry / Airworthiness", command=self.add_registry).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Telemetry / ADS-B Data", command=self.add_telemetry).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add Weather / NOTAMs", command=self.add_weather).pack(side="left", padx=4)
+#|         ttk.Button(buttons1, text="Add STIX / MISP", command=self.add_stix_misp).pack(side="left", padx=4)
+#| 
+#|         ttk.Button(buttons2, text="Analyze Local AVIINT Evidence", command=self.analyze_local_av).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Generate Av Plan", command=self.generate_plan).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+#|         ttk.Button(buttons2, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+#| 
+#|     def _build_output_tab(self) -> None:
+#|         container = ttk.Frame(self.output_tab)
+#|         container.pack(fill="both", expand=True)
+#|         self.output = tk.Text(container, wrap="word", bg="#020617", fg="#ddd6fe", insertbackground="white", relief="flat", highlightthickness=1, highlightbackground="#334155", font=("Consolas", 11))
+#|         output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+#|         self.output.configure(yscrollcommand=output_scroll.set)
+#|         self.output.pack(side="left", fill="both", expand=True)
+#|         output_scroll.pack(side="right", fill="y")
+#| 
+#|     def _set_defaults(self) -> None:
+#|         self.set_widget_value("case_id", "AV-CASE-001")
+#|         self.set_widget_value("task_id", "AV-TASK-001")
+#|         self.set_widget_value("objective", "Analyze lawful/public-authorized/safety-aware aviation intelligence using evidence-first methods.")
+#|         self.set_widget_value("target_aircraft_or_flight", "Illustrative Example Aircraft N123AB / Flight XY123")
+#|         self.set_widget_value("target_type", "aircraft_identity_resolution")
+#|         self.set_widget_value("questions", "\n".join(default_questions({"target_aircraft_or_flight": "Illustrative Example Aircraft N123AB"})))
+#|         
+#|         for field in LIST_FIELDS.union(DICT_FIELDS):
+#|             if field not in ["questions", "scope", "authorization", "time_range"]:
+#|                  self.set_widget_value(field, "")
+#|                  
+#|         self.set_widget_value("time_range", json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2))
+#|         self.set_widget_value("as_of_date", now_utc()[:10])
+#|         self.set_widget_value("scope", json.dumps({"allowed_sources": ["public_registry", "authorized_adsb_feed"], "prohibited_actions": ["spoof_adsb", "track_passenger"]}, indent=2))
+#|         self.set_widget_value("authorization", json.dumps({"basis": "internal_commercial_review"}, indent=2))
+#|         self.set_widget_value("configured_connectors", "None configured.")
+#| 
+#|     def get_widget_value(self, key: str) -> str:
+#|         widget = self.entries.get(key)
+#|         if widget is None: return ""
+#|         if isinstance(widget, tk.Text): return widget.get("1.0", "end-1c").strip()
+#|         if isinstance(widget, ttk.Combobox): return widget.get().strip()
+#|         if isinstance(widget, ttk.Entry): return widget.get().strip()
+#|         return ""
+#| 
+#|     def set_widget_value(self, key: str, value: str) -> None:
+#|         widget = self.entries.get(key)
+#|         if widget is None: return
+#|         if isinstance(widget, tk.Text):
+#|             widget.delete("1.0", "end")
+#|             widget.insert("1.0", value)
+#|         elif isinstance(widget, ttk.Combobox):
+#|             widget.set(value)
+#|         elif isinstance(widget, ttk.Entry):
+#|             widget.delete(0, "end")
+#|             widget.insert(0, value)
+#| 
+#|     def collect_payload(self) -> Dict[str, Any]:
+#|         payload: Dict[str, Any] = {}
+#|         for key, _, _ in FIELDS:
+#|             raw = self.get_widget_value(key)
+#|             if key in LIST_FIELDS: payload[key] = parse_list(raw)
+#|             elif key in DICT_FIELDS: payload[key] = parse_dict(raw)
+#|             else: payload[key] = raw
+#|         payload["generated_at"] = now_utc()
+#|         payload["panel_version"] = APP_VERSION
+#|         payload["operating_mode"] = "PLANNING_ONLY_LAWFUL_SAFETY_AWARE_AVIATION"
+#|         return payload
+#| 
+#|     def _append_paths(self, field: str, paths: Tuple[str, ...], title: str) -> None:
+#|         if not paths: return
+#|         current = self.get_widget_value(field)
+#|         added = "\n".join(paths)
+#|         new_value = current + ("\n" if current else "") + added
+#|         self.set_widget_value(field, new_value)
+#|         messagebox.showinfo(title, f"{len(paths)} path(s) added.")
+#| 
+#|     def add_flights(self): self._append_paths("flight_log_paths", filedialog.askopenfilenames(title="Select Flight Logs", filetypes=[("Docs", "*.json *.csv *.txt"), ("All", "*.*")]), "Added")
+#|     def add_registry(self): self._append_paths("registry_paths", filedialog.askopenfilenames(title="Select Registry Records", filetypes=[("Docs", "*.json *.csv *.txt"), ("All", "*.*")]), "Added")
+#|     def add_telemetry(self): self._append_paths("telemetry_paths", filedialog.askopenfilenames(title="Select Telemetry Data", filetypes=[("Data", "*.json *.csv *.txt"), ("All", "*.*")]), "Added")
+#|     def add_weather(self): self._append_paths("weather_notam_paths", filedialog.askopenfilenames(title="Select Weather/NOTAM", filetypes=[("Docs", "*.json *.csv *.txt"), ("All", "*.*")]), "Added")
+#|     def add_stix_misp(self): self._append_paths("stix_misp_paths", filedialog.askopenfilenames(title="Select STIX/MISP", filetypes=[("Intel", "*.json *.xml"), ("All", "*.*")]), "Added")
+#| 
+#|     def run_policy_screen(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = policy_screen(payload)
+#|         result = {"mode": "POLICY_SCREEN_ONLY", "policy_screen": policy}
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             messagebox.showwarning("Blocked", "Policy Blocked.")
+#|         elif policy["status"] == "HUMAN_REVIEW_REQUIRED":
+#|             messagebox.showwarning("Review", "Human Review Required.")
+#|         else:
+#|             messagebox.showinfo("OK", "Allowed.")
+#| 
+#|     def analyze_local_av(self) -> None:
+#|         payload = self.collect_payload()
+#|         policy = policy_screen(payload)
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             messagebox.showwarning("Blocked", "Analysis blocked.")
+#|             return
+#| 
+#|         path_fields = ["flight_log_paths", "registry_paths", "telemetry_paths", "weather_notam_paths", "stix_misp_paths"]
+#|         all_paths = []
+#|         seen = set()
+#|         for field in path_fields:
+#|             for p in payload.get(field, []):
+#|                 sp = str(p).strip()
+#|                 if sp and sp not in seen:
+#|                     seen.add(sp)
+#|                     all_paths.append(sp)
+#| 
+#|         if not all_paths:
+#|             messagebox.showwarning("No Evidence", "Add files first.")
+#|             return
+#| 
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", "Analyzing...\n")
+#|         self.notebook.select(self.output_tab)
+#|         self.update()
+#| 
+#|         files = []
+#|         parsed_list = []
+#|         for p in all_paths[:30]:
+#|             f, parsed = analyze_av_file(p, payload.get("case_id", ""), payload.get("task_id", ""))
+#|             files.append(f)
+#|             parsed_list.append(parsed)
+#| 
+#|         aggregated = finalize_parsed(aggregate_parsed(parsed_list), payload, files)
+#|         self.analyzed_files = files
+#|         self.parsed = aggregated
+#| 
+#|         report = self._build_local_analysis_report(files, aggregated, payload, policy)
+#|         self.last_result = report
+#|         self._write_output(report)
+#|         
+#|         messagebox.showinfo("Done", f"Parsed {len(files)} files.\nAircraft: {len(aggregated['aircraft'])}\nPositions: {len(aggregated['positions'])}")
+#| 
+#|     def generate_plan(self) -> None:
+#|         payload = self.collect_payload()
+#|         warnings = validate_payload(payload)
+#|         policy = policy_screen(payload)
+#|         if policy["status"] == "POLICY_BLOCKED":
+#|             messagebox.showwarning("Blocked", "Plan blocked.")
+#|             return
+#| 
+#|         questions = payload.get("questions") or default_questions(payload)
+#|         if not self.parsed.get("aircraft") and not self.parsed.get("positions"):
+#|             self.parsed = finalize_parsed(empty_parsed(), payload, self.analyzed_files)
+#| 
+#|         next_action = build_next_best_action(payload, policy, self.analyzed_files, self.parsed)
+#|         collection_plan = build_collection_plan(payload, questions, self.analyzed_files, self.parsed)
+#| 
+#|         result = {
+#|             "mode": "PLANNING_PLUS_LOCAL_DETERMINISTIC_EVIDENCE" if self.analyzed_files else "PLANNING_ONLY",
+#|             "policy_screen": policy,
+#|             "warnings": warnings,
+#|             "payload": payload,
+#|             "evidence_inventory": self.analyzed_files,
+#|             "aircraft_preview": self.parsed.get("aircraft", [])[:100],
+#|             "operators_preview": self.parsed.get("operators", [])[:100],
+#|             "flights_preview": self.parsed.get("flights", [])[:100],
+#|             "positions_preview": self.parsed.get("positions", [])[:100],
+#|             "risk_dimensions": self.parsed.get("risk_dimensions", {}),
+#|             "hypotheses": self.parsed.get("hypotheses", []),
+#|             "knowledge_gaps": self.parsed.get("knowledge_gaps", []),
+#|             "specialist_handoffs": self.parsed.get("specialist_handoffs", []),
+#|             "next_best_action": next_action,
+#|             "collection_plan": collection_plan,
+#|         }
+#|         self.last_result = result
+#|         self._write_output(result)
+#|         self.notebook.select(self.output_tab)
+#| 
+#|     def _build_local_analysis_report(self, files, parsed, payload, policy) -> Dict[str, Any]:
+#|         return {
+#|             "mode": "LOCAL_DETERMINISTIC_AVIINT_ANALYSIS",
+#|             "policy_screen": policy,
+#|             "evidence_inventory": files,
+#|             "aircraft": parsed.get("aircraft", [])[:300],
+#|             "operators": parsed.get("operators", [])[:300],
+#|             "flights": parsed.get("flights", [])[:300],
+#|             "positions": parsed.get("positions", [])[:300],
+#|             "risk_dimensions": parsed.get("risk_dimensions", {}),
+#|             "hypotheses": parsed.get("hypotheses", []),
+#|             "contradictions": parsed.get("contradictions", []),
+#|             "limitations": [
+#|                 "Only local deterministic checks performed.",
+#|                 "No network access.",
+#|                 "No interference, no spoofing, no private tracking.",
+#|                 "Schedule != Actual.",
+#|                 "Gap != Absence.",
+#|             ],
+#|         }
+#| 
+#|     def _write_output(self, result: Dict[str, Any]) -> None:
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2, default=str))
+#| 
+#|     def export_json(self) -> None:
+#|         if not self.last_result: self.generate_plan()
+#|         data = self.last_result
+#|         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
+#|         if path:
+#|             with open(path, "w", encoding="utf-8") as f:
+#|                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+#|             messagebox.showinfo("Saved", path)
+#| 
+#|     def copy_output(self) -> None:
+#|         text = self.output.get("1.0", "end-1c").strip()
+#|         if text:
+#|             self.clipboard_clear()
+#|             self.clipboard_append(text)
+#|             messagebox.showinfo("Copied", "Output copied.")
+#| 
+#|     def clear_form(self) -> None:
+#|         if messagebox.askyesno("Confirm", "Clear all?"):
+#|             self._set_defaults()
+#|             self.output.delete("1.0", "end")
+#|             self.last_result = {}
+#|             self.analyzed_files = []
+#|             self.parsed = empty_parsed()
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     try:
+#|         app = TraceAtlasAVIINTPanel()
+#|         app.mainloop()
+#|     except tk.TclError as exc:
+#|         print(f"GUI Error: {exc}")
+#|         print("Logic usable as library.")
+# TRACEATLAS EMBEDDED ORIGINAL MODULE aviationint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE behaveint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS BEHAVINT — Safe Python Starter Implementation
+#| 
+#| Purpose:
+#|   Evidence-first observable behavioural intelligence pipeline.
+#| 
+#| Hard boundaries enforced in code:
+#|   - Does NOT stalk or track private persons in real time.
+#|   - Does NOT perform biometric identification.
+#|   - Does NOT infer religion, ethnicity, race, political belief, sexual orientation,
+#|     health, mental health, disability, or private intimate behaviour.
+#|   - Does NOT perform psychological profiling, personality scoring, or lie detection.
+#|   - Does NOT generate dangerousness, criminality, loyalty, or predictive-policing scores.
+#|   - Does NOT optimize manipulation, coercion, or persuasion against individuals.
+#|   - Does NOT make autonomous consequential employment, credit, insurance, or law-enforcement decisions.
+#|   - Treats account/device/session activity as account-level evidence, not automatic person attribution.
+#|   - Treats anomaly as deviation, not malice.
+#|   - Treats coordination signal as candidate, not confirmed common controller.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import math
+#| import re
+#| import sys
+#| import unicodedata
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timedelta, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+#| 
+#| VERSION = "0.1.0-behavint-safe-starter"
+#| FAR_FUTURE = datetime(9999, 12, 31, tzinfo=timezone.utc)
+#| 
+#| try:
+#|     from zoneinfo import ZoneInfo  # type: ignore
+#|     HAS_ZONEINFO = True
+#| except Exception:
+#|     HAS_ZONEINFO = False
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / privacy constants
+#| # --------------------------------------------------------------------
+#| 
+#| ALLOWED_SCOPES = {
+#|     "public_and_authorized_records",
+#|     "authorized_case_evidence",
+#|     "authorized_enterprise_telemetry",
+#|     "authorized_security_operations",
+#|     "provided_records_only",
+#| }
+#| 
+#| SENSITIVE_KEYS = {
+#|     "race",
+#|     "ethnicity",
+#|     "religion",
+#|     "faith",
+#|     "sexual_orientation",
+#|     "sex_life",
+#|     "health",
+#|     "medical_condition",
+#|     "disability",
+#|     "mental_health",
+#|     "psychological_profile",
+#|     "personality",
+#|     "political_belief",
+#|     "political_affiliation",
+#|     "union_membership",
+#|     "biometric",
+#|     "face",
+#|     "facial",
+#|     "voiceprint",
+#|     "gait",
+#|     "fingerprint",
+#|     "iris",
+#|     "dna",
+#|     "lie_detector",
+#|     "deception",
+#|     "dangerousness",
+#|     "criminality",
+#|     "criminal_propensity",
+#|     "loyalty",
+#|     "extremism",
+#|     "terrorism_probability",
+#|     "fraudster_score",
+#| }
+#| 
+#| CONTENT_KEYS = {
+#|     "message_body",
+#|     "email_body",
+#|     "chat_log",
+#|     "content",
+#|     "transcript",
+#|     "recording",
+#|     "private_message",
+#|     "dm",
+#| }
+#| 
+#| EXACT_LOCATION_KEYS = {
+#|     "latitude",
+#|     "longitude",
+#|     "lat",
+#|     "lon",
+#|     "gps",
+#|     "home_address",
+#|     "private_address",
+#|     "street_address",
+#|     "exact_location",
+#| }
+#| 
+#| VOLUME_KEYS = {
+#|     "volume",
+#|     "amount",
+#|     "bytes",
+#|     "record_count",
+#|     "rows",
+#|     "size_mb",
+#|     "quantity",
+#|     "value",
+#| }
+#| 
+#| PERSON_ENTITY_PATTERN = re.compile(r"(?i)^(person|individual|human|employee|candidate)[:_-]")
+#| 
+#| PROHIBITED_PATTERNS: List[Tuple[re.Pattern[str], str]] = [
+#|     (
+#|         re.compile(r"(?i)\b(stalk|real[- ]time track|live track|surveil)\s+(person|individual|employee|target|someone)"),
+#|         "PRIVATE_STALKING_OR_REAL_TIME_TRACKING",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(face recognition|voiceprint|biometric identif|gait recognition|typing cadence.*identify)"),
+#|         "BIOMETRIC_IDENTIFICATION_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(psycholog.*(diagnos|profile)|personality (score|disorder)|mental health (diagnos|assess)|lie detect|deception detect)"),
+#|         "PSYCHOLOGICAL_PROFILING_OR_LIE_DETECTION",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(infer|determine|classify|score)\s+(religion|ethnicity|race|political belief|sexual orientation|medical condition|mental health|criminality|dangerousness|loyalty)"),
+#|         "SENSITIVE_TRAIT_OR_RISK_PROFILING",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(predictive policing|crime prediction|criminal propensity|terrorist probability|dangerousness score)"),
+#|         "PREDICTIVE_POLICING_OR_DANGEROUSNESS_SCORE",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(manipulat|coerc|persua|influence).*\b(target|person|individual|employee)"),
+#|         "MANIPULATION_OR_PERSUASION_REQUEST",
+#|     ),
+#|     (
+#|         re.compile(r"(?i)\b(autonomous|automatic).*(hire|fire|terminate|credit decision|insurance decision|law.enforcement action|arrest)"),
+#|         "AUTONOMOUS_CONSEQUENTIAL_DECISION",
+#|     ),
+#| ]
+#| 
+#| SOURCE_RELIABILITY: Dict[str, float] = {
+#|     "signed_system_log": 0.92,
+#|     "identity_log": 0.88,
+#|     "application_log": 0.82,
+#|     "endpoint_telemetry": 0.82,
+#|     "network_telemetry": 0.78,
+#|     "cloud_audit_log": 0.84,
+#|     "siem_event": 0.80,
+#|     "authorized_workflow": 0.82,
+#|     "authorized_ticketing": 0.78,
+#|     "transaction_record": 0.88,
+#|     "payment_metadata": 0.86,
+#|     "fraud_telemetry": 0.72,
+#|     "public_repository": 0.58,
+#|     "public_website": 0.55,
+#|     "public_social_post": 0.45,
+#|     "self_reported": 0.35,
+#|     "third_party_report": 0.40,
+#|     "unknown": 0.30,
+#| }
+#| 
+#| HIGH_AUTHORITY_SOURCE_TYPES = {
+#|     "signed_system_log",
+#|     "identity_log",
+#|     "application_log",
+#|     "endpoint_telemetry",
+#|     "network_telemetry",
+#|     "cloud_audit_log",
+#|     "siem_event",
+#|     "authorized_workflow",
+#|     "transaction_record",
+#|     "payment_metadata",
+#| }
+#| 
+#| TIMESTAMP_TYPE_PRIORITY = {
+#|     "EVENT_TIME": 0,
+#|     "OBSERVED_TIME": 1,
+#|     "RECORDED_TIME": 2,
+#|     "PROCESSED_TIME": 3,
+#|     "REPORTED_TIME": 4,
+#|     "PUBLISHED_TIME": 5,
+#|     "INGESTION_TIME": 6,
+#|     "DISCOVERY_TIME": 7,
+#|     "KNOWLEDGE_TIME": 8,
+#|     "UNKNOWN": 99,
+#| }
+#| 
+#| BENIGN_CONTEXT_TYPES = {
+#|     "role_change",
+#|     "system_migration",
+#|     "maintenance",
+#|     "project",
+#|     "automation",
+#|     "scheduled_process",
+#|     "policy_change",
+#|     "business_event",
+#|     "holiday",
+#|     "deployment",
+#|     "incident_response",
+#| }
+#| 
+#| CONTAMINATING_CONTEXT_TYPES = {
+#|     "incident",
+#|     "abuse",
+#|     "migration",
+#|     "special_project",
+#|     "holiday",
+#|     "outage",
+#|     "data_backfill",
+#| }
+#| 
+#| AUTOMATION_EVENT_HINTS = {
+#|     "CRON",
+#|     "SCHEDULED_JOB",
+#|     "AUTOMATION",
+#|     "SERVICE_ACCOUNT",
+#|     "BOT",
+#|     "BATCH",
+#|     "PIPELINE",
+#| }
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Generic helpers
+#| # --------------------------------------------------------------------
+#| 
+#| def utc_now() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def stable_id(prefix: str, *parts: Any) -> str:
+#|     raw = "|".join(str(json_safe(p)) for p in parts)
+#|     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+#|     return f"{prefix}-{digest}"
+#| 
+#| 
+#| def json_safe(obj: Any) -> Any:
+#|     if isinstance(obj, dict):
+#|         return {str(k): json_safe(v) for k, v in obj.items()}
+#|     if isinstance(obj, (list, tuple, set)):
+#|         return [json_safe(x) for x in obj]
+#|     if isinstance(obj, datetime):
+#|         return obj.isoformat()
+#|     if isinstance(obj, timedelta):
+#|         return obj.total_seconds()
+#|     if isinstance(obj, bytes):
+#|         return obj.hex()
+#|     if isinstance(obj, (str, int, float, bool, type(None))):
+#|         return obj
+#|     return str(obj)
+#| 
+#| 
+#| def normalize_text(value: Any) -> str:
+#|     if value is None:
+#|         return ""
+#|     s = unicodedata.normalize("NFKC", str(value))
+#|     s = re.sub(r"[\u200b\u200c\u200d\u2060\ufeff]", "", s)
+#|     return s.strip()
+#| 
+#| 
+#| def collapse_ws(value: str) -> str:
+#|     return re.sub(r"\s+", " ", value).strip()
+#| 
+#| 
+#| def iso(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
+#|     return max(lo, min(hi, value))
+#| 
+#| 
+#| def unique_preserve(items: Iterable[Any]) -> List[Any]:
+#|     seen = set()
+#|     out = []
+#|     for item in items:
+#|         key = json_safe(item)
+#|         if isinstance(key, (dict, list)):
+#|             key = json.dumps(key, sort_keys=True, ensure_ascii=False)
+#|         if key not in seen:
+#|             seen.add(key)
+#|             out.append(item)
+#|     return out
+#| 
+#| 
+#| def safe_mean(xs: Iterable[float]) -> float:
+#|     vals = [float(x) for x in xs]
+#|     return sum(vals) / len(vals) if vals else 0.0
+#| 
+#| 
+#| def safe_stdev(xs: Iterable[float]) -> float:
+#|     vals = [float(x) for x in xs]
+#|     if len(vals) < 2:
+#|         return 0.0
+#|     m = safe_mean(vals)
+#|     return math.sqrt(sum((x - m) ** 2 for x in vals) / (len(vals) - 1))
+#| 
+#| 
+#| def safe_median(xs: Iterable[float]) -> float:
+#|     vals = sorted(float(x) for x in xs)
+#|     if not vals:
+#|         return 0.0
+#|     mid = len(vals) // 2
+#|     if len(vals) % 2:
+#|         return vals[mid]
+#|     return (vals[mid - 1] + vals[mid]) / 2.0
+#| 
+#| 
+#| def safe_z(x: float, mean: float, std: float) -> float:
+#|     if std <= 1e-9:
+#|         return 0.0 if abs(float(x) - mean) <= 1e-9 else 5.0
+#|     return (float(x) - mean) / std
+#| 
+#| 
+#| def counter_probs(counter: Counter) -> Dict[Any, float]:
+#|     total = sum(counter.values())
+#|     if total <= 0:
+#|         return {}
+#|     return {k: v / total for k, v in counter.items()}
+#| 
+#| 
+#| def tv_distance(p: Dict[Any, float], q: Dict[Any, float]) -> float:
+#|     keys = set(p) | set(q)
+#|     return 0.5 * sum(abs(p.get(k, 0.0) - q.get(k, 0.0)) for k in keys)
+#| 
+#| 
+#| def mask_value(value: Any, keep_prefix: int = 3, keep_suffix: int = 2) -> str:
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return ""
+#|     if len(s) <= keep_prefix + keep_suffix:
+#|         return "*" * len(s)
+#|     return s[:keep_prefix] + "*" * (len(s) - keep_prefix - keep_suffix) + s[-keep_suffix:]
+#| 
+#| 
+#| def mask_entity(entity_id: Any, enabled: bool = True) -> str:
+#|     if not enabled:
+#|         return normalize_text(entity_id)
+#|     return mask_value(entity_id, keep_prefix=4, keep_suffix=2)
+#| 
+#| 
+#| def parse_time(value: Any) -> Optional[datetime]:
+#|     if not value:
+#|         return None
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     if s.endswith("Z"):
+#|         s = s[:-1] + "+00:00"
+#|     try:
+#|         dt = datetime.fromisoformat(s)

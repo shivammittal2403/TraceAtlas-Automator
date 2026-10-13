@@ -1,0 +1,1000 @@
+#|         if dt.tzinfo is None:
+#|             dt = dt.replace(tzinfo=timezone.utc)
+#|         return dt
+#|     except Exception:
+#|         pass
+#|     for fmt in (
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%d",
+#|         "%d/%m/%Y",
+#|         "%m/%d/%Y",
+#|         "%Y-%m",
+#|         "%Y",
+#|     ):
+#|         try:
+#|             dt = datetime.strptime(s, fmt)
+#|             if dt.tzinfo is None:
+#|                 dt = dt.replace(tzinfo=timezone.utc)
+#|             return dt
+#|         except Exception:
+#|             continue
+#|     return None
+#| 
+#| 
+#| def time_overlap(
+#|     s1: Optional[datetime],
+#|     e1: Optional[datetime],
+#|     s2: Optional[datetime],
+#|     e2: Optional[datetime],
+#| ) -> bool:
+#|     if s1 is None and e1 is None:
+#|         return True
+#|     if s2 is None and e2 is None:
+#|         return True
+#|     if e1 and s2 and e1 < s2:
+#|         return False
+#|     if e2 and s1 and e2 < s1:
+#|         return False
+#|     return True
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Policy / authorization
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_user_intent_text(manifest: Dict[str, Any]) -> str:
+#|     parts = [
+#|         normalize_text(manifest.get("objective", "")),
+#|         " ".join(normalize_text(q) for q in manifest.get("questions", []) or []),
+#|     ]
+#|     return " ".join(parts)
+#| 
+#| 
+#| def policy_screen(manifest: Dict[str, Any]) -> List[str]:
+#|     blob = collect_user_intent_text(manifest)
+#|     blocked = []
+#|     for pat, label in PROHIBITED_PATTERNS:
+#|         if pat.search(blob):
+#|             blocked.append(label)
+#|     return list(dict.fromkeys(blocked))
+#| 
+#| 
+#| def privacy_config(manifest: Dict[str, Any]) -> Dict[str, Any]:
+#|     auth = manifest.get("authorization", {}) or {}
+#|     pc = dict(auth.get("privacy", {}) or manifest.get("privacy", {}) or {})
+#|     pc.setdefault("minimize_personal_data", True)
+#|     pc.setdefault("hash_entities", False)
+#|     pc.setdefault("mask_entity_display", True)
+#|     return pc
+#| 
+#| 
+#| def has_person_level_entities(manifest: Dict[str, Any]) -> bool:
+#|     for ev in manifest.get("events", []) or []:
+#|         entity = normalize_text(ev.get("entity_id") or ev.get("account_id") or "")
+#|         etype = normalize_text(ev.get("entity_type") or "").upper()
+#|         if PERSON_ENTITY_PATTERN.match(entity) or etype in {"PERSON_CANDIDATE", "LEGAL_PERSON", "EMPLOYEE"}:
+#|             return True
+#|     return False
+#| 
+#| 
+#| def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
+#|     auth = manifest.get("authorization") or {}
+#|     reasons: List[str] = []
+#| 
+#|     if not auth.get("approved"):
+#|         reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
+#| 
+#|     scope = auth.get("scope", "provided_records_only")
+#|     if scope not in ALLOWED_SCOPES:
+#|         reasons.append("UNSUPPORTED_SCOPE")
+#| 
+#|     model_mode = auth.get("model_mode", "LOCAL_ONLY")
+#|     if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+#|         reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
+#| 
+#|     if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
+#|         reasons.append("UNKNOWN_MODEL_MODE")
+#| 
+#|     if has_person_level_entities(manifest) and not auth.get("person_level_approved"):
+#|         reasons.append("PERSON_LEVEL_ANALYSIS_NOT_APPROVED")
+#| 
+#|     return (len(reasons) == 0), reasons
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Timestamp parsing
+#| # --------------------------------------------------------------------
+#| 
+#| def parse_tz_offset(value: Any) -> Optional[timezone]:
+#|     if value is None:
+#|         return None
+#|     s = normalize_text(value)
+#|     if not s:
+#|         return None
+#|     if s.upper() == "Z":
+#|         return timezone.utc
+#|     m = re.fullmatch(r"([+-])(\d{2}):?(\d{2})", s)
+#|     if not m:
+#|         return None
+#|     sign = 1 if m.group(1) == "+" else -1
+#|     hours = int(m.group(2))
+#|     minutes = int(m.group(3))
+#|     return timezone(sign * timedelta(hours=hours, minutes=minutes))
+#| 
+#| 
+#| def localize_naive_datetime(
+#|     dt: datetime,
+#|     timezone_hint: Optional[str],
+#| ) -> Tuple[datetime, str, List[str]]:
+#|     limitations: List[str] = []
+#| 
+#|     if dt.tzinfo is not None:
+#|         return dt.astimezone(timezone.utc), "EXPLICIT", limitations
+#| 
+#|     hint = normalize_text(timezone_hint) if timezone_hint else None
+#|     if not hint:
+#|         return dt.replace(tzinfo=timezone.utc), "UNKNOWN", [
+#|             "Timezone unknown; UTC assumed only for deterministic comparison. This is an assumption, not evidence."
+#|         ]
+#| 
+#|     offset = parse_tz_offset(hint)
+#|     if offset is not None:
+#|         return dt.replace(tzinfo=offset).astimezone(timezone.utc), "EXPLICIT", limitations
+#| 
+#|     if HAS_ZONEINFO:
+#|         try:
+#|             tz = ZoneInfo(hint)
+#|             aware = dt.replace(tzinfo=tz)
+#|             limitations.append("Named timezone used. DST fold/gap ambiguity is only partially modeled in this starter.")
+#|             return aware.astimezone(timezone.utc), "SOURCE_CONFIGURED", limitations
+#|         except Exception as exc:
+#|             limitations.append(f"ZoneInfo unavailable/error for '{hint}': {exc}")
+#| 
+#|     limitations.append(f"Timezone '{hint}' could not be resolved; UTC assumed for comparison only.")
+#|     return dt.replace(tzinfo=timezone.utc), "UNKNOWN", limitations
+#| 
+#| 
+#| def detect_precision_from_raw(raw: str) -> str:
+#|     s = normalize_text(raw)
+#|     if not s:
+#|         return "UNKNOWN"
+#| 
+#|     m = re.search(r"[T ]\d{2}:\d{2}:\d{2}\.(\d+)", s)
+#|     if m:
+#|         frac_len = len(m.group(1))
+#|         if frac_len >= 9:
+#|             return "NANOSECOND"
+#|         if frac_len >= 6:
+#|             return "MICROSECOND"
+#|         if frac_len >= 3:
+#|             return "MILLISECOND"
+#|         return "SECOND"
+#| 
+#|     if re.search(r"[T ]\d{2}:\d{2}:\d{2}", s):
+#|         return "SECOND"
+#|     if re.search(r"[T ]\d{2}:\d{2}(?!:\d)", s):
+#|         return "MINUTE"
+#|     if re.search(r"[T ]\d{2}(?![:\d])", s):
+#|         return "HOUR"
+#|     if re.search(r"\d{4}-\d{2}-\d{2}", s):
+#|         return "DAY"
+#|     if re.search(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", s):
+#|         return "DAY"
+#|     if re.search(r"\d{4}-\d{2}(?!-\d)", s):
+#|         return "MONTH"
+#|     if re.search(r"\b\d{4}\b(?![-/\d])", s):
+#|         return "YEAR"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def precision_from_format(fmt: str) -> str:
+#|     if "%f" in fmt:
+#|         return "MICROSECOND"
+#|     if "%S" in fmt:
+#|         return "SECOND"
+#|     if "%M" in fmt:
+#|         return "MINUTE"
+#|     if "%H" in fmt:
+#|         return "HOUR"
+#|     if "%d" in fmt or "%j" in fmt:
+#|         return "DAY"
+#|     if "%m" in fmt:
+#|         return "MONTH"
+#|     if "%Y" in fmt or "%y" in fmt:
+#|         return "YEAR"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def date_format_ambiguity(raw: str, locale_hint: Optional[str]) -> bool:
+#|     s = normalize_text(raw)
+#|     m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+.*)?", s)
+#|     if not m:
+#|         return False
+#|     a = int(m.group(1))
+#|     b = int(m.group(2))
+#|     if a <= 12 and b <= 12 and a != b:
+#|         return not bool(locale_hint)
+#|     return False
+#| 
+#| 
+#| def parse_datetime_string(
+#|     raw: str,
+#|     locale_hint: Optional[str] = None,
+#| ) -> Tuple[Optional[datetime], Optional[str], str, bool, List[str]]:
+#|     s = normalize_text(raw)
+#|     limitations: List[str] = []
+#| 
+#|     if not s:
+#|         return None, None, "UNKNOWN", False, ["Empty timestamp."]
+#| 
+#|     iso_candidate = s.replace("Z", "+00:00")
+#|     try:
+#|         dt = datetime.fromisoformat(iso_candidate)
+#|         precision = detect_precision_from_raw(s)
+#|         tz_explicit = dt.tzinfo is not None
+#|         if date_format_ambiguity(s, locale_hint):
+#|             limitations.append("Numeric date format may be ambiguous (DD/MM vs MM/DD).")
+#|         return dt, "ISO8601", precision, tz_explicit, limitations
+#|     except Exception:
+#|         pass
+#| 
+#|     dayfirst_locales = {"en-gb", "en-in", "dd/mm/yyyy", "dayfirst", "ddmm"}
+#|     dayfirst = normalize_text(locale_hint or "").lower() in dayfirst_locales
+#| 
+#|     common_formats = [
+#|         "%Y-%m-%dT%H:%M:%S%z",
+#|         "%Y-%m-%d %H:%M:%S%z",
+#|         "%Y-%m-%dT%H:%M:%S.%f%z",
+#|         "%Y-%m-%d %H:%M:%S.%f%z",
+#|         "%Y-%m-%dT%H:%M:%S",
+#|         "%Y-%m-%d %H:%M:%S",
+#|         "%Y-%m-%dT%H:%M:%S.%f",
+#|         "%Y-%m-%d %H:%M:%S.%f",
+#|         "%Y-%m-%dT%H:%M",
+#|         "%Y-%m-%d %H:%M",
+#|         "%Y-%m-%dT%H",
+#|         "%Y-%m-%d %H",
+#|         "%Y-%m-%d",
+#|         "%Y/%m/%d",
+#|         "%d %B %Y",
+#|         "%d %b %Y",
+#|         "%B %d, %Y",
+#|         "%b %d, %Y",
+#|         "%B %d %Y",
+#|         "%b %d %Y",
+#|         "%Y-%m",
+#|         "%Y",
+#|     ]
+#| 
+#|     ambiguous_numeric = [
+#|         "%d/%m/%Y %H:%M:%S",
+#|         "%d/%m/%Y %H:%M",
+#|         "%d/%m/%Y",
+#|         "%m/%d/%Y %H:%M:%S",
+#|         "%m/%d/%Y %H:%M",
+#|         "%m/%d/%Y",
+#|         "%d-%m-%Y %H:%M:%S",
+#|         "%d-%m-%Y",
+#|         "%m-%d-%Y %H:%M:%S",
+#|         "%m-%d-%Y",
+#|     ]
+#| 
+#|     if dayfirst:
+#|         ordered = ambiguous_numeric[:3] + common_formats + ambiguous_numeric[3:]
+#|     else:
+#|         ordered = ambiguous_numeric[3:6] + common_formats + ambiguous_numeric[:3]
+#| 
+#|     for fmt in ordered:
+#|         try:
+#|             dt = datetime.strptime(s, fmt)
+#|             precision = precision_from_format(fmt)
+#|             tz_explicit = "%z" in fmt
+#|             if date_format_ambiguity(s, locale_hint):
+#|                 limitations.append(
+#|                     "Numeric date format may be ambiguous (DD/MM vs MM/DD). Locale hint was not sufficient to resolve confidently."
+#|                 )
+#|             return dt, fmt, precision, tz_explicit, limitations
+#|         except Exception:
+#|             continue
+#| 
+#|     return None, None, "UNKNOWN", False, ["Unrecognized timestamp format."]
+#| 
+#| 
+#| def detect_epoch_unit(value: float, hint: Optional[str] = None) -> str:
+#|     if hint:
+#|         h = normalize_text(hint).upper()
+#|         if h in {"SECONDS", "SEC", "S"}:
+#|             return "SECONDS"
+#|         if h in {"MILLISECONDS", "MS"}:
+#|             return "MILLISECONDS"
+#|         if h in {"MICROSECONDS", "US", "MCS"}:
+#|             return "MICROSECONDS"
+#|         if h in {"NANOSECONDS", "NS"}:
+#|             return "NANOSECONDS"
+#| 
+#|     av = abs(value)
+#|     max_seconds = 4102444800.0
+#|     if av <= max_seconds:
+#|         return "SECONDS"
+#|     if av <= max_seconds * 1e3:
+#|         return "MILLISECONDS"
+#|     if av <= max_seconds * 1e6:
+#|         return "MICROSECONDS"
+#|     if av <= max_seconds * 1e9:
+#|         return "NANOSECONDS"
+#|     return "UNKNOWN"
+#| 
+#| 
+#| def parse_epoch_value(
+#|     raw: Any,
+#|     epoch_unit_hint: Optional[str] = None,
+#| ) -> Tuple[Optional[datetime], Optional[str], str, bool, List[str]]:
+#|     limitations: List[str] = []
+#|     try:
+#|         value = float(raw)
+#|     except Exception:
+#|         return None, None, "UNKNOWN", False, ["Epoch value not numeric."]
+#| 
+#|     unit = detect_epoch_unit(value, epoch_unit_hint)
+#|     if unit == "UNKNOWN":
+#|         return None, None, "UNKNOWN", False, ["Epoch unit could not be determined."]
+#| 
+#|     if unit == "SECONDS":
+#|         seconds = value
+#|         precision = "SECOND" if value == int(value) else "MICROSECOND"
+#|     elif unit == "MILLISECONDS":
+#|         seconds = value / 1e3
+#|         precision = "MILLISECOND"
+#|     elif unit == "MICROSECONDS":
+#|         seconds = value / 1e6
+#|         precision = "MICROSECOND"
+#|     else:
+#|         seconds = value / 1e9
+#|         precision = "NANOSECOND"
+#| 
+#|     try:
+#|         dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
+#|     except Exception as exc:
+#|         return None, None, "UNKNOWN", False, [f"Epoch conversion failed: {exc}"]
+#| 
+#|     limitations.append(f"Epoch unit inferred/declared as {unit}. Unit detection can be ambiguous without field documentation.")
+#|     return dt, f"EPOCH_{unit}", precision, True, limitations
+#| 
+#| 
+#| PRECISION_DELTA_SECONDS = {
+#|     "NANOSECOND": 1e-9,
+#|     "MICROSECOND": 1e-6,
+#|     "MILLISECOND": 1e-3,
+#|     "SECOND": 1.0,
+#|     "MINUTE": 60.0,
+#|     "HOUR": 3600.0,
+#|     "DAY": 86400.0,
+#|     "WEEK": 604800.0,
+#|     "MONTH": 2592000.0,
+#|     "YEAR": 31536000.0,
+#| }
+#| 
+#| 
+#| def precision_delta_seconds(precision: str) -> Optional[float]:
+#|     return PRECISION_DELTA_SECONDS.get(precision)
+#| 
+#| 
+#| def parse_timestamp_value(
+#|     raw: Any,
+#|     timezone_hint: Optional[str] = None,
+#|     locale_hint: Optional[str] = None,
+#|     precision_hint: Optional[str] = None,
+#|     uncertainty_seconds: Optional[float] = None,
+#|     timestamp_type: Optional[str] = None,
+#|     epoch_unit_hint: Optional[str] = None,
+#| ) -> Dict[str, Any]:
+#|     limitations: List[str] = []
+#|     raw_text = normalize_text(raw) if raw is not None else ""
+#| 
+#|     base = {
+#|         "raw_timestamp": raw_text,
+#|         "normalized_start_utc": None,
+#|         "normalized_end_utc": None,
+#|         "representative_utc": None,
+#|         "precision": normalize_text(precision_hint).upper() or "UNKNOWN",
+#|         "timezone_state": "UNKNOWN",
+#|         "timezone_hint": timezone_hint,
+#|         "format_detected": None,
+#|         "uncertainty_seconds": uncertainty_seconds,
+#|         "timestamp_type": normalize_text(timestamp_type).upper() or "UNKNOWN",
+#|         "limitations": limitations,
+#|     }
+#| 
+#|     dt: Optional[datetime] = None
+#|     fmt: Optional[str] = None
+#|     precision = normalize_text(precision_hint).upper() or None
+#|     tz_explicit = False
+#| 
+#|     if isinstance(raw, datetime):
+#|         dt = raw
+#|         precision = precision or detect_precision_from_raw(raw.isoformat())
+#|         tz_explicit = raw.tzinfo is not None
+#|         fmt = "PYTHON_DATETIME"
+#|     elif raw is not None and re.fullmatch(r"-?\d+(?:\.\d+)?", raw_text):
+#|         dt, fmt, parsed_precision, tz_explicit, epoch_lim = parse_epoch_value(raw, epoch_unit_hint)
+#|         precision = precision or parsed_precision
+#|         limitations.extend(epoch_lim)
+#|     else:
+#|         dt, fmt, parsed_precision, tz_explicit, parse_lim = parse_datetime_string(raw_text, locale_hint)
+#|         precision = precision or parsed_precision
+#|         limitations.extend(parse_lim)
+#| 
+#|     if dt is None:
+#|         base["limitations"].append("Timestamp could not be parsed.")
+#|         base["precision"] = precision or "UNKNOWN"
+#|         return base
+#| 
+#|     if tz_explicit:
+#|         normalized = dt.astimezone(timezone.utc)
+#|         tz_state = "EXPLICIT"
+#|     else:
+#|         normalized, tz_state, tz_lim = localize_naive_datetime(dt, timezone_hint)
+#|         limitations.extend(tz_lim)
+#| 
+#|     precision = precision or detect_precision_from_raw(raw_text) or "UNKNOWN"
+#|     base["format_detected"] = fmt
+#|     base["precision"] = precision
+#|     base["timezone_state"] = tz_state
+#| 
+#|     delta = precision_delta_seconds(precision)
+#|     if delta is not None:
+#|         start = normalized
+#|         end = normalized + timedelta(seconds=delta)
+#|         rep = start + timedelta(seconds=delta / 2.0)
+#|     else:
+#|         start = end = rep = normalized
+#| 
+#|     if base["uncertainty_seconds"] is None:
+#|         base["uncertainty_seconds"] = (delta / 2.0) if delta is not None else None
+#| 
+#|     base["normalized_start_utc"] = start
+#|     base["normalized_end_utc"] = end
+#|     base["representative_utc"] = rep
+#| 
+#|     return base
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Sources / coverage / context
+#| # --------------------------------------------------------------------
+#| 
+#| def collect_referenced_source_ids(manifest: Dict[str, Any]) -> Set[str]:
+#|     ids = set()
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if sid:
+#|             ids.add(sid)
+#|     for ev in manifest.get("events", []) or []:
+#|         sid = normalize_text(ev.get("source_id"))
+#|         if sid:
+#|             ids.add(sid)
+#|     for cov in manifest.get("source_coverage", []) or []:
+#|         sid = normalize_text(cov.get("source_id"))
+#|         if sid:
+#|             ids.add(sid)
+#|     return ids
+#| 
+#| 
+#| def ingest_sources(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+#|     sources: Dict[str, Dict[str, Any]] = {}
+#| 
+#|     for s in manifest.get("sources", []) or []:
+#|         sid = normalize_text(s.get("source_id"))
+#|         if not sid:
+#|             continue
+#|         stype = normalize_text(s.get("source_type", "unknown")).lower()
+#|         reliability = s.get("reliability")
+#|         if reliability is None:
+#|             reliability = SOURCE_RELIABILITY.get(stype, SOURCE_RELIABILITY["unknown"])
+#|         sources[sid] = {
+#|             "source_id": sid,
+#|             "source_type": stype,
+#|             "upstream_source_id": normalize_text(s.get("upstream_source_id")) or None,
+#|             "reliability": clamp(float(reliability)),
+#|             "observed_at": normalize_text(s.get("observed_at")) or None,
+#|             "url": s.get("url"),
+#|             "limitations": list(s.get("limitations", []) or []),
+#|         }
+#| 
+#|     for sid in collect_referenced_source_ids(manifest):
+#|         if sid not in sources:
+#|             sources[sid] = {
+#|                 "source_id": sid,
+#|                 "source_type": "unknown",
+#|                 "upstream_source_id": None,
+#|                 "reliability": SOURCE_RELIABILITY["unknown"],
+#|                 "observed_at": None,
+#|                 "url": None,
+#|                 "limitations": ["Source referenced but not defined in manifest."],
+#|             }
+#| 
+#|     return sources
+#| 
+#| 
+#| def resolve_source_root(sid: str, sources: Dict[str, Dict[str, Any]], memo: Dict[str, str], visiting: Set[str]) -> str:
+#|     if sid in memo:
+#|         return memo[sid]
+#|     if sid in visiting:
+#|         return sid
+#|     visiting.add(sid)
+#|     src = sources.get(sid)
+#|     if not src or not src.get("upstream_source_id"):
+#|         memo[sid] = sid
+#|         visiting.discard(sid)
+#|         return sid
+#|     root = resolve_source_root(src["upstream_source_id"], sources, memo, visiting)
+#|     memo[sid] = root
+#|     visiting.discard(sid)
+#|     return root
+#| 
+#| 
+#| def build_source_roots(sources: Dict[str, Dict[str, Any]]) -> Dict[str, str]:
+#|     memo: Dict[str, str] = {}
+#|     for sid in sources:
+#|         resolve_source_root(sid, sources, memo, set())
+#|     return memo
+#| 
+#| 
+#| def source_family_ids(source_ids: List[str], source_roots: Dict[str, str]) -> List[str]:
+#|     roots = []
+#|     for sid in source_ids:
+#|         roots.append(source_roots.get(sid, sid))
+#|     return list(dict.fromkeys(roots))
+#| 
+#| 
+#| def independence_state(families: List[str], sources: Dict[str, Dict[str, Any]], source_ids: List[str]) -> str:
+#|     if not source_ids:
+#|         return "UNKNOWN"
+#|     if len(families) <= 1:
+#|         return "DEPENDENT"
+#|     types = {sources.get(sid, {}).get("source_type", "unknown") for sid in source_ids}
+#|     rels = [sources.get(sid, {}).get("reliability", 0.3) for sid in source_ids]
+#|     if len(types) == 1 and max(rels) < 0.70:
+#|         return "PARTIALLY_DEPENDENT"
+#|     if max(rels) >= 0.70:
+#|         return "INDEPENDENT"
+#|     return "PARTIALLY_DEPENDENT"
+#| 
+#| 
+#| def ingest_source_coverage(manifest: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+#|     coverage: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for idx, c in enumerate(manifest.get("source_coverage", []) or []):
+#|         sid = normalize_text(c.get("source_id"))
+#|         if not sid:
+#|             continue
+#|         coverage[sid].append({
+#|             "coverage_id": normalize_text(c.get("coverage_id") or f"COV-{idx}"),
+#|             "source_id": sid,
+#|             "coverage_start_utc": parse_time(c.get("coverage_start")),
+#|             "coverage_end_utc": parse_time(c.get("coverage_end")),
+#|             "operational": bool(c.get("operational", True)),
+#|             "retention_gap": bool(c.get("retention_gap", False)),
+#|             "limitations": list(c.get("limitations", []) or []),
+#|         })
+#|     return dict(coverage)
+#| 
+#| 
+#| def check_coverage(
+#|     rep: Optional[datetime],
+#|     source_id: Optional[str],
+#|     coverage_by_source: Dict[str, List[Dict[str, Any]]],
+#| ) -> str:
+#|     if not rep or not source_id:
+#|         return "UNKNOWN"
+#|     covs = coverage_by_source.get(source_id, [])
+#|     if not covs:
+#|         return "UNKNOWN"
+#|     for c in covs:
+#|         if not c.get("operational", True):
+#|             return "SOURCE_OUTAGE"
+#|         if c.get("retention_gap"):
+#|             return "RETENTION_GAP"
+#|         start = c.get("coverage_start_utc")
+#|         end = c.get("coverage_end_utc")
+#|         if start and end and start <= rep <= end:
+#|             return "OK"
+#|     return "OUTSIDE_COVERAGE"
+#| 
+#| 
+#| def ingest_contexts(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     contexts = []
+#|     for idx, c in enumerate(manifest.get("context", []) or []):
+#|         ctx_id = normalize_text(c.get("context_id") or f"CTX-{idx}")
+#|         contexts.append({
+#|             "context_id": ctx_id,
+#|             "context_type": normalize_text(c.get("context_type", "unknown")).lower(),
+#|             "entity_ids": [normalize_text(x) for x in c.get("entity_ids", []) or [] if normalize_text(x)],
+#|             "valid_from": parse_time(c.get("valid_from")),
+#|             "valid_to": parse_time(c.get("valid_to")),
+#|             "description": normalize_text(c.get("description")),
+#|             "source_id": normalize_text(c.get("source_id")) or None,
+#|             "limitations": list(c.get("limitations", []) or []),
+#|         })
+#|     return contexts
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Attribute filtering / volume extraction
+#| # --------------------------------------------------------------------
+#| 
+#| def filter_sensitive_attributes(attrs_raw: Dict[str, Any], privacy_cfg: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+#|     clean: Dict[str, Any] = {}
+#|     flags: List[str] = []
+#| 
+#|     for key, value in (attrs_raw or {}).items():
+#|         lk = normalize_text(key).lower()
+#|         if lk in SENSITIVE_KEYS:
+#|             flags.append(f"SENSITIVE_ATTRIBUTE_REMOVED:{lk}")
+#|             continue
+#|         if lk in CONTENT_KEYS:
+#|             flags.append("COMMUNICATION_CONTENT_NOT_USED")
+#|             continue
+#|         if lk in EXACT_LOCATION_KEYS:
+#|             flags.append("EXACT_LOCATION_NOT_USED")
+#|             continue
+#| 
+#|         if isinstance(value, list):
+#|             clean[lk] = [normalize_text(x) for x in value if normalize_text(x)]
+#|         else:
+#|             nv = normalize_text(value)
+#|             if nv:
+#|                 clean[lk] = nv
+#| 
+#|     return clean, flags
+#| 
+#| 
+#| def get_volume(attrs: Dict[str, Any]) -> Optional[float]:
+#|     for k in VOLUME_KEYS:
+#|         v = attrs.get(k)
+#|         if v is None:
+#|             continue
+#|         s = normalize_text(v).replace(",", "")
+#|         m = re.search(r"-?\d+(?:\.\d+)?", s)
+#|         if m:
+#|             try:
+#|                 return float(m.group())
+#|             except Exception:
+#|                 continue
+#|     return None
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Event ingestion / aggregation
+#| # --------------------------------------------------------------------
+#| 
+#| def choose_primary_timestamp_record(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     def sort_key(r: Dict[str, Any]) -> Tuple[int, datetime, str]:
+#|         ts = r.get("timestamp", {})
+#|         tt = TIMESTAMP_TYPE_PRIORITY.get(ts.get("timestamp_type", "UNKNOWN"), 99)
+#|         rep = ts.get("representative_utc") or FAR_FUTURE
+#|         return (tt, rep, r.get("record_id", ""))
+#| 
+#|     return sorted(records, key=sort_key)[0]
+#| 
+#| 
+#| def ingest_events(
+#|     manifest: Dict[str, Any],
+#|     sources: Dict[str, Dict[str, Any]],
+#|     coverage_by_source: Dict[str, List[Dict[str, Any]]],
+#|     privacy_cfg: Dict[str, Any],
+#| ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+#|     records: List[Dict[str, Any]] = []
+#|     privacy_flags: List[Dict[str, Any]] = []
+#| 
+#|     for idx, ev in enumerate(manifest.get("events", []) or []):
+#|         entity_raw = normalize_text(ev.get("entity_id") or ev.get("account_id") or "UNKNOWN_ENTITY")
+#|         if privacy_cfg.get("hash_entities"):
+#|             entity_id = hashlib.sha256(entity_raw.encode("utf-8")).hexdigest()[:16]
+#|         else:
+#|             entity_id = entity_raw
+#| 
+#|         attrs, flags = filter_sensitive_attributes(ev.get("attributes", {}) or {}, privacy_cfg)
+#|         for f in flags:
+#|             privacy_flags.append({"event_index": idx, "entity_id": entity_id, "type": f})
+#| 
+#|         ts = parse_timestamp_value(
+#|             ev.get("timestamp") if "timestamp" in ev else ev.get("raw_timestamp"),
+#|             timezone_hint=ev.get("timezone") or ev.get("timezone_hint"),
+#|             locale_hint=ev.get("locale") or ev.get("locale_hint"),
+#|             precision_hint=ev.get("precision"),
+#|             uncertainty_seconds=float(ev["uncertainty_seconds"]) if ev.get("uncertainty_seconds") is not None else None,
+#|             timestamp_type=ev.get("timestamp_type") or "EVENT_TIME",
+#|             epoch_unit_hint=ev.get("epoch_unit"),
+#|         )
+#| 
+#|         source_id = normalize_text(ev.get("source_id")) or None
+#|         src = sources.get(source_id, {}) if source_id else {}
+#|         ts["source_reliability"] = float(src.get("reliability", SOURCE_RELIABILITY["unknown"]))
+#|         ts["source_type"] = src.get("source_type", "unknown")
+#|         ts["source_coverage_state"] = check_coverage(ts.get("representative_utc"), source_id, coverage_by_source)
+#| 
+#|         record = {
+#|             "record_id": stable_id("EVR", idx, entity_id, ev.get("event_id"), ts.get("raw_timestamp")),
+#|             "event_id": normalize_text(ev.get("event_id")) or stable_id("EVT", idx, entity_id, ts.get("raw_timestamp")),
+#|             "entity_id": entity_id,
+#|             "entity_type": normalize_text(ev.get("entity_type", "ACCOUNT")).upper(),
+#|             "event_type": normalize_text(ev.get("event_type", "UNKNOWN")).upper().replace(" ", "_").replace("-", "_"),
+#|             "action": normalize_text(ev.get("action")) or None,
+#|             "object": normalize_text(ev.get("object")) or None,
+#|             "target_entity": normalize_text(ev.get("target_entity") or ev.get("target")) or None,
+#|             "session_id": normalize_text(ev.get("session_id")) or None,
+#|             "device_context": normalize_text(ev.get("device_context") or ev.get("device_id")) or None,
+#|             "location_context": normalize_text(ev.get("location_context") or ev.get("location")) or None,
+#|             "attributes": attrs,
+#|             "timestamp": ts,
+#|             "source_id": source_id,
+#|             "evidence_ids": [normalize_text(x) for x in ev.get("evidence_ids", []) or [] if normalize_text(x)],
+#|             "privacy_flags": flags,
+#|             "limitations": list(ev.get("limitations", []) or []),
+#|         }
+#|         records.append(record)
+#| 
+#|     by_event: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#|     for r in records:
+#|         by_event[r["event_id"]].append(r)
+#| 
+#|     events: List[Dict[str, Any]] = []
+#|     for eid, rs in by_event.items():
+#|         primary_record = choose_primary_timestamp_record(rs)
+#|         primary_ts = primary_record["timestamp"]
+#| 
+#|         event_types = Counter(r["event_type"] for r in rs)
+#|         source_ids = sorted({r["source_id"] for r in rs if r.get("source_id")})
+#|         evidence_ids = sorted({x for r in rs for x in r.get("evidence_ids", [])})
+#|         limitations = sorted({x for r in rs for x in r.get("limitations", [])})
+#| 
+#|         event = {
+#|             "event_id": eid,
+#|             "entity_id": rs[0]["entity_id"],
+#|             "entity_type": rs[0]["entity_type"],
+#|             "event_type": event_types.most_common(1)[0][0] if event_types else "UNKNOWN",
+#|             "action": primary_record.get("action"),
+#|             "object": primary_record.get("object"),
+#|             "target_entity": next((r.get("target_entity") for r in rs if r.get("target_entity")), None),
+#|             "session_id": primary_record.get("session_id"),
+#|             "device_context": primary_record.get("device_context"),
+#|             "location_context": primary_record.get("location_context"),
+#|             "attributes": primary_record.get("attributes", {}),
+#|             "source_ids": source_ids,
+#|             "evidence_ids": evidence_ids,
+#|             "timestamps": rs,
+#|             "start_utc": primary_ts.get("normalized_start_utc"),
+#|             "end_utc": primary_ts.get("normalized_end_utc"),
+#|             "representative_utc": primary_ts.get("representative_utc"),
+#|             "time_precision": primary_ts.get("precision", "UNKNOWN"),
+#|             "time_uncertainty_seconds": primary_ts.get("uncertainty_seconds"),
+#|             "timestamp_type": primary_ts.get("timestamp_type", "UNKNOWN"),
+#|             "timezone_state": primary_ts.get("timezone_state", "UNKNOWN"),
+#|             "source_coverage_state": primary_ts.get("source_coverage_state", "UNKNOWN"),
+#|             "source_reliability": primary_ts.get("source_reliability", SOURCE_RELIABILITY["unknown"]),
+#|             "limitations": limitations + [
+#|                 "Account/device/session activity is not automatically attributed to a real person.",
+#|                 "Observed behaviour is not intent, motive, personality, or guilt.",
+#|             ],
+#|         }
+#|         events.append(event)
+#| 
+#|     events.sort(key=lambda e: (e.get("representative_utc") or FAR_FUTURE, e["event_id"]))
+#|     return events, privacy_flags
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Sessionization
+#| # --------------------------------------------------------------------
+#| 
+#| def make_session(entity_id: str, session_id: str, events: List[Dict[str, Any]], method: str) -> Dict[str, Any]:
+#|     starts = [e["start_utc"] for e in events if e.get("start_utc")]
+#|     ends = [e.get("end_utc") or e.get("start_utc") for e in events if e.get("start_utc")]
+#|     return {
+#|         "session_id": session_id,
+#|         "entity_id": entity_id,
+#|         "start_utc": min(starts) if starts else None,
+#|         "end_utc": max(ends) if ends else None,
+#|         "event_ids": [e["event_id"] for e in events],
+#|         "event_types": sorted({e["event_type"] for e in events}),
+#|         "event_count": len(events),
+#|         "source_ids": sorted({sid for e in events for sid in e.get("source_ids", [])}),
+#|         "method": method,
+#|         "limitations": [
+#|             "Session does not prove a single human operator.",
+#|             "Sessions may be shared, automated, compromised, or service-driven.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def sessionize(events: List[Dict[str, Any]], gap_minutes: float = 30.0) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+#|     explicit: Dict[Tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
+#|     implicit: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+#| 
+#|     for e in events:
+#|         if not e.get("start_utc"):
+#|             continue
+#|         if e.get("session_id"):
+#|             explicit[(e["entity_id"], e["session_id"])].append(e)
+#|         else:
+#|             implicit[e["entity_id"]].append(e)
+#| 
+#|     sessions: List[Dict[str, Any]] = []
+#| 
+#|     for (entity_id, sid), evs in explicit.items():
+#|         sessions.append(make_session(entity_id, sid, sorted(evs, key=lambda x: x["start_utc"]), "EXPLICIT_SESSION_ID"))
+#| 
+#|     for entity_id, evs in implicit.items():
+#|         evs = sorted(evs, key=lambda x: x["start_utc"])
+#|         current: List[Dict[str, Any]] = []
+#|         for e in evs:
+#|             if not current:
+#|                 current = [e]
+#|                 continue
+#|             prev_end = current[-1].get("end_utc") or current[-1].get("start_utc")
+#|             gap = (e["start_utc"] - prev_end).total_seconds() / 60.0
+#|             if gap <= gap_minutes:
+#|                 current.append(e)
+#|             else:
+#|                 sid = stable_id("SESS", entity_id, current[0]["event_id"], current[-1]["event_id"])
+#|                 sessions.append(make_session(entity_id, sid, current, f"GAP_RULE_{int(gap_minutes)}M"))
+#|                 current = [e]
+#|         if current:
+#|             sid = stable_id("SESS", entity_id, current[0]["event_id"], current[-1]["event_id"])
+#|             sessions.append(make_session(entity_id, sid, current, f"GAP_RULE_{int(gap_minutes)}M"))
+#| 
+#|     rule = {
+#|         "explicit_session_id_used_when_available": True,
+#|         "implicit_gap_minutes": gap_minutes,
+#|         "limitations": [
+#|             "Sessionization rule is exposed for replay.",
+#|             "Session boundaries are analytical, not proof of human continuity.",
+#|         ],
+#|     }
+#|     return sessions, rule
+#| 
+#| 
+#| # --------------------------------------------------------------------
+#| # Activity statistics / baselines
+#| # --------------------------------------------------------------------
+#| 
+#| def compute_activity_stats(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     evs = [e for e in events if e.get("start_utc")]
+#|     n = len(evs)
+#| 
+#|     type_counts = Counter(e["event_type"] for e in evs)
+#|     hour_counts = Counter(e["start_utc"].hour for e in evs)
+#|     dow_counts = Counter(e["start_utc"].weekday() for e in evs)
+#|     daily_counts = Counter(e["start_utc"].date().isoformat() for e in evs)
+#| 
+#|     sorted_evs = sorted(evs, key=lambda e: e["start_utc"])
+#|     intervals = [
+#|         (b["start_utc"] - a["start_utc"]).total_seconds()
+#|         for a, b in zip(sorted_evs, sorted_evs[1:])
+#|         if a.get("start_utc") and b.get("start_utc")
+#|     ]
+#|     intervals = [x for x in intervals if x > 0]
+#| 
+#|     volume_by_type_raw: Dict[str, List[float]] = defaultdict(list)
+#|     for e in evs:
+#|         vol = get_volume(e.get("attributes", {}) or {})
+#|         if vol is not None:
+#|             volume_by_type_raw[e["event_type"]].append(vol)
+#| 
+#|     volume_by_type = {}
+#|     for k, vals in volume_by_type_raw.items():
+#|         volume_by_type[k] = {
+#|             "count": len(vals),
+#|             "mean": safe_mean(vals),
+#|             "std": safe_stdev(vals),
+#|             "median": safe_median(vals),
+#|         }
+#| 
+#|     target_counts = Counter(e["target_entity"] for e in evs if e.get("target_entity"))
+#|     bigram_counts = Counter(
+#|         f"{a['event_type']}|{b['event_type']}"
+#|         for a, b in zip(sorted_evs, sorted_evs[1:])
+#|     )
+#| 
+#|     span_days = 0
+#|     if evs:
+#|         span_days = (max(e["start_utc"] for e in evs) - min(e["start_utc"] for e in evs)).days + 1
+#| 
+#|     return {
+#|         "event_count": n,
+#|         "span_days": span_days,
+#|         "type_counts": dict(type_counts),
+#|         "type_probs": counter_probs(type_counts),
+#|         "hour_counts": {str(k): v for k, v in hour_counts.items()},
+#|         "hour_probs": {str(k): v for k, v in counter_probs(hour_counts).items()},
+#|         "dow_counts": {str(k): v for k, v in dow_counts.items()},
+#|         "dow_probs": {str(k): v for k, v in counter_probs(dow_counts).items()},
+#|         "daily_counts": dict(daily_counts),
+#|         "daily_mean": safe_mean(daily_counts.values()),
+#|         "daily_std": safe_stdev(daily_counts.values()),
+#|         "day_count": len(daily_counts),
+#|         "interval_count": len(intervals),
+#|         "interval_mean": safe_mean(intervals),
+#|         "interval_median": safe_median(intervals),
+#|         "interval_std": safe_stdev(intervals),
+#|         "volume_by_type": volume_by_type,
+#|         "target_counts": dict(target_counts),
+#|         "target_sample": sum(target_counts.values()),
+#|         "bigram_counts": dict(bigram_counts),
+#|         "bigram_sample": sum(bigram_counts.values()),
+#|         "bigram_probs": counter_probs(bigram_counts),
+#|     }
+#| 
+#| 
+#| def downgrade_confidence(conf: str, steps: int = 1) -> str:
+#|     order = ["INSUFFICIENT", "LOW", "MODERATE", "HIGH"]
+#|     if conf not in order:
+#|         conf = "LOW"
+#|     idx = max(0, order.index(conf) - steps)
+#|     return order[idx]
+#| 
+#| 
+#| def assess_baseline_quality(
+#|     stats: Dict[str, Any],
+#|     train_events: List[Dict[str, Any]],
+#|     contexts: List[Dict[str, Any]],
+#|     entity_id: str,
+#|     training_start: Optional[datetime],
+#|     training_end: Optional[datetime],
+#| ) -> Dict[str, Any]:
+#|     sample = int(stats.get("event_count", 0))
+#|     if sample >= 100:
+#|         conf = "HIGH"
+#|     elif sample >= 30:
+#|         conf = "MODERATE"
+#|     elif sample >= 10:
+#|         conf = "LOW"
+#|     else:
+#|         conf = "INSUFFICIENT"
+#| 
+#|     contamination = []
+#|     for ctx in contexts:
+#|         if ctx.get("entity_ids") and entity_id not in ctx["entity_ids"]:
+#|             continue
+#|         if time_overlap(ctx.get("valid_from"), ctx.get("valid_to"), training_start, training_end):
+#|             if ctx.get("context_type") in CONTAMINATING_CONTEXT_TYPES:
+#|                 contamination.append(ctx["context_type"])
+#| 
+#|     if contamination:
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     coverage_states = Counter(e.get("source_coverage_state", "UNKNOWN") for e in train_events)
+#|     problematic = sum(v for k, v in coverage_states.items() if k not in {"OK", "UNKNOWN"})
+#|     completeness = "PARTIAL" if problematic else "UNKNOWN"
+#|     if completeness == "PARTIAL":
+#|         conf = downgrade_confidence(conf, 1)
+#| 
+#|     span = int(stats.get("span_days", 0))
+#|     dow_unique = len(stats.get("dow_counts", {}))
+#|     if span >= 28 and dow_unique >= 5:
+#|         seasonality = "ADEQUATE"
+#|     elif span >= 7 and dow_unique >= 3:
+#|         seasonality = "PARTIAL"
+#|     else:
+#|         seasonality = "LOW"
+#| 
+#|     return {
+#|         "confidence": conf,
+#|         "sample_size": sample,
+#|         "span_days": span,
+#|         "seasonality": seasonality,
+#|         "data_completeness": completeness,
+#|         "contamination_contexts": list(dict.fromkeys(contamination)),
+#|         "coverage_states": dict(coverage_states),
+#|         "limitations": [
+#|             "Weak baseline produces weak anomaly conclusions.",
+#|             "Baseline may be contaminated by incidents, migrations, holidays, or special projects.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def build_baselines(
+#|     manifest: Dict[str, Any],
+#|     events: List[Dict[str, Any]],

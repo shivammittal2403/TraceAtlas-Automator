@@ -1,0 +1,1000 @@
+#|             {
+#|                 "sensor_id": "MIC-1",
+#|                 "sensor_type": "AUTHORIZED_ENVIRONMENTAL_MICROPHONE",
+#|                 "platform": "FIXED_GROUND",
+#|                 "position": {"latitude": 0.0, "longitude": 0.0, "altitude_m": 10, "accuracy_m": 2},
+#|                 "orientation": {"azimuth_deg": 0, "tilt_deg": 0},
+#|                 "sample_rate_hz": 48000,
+#|                 "channels": 1,
+#|                 "gain_db": 0,
+#|                 "calibration_status": "CALIBRATED",
+#|                 "calibration_reference": "CAL-MIC-001",
+#|                 "clock_source": "GPS",
+#|                 "clock_sync_state": "SYNCHRONIZED",
+#|                 "independence_group": "GROUP_A",
+#|                 "known_limitations": ["Wind noise can affect low-frequency measurements."],
+#|             },
+#|             {
+#|                 "sensor_id": "MIC-2",
+#|                 "sensor_type": "AUTHORIZED_ENVIRONMENTAL_MICROPHONE",
+#|                 "platform": "FIXED_GROUND",
+#|                 "position": {"latitude": 0.001, "longitude": 0.0, "altitude_m": 10, "accuracy_m": 2},
+#|                 "orientation": {"azimuth_deg": 90, "tilt_deg": 0},
+#|                 "sample_rate_hz": 48000,
+#|                 "channels": 1,
+#|                 "gain_db": 0,
+#|                 "calibration_status": "CALIBRATED",
+#|                 "calibration_reference": "CAL-MIC-002",
+#|                 "clock_source": "GPS",
+#|                 "clock_sync_state": "SYNCHRONIZED",
+#|                 "independence_group": "GROUP_B",
+#|                 "known_limitations": ["Nearby structures may create multipath."],
+#|             },
+#|         ],
+#|         "recordings": [
+#|             {
+#|                 "recording_id": "REC-1",
+#|                 "sensor_id": "MIC-1",
+#|                 "start_time": "2026-10-08T09:00:00Z",
+#|                 "end_time": "2026-10-08T09:05:00Z",
+#|                 "sample_rate_hz": 48000,
+#|                 "bit_depth": 24,
+#|                 "codec": "PCM",
+#|                 "container": "WAV",
+#|                 "content_hash": "sha256:example-rec1",
+#|                 "authorization_context": "AUTHORIZED",
+#|                 "noise_floor_db": -72.0,
+#|                 "snr_db": 18.5,
+#|                 "clipping_detected": False,
+#|                 "dropout_detected": False,
+#|                 "agc_active": False,
+#|                 "lossy_compression": False,
+#|             },
+#|             {
+#|                 "recording_id": "REC-2",
+#|                 "sensor_id": "MIC-2",
+#|                 "start_time": "2026-10-08T09:00:00Z",
+#|                 "end_time": "2026-10-08T09:05:00Z",
+#|                 "sample_rate_hz": 48000,
+#|                 "bit_depth": 24,
+#|                 "codec": "PCM",
+#|                 "container": "WAV",
+#|                 "content_hash": "sha256:example-rec2",
+#|                 "authorization_context": "AUTHORIZED",
+#|                 "noise_floor_db": -70.0,
+#|                 "snr_db": 16.2,
+#|                 "clipping_detected": False,
+#|                 "dropout_detected": False,
+#|                 "agc_active": False,
+#|                 "lossy_compression": False,
+#|             },
+#|         ],
+#|         "acoustic_events": [
+#|             {
+#|                 "event_id": "EVT-1",
+#|                 "recording_id": "REC-1",
+#|                 "sensor_ids": ["MIC-1"],
+#|                 "start_time": "2026-10-08T09:01:00Z",
+#|                 "end_time": "2026-10-08T09:01:02Z",
+#|                 "duration_s": 2.0,
+#|                 "event_type_candidate": ["IMPACT", "MACHINERY"],
+#|                 "source_category": ["machine", "impact"],
+#|                 "frequency_range_hz": [80, 4000],
+#|                 "dominant_frequencies_hz": [120, 360],
+#|                 "band_energy": [
+#|                     {"center_hz": 120, "power_linear": 10.0},
+#|                     {"center_hz": 360, "power_linear": 6.0},
+#|                     {"center_hz": 1000, "power_linear": 2.0},
+#|                 ],
+#|                 "snr_db": 18.5,
+#|                 "impulsiveness": 0.82,
+#|                 "rise_time_ms": 4.0,
+#|                 "classification_confidence": 0.78,
+#|                 "classifier_model": "example_acoustic_event_model",
+#|                 "classifier_version": "1.0",
+#|                 "evidence_id": "EVD-1",
+#|                 "source_id": "SRC-FACILITY-A",
+#|             },
+#|             {
+#|                 "event_id": "EVT-2",
+#|                 "recording_id": "REC-2",
+#|                 "sensor_ids": ["MIC-2"],
+#|                 "start_time": "2026-10-08T09:01:00.006Z",
+#|                 "end_time": "2026-10-08T09:01:02.006Z",
+#|                 "duration_s": 2.0,
+#|                 "event_type_candidate": ["IMPACT", "MACHINERY"],
+#|                 "source_category": ["machine", "impact"],
+#|                 "frequency_range_hz": [80, 4000],
+#|                 "dominant_frequencies_hz": [121, 359],
+#|                 "band_energy": [
+#|                     {"center_hz": 121, "power_linear": 9.4},
+#|                     {"center_hz": 359, "power_linear": 5.7},
+#|                     {"center_hz": 1000, "power_linear": 1.9},
+#|                 ],
+#|                 "snr_db": 16.2,
+#|                 "impulsiveness": 0.79,
+#|                 "rise_time_ms": 4.3,
+#|                 "classification_confidence": 0.74,
+#|                 "classifier_model": "example_acoustic_event_model",
+#|                 "classifier_version": "1.0",
+#|                 "evidence_id": "EVD-2",
+#|                 "source_id": "SRC-FACILITY-B",
+#|             },
+#|         ],
+#|         "multi_sensor_correlations": [
+#|             {
+#|                 "cluster_id": "CL-1",
+#|                 "event_ids": ["EVT-1", "EVT-2"],
+#|                 "confidence": "MODERATE",
+#|                 "method": "AUTHORIZED_TIME_SPECTRAL_CORRELATION",
+#|             }
+#|         ],
+#|         "doa_observations": [
+#|             {
+#|                 "observation_id": "DOA-1",
+#|                 "event_id": "EVT-1",
+#|                 "sensor_id": "MIC-1",
+#|                 "timestamp": "2026-10-08T09:01:00Z",
+#|                 "bearing_deg": 45.0,
+#|                 "bearing_uncertainty_deg": 5.0,
+#|             },
+#|             {
+#|                 "observation_id": "DOA-2",
+#|                 "event_id": "EVT-2",
+#|                 "sensor_id": "MIC-2",
+#|                 "timestamp": "2026-10-08T09:01:00.006Z",
+#|                 "bearing_deg": 135.0,
+#|                 "bearing_uncertainty_deg": 5.0,
+#|             },
+#|         ],
+#|         "tdoa_observations": [
+#|             {
+#|                 "observation_id": "TDOA-1",
+#|                 "event_id": "EVT-2",
+#|                 "sensor_pair": ["MIC-1", "MIC-2"],
+#|                 "timestamp": "2026-10-08T09:01:00.006Z",
+#|                 "time_difference_s": 0.006,
+#|                 "uncertainty_s": 0.001,
+#|             }
+#|         ],
+#|         "environment_context": {
+#|             "scene_class": "INDUSTRIAL",
+#|             "weather": {"temperature_c": 20.0, "wind_speed_m_s": 2.0, "humidity_percent": 45},
+#|             "propagation_model": "APPROXIMATE_FREE_FIELD_WITH_STRUCTURES",
+#|             "multipath_risk": "MEDIUM",
+#|             "occlusion_risk": "LOW",
+#|         },
+#|         "reference_signatures": [
+#|             {
+#|                 "reference_signature_id": "REF-INDUSTRIAL-IMPACT-CLASS",
+#|                 "class_label": "INDUSTRIAL_IMPACT_CLASS_CANDIDATE",
+#|                 "feature_vector": [0.82, 4.0, 120.0, 360.0, 18.5, 2.0],
+#|                 "collection_conditions": "Example authorized industrial reference; not exact device identity.",
+#|                 "limitations": ["Reference may vary with load, distance, and environment."],
+#|             }
+#|         ],
+#|         "existing_facts": [],
+#|         "existing_hypotheses": [],
+#|         "existing_contradictions": [],
+#|         "budget": "EXAMPLE",
+#|         "deadline": "EXAMPLE",
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # CLI
+#| # -----------------------------------------------------------------------------
+#| 
+#| def sha256_bytes(data: bytes) -> str:
+#|     return hashlib.sha256(data).hexdigest()
+#| 
+#| 
+#| def main() -> None:
+#|     parser = argparse.ArgumentParser(
+#|         description=(
+#|             "TRACEATLAS ACOUSTINT authorized passive-first defensive acoustic intelligence scaffold. "
+#|             "Consumes deterministic feature-level acoustic records; does not activate microphones, "
+#|             "record private conversations, perform voice biometrics, track persons, design weapons, "
+#|             "target, provide military localization, sonar evasion, or acoustic stealth optimization."
+#|         )
+#|     )
+#|     parser.add_argument("--input", "-i", help="Path to ACOUSTINT input JSON")
+#|     parser.add_argument("--output", "-o", default="acoustint_result.json", help="Output ACOUSTINTResult JSON path")
+#|     parser.add_argument("--write-template", action="store_true", help="Print a safe input template and exit")
+#|     args = parser.parse_args()
+#| 
+#|     if args.write_template:
+#|         print(json.dumps(template_case(), indent=2, default=str))
+#|         return
+#| 
+#|     if not args.input:
+#|         parser.error("--input is required unless --write-template is used")
+#| 
+#|     path = Path(args.input)
+#|     if not path.exists():
+#|         raise SystemExit(f"Input file not found: {path}")
+#| 
+#|     raw = path.read_bytes()
+#|     input_hash = sha256_bytes(raw)
+#| 
+#|     try:
+#|         case = json.loads(raw.decode("utf-8"))
+#|     except Exception as exc:
+#|         raise SystemExit(f"Failed to parse input JSON: {exc}")
+#| 
+#|     if not isinstance(case, dict):
+#|         raise SystemExit("Input JSON must be an object")
+#| 
+#|     result = analyze(case, str(path), input_hash)
+#| 
+#|     out = Path(args.output)
+#|     out.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+#| 
+#|     print(
+#|         json.dumps(
+#|             {
+#|                 "status": result.get("status"),
+#|                 "output": str(out),
+#|                 "summary": result.get("required_analyst_summary"),
+#|             },
+#|             indent=2,
+#|             default=str,
+#|         )
+#|     )
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     main()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE acoustint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE adsbint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS ADSBINT main.py
+#| ==========================
+#| 
+#| Safe, passive-first, historical-first ADS-B / aircraft movement intelligence scaffold.
+#| 
+#| This module:
+#| - Does NOT connect to live ADS-B feeds.
+#| - Does NOT perform real-time tactical tracking.
+#| - Does NOT jam, spoof, inject, modify transponders, interfere with ATC/TCAS/GNSS.
+#| - Does NOT infer passengers, pilots, occupants, or flight purpose.
+#| - Does NOT invent trackpoints, landings, routes, operators, owners, or identities.
+#| 
+#| It consumes deterministic aviation observations supplied by authorized/public sources:
+#| - ADS-B trackpoints
+#| - MLAT-derived trackpoints
+#| - provider-derived / interpolated positions, clearly labeled
+#| - aircraft registry / identifier history
+#| - airport metadata
+#| - operator / owner / lessor context
+#| - scheduled flight context
+#| - source pedigree / independence metadata
+#| 
+#| It produces an evidence-linked ADSBINTResult with:
+#| - aircraft / identifier resolution
+#| - registration/operator era awareness
+#| - track deduplication
+#| - flight segmentation
+#| - departure/arrival assessment
+#| - ADS-B vs MLAT separation
+#| - observed vs interpolated separation
+#| - track-gap analysis without evasion claims
+#| - source independence / contradiction / fact gate
+#| - competing hypotheses and falsification
+#| - dual-AI style skeptic review
+#| - privacy / safety flags
+#| - graphical memory scaffold
+#| - analyst summary and report-ready result object
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import math
+#| import statistics
+#| from collections import Counter, defaultdict
+#| from datetime import datetime, timezone
+#| from pathlib import Path
+#| from typing import Any, Dict, List, Optional, Tuple
+#| 
+#| VERSION = "0.1.0"
+#| 
+#| ALLOWED_POSITION_SOURCES = {
+#|     "ADS_B",
+#|     "MLAT",
+#|     "RADAR_AUTHORIZED",
+#|     "PROVIDER_DERIVED",
+#|     "ESTIMATED",
+#|     "INTERPOLATED",
+#|     "UNKNOWN",
+#| }
+#| 
+#| EMERGENCY_SQUAWKS = {"7700", "7600", "7500"}
+#| 
+#| BLOCK_PHRASES = [
+#|     "intercept aircraft",
+#|     "target aircraft",
+#|     "weapons targeting",
+#|     "weapon targeting",
+#|     "fire control",
+#|     "engagement priority",
+#|     "stalk",
+#|     "stalking",
+#|     "harass",
+#|     "harm occupants",
+#|     "harm passengers",
+#|     "locate protected individual",
+#|     "locate protected person",
+#|     "physical approach aircraft",
+#|     "board aircraft without authorization",
+#|     "disable transponder",
+#|     "modify transponder",
+#|     "manipulate transponder",
+#|     "spoof ads-b",
+#|     "ads-b spoofing",
+#|     "jam ads-b",
+#|     "ads-b jamming",
+#|     "gnss jamming",
+#|     "tcas interference",
+#|     "atc interference",
+#|     "impersonate atc",
+#|     "impersonate pilot",
+#|     "evade law enforcement",
+#|     "evasion of surveillance",
+#|     "military targeting",
+#|     "hostile live tracking",
+#|     "real-time targeting",
+#|     "tactical live tracking",
+#|     "passenger manifest exploitation",
+#|     "occupant targeting",
+#| ]
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Small helpers
+#| # -----------------------------------------------------------------------------
+#| 
+#| def utcnow_iso() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def parse_dt(value: Any) -> Optional[datetime]:
+#|     if value is None:
+#|         return None
+#|     if isinstance(value, datetime):
+#|         dt = value
+#|     else:
+#|         try:
+#|             dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+#|         except Exception:
+#|             return None
+#|     if dt.tzinfo is None:
+#|         dt = dt.replace(tzinfo=timezone.utc)
+#|     return dt
+#| 
+#| 
+#| def to_float(value: Any) -> Optional[float]:
+#|     if value is None or isinstance(value, bool):
+#|         return None
+#|     try:
+#|         f = float(value)
+#|         if math.isnan(f) or math.isinf(f):
+#|             return None
+#|         return f
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def public_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {k: v for k, v in d.items() if not str(k).startswith("_")}
+#| 
+#| 
+#| def ensure_list(value: Any) -> List[Any]:
+#|     if value is None:
+#|         return []
+#|     if isinstance(value, list):
+#|         return value
+#|     return [value]
+#| 
+#| 
+#| def iso_or_none(dt: Optional[datetime]) -> Optional[str]:
+#|     return dt.isoformat() if isinstance(dt, datetime) else None
+#| 
+#| 
+#| def numeric_summary(values: List[Any]) -> Dict[str, Any]:
+#|     arr: List[float] = []
+#|     for v in values:
+#|         f = to_float(v)
+#|         if f is not None:
+#|             arr.append(f)
+#|     if not arr:
+#|         return {"count": 0, "min": None, "max": None, "median": None}
+#|     return {
+#|         "count": len(arr),
+#|         "min": min(arr),
+#|         "max": max(arr),
+#|         "median": statistics.median(arr),
+#|     }
+#| 
+#| 
+#| def haversine_km(lat1: Optional[float], lon1: Optional[float], lat2: Optional[float], lon2: Optional[float]) -> Optional[float]:
+#|     if None in (lat1, lon1, lat2, lon2):
+#|         return None
+#|     try:
+#|         lat1_f = float(lat1)
+#|         lon1_f = float(lon1)
+#|         lat2_f = float(lat2)
+#|         lon2_f = float(lon2)
+#|     except Exception:
+#|         return None
+#| 
+#|     r = 6371.0
+#|     phi1 = math.radians(lat1_f)
+#|     phi2 = math.radians(lat2_f)
+#|     dphi = math.radians(lat2_f - lat1_f)
+#|     dlmb = math.radians(lon2_f - lon1_f)
+#| 
+#|     a = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2.0) ** 2
+#|     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+#|     return r * c
+#| 
+#| 
+#| def speed_kt(distance_km: Optional[float], duration_seconds: Optional[float]) -> Optional[float]:
+#|     if distance_km is None or duration_seconds is None or duration_seconds <= 0:
+#|         return None
+#|     return (distance_km / 1.852) * (3600.0 / duration_seconds)
+#| 
+#| 
+#| def normalize_icao24(value: Any) -> Optional[str]:
+#|     if value is None:
+#|         return None
+#|     s = str(value).strip().lower()
+#|     s = s.replace(" ", "").replace("-", "").replace("/", "")
+#|     return s or None
+#| 
+#| 
+#| def normalize_registration(value: Any) -> Optional[str]:
+#|     if value is None:
+#|         return None
+#|     s = str(value).strip().upper()
+#|     s = s.replace(" ", "").replace("-", "").replace(".", "").replace("/", "")
+#|     return s or None
+#| 
+#| 
+#| def normalize_callsign(value: Any) -> Optional[str]:
+#|     if value is None:
+#|         return None
+#|     s = str(value).replace("\x00", " ")
+#|     s = " ".join(s.split()).strip().upper()
+#|     return s or None
+#| 
+#| 
+#| def normalize_flight_number(value: Any) -> Optional[str]:
+#|     return normalize_callsign(value)
+#| 
+#| 
+#| def valid_range_contains(valid_from: Optional[datetime], valid_to: Optional[datetime], ts: Optional[datetime]) -> bool:
+#|     if valid_from is None and valid_to is None:
+#|         return True
+#|     if ts is None:
+#|         return True
+#|     if valid_from is not None and ts < valid_from:
+#|         return False
+#|     if valid_to is not None and ts > valid_to:
+#|         return False
+#|     return True
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Policy gate
+#| # -----------------------------------------------------------------------------
+#| 
+#| def policy_block_reasons(case: Dict[str, Any]) -> List[str]:
+#|     reasons: List[str] = []
+#|     text = json.dumps(case, ensure_ascii=False, default=str).lower()
+#| 
+#|     for phrase in BLOCK_PHRASES:
+#|         if phrase in text:
+#|             reasons.append(f"Forbidden aviation action/request detected: '{phrase}'")
+#| 
+#|     scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+#|     if scope.get("authorized_only") is not True:
+#|         reasons.append("scope.authorized_only must be true")
+#|     if scope.get("passive_only") is False:
+#|         reasons.append("scope.passive_only must be true")
+#|     if scope.get("historical_first") is False:
+#|         reasons.append("scope.historical_first must be true")
+#|     if scope.get("realtime_targeting") is True:
+#|         reasons.append("scope.realtime_targeting is prohibited")
+#|     if scope.get("tactical_live_tracking") is True:
+#|         reasons.append("scope.tactical_live_tracking is prohibited")
+#| 
+#|     auth = case.get("authorization") if isinstance(case.get("authorization"), dict) else {}
+#|     if not auth.get("lawful_basis"):
+#|         reasons.append("authorization.lawful_basis is missing")
+#|     if not auth.get("purpose"):
+#|         reasons.append("authorization.purpose is missing")
+#| 
+#|     return reasons
+#| 
+#| 
+#| def blocked_result(case: Dict[str, Any], reasons: List[str], started: str, input_path: Optional[str], input_hash: Optional[str]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": case.get("case_id"),
+#|         "task_id": case.get("task_id"),
+#|         "objective": case.get("objective"),
+#|         "status": "POLICY_BLOCKED",
+#|         "policy_block_reasons": reasons,
+#|         "mode": case.get("model_mode", "LOCAL_ONLY"),
+#|         "safety_flags": [
+#|             "NO_REALTIME_TARGETING",
+#|             "NO_INTERCEPTION",
+#|             "NO_JAMMING",
+#|             "NO_SPOOFING",
+#|             "NO_TRANSPONDER_MANIPULATION",
+#|             "NO_ATC_INTERFERENCE",
+#|             "NO_TCAS_INTERFERENCE",
+#|             "NO_GNSS_JAMMING_OR_SPOOFING",
+#|             "NO_WEAPONS_TARGETING",
+#|             "NO_STALKING",
+#|         ],
+#|         "privacy_flags": [
+#|             "NO_PASSENGER_INFERENCE",
+#|             "NO_PRIVATE_PERSON_DOSSIER",
+#|             "PROTECTED_PERSON_RESTRAINT",
+#|             "HISTORICAL_FIRST",
+#|         ],
+#|         "recommended_next_actions": [
+#|             "Restate objective as historical/public aviation research",
+#|             "Use authorized or public historical ADS-B/MLAT datasets",
+#|             "Resolve aircraft identity and registration/operator eras",
+#|             "Analyze route/airport patterns without occupant or purpose inference",
+#|             "Escalate safety concerns to authorized aviation investigation channels",
+#|         ],
+#|         "limitations": [
+#|             "Requested or detected use crosses ADSBINT defensive boundary.",
+#|             "No live tactical tracking, interception, targeting, jamming, spoofing, or transponder manipulation support is provided.",
+#|         ],
+#|         "replay_manifest": {
+#|             "generated_at": started,
+#|             "finished_at": utcnow_iso(),
+#|             "code_version": VERSION,
+#|             "input_path": input_path,
+#|             "input_sha256": input_hash,
+#|         },
+#|     }
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Validation and normalization
+#| # -----------------------------------------------------------------------------
+#| 
+#| def resolve_aircraft(
+#|     obs: Dict[str, Any],
+#|     aircraft: Dict[str, Dict[str, Any]],
+#|     icao24_map: Dict[str, set],
+#|     reg_map: Dict[str, set],
+#|     history: List[Dict[str, Any]],
+#| ) -> Tuple[Optional[str], str, str]:
+#|     aid = obs.get("aircraft_id")
+#|     if aid and aid in aircraft:
+#|         return aid, "DIRECT_AIRCRAFT_ID", "HIGH"
+#| 
+#|     ts = obs.get("_timestamp")
+#|     candidates: set = set()
+#|     bases: List[str] = []
+#| 
+#|     icao = obs.get("_icao24")
+#|     if icao:
+#|         for h in history:
+#|             if h.get("_field") == "icao24" and h.get("_value") == icao:
+#|                 if valid_range_contains(h.get("_valid_from"), h.get("_valid_to"), ts):
+#|                     hid = h.get("aircraft_id")
+#|                     if hid in aircraft:
+#|                         candidates.add(hid)
+#|                         bases.append("HISTORY_ICAO24")
+#| 
+#|         if not candidates:
+#|             mapped = icao24_map.get(icao, set())
+#|             if len(mapped) == 1:
+#|                 candidates.update(mapped)
+#|                 bases.append("CURRENT_ICAO24")
+#|             elif len(mapped) > 1:
+#|                 return None, "IDENTIFIER_CONFLICT", "LOW"
+#| 
+#|     reg = obs.get("_registration")
+#|     if not candidates and reg:
+#|         for h in history:
+#|             if h.get("_field") == "registration" and h.get("_value") == reg:
+#|                 if valid_range_contains(h.get("_valid_from"), h.get("_valid_to"), ts):
+#|                     hid = h.get("aircraft_id")
+#|                     if hid in aircraft:
+#|                         candidates.add(hid)
+#|                         bases.append("HISTORY_REGISTRATION")
+#| 
+#|         if not candidates:
+#|             mapped = reg_map.get(reg, set())
+#|             if len(mapped) == 1:
+#|                 candidates.update(mapped)
+#|                 bases.append("CURRENT_REGISTRATION")
+#|             elif len(mapped) > 1:
+#|                 return None, "IDENTIFIER_CONFLICT", "LOW"
+#| 
+#|     if len(candidates) == 1:
+#|         resolved = next(iter(candidates))
+#|         basis = bases[0] if bases else "IDENTIFIER_MAP"
+#|         confidence = "HIGH" if basis.startswith("HISTORY") or basis == "DIRECT_AIRCRAFT_ID" else "MODERATE"
+#|         return resolved, basis, confidence
+#| 
+#|     if len(candidates) > 1:
+#|         return None, "IDENTIFIER_CONFLICT", "LOW"
+#| 
+#|     return None, "UNRESOLVED", "UNKNOWN"
+#| 
+#| 
+#| def validate_case(case: Dict[str, Any]) -> Tuple[
+#|     Dict[str, Dict[str, Any]],
+#|     List[Dict[str, Any]],
+#|     List[Dict[str, Any]],
+#|     Dict[str, Dict[str, Any]],
+#|     List[Dict[str, Any]],
+#|     List[str],
+#|     List[str],
+#|     List[Dict[str, Any]],
+#| ]:
+#|     issues: List[str] = []
+#|     warnings: List[str] = []
+#|     initial_contradictions: List[Dict[str, Any]] = []
+#| 
+#|     scope = case.get("scope") if isinstance(case.get("scope"), dict) else {}
+#|     auth = case.get("authorization") if isinstance(case.get("authorization"), dict) else {}
+#| 
+#|     if scope.get("authorized_only") is not True:
+#|         issues.append("scope.authorized_only must be true")
+#|     if scope.get("passive_only") is False:
+#|         issues.append("scope.passive_only must be true")
+#|     if scope.get("historical_first") is False:
+#|         issues.append("scope.historical_first must be true")
+#|     if not auth.get("lawful_basis"):
+#|         issues.append("authorization.lawful_basis missing")
+#|     if not auth.get("purpose"):
+#|         issues.append("authorization.purpose missing")
+#| 
+#|     aircraft: Dict[str, Dict[str, Any]] = {}
+#|     icao24_map: Dict[str, set] = defaultdict(set)
+#|     reg_map: Dict[str, set] = defaultdict(set)
+#| 
+#|     for idx, a in enumerate(case.get("aircraft") or []):
+#|         if not isinstance(a, dict):
+#|             issues.append(f"aircraft[{idx}] is not an object")
+#|             continue
+#|         aid = a.get("aircraft_id") or f"AIR-{idx + 1}"
+#|         a["aircraft_id"] = aid
+#|         a["_valid_from"] = parse_dt(a.get("valid_from"))
+#|         a["_valid_to"] = parse_dt(a.get("valid_to"))
+#|         aircraft[aid] = a
+#| 
+#|         icao = normalize_icao24(a.get("icao24"))
+#|         if icao:
+#|             icao24_map[icao].add(aid)
+#| 
+#|         reg = normalize_registration(a.get("registration"))
+#|         if reg:
+#|             reg_map[reg].add(aid)
+#| 
+#|     history: List[Dict[str, Any]] = []
+#|     for h in case.get("identifier_history") or []:
+#|         if not isinstance(h, dict):
+#|             continue
+#|         field = str(h.get("field", "")).strip().lower()
+#|         if field in {"icao", "icao24", "hex_id"}:
+#|             field = "icao24"
+#|             value = normalize_icao24(h.get("value"))
+#|         elif field in {"registration", "reg", "tail"}:
+#|             field = "registration"
+#|             value = normalize_registration(h.get("value"))
+#|         elif field in {"callsign", "call_sign"}:
+#|             field = "callsign"
+#|             value = normalize_callsign(h.get("value"))
+#|         elif field in {"operator", "owner", "lessor"}:
+#|             value = str(h.get("value", "")).strip().upper() or None
+#|         else:
+#|             value = str(h.get("value", "")).strip() or None
+#| 
+#|         h["_field"] = field
+#|         h["_value"] = value
+#|         h["_valid_from"] = parse_dt(h.get("valid_from"))
+#|         h["_valid_to"] = parse_dt(h.get("valid_to"))
+#| 
+#|         if h.get("aircraft_id") and h["aircraft_id"] not in aircraft:
+#|             warnings.append(f"identifier_history references unknown aircraft_id={h.get('aircraft_id')}")
+#| 
+#|         history.append(h)
+#| 
+#|     sources: Dict[str, Dict[str, Any]] = {}
+#|     for idx, s in enumerate(case.get("sources") or []):
+#|         if not isinstance(s, dict):
+#|             issues.append(f"sources[{idx}] is not an object")
+#|             continue
+#|         sid = s.get("source_id") or f"SRC-{idx + 1}"
+#|         s["source_id"] = sid
+#|         s["_independence_group"] = str(s.get("independence_group") or s.get("provider") or sid).strip().upper()
+#|         sources[sid] = s
+#| 
+#|     observations: List[Dict[str, Any]] = []
+#|     for idx, o in enumerate(case.get("observations") or []):
+#|         if not isinstance(o, dict):
+#|             issues.append(f"observations[{idx}] is not an object")
+#|             continue
+#| 
+#|         oid = o.get("observation_id") or f"OBS-{idx + 1}"
+#|         o["observation_id"] = oid
+#| 
+#|         ts = parse_dt(o.get("timestamp"))
+#|         if ts is None:
+#|             issues.append(f"observation {oid} has missing/unparseable timestamp")
+#|             continue
+#|         o["_timestamp"] = ts
+#| 
+#|         lat = to_float(o.get("latitude"))
+#|         lon = to_float(o.get("longitude"))
+#| 
+#|         if lat is not None and not (-90.0 <= lat <= 90.0):
+#|             issues.append(f"observation {oid} latitude out of range")
+#|             lat = None
+#|         if lon is not None and not (-180.0 <= lon <= 180.0):
+#|             issues.append(f"observation {oid} longitude out of range")
+#|             lon = None
+#| 
+#|         o["_lat"] = lat
+#|         o["_lon"] = lon
+#| 
+#|         ps = str(o.get("position_source", "UNKNOWN")).strip().upper().replace("-", "_")
+#|         if ps not in ALLOWED_POSITION_SOURCES:
+#|             warnings.append(f"observation {oid} unknown position_source={ps}; set to UNKNOWN")
+#|             ps = "UNKNOWN"
+#|         o["_position_source"] = ps
+#| 
+#|         o["_icao24"] = normalize_icao24(o.get("icao24"))
+#|         o["_registration"] = normalize_registration(o.get("registration"))
+#|         o["_callsign"] = normalize_callsign(o.get("callsign"))
+#|         o["_flight_number"] = normalize_flight_number(o.get("flight_number"))
+#| 
+#|         o["_altitude_ft"] = to_float(o.get("altitude_ft") if o.get("altitude_ft") is not None else o.get("altitude"))
+#|         o["_ground_speed_kt"] = to_float(o.get("ground_speed_kt") if o.get("ground_speed_kt") is not None else o.get("speed_kt"))
+#|         o["_vertical_rate_fpm"] = to_float(o.get("vertical_rate_fpm") if o.get("vertical_rate_fpm") is not None else o.get("vertical_rate"))
+#|         o["_heading_deg"] = to_float(o.get("heading_deg") if o.get("heading_deg") is not None else o.get("heading"))
+#|         o["_track_deg"] = to_float(o.get("track_deg") if o.get("track_deg") is not None else o.get("track"))
+#| 
+#|         sq = o.get("squawk")
+#|         o["_squawk"] = str(sq).strip() if sq is not None else None
+#| 
+#|         og = o.get("on_ground")
+#|         if isinstance(og, str):
+#|             og = og.strip().lower() in {"true", "1", "yes", "y"}
+#|         o["_on_ground"] = bool(og)
+#| 
+#|         sid = o.get("source_id")
+#|         o["_source_ids"] = [sid] if sid else []
+#|         if sid and sid not in sources:
+#|             warnings.append(f"observation {oid} references unknown source_id={sid}")
+#| 
+#|         observations.append(o)
+#| 
+#|     for o in observations:
+#|         aid, basis, conf = resolve_aircraft(o, aircraft, icao24_map, reg_map, history)
+#|         o["_aircraft_id"] = aid
+#|         o["_resolution_basis"] = basis
+#|         o["_resolution_confidence"] = conf
+#| 
+#|         if aid:
+#|             o["_group_key"] = aid
+#|         elif o.get("_icao24"):
+#|             o["_group_key"] = f"ICAO24:{o['_icao24']}"
+#|         elif o.get("_registration"):
+#|             o["_group_key"] = f"REG:{o['_registration']}"
+#|         else:
+#|             o["_group_key"] = f"OBS:{o['observation_id']}"
+#| 
+#|         if basis == "IDENTIFIER_CONFLICT":
+#|             initial_contradictions.append(
+#|                 {
+#|                     "type": "identifier_conflict",
+#|                     "group_key": o.get("_group_key"),
+#|                     "observation_id": o.get("observation_id"),
+#|                     "icao24": o.get("_icao24"),
+#|                     "registration": o.get("_registration"),
+#|                     "timestamp": iso_or_none(o.get("_timestamp")),
+#|                     "note": "Preserve conflict. Consider stale registry, historical reassignment, misconfiguration, data error, or spoofing candidate only with corroboration.",
+#|                 }
+#|             )
+#| 
+#|     airports: List[Dict[str, Any]] = []
+#|     for idx, ap in enumerate(case.get("airports") or []):
+#|         if not isinstance(ap, dict):
+#|             issues.append(f"airports[{idx}] is not an object")
+#|             continue
+#|         lat = to_float(ap.get("latitude"))
+#|         lon = to_float(ap.get("longitude"))
+#|         if lat is None or lon is None:
+#|             issues.append(f"airport {ap.get('airport_id') or idx} missing valid latitude/longitude")
+#|             continue
+#|         ap["_lat"] = lat
+#|         ap["_lon"] = lon
+#|         ap["_icao_code"] = str(ap.get("icao_code", "")).strip().upper() or None
+#|         ap["_iata_code"] = str(ap.get("iata_code", "")).strip().upper() or None
+#|         airports.append(ap)
+#| 
+#|     return aircraft, observations, airports, sources, history, issues, warnings, initial_contradictions
+#| 
+#| 
+#| # -----------------------------------------------------------------------------
+#| # Deduplication, segmentation, flight building
+#| # -----------------------------------------------------------------------------
+#| 
+#| def deduplicate_observations(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     groups: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+#|     ordered: List[Dict[str, Any]] = []
+#| 
+#|     for o in observations:
+#|         ts = o.get("_timestamp")
+#|         key = (
+#|             o.get("_group_key"),
+#|             ts.isoformat() if isinstance(ts, datetime) else None,
+#|             round(o.get("_lat"), 5) if o.get("_lat") is not None else None,
+#|             round(o.get("_lon"), 5) if o.get("_lon") is not None else None,
+#|             o.get("_position_source"),
+#|         )
+#| 
+#|         if key in groups:
+#|             rep = groups[key]
+#|             for sid in o.get("_source_ids") or []:
+#|                 if sid not in rep["_source_ids"]:
+#|                     rep["_source_ids"].append(sid)
+#|             rep["_duplicate_count"] = rep.get("_duplicate_count", 1) + 1
+#| 
+#|             # If representative lacks position but duplicate has it, upgrade representative position fields.
+#|             if rep.get("_lat") is None and o.get("_lat") is not None:
+#|                 for f in [
+#|                     "_lat",
+#|                     "_lon",
+#|                     "_altitude_ft",
+#|                     "_ground_speed_kt",
+#|                     "_vertical_rate_fpm",
+#|                     "_heading_deg",
+#|                     "_track_deg",
+#|                     "_squawk",
+#|                     "_on_ground",
+#|                 ]:
+#|                     rep[f] = o.get(f)
+#|         else:
+#|             o["_source_ids"] = list(o.get("_source_ids") or [])
+#|             o["_duplicate_count"] = 1
+#|             groups[key] = o
+#|             ordered.append(o)
+#| 
+#|     return ordered
+#| 
+#| 
+#| def segment_flights(
+#|     points: List[Dict[str, Any]],
+#|     max_gap_minutes: float,
+#|     min_ground_minutes: float,
+#| ) -> List[List[Dict[str, Any]]]:
+#|     pts = sorted(points, key=lambda x: x.get("_timestamp") or datetime.min.replace(tzinfo=timezone.utc))
+#|     segments: List[List[Dict[str, Any]]] = []
+#|     current: List[Dict[str, Any]] = []
+#| 
+#|     state: Optional[str] = None
+#|     ground_start: Optional[datetime] = None
+#|     had_airborne = False
+#| 
+#|     for o in pts:
+#|         if not current:
+#|             current = [o]
+#|             state = "GROUND" if o.get("_on_ground") else "AIRBORNE"
+#|             had_airborne = not o.get("_on_ground")
+#|             ground_start = o.get("_timestamp") if o.get("_on_ground") else None
+#|             continue
+#| 
+#|         prev = current[-1]
+#|         prev_ts = prev.get("_timestamp")
+#|         cur_ts = o.get("_timestamp")
+#|         gap_min = None
+#|         if isinstance(prev_ts, datetime) and isinstance(cur_ts, datetime):
+#|             gap_min = (cur_ts - prev_ts).total_seconds() / 60.0
+#| 
+#|         if gap_min is not None and gap_min > max_gap_minutes:
+#|             segments.append(current)
+#|             current = [o]
+#|             state = "GROUND" if o.get("_on_ground") else "AIRBORNE"
+#|             had_airborne = not o.get("_on_ground")
+#|             ground_start = o.get("_timestamp") if o.get("_on_ground") else None
+#|             continue
+#| 
+#|         on_ground = bool(o.get("_on_ground"))
+#| 
+#|         # Arrival transition: airborne -> ground
+#|         if state == "AIRBORNE" and on_ground:
+#|             ground_start = o.get("_timestamp")
+#| 
+#|         # Takeoff transition after a meaningful ground period: ground -> airborne
+#|         if state == "GROUND" and not on_ground:
+#|             if had_airborne and ground_start and isinstance(o.get("_timestamp"), datetime):
+#|                 ground_duration_min = (o["_timestamp"] - ground_start).total_seconds() / 60.0
+#|                 if ground_duration_min >= min_ground_minutes:
+#|                     segments.append(current)
+#|                     current = [o]
+#|                     state = "AIRBORNE"
+#|                     had_airborne = True
+#|                     ground_start = None
+#|                     continue
+#|             had_airborne = True
+#|             ground_start = None
+#| 
+#|         if on_ground and ground_start is None:
+#|             ground_start = o.get("_timestamp")
+#| 
+#|         current.append(o)
+#|         state = "GROUND" if on_ground else "AIRBORNE"
+#| 
+#|     if current:
+#|         segments.append(current)
+#| 
+#|     return segments
+#| 
+#| 
+#| def public_airport(ap: Dict[str, Any]) -> Dict[str, Any]:
+#|     return {
+#|         "airport_id": ap.get("airport_id"),
+#|         "icao_code": ap.get("_icao_code") or ap.get("icao_code"),
+#|         "iata_code": ap.get("_iata_code") or ap.get("iata_code"),
+#|         "name": ap.get("name"),
+#|         "country": ap.get("country"),
+#|         "latitude": ap.get("_lat") if ap.get("_lat") is not None else ap.get("latitude"),
+#|         "longitude": ap.get("_lon") if ap.get("_lon") is not None else ap.get("longitude"),
+#|         "elevation_ft": ap.get("elevation_ft"),
+#|         "runways": ap.get("runways") or [],
+#|     }
+#| 
+#| 
+#| def nearest_airport(
+#|     lat: Optional[float],
+#|     lon: Optional[float],
+#|     airports: List[Dict[str, Any]],
+#|     max_km: float,
+#| ) -> Tuple[Optional[Dict[str, Any]], Optional[float]]:
+#|     if lat is None or lon is None or not airports:
+#|         return None, None
+#| 
+#|     best_ap = None
+#|     best_d = None
+#|     for ap in airports:
+#|         d = haversine_km(lat, lon, ap.get("_lat"), ap.get("_lon"))
+#|         if d is None:
+#|             continue
+#|         if best_d is None or d < best_d:
+#|             best_d = d
+#|             best_ap = ap
+#| 
+#|     if best_ap is not None and best_d is not None and best_d <= max_km:
+#|         return best_ap, best_d
+#|     return None, best_d
+#| 
+#| 
+#| def find_airport_by_code(airports: List[Dict[str, Any]], code: Optional[str]) -> Optional[Dict[str, Any]]:
+#|     if not code:
+#|         return None
+#|     c = str(code).strip().upper()
+#|     for ap in airports:
+#|         if ap.get("_icao_code") == c or ap.get("_iata_code") == c:
+#|             return ap
+#|     return None
+#| 
+#| 
+#| def endpoint_assessment(
+#|     point: Dict[str, Any],
+#|     airports: List[Dict[str, Any]],

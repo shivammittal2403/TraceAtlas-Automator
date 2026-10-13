@@ -1,0 +1,1000 @@
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{summary.get('claim_count', 0)} claim record(s), {summary.get('dataset_count', 0)} dataset record(s), {summary.get('credential_exposure_count', 0)} credential exposure record(s), and {summary.get('ransomware_claim_count', 0)} ransomware claim record(s) were extracted.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_CLAIM_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "breach_dataset_credential_ransomware_metadata_extraction",
+#|                 "limitations": "Claims/datasets/credential exposures/ransomware claims are source-reported, not verified facts.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{summary.get('record_count_candidate_count', 0)} record-count candidate(s) were preserved as claimed counts.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_RECORD_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "record_count_extraction",
+#|                 "limitations": "Claimed record count is not verified count and may include duplicates.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{summary.get('fingerprint_count', 0)} dataset/sample fingerprint candidate(s) were preserved for lineage/deduplication planning.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_FINGERPRINT_PARSER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "hash_fingerprint_extraction",
+#|                 "limitations": "Fingerprints support duplicate/lineage analysis, not breach authenticity by themselves.",
+#|             },
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": "No purchasing stolen data/credentials/access, testing passwords, logging in, replaying tokens, contacting sellers, negotiating ransoms, downloading unnecessary full stolen datasets, redistributing sensitive data, unauthorized access, or exploitation was performed.",
+#|                 "evidence_id": "LOCAL_PANEL_POLICY",
+#|                 "source_id": "LOCAL_POLICY_GUARD",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "defensive_privacy_aware_policy",
+#|                 "limitations": "Planning/local deterministic panel only.",
+#|             },
+#|         ])
+#| 
+#|         observations, _ = truncate_list(observations, 500)
+#| 
+#|         candidate_facts: List[Dict[str, Any]] = []
+#| 
+#|         for f in files:
+#|             if f.get("sha256"):
+#|                 candidate_facts.append({
+#|                     "candidate_fact": f"The preserved local BREACHINT evidence artifact {f.get('filename')} has SHA256 {f.get('sha256')}.",
+#|                     "status": "SUPPORTED",
+#|                     "evidence_ids": [f.get("evidence_id")],
+#|                     "notes": "Supported by deterministic local hashing. Does not prove breach, dataset authenticity, record count, origin, credential validity, or actor attribution.",
+#|                 })
+#| 
+#|         candidate_facts.extend([
+#|             {
+#|                 "candidate_fact": f"{summary.get('claim_count', 0)} breach/exposure claim candidate(s) were extracted.",
+#|                 "status": "SUPPORTED_AS_CANDIDATE_ONLY",
+#|                 "evidence_ids": ["AGGREGATE"],
+#|                 "not_supported": [
+#|                     "verified breach",
+#|                     "verified dataset authenticity",
+#|                     "verified record count",
+#|                     "verified origin",
+#|                     "verified credential validity",
+#|                     "verified actor attribution",
+#|                 ],
+#|             },
+#|             {
+#|                 "candidate_fact": f"{summary.get('dataset_count', 0)} dataset metadata candidate(s) were extracted.",
+#|                 "status": "SUPPORTED_AS_DATASET_CANDIDATE_ONLY",
+#|                 "evidence_ids": ["AGGREGATE"],
+#|                 "notes": "Dataset metadata may be claimed, sampled, recycled, third-party, combo list, stealer log, public/scraped, or unknown origin.",
+#|             },
+#|             {
+#|                 "candidate_fact": f"{summary.get('credential_exposure_count', 0)} credential/secret exposure metadata candidate(s) were extracted with validity unknown.",
+#|                 "status": "SUPPORTED_AS_CREDENTIAL_METADATA_ONLY",
+#|                 "evidence_ids": ["AGGREGATE"],
+#|                 "notes": "Do not test, login, replay, redeem, or use credentials/tokens/keys.",
+#|             },
+#|             {
+#|                 "candidate_fact": "No purchasing stolen data/credentials/access, testing passwords, logging in, replaying tokens, contacting sellers, negotiating ransoms, downloading unnecessary full stolen datasets, redistributing sensitive data, unauthorized access, or exploitation was performed.",
+#|                 "status": "SUPPORTED",
+#|                 "evidence_ids": ["LOCAL_PANEL_POLICY"],
+#|                 "notes": "Defensive/privacy-aware planning boundary.",
+#|             },
+#|         ])
+#| 
+#|         candidate_facts, _ = truncate_list(candidate_facts, 200)
+#| 
+#|         fact_gate = {
+#|             "status": "LOCAL_DETERMINISTIC_ONLY" if files or parsed.get("claims") or parsed.get("datasets") else "NO_LOCAL_BREACHINT_EVIDENCE",
+#|             "supported": [
+#|                 "file/source existence and SHA256 hash where local artifact accessible",
+#|                 "parsed claim candidates",
+#|                 "parsed dataset metadata candidates",
+#|                 "parsed credential/secret exposure metadata candidates",
+#|                 "parsed ransomware claim candidates",
+#|                 "parsed organization/domain/email-domain/third-party/supplier mentions",
+#|                 "parsed data-category metadata",
+#|                 "parsed sensitive-data flags",
+#|                 "parsed record-count candidates as claims",
+#|                 "parsed dataset/sample fingerprints",
+#|                 "source independence preliminary states",
+#|                 "contradiction candidates",
+#|                 "competing hypotheses",
+#|                 "secret redaction flags",
+#|                 "prompt-injection flags",
+#|             ],
+#|             "not_supported": [
+#|                 "verified breach",
+#|                 "verified dataset authenticity",
+#|                 "verified record count",
+#|                 "verified origin",
+#|                 "verified first-party breach",
+#|                 "verified third-party breach",
+#|                 "verified credential validity",
+#|                 "verified current exposure",
+#|                 "verified actor attribution",
+#|                 "verified root cause",
+#|                                "verified initial access vector",
+#|                 "verified compromised host",
+#|                 "verified data exfiltration",
+#|                 "verified publication of full dataset",
+#|                 "verified credential current validity",
+#|                 "verified third-party origin",
+#|                 "verified supply-chain origin",
+#|                 "verified combo-list origin",
+#|                 "verified stealer-log origin",
+#|                 "verified public/scraped origin",
+#|                 "verified recycled/repackaged status",
+#|                 "final legal determination",
+#|                 "autonomous user/customer/employee notification",
+#|                 "autonomous law-enforcement referral",
+#|                 "purchase of stolen data/credentials/access",
+#|                 "credential testing",
+#|                 "login using exposed credentials",
+#|                 "session-token replay",
+#|                 "API/private-key use",
+#|                 "seller contact",
+#|                 "ransomware negotiation/payment",
+#|                 "unnecessary full stolen-dataset acquisition",
+#|                 "redistribution of sensitive data",
+#|                 "unauthorized access",
+#|                 "exploitation",
+#|             ],
+#|             "safety_status": (
+#|                 "No purchasing stolen data/credentials/access, testing passwords, logging in, replaying tokens, "
+#|                 "contacting sellers, negotiating ransoms, downloading unnecessary full stolen datasets, "
+#|                 "redistributing sensitive data, unauthorized access, or exploitation performed."
+#|             ),
+#|         }
+#| 
+#|         return {
+#|             "mode": "LOCAL_DETERMINISTIC_BREACHINT_ANALYSIS",
+#|             "panel_version": APP_VERSION,
+#|             "policy_screen": policy,
+#|             "purchase_stolen_data_performed": False,
+#|             "purchase_credentials_performed": False,
+#|             "purchase_access_performed": False,
+#|             "credential_testing_performed": False,
+#|             "login_using_exposed_credentials_performed": False,
+#|             "session_token_replay_performed": False,
+#|             "api_private_key_use_performed": False,
+#|             "seller_contact_performed": False,
+#|             "ransomware_negotiation_performed": False,
+#|             "ransomware_payment_recommendation_performed": False,
+#|             "full_stolen_dataset_acquisition_performed": False,
+#|             "sensitive_data_redistribution_performed": False,
+#|             "personal_data_publication_performed": False,
+#|             "unauthorized_access_performed": False,
+#|             "exploitation_performed": False,
+#|             "evidence_inventory": files,
+#|             "breach_summary": summary,
+#|             "claims_preview": parsed.get("claims", [])[:300],
+#|             "datasets_preview": parsed.get("datasets", [])[:300],
+#|             "credential_exposures_preview": parsed.get("credential_exposures", [])[:300],
+#|             "ransomware_claims_preview": parsed.get("ransomware_claims", [])[:300],
+#|             "organization_mentions_preview": parsed.get("organization_mentions", [])[:300],
+#|             "brand_mentions_preview": parsed.get("brand_mentions", [])[:300],
+#|             "domain_mentions_preview": parsed.get("domain_mentions", [])[:300],
+#|             "email_domain_mentions_preview": parsed.get("email_domain_mentions", [])[:300],
+#|             "third_party_mentions_preview": parsed.get("third_party_mentions", [])[:300],
+#|             "supplier_mentions_preview": parsed.get("supplier_mentions", [])[:300],
+#|             "data_categories_preview": parsed.get("data_categories", [])[:300],
+#|             "sensitive_flags_preview": parsed.get("sensitive_flags", [])[:300],
+#|             "record_counts_preview": parsed.get("record_counts", [])[:300],
+#|             "dataset_fingerprints_preview": parsed.get("dataset_fingerprints", [])[:300],
+#|             "contradictions": parsed.get("contradictions", [])[:1000],
+#|             "hypotheses": parsed.get("hypotheses", [])[:1000],
+#|             "knowledge_gaps": parsed.get("knowledge_gaps", [])[:500],
+#|             "specialist_handoffs": parsed.get("specialist_handoffs", [])[:500],
+#|             "observations": observations,
+#|             "candidate_facts": candidate_facts,
+#|             "fact_gate": fact_gate,
+#|             "recommended_next_actions": next_action,
+#|             "breachint_collection_plan_preview": collection_plan[:20],
+#|             "limitations": [
+#|                 "Only local deterministic checks were performed.",
+#|                 "No network access was performed.",
+#|                 "No purchasing stolen data/credentials/access, testing passwords, logging in, replaying tokens, contacting sellers, negotiating ransoms, downloading unnecessary full stolen datasets, redistributing sensitive data, unauthorized access, or exploitation was performed.",
+#|                 "Breach claim is not verified breach.",
+#|                 "Dark-web listing is not verified breach.",
+#|                 "Data sample is not full dataset.",
+#|                 "Claimed record count is not verified record count.",
+#|                 "Email-domain presence is not first-party breach.",
+#|                 "User credential exposure is not organization server breach.",
+#|                 "Stealer log is not website breach.",
+#|                 "Combo list is not a new breach.",
+#|                 "Publicly scraped data is not compromise.",
+#|                 "Exposure is not system compromise.",
+#|                 "Data publication is not known root cause.",
+#|                 "Ransomware claim is not verified data exfiltration.",
+#|                 "Third-party exposure is not customer infrastructure breach.",
+#|                 "Account credential exposure is not current validity.",
+#|                 "Multiple reposts are not independent corroboration.",
+#|                 "AI agreement is not breach corroboration.",
+#|                 "Exposed secrets were redacted heuristically and not used.",
+#|                 "Dataset records, documents, forum posts, repository content, ransomware notes, and seller descriptions were treated as untrusted evidence.",
+#|             ],
+#|         }
+#| 
+#|     def _write_output(self, result: Dict[str, Any]) -> None:
+#|         self.output.delete("1.0", "end")
+#|         self.output.insert("1.0", json.dumps(result, ensure_ascii=False, indent=2, default=str))
+#| 
+#|     def _policy_sections(self) -> Dict[str, Any]:
+#|         return {
+#|             "role": {
+#|                 "employee": "BREACHINT AI Employee",
+#|                 "hierarchy": [
+#|                     "Chief Intelligence Manager",
+#|                     "Cyber / Exposure Intelligence Manager",
+#|                     "BREACHINT Manager",
+#|                     "BREACHINT AI Employee",
+#|                     "Claim / Dataset / Exposure / Attribution / Impact / Verification Skills",
+#|                 ],
+#|                 "not": [
+#|                     "stolen-data collector",
+#|                     "credential validator",
+#|                     "credential-stuffing system",
+#|                     "password tester",
+#|                     "data broker",
+#|                     "illicit marketplace buyer",
+#|                     "ransomware negotiator",
+#|                     "private-data exploitation system",
+#|                 ],
+#|             },
+#|             "core_principle": [
+#|                 "CLAIM",
+#|                 "SOURCE",
+#|                 "PRESERVED EVIDENCE",
+#|                 "ORGANIZATION RESOLUTION",
+#|                 "DATASET / EXPOSURE METADATA",
+#|                 "TEMPORAL ANALYSIS",
+#|                 "DATA ORIGIN ANALYSIS",
+#|                 "SOURCE RELIABILITY",
+#|                 "SOURCE INDEPENDENCE",
+#|                 "EXTERNAL CORROBORATION",
+#|                 "FACT GATE",
+#|                 "IMPACT ASSESSMENT",
+#|                 "DEFENSIVE RESPONSE",
+#|             ],
+#|             "critical_separations": [
+#|                 "breach claim != verified breach",
+#|                 "dark-web listing != verified breach",
+#|                 "data sample != full dataset",
+#|                 "claimed record count != verified record count",
+#|                 "email-domain presence != first-party breach",
+#|                 "user credential exposure != organization server breach",
+#|                 "stealer log != website breach",
+#|                 "combo list != new breach",
+#|                 "publicly scraped data != compromise",
+#|                 "exposure != system compromise",
+#|                 "data publication != known root cause",
+#|                 "ransomware claim != verified data exfiltration",
+#|                 "third-party exposure != customer infrastructure breach",
+#|                 "account credential exposure != current validity",
+#|                 "multiple reposts != independent corroboration",
+#|                 "AI agreement != breach corroboration",
+#|                 "data authenticity != data freshness",
+#|                 "breach confidence != impact severity",
+#|                 "current relevance != historical exposure",
+#|             ],
+#|             "hard_restrictions": [
+#|                 "Do not purchase stolen databases.",
+#|                 "Do not purchase breach data.",
+#|                 "Do not purchase credentials.",
+#|                 "Do not purchase access.",
+#|                 "Do not download unnecessary full stolen datasets.",
+#|                 "Do not use exposed credentials.",
+#|                 "Do not test passwords.",
+#|                 "Do not perform credential stuffing.",
+#|                 "Do not replay session cookies.",
+#|                 "Do not redeem tokens.",
+#|                 "Do not use API keys.",
+#|                 "Do not use private keys.",
+#|                 "Do not login to exposed accounts.",
+#|                 "Do not access victim accounts.",
+#|                 "Do not contact criminal sellers.",
+#|                 "Do not negotiate with ransomware operators.",
+#|                 "Do not participate in illicit marketplaces.",
+#|                 "Do not redistribute sensitive data.",
+#|                 "Do not publish personal data.",
+#|                 "Do not perform unauthorized access.",
+#|                 "Do not perform exploitation.",
+#|             ],
+#|             "data_minimization_policy": [
+#|                 "Collect the minimum information necessary.",
+#|                 "Prefer dataset metadata, record schema, field names, counts, hashes, timestamps, redacted identifiers, organization-domain references, and limited authorized samples.",
+#|                 "Avoid unnecessary storage of plaintext passwords, financial details, identity documents, medical information, private communications, session material, and full personal records.",
+#|             ],
+#|             "credential_policy": [
+#|                 "Do not use exposed credentials.",
+#|                 "Do not test password validity.",
+#|                 "Do not login using exposed credentials.",
+#|                 "Do not replay session cookies or tokens.",
+#|                 "Represent defensively: credential_type, affected_domain, redacted_identifier, source, first_seen, last_seen, claim confidence.",
+#|                 "Handoff to EXPOSUREINT and authorized identity/security operations workflow.",
+#|             ],
+#|             "secret_policy": [
+#|                 "Do not display passwords, API keys, private keys, access tokens, session cookies, auth tokens, or recovery codes unnecessarily.",
+#|                 "Store redacted value, cryptographic hash where appropriate, secret_type, context, and source.",
+#|                 "No operational use.",
+#|             ],
+#|             "claim_states": [
+#|                 "UNVERIFIED_CLAIM",
+#|                 "PLAUSIBLE",
+#|                 "PARTIALLY_SUPPORTED",
+#|                 "SUPPORTED",
+#|                 "STRONGLY_SUPPORTED",
+#|                 "DISPUTED",
+#|                 "FALSE_CLAIM_CANDIDATE",
+#|                 "UNSUPPORTED",
+#|                 "INCONCLUSIVE",
+#|             ],
+#|             "origin_states": [
+#|                 "FIRST_PARTY_CANDIDATE",
+#|                 "THIRD_PARTY_CANDIDATE",
+#|                 "SUPPLY_CHAIN_CANDIDATE",
+#|                 "COMBO_LIST",
+#|                 "STEALER_LOG",
+#|                 "PUBLIC_DATA_CANDIDATE",
+#|                 "SCRAPED_DATA_CANDIDATE",
+#|                 "RECYCLED_CANDIDATE",
+#|                 "REPOSITORY_EXPOSURE_CANDIDATE",
+#|                 "CLOUD_EXPOSURE_CANDIDATE",
+#|                 "DOCUMENT_EXPOSURE_CANDIDATE",
+#|                 "SOURCE_CODE_EXPOSURE_CANDIDATE",
+#|                 "MISCONFIGURATION_CANDIDATE",
+#|                 "UNKNOWN",
+#|             ],
+#|             "freshness_states": [
+#|                 "CURRENT",
+#|                 "RECENT",
+#|                 "AGING",
+#|                 "HISTORICAL",
+#|                 "MIXED",
+#|                 "UNKNOWN",
+#|             ],
+#|             "impact_severity_states": [
+#|                 "CRITICAL",
+#|                 "HIGH",
+#|                 "MEDIUM",
+#|                 "LOW",
+#|                 "INFORMATIONAL",
+#|                 "UNKNOWN",
+#|             ],
+#|             "breach_taxonomy": [
+#|                 "FIRST_PARTY_BREACH",
+#|                 "THIRD_PARTY_BREACH",
+#|                 "SUPPLY_CHAIN_BREACH",
+#|                 "CLOUD_EXPOSURE",
+#|                 "REPOSITORY_EXPOSURE",
+#|                 "CREDENTIAL_EXPOSURE",
+#|                 "STEALER_LOG_EXPOSURE",
+#|                 "RANSOMWARE_EXPOSURE",
+#|                 "PUBLIC_DATA_REPACKAGING",
+#|                 "COMBO_LIST",
+#|                 "UNKNOWN_ORIGIN",
+#|             ],
+#|             "dataset_deduplication_states": [
+#|                 "EXACT_DUPLICATE",
+#|                 "NEAR_DUPLICATE",
+#|                 "PARTIAL_OVERLAP",
+#|                 "DERIVED_DATASET",
+#|                 "DISTINCT",
+#|                 "UNKNOWN",
+#|             ],
+#|             "sample_authenticity_states": [
+#|                 "AUTHENTIC_CANDIDATE",
+#|                 "FABRICATED_CANDIDATE",
+#|                 "PUBLIC_DATA_CANDIDATE",
+#|                 "INCONCLUSIVE",
+#|             ],
+#|             "source_reliability_policy": [
+#|                 "Evaluate official disclosure, regulator, government/CERT, incident responder, victim organization, licensed provider, security researcher, ransomware site, forum seller, marketplace vendor, and anonymous source.",
+#|                 "Return HIGH, MEDIUM, LOW, or UNKNOWN with reasons.",
+#|                 "Source type and access to primary evidence matter.",
+#|             ],
+#|             "source_bias_policy": [
+#|                 "Consider extortion pressure, seller marketing, media incentives, vendor marketing, victim underreporting, legal caution, regulatory framing, and research selection bias.",
+#|                 "Bias does not automatically invalidate a claim.",
+#|             ],
+#|             "source_independence_policy": [
+#|                 "Determine whether reports rely on the same seller post, same ransomware claim, same sample, same provider feed, same victim statement, same screenshot, or same dataset.",
+#|                 "Use INDEPENDENT, PARTIALLY_DEPENDENT, DEPENDENT, UNKNOWN.",
+#|                 "Republishing, aggregation, mirrors, and crawlers are not corroboration.",
+#|             ],
+#|             "privacy_legal_policy": [
+#|                 "Flag personal data, financial data, health data, child data, authentication secrets, regulated data, cross-border data, and legal-hold candidates.",
+#|                 "Do not make final legal determinations.",
+#|                 "Handoff to authorized legal/compliance workflow.",
+#|                 "Do not autonomously notify employees, customers, victims, regulators, journalists, or law enforcement.",
+#|             ],
+#|             "human_review_policy": {
+#|                 "mandatory_when": [
+#|                     "breach appears credible",
+#|                     "customer/employee PII is involved",
+#|                     "credentials/secrets are exposed",
+#|                     "financial/health data appears",
+#|                     "minors may be affected",
+#|                     "ransomware/extortion is active",
+#|                     "regulatory notification may be required",
+#|                     "public disclosure is proposed",
+#|                     "law-enforcement engagement may occur",
+#|                     "high-impact defensive action is proposed",
+#|                     "models materially disagree",
+#|                 ],
+#|                 "rule": "AI assists. Humans govern consequential actions.",
+#|             },
+#|             "falsification_questions": [
+#|                 "Could this be old data?",
+#|                 "Could it be from a supplier?",
+#|                 "Could it be public data?",
+#|                 "Could emails come from unrelated services?",
+#|                 "Could dataset be a combo list?",
+#|                 "Could seller have copied another breach?",
+#|                 "Could record count be inflated?",
+#|                 "Could sample be synthetic?",
+#|                 "Could sources share one upstream claim?",
+#|             ],
+#|             "dual_ai_review_policy": {
+#|                 "passes": [
+#|                     "Primary Breach Analyst",
+#|                     "Independent Breach Skeptic",
+#|                 ],
+#|                 "outcomes": [
+#|                     "AGREE",
+#|                     "PARTIAL_AGREEMENT",
+#|                     "DISAGREE",
+#|                     "INSUFFICIENT_EVIDENCE",
+#|                 ],
+#|                 "rule": "AI agreement is not independent evidence.",
+#|             },
+#|             "non_negotiable_rules": [
+#|                 "DO NOT BUY STOLEN DATA.",
+#|                 "DO NOT BUY CREDENTIALS.",
+#|                 "DO NOT BUY ACCESS.",
+#|                 "DO NOT CONTACT SELLERS AUTONOMOUSLY.",
+#|                 "DO NOT TEST PASSWORDS.",
+#|                 "DO NOT LOGIN USING EXPOSED CREDENTIALS.",
+#|                 "DO NOT REPLAY SESSION TOKENS.",
+#|                 "DO NOT USE LEAKED API KEYS.",
+#|                 "DO NOT USE PRIVATE KEYS.",
+#|                 "DO NOT ACQUIRE FULL STOLEN DATASETS WHEN METADATA/SAMPLES ARE SUFFICIENT.",
+#|                 "DO NOT REDISTRIBUTE BREACHED DATA.",
+#|                 "DO NOT EXPOSE PLAINTEXT SECRETS IN REPORTS.",
+#|                 "DO NOT EQUATE BREACH CLAIM WITH VERIFIED BREACH.",
+#|                 "DO NOT EQUATE DARK-WEB LISTING WITH VERIFIED BREACH.",
+#|                 "DO NOT EQUATE DATA SAMPLE WITH FULL DATASET.",
+#|                 "DO NOT EQUATE CLAIMED RECORD COUNT WITH VERIFIED COUNT.",
+#|                 "DO NOT EQUATE EMAIL DOMAIN PRESENCE WITH FIRST-PARTY BREACH.",
+#|                 "DO NOT EQUATE USER CREDENTIAL EXPOSURE WITH ORGANIZATION SERVER BREACH.",
+#|                 "DO NOT EQUATE STEALER LOG WITH WEBSITE BREACH.",
+#|                 "DO NOT EQUATE COMBO LIST WITH A NEW BREACH.",
+#|                 "DO NOT EQUATE PUBLICLY SCRAPED DATA WITH COMPROMISE.",
+#|                 "DO NOT EQUATE EXPOSURE WITH SYSTEM COMPROMISE.",
+#|                 "DO NOT EQUATE DATA PUBLICATION WITH KNOWN ROOT CAUSE.",
+#|                 "DO NOT EQUATE RANSOMWARE CLAIM WITH VERIFIED DATA EXFILTRATION.",
+#|                 "DO NOT EQUATE THIRD-PARTY EXPOSURE WITH CUSTOMER INFRASTRUCTURE BREACH.",
+#|                 "DO NOT EQUATE ACCOUNT CREDENTIAL EXPOSURE WITH CURRENT VALIDITY.",
+#|                 "DO NOT EQUATE MULTIPLE REPOSTS WITH INDEPENDENT CORROBORATION.",
+#|                 "DO NOT EQUATE AI AGREEMENT WITH BREACH CORROBORATION.",
+#|                 "DO NOT HIDE DATASET RECYCLING.",
+#|                 "DO NOT HIDE THIRD-PARTY ORIGIN.",
+#|                 "DO NOT HIDE RECORD-COUNT UNCERTAINTY.",
+#|                 "DO NOT HIDE PRIVACY RISK.",
+#|                 "DO NOT INVENT BREACHES.",
+#|                 "DO NOT INVENT AFFECTED USERS.",
+#|                 "DO NOT INVENT RECORD COUNTS.",
+#|                 "DO NOT INVENT DATASET CONTENT.",
+#|                 "DO NOT INVENT ROOT CAUSES.",
+#|                 "DO NOT INVENT ACTOR ATTRIBUTION.",
+#|                 "DO NOT LOSE HISTORICAL BREACH / DATASET LINEAGE.",
+#|             ],
+#|         }
+#| 
+#|     def _schemas(self) -> Dict[str, Any]:
+#|         return {
+#|             "breach_evidence_schema": {
+#|                 "evidence_id": "Unique BREACHINT evidence identifier",
+#|                 "case_id": "Case identifier",
+#|                 "source_id": "Source identifier",
+#|                 "source_type": "Breach claim / dataset metadata / credential exposure / ransomware leak / incident data / historical breach / supply chain / repository / cloud / document / STIX / MISP / etc.",
+#|                 "claim_id": "Associated claim identifier if available",
+#|                 "dataset_id": "Associated dataset identifier if available",
+#|                 "organization_id": "Associated organization identifier if available",
+#|                 "observed_at": "Observation timestamp",
+#|                 "published_at": "Publication timestamp",
+#|                 "retrieved_at": "Retrieval timestamp",
+#|                 "first_seen": "First source-seen timestamp",
+#|                 "last_seen": "Last source-seen timestamp",
+#|                 "content_hash": "SHA256 of original artifact/value",
+#|                 "snapshot_reference": "Snapshot/archive reference if available",
+#|                 "raw_artifact_reference": "Secure path/object storage reference",
+#|                 "parser_version": "Parser version",
+#|                 "normalizer_version": "Normalizer version",
+#|                 "authorization_context": "Authorization basis/reference",
+#|             },
+#|             "breach_claim_schema": {
+#|                 "claim_id": "Unique claim identifier",
+#|                 "claimant": "Seller/persona/source/organization making the claim",
+#|                 "source": "Source identifier",
+#|                 "claimed_victim": "Claimed victim organization/person/domain",
+#|                 "claimed_date": "Claimed breach/incident date",
+#|                 "claimed_record_count": "Claimed record count or dataset size",
+#|                 "claimed_data_size": "Claimed data size",
+#|                 "claimed_data_categories": "Claimed data categories",
+#|                 "claimed_access_type": "Claimed access type if relevant",
+#|                 "claimed_actor": "Claimed actor/group if relevant",
+#|                 "claimed_cause": "Claimed cause/root cause if relevant",
+#|                 "claimed_sample": "Claimed sample evidence",
+#|                 "first_seen": "First source-seen timestamp",
+#|                 "last_seen": "Last source-seen timestamp",
+#|                 "claim_status": "UNVERIFIED_CLAIM / PLAUSIBLE / PARTIALLY_SUPPORTED / SUPPORTED / STRONGLY_SUPPORTED / DISPUTED / FALSE_CLAIM_CANDIDATE / UNSUPPORTED / INCONCLUSIVE",
+#|                 "confidence": "LOW / MODERATE / HIGH",
+#|                 "limitations": [
+#|                     "All claimed_* fields remain claims until verified.",
+#|                     "Breach claim is not verified breach.",
+#|                     "Claimed record count is not verified record count.",
+#|                 ],
+#|             },
+#|             "dataset_schema": {
+#|                 "dataset_id": "Unique dataset identifier",
+#|                 "dataset_name": "Dataset name/label",
+#|                 "source_ids": "Source identifiers",
+#|                 "claimed_origin": "Claimed origin",
+#|                 "suspected_origin": "Suspected origin candidate",
+#|                 "first_seen": "First source-seen timestamp",
+#|                 "last_seen": "Last source-seen timestamp",
+#|                 "record_count_claimed": "Claimed record count",
+#|                 "record_count_estimated": "Estimated unique record count if authorized",
+#|                 "record_count_verified_if_authorized": "Verified count only with authorized evidence",
+#|                 "schema": "Schema/field metadata",
+#|                 "data_categories": "High-level data categories",
+#|                 "sample_hashes": "Hashes of authorized samples",
+#|                 "dataset_fingerprints": "Dataset fingerprints",
+#|                 "lineage": "Lineage/derived-from/duplicate-of candidates",
+#|                 "freshness": "CURRENT / RECENT / AGING / HISTORICAL / MIXED / UNKNOWN",
+#|                 "status": "DATASET_CLAIM / DATASET_METADATA_PARSED / DUPLICATE_CANDIDATE / RECYCLED_CANDIDATE / UNKNOWN",
+#|                 "limitations": [
+#|                     "Dataset metadata is claim/source-derived unless authorized verification exists.",
+#|                     "Sample does not prove full dataset existence or exact record count.",
+#|                 ],
+#|             },
+#|             "credential_exposure_schema": {
+#|                 "credential_id": "Unique credential exposure identifier",
+#|                 "exposure_type": "EMAIL_ONLY / USERNAME_ONLY / PASSWORD_HASH / PLAINTEXT_PASSWORD_REPORTED / SESSION_TOKEN_REPORTED / API_SECRET_REPORTED / PRIVATE_KEY_REPORTED / OTHER_SECRET",
+#|                 "affected_domain": "Affected domain if known",
+#|                 "redacted_identifier": "Redacted username/email identifier",
+#|                 "credential_category": "High-level credential category",
+#|                 "validity": "VALIDITY_UNKNOWN / HISTORICAL / RECENT / CURRENT_RELEVANCE_UNKNOWN",
+#|                 "freshness": "CURRENT / RECENT / AGING / HISTORICAL / MIXED / UNKNOWN",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "temporal": "Temporal metadata",
+#|                 "state": "CREDENTIAL_EXPOSURE_METADATA",
+#|                 "limitations": [
+#|                     "Credential exposure metadata is not proof of current validity.",
+#|                     "Do not test, login, replay, redeem, or use credentials/tokens/keys.",
+#|                 ],
+#|             },
+#|             "ransomware_claim_schema": {
+#|                 "ransom_id": "Unique ransomware claim identifier",
+#|                 "group_label": "Claimed ransomware group/leak-site label",
+#|                 "victim_claim": "Claimed victim",
+#|                 "claim_date": "Claim date if available",
+#|                 "data_publication_claim": "Claimed data publication status",
+#|                 "sample_claim": "Claimed sample status",
+#|                 "extortion_status": "Claimed extortion status",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "temporal": "Temporal metadata",
+#|                 "state": "RANSOMWARE_SOURCE_CLAIM",
+#|                 "limitations": [
+#|                     "Ransomware leak-site/actor claim is not verified breach or verified exfiltration.",
+#|                     "Do not contact, negotiate, pay, or operationalize coercion techniques.",
+#|                 ],
+#|             },
+#|             "data_category_schema": {
+#|                 "category_id": "Unique data-category identifier",
+#|                 "category": "EMAIL / USERNAME / PASSWORD_OR_HASH / NAME / PHONE / ADDRESS / EMPLOYEE_DATA / CUSTOMER_DATA / FINANCIAL_DATA / GOVERNMENT_IDENTIFIER / HEALTH_DATA / AUTHENTICATION_SECRET / SOURCE_CODE / DOCUMENT / DATABASE_RECORD / OTHER",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "context": "Where/how observed",
+#|                 "temporal": "Temporal metadata",
+#|                 "state": "SOURCE_OBSERVED_DATA_CATEGORY_METADATA",
+#|                 "limitations": [
+#|                     "Data-category classification is high-level metadata, not reproduction of sensitive content.",
+#|                 ],
+#|             },
+#|             "sensitive_flag_schema": {
+#|                 "flag_id": "Unique sensitive-data flag identifier",
+#|                 "flag": "CREDENTIAL_DATA / FINANCIAL_DATA / HEALTH_DATA / IDENTITY_DOCUMENT / AUTHENTICATION_SECRET / PRIVATE_COMMUNICATION / MINOR_RELATED_DATA / HIGHLY_SENSITIVE_PERSONAL_DATA",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "context": "Where/how flagged",
+#|                 "temporal": "Temporal metadata",
+#|                 "state": "SENSITIVE_DATA_FLAG",
+#|                 "limitations": [
+#|                     "Sensitive-data flag triggers stricter privacy/legal handling and human review.",
+#|                 ],
+#|             },
+#|             "record_count_schema": {
+#|                 "record_count_id": "Unique record-count identifier",
+#|                 "subject": "Organization/dataset/claim subject",
+#|                 "raw": "Raw claimed count text",
+#|                 "value": "Parsed numeric value if available",
+#|                 "unit": "Parsed unit",
+#|                 "kind": "claimed_count / data_size_bytes / other",
+#|                 "state": "SOURCE_CLAIMED_COUNT",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "temporal": "Temporal metadata",
+#|                 "limitations": [
+#|                     "Claimed record count is not verified count.",
+#|                     "Record count may include duplicates and does not equal unique individuals.",
+#|                 ],
+#|             },
+#|             "dataset_fingerprint_schema": {
+#|                 "fingerprint_id": "Unique fingerprint identifier",
+#|                 "kind": "SHA256 / DATASET_HASH / SAMPLE_HASH / SCHEMA_FINGERPRINT / CONTENT_FINGERPRINT / OTHER",
+#|                 "value": "Fingerprint value",
+#|                 "subject": "Dataset/claim/sample subject",
+#|                 "source_id": "Source identifier",
+#|                 "evidence_id": "Evidence identifier",
+#|                 "temporal": "Temporal metadata",
+#|                 "state": "DATASET_FINGERPRINT_METADATA",
+#|                 "limitations": [
+#|                     "Fingerprint supports duplicate/lineage analysis, not breach authenticity by itself.",
+#|                 ],
+#|             },
+#|             "contradiction_schema": {
+#|                 "contradiction_id": "Unique contradiction identifier",
+#|                 "type": "RECORD_COUNT_CONFLICT / ORIGIN_CONFLICT / FRESHNESS_CONFLICT / VICTIM_IDENTITY_CONFLICT / SOURCE_CONFLICT / DATASET_OVERLAP_CONFLICT",
+#|                 "subject": "Conflicting claim/dataset/organization subject",
+#|                 "values": "Conflicting values",
+#|                 "possible_explanations": [
+#|                     "different datasets",
+#|                     "partial copies",
+#|                     "marketing exaggeration",
+#|                     "old vs new breach",
+#|                     "third-party breach",
+#|                     "supplier breach",
+#|                     "reseller/recycled data",
+#|                     "duplicate records",
+#|                     "mixed dataset",
+#|                     "source simplification",
+#|                     "analyst/source error",
+#|                 ],
+#|                 "resolution_status": "UNRESOLVED",
+#|                 "caution": "Do not average conflicting claims into fake precision.",
+#|             },
+#|             "hypothesis_schema": {
+#|                 "hypothesis_id": "Unique hypothesis identifier",
+#|                 "statement": "Testable BREACHINT hypothesis",
+#|                 "supporting_facts": "Evidence-linked supporting facts",
+#|                 "opposing_facts": "Evidence-linked opposing facts",
+#|                 "assumptions": "Assumptions required",
+#|                 "unknowns": "Unknowns",
+#|                 "falsification_conditions": "What would disprove it",
+#|                 "next_test": "Next defensive test/handoff",
+#|                 "status": "OPEN, SUPPORTED, DISPUTED, REJECTED, INCONCLUSIVE",
+#|             },
+#|             "knowledge_gap_schema": {
+#|                 "gap_id": "Unique gap identifier",
+#|                 "question": "BREACHINT question affected",
+#|                 "missing_evidence": "What evidence is missing",
+#|                 "likely_source": "Source type that could fill the gap",
+#|                 "specialist_owner": "Employee or specialist responsible",
+#|                 "priority": "HIGH, MEDIUM, LOW, HIGH_PRIVACY_SENSITIVE, HIGH_PRIVACY_LEGAL, HIGH_IF_RECYCLING_CONSEQUENTIAL, etc.",
+#|                 "expected_information_value": "Expected discriminating value if filled",
+#|                 "safety_boundary": "Any safety, privacy, legal, or authorization constraint",
+#|             },
+#|             "breachint_result_schema": [
+#|                 "case_id",
+#|                 "task_id",
+#|                 "objective",
+#|                 "questions",
+#|                 "source_ids",
+#|                 "evidence_ids",
+#|                 "breach_claims",
+#|                 "breach_events",
+#|                 "exposure_events",
+#|                 "organizations",
+#|                 "brands",
+#|                 "subsidiaries",
+#|                 "third_parties",
+#|                 "dataset_claims",
+#|                 "datasets",
+#|                 "dataset_samples",
+#|                 "dataset_fingerprints",
+#|                 "dataset_lineage",
+#|                 "dataset_overlap",
+#|                 "claimed_record_counts",
+#|                 "estimated_record_counts",
+#|                 "verified_record_counts",
+#|                 "data_categories",
+#|                 "sensitive_data_flags",
+#|                 "credential_exposure",
+#|                 "secret_exposure",
+#|                 "email_domain_context",
+#|                 "first_party_status",
+#|                 "third_party_status",
+#|                 "supply_chain_context",
+#|                 "combo_list_context",
+#|                 "stealer_log_context",
+#|                 "ransomware_context",
+#|                 "source_code_context",
+#|                 "document_context",
+#|                 "cloud_exposure_context",
+#|                 "repository_exposure_context",
+#|                 "sample_authenticity",
+#|                 "dataset_authenticity",
+#|                 "dataset_freshness",
+#|                 "breach_authenticity",
+#|                 "breach_origin_confidence",
+#|                 "impact_severity",
+#|                 "current_relevance",
+#|                 "timeline_updates",
+#|                 "observations",
+#|                 "candidate_facts",
+#|                 "supported_facts",
+#|                 "partial_facts",
+#|                 "disputed_facts",
+#|                 "source_reliability",
+#|                 "source_bias",
+#|                 "source_limitations",
+#|                 "source_pedigree",
+#|                 "source_independence",
+#|                 "contradictions",
+#|                 "hypotheses",
+#|                 "falsification_results",
+#|                 "privacy_flags",
+#|                 "legal_flags",
+#|                 "unknowns",
+#|                 "knowledge_gaps",
+#|                 "recommended_next_actions",
+#|                 "specialist_handoffs",
+#|                 "limitations",
+#|                 "status",
+#|             ],
+#|             "required_analyst_summary_format": [
+#|                 "BREACH / EXPOSURE STATUS",
+#|                 "AFFECTED ORGANIZATION",
+#|                 "CLAIM SOURCE",
+#|                 "CLAIM DATE",
+#|                 "BREACH AUTHENTICITY",
+#|                 "FIRST-PARTY / THIRD-PARTY",
+#|                 "DATASET AUTHENTICITY",
+#|                 "DATASET ORIGIN",
+#|                 "DATA FRESHNESS",
+#|                 "CLAIMED RECORD COUNT",
+#|                 "SUPPORTED RECORD COUNT",
+#|                 "DATA CATEGORIES",
+#|                 "CREDENTIAL / SECRET EXPOSURE",
+#|                 "RANSOMWARE CONTEXT",
+#|                 "SUPPLY-CHAIN CONTEXT",
+#|                 "SAMPLE AUTHENTICITY",
+#|                 "RECYCLED / COMBO-LIST POSSIBILITY",
+#|                 "INCIDENT CORRELATION",
+#|                 "SOURCE RELIABILITY",
+#|                 "SOURCE INDEPENDENCE",
+#|                 "CONTRADICTIONS",
+#|                 "IMPACT",
+#|                 "UNKNOWN",
+#|                 "NEXT ACTION",
+#|             ],
+#|             "breachint_report_sections": [
+#|                 "Objective",
+#|                 "Authorized Scope",
+#|                 "Collection / Privacy Boundaries",
+#|                 "Breach Claims",
+#|                 "Affected Organization Resolution",
+#|                 "First-Party / Third-Party Assessment",
+#|                 "Dataset Inventory",
+#|                 "Dataset Schema",
+#|                 "Dataset Fingerprints",
+#|                 "Dataset Lineage",
+#|                 "Duplicate / Overlap Analysis",
+#|                 "Record Counts",
+#|                 "Data Categories",
+#|                 "Sensitive Data",
+#|                 "Credential Exposure",
+#|                 "Secret Exposure",
+#|                 "Combo Lists",
+#|                 "Stealer Logs",
+#|                 "Ransomware Context",
+#|                 "Supply-Chain Exposure",
+#|                 "Source-Code Exposure",
+#|                 "Document Exposure",
+#|                 "Cloud / Repository Exposure",
+#|                 "Sample Authenticity",
+#|                 "Dataset Authenticity",
+#|                 "Data Freshness",
+#|                 "Breach Timeline",
+#|                 "Incident Correlation",
+#|                 "Current Relevance",
+#|                 "Impact Assessment",
+#|                 "Source Reliability",
+#|                 "Source Bias / Limitations",
+#|                 "Source Pedigree",
+#|                 "Source Independence",
+#|                 "Facts",
+#|                 "Observations",
+#|                 "Contradictions",
+#|                 "Competing Hypotheses",
+#|                 "Falsification",
+#|                 "Privacy / Legal Flags",
+#|                 "Unknowns",
+#|                 "Knowledge Gaps",
+#|                 "Defensive Next Actions",
+#|                 "Specialist Handoffs",
+#|                 "Limitations",
+#|                 "Evidence / Citations",
+#|                 "Replay Manifest",
+#|             ],
+#|             "replay_requirements_policy": {
+#|                 "preserve": [
+#|                     "claim source",
+#|                     "claim snapshot",
+#|                     "claim timestamp",
+#|                     "dataset metadata",
+#|                     "sample hashes",
+#|                     "dataset fingerprints",
+#|                     "schema fingerprints",
+#|                     "overlap calculations",
+#|                     "organization-resolution decision",
+#|                     "first-party/third-party decision",
+#|                     "record-count calculation",
+#|                     "source-pedigree graph",
+#|                     "source-independence decision",
+#|                     "fact-gate result",
+#|                     "hypothesis comparison",
+#|                     "privacy transformations",
+#|                     "model versions",
+#|                     "graph updates",
+#|                 ],
+#|                 "rule": (
+#|                     "Replay must answer WHO CLAIMED THE BREACH? WHEN? WHAT DATA WAS ACTUALLY OBSERVED? "
+#|                     "WHAT WAS ONLY CLAIMED? HOW WAS THE ORGANIZATION RESOLVED? WHY IS THIS FIRST-PARTY OR THIRD-PARTY? "
+#|                     "IS THE DATA NEW OR RECYCLED? WHICH SOURCES ARE ACTUALLY INDEPENDENT?"
+#|                 ),
+#|             },
+#|             "collection_plan_schema": {
+#|                 "question": "BREACHINT question or general collection planning",
+#|                 "operation": "Planned defensive BREACHINT operation",
+#|                 "tool_or_provider": "Tool/source/connector",
+#|                 "purpose": "Why this operation matters",
+#|                 "status": "COMPLETED_LOCAL/PLANNED_REQUIRES_EVIDENCE/PLANNED_REQUIRES_CLAIM_EVIDENCE/PLANNED_REQUIRES_DATASET_EVIDENCE/PLANNED_REQUIRES_CREDENTIAL_EVIDENCE/PLANNED_REQUIRES_RANSOMWARE_EVIDENCE/PLANNED_ANALYTIC/BLOCKED_CONFIGURATION/PLANNED_REQUIRES_CONNECTOR/REQUIRED_BEFORE_COLLECTION",
+#|                 "expected_output": "Expected intelligence output",
+#|                 "priority": "Rank",
+#|                 "safety_risk": "LOW/MEDIUM/HIGH/HIGH_PRIVACY_SENSITIVE/HIGH_PRIVACY_LEGAL",
+#|                 "policy_note": "Defensive/authorized/privacy-aware/evidence-first boundary",
+#|                 "authorization_status": "ALLOWED_DEFENSIVE_AUTHORIZED_PUBLIC",
+#|                 "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+#|             },
+#|         }
+#| 
+#|     def export_json(self) -> None:
+#|         if not self.last_result:
+#|             self.generate_plan()
+#| 
+#|         data = self.last_result or self.collect_payload()
+#| 
+#|         payload_for_name = data.get("payload") or data.get("payload_preview") or data
+#|         case_id = payload_for_name.get("case_id", "breachint")
+#|         task_id = payload_for_name.get("task_id", "task")
+#| 
+#|         path = filedialog.asksaveasfilename(
+#|             defaultextension=".json",
+#|             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+#|             initialfile=f"{case_id}_{task_id}.json",
+#|         )
+#| 
+#|         if not path:
+#|             return
+#| 
+#|         try:
+#|             with open(path, "w", encoding="utf-8") as f:
+#|                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+#|             messagebox.showinfo("Export Complete", f"BREACHINT JSON saved to:\n{path}")
+#|         except Exception as exc:
+#|             messagebox.showerror("Export Failed", str(exc))
+#| 
+#|     def copy_output(self) -> None:
+#|         text = self.output.get("1.0", "end-1c").strip()
+#|         if not text:
+#|             messagebox.showinfo("Copy Output", "No output to copy.")
+#|             return
+#| 
+#|         self.clipboard_clear()
+#|         self.clipboard_append(text)
+#|         messagebox.showinfo("Copy Output", "Output copied to clipboard.")
+#| 
+#|     def clear_form(self) -> None:
+#|         confirm = messagebox.askyesno(
+#|             "Clear Form",
+#|             "Are you sure you want to clear all fields, analyzed BREACHINT evidence, and reset defaults?",
+#|         )
+#|         if not confirm:
+#|             return
+#| 
+#|         self._set_defaults()
+#|         self.output.delete("1.0", "end")
+#|         self.last_result = {}
+#|         self.analyzed_files = []
+#|         self.parsed = empty_parsed()
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     app = TraceAtlasBREACHINTPanel()
+#|     app.mainloop()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE breachint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE cloudint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS / CLOUDINT — Local defensive cloud intelligence pipeline.
+#| 
+#| IMPORTANT SAFETY / POLICY NOTES:
+#| - This is a local demo implementation.
+#| - It does NOT access live cloud APIs, consoles, buckets, IAM, metadata services, or private tenants.
+#| - It does NOT use/test cloud credentials, redeem tokens, assume roles, bypass IAM/MFA/SSO,
+#|   perform privilege escalation, access cross-tenant resources, exploit SSRF/metadata,
+#|   download/upload private objects, modify IAM/firewalls/storage, disable/delete logs,
+#|   deploy malware, or perform unauthorized scanning.
+#| - It supports authorized, defensive, passive-first, evidence-first cloud intelligence only.
+#| - Sample data is synthetic.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import re
+#| import unicodedata
+#| from collections import defaultdict
+#| from dataclasses import dataclass, field, fields, is_dataclass
+#| from datetime import datetime, timedelta, timezone
+#| from enum import Enum
+#| from typing import Any, Dict, List, Optional, Set, Tuple
+#| 
+#| 
+#| PIPELINE_VERSION = "0.1.0-cloudint-defensive-safe-demo"
+#| 
+#| 
+#| # =====================================================================
+#| # ENUMS
+#| # =====================================================================
+#| 
+#| class Status(str, Enum):
+#|     SUCCEEDED = "SUCCEEDED"
+#|     PARTIAL = "PARTIAL"
+#|     FAILED = "FAILED"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#|     PROVIDER_UNRESOLVED = "PROVIDER_UNRESOLVED"
+#|     TENANT_UNRESOLVED = "TENANT_UNRESOLVED"
+#|     RESOURCE_UNRESOLVED = "RESOURCE_UNRESOLVED"
+#|     IAM_UNRESOLVED = "IAM_UNRESOLVED"
+#|     EXPOSURE_UNRESOLVED = "EXPOSURE_UNRESOLVED"
+#|     HISTORICAL_STATE_UNAVAILABLE = "HISTORICAL_STATE_UNAVAILABLE"
+#|     LOGGING_GAP = "LOGGING_GAP"
+#|     CSPM_STALE = "CSPM_STALE"
+#|     BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+#|     BLOCKED_POLICY = "BLOCKED_POLICY"
+#|     BLOCKED_CROSS_TENANT = "BLOCKED_CROSS_TENANT"
+#|     HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+#| 
+#| 
+#| class SourceType(str, Enum):
+#|     CLOUD_NATIVE_INVENTORY = "CLOUD_NATIVE_INVENTORY"
+#|     CLOUD_NATIVE_CONFIG = "CLOUD_NATIVE_CONFIG"
+#|     CLOUD_AUDIT_LOG = "CLOUD_AUDIT_LOG"
+#|     CLOUD_FLOW_LOG = "CLOUD_FLOW_LOG"
+#|     IAM_EXPORT = "IAM_EXPORT"
+#|     IDENTITY_PROVIDER_EXPORT = "IDENTITY_PROVIDER_EXPORT"
+#|     CSPM = "CSPM"
+#|     CNAPP = "CNAPP"
+#|     VULNERABILITY_SCANNER = "VULNERABILITY_SCANNER"
+#|     SIEM = "SIEM"

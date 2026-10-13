@@ -1,0 +1,1000 @@
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(urls.get('urls', []))} URL(s) and {len(urls.get('domains', []))} domain(s) were extracted as references only.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_URL_DOMAIN_EXTRACTOR",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "regex_url_domain_extraction",
+#|                 "limitations": "No links were visited.",
+#|             },
+#|         ]
+#|     )
+#| 
+#|     if patterns.get("communication_burst_candidates"):
+#|         obs.append(
+#|             {
+#|                 "observation_id": f"OBS-{uuid.uuid4()}",
+#|                 "statement": f"{len(patterns.get('communication_burst_candidates', []))} communication burst candidate day(s) detected.",
+#|                 "evidence_id": "AGGREGATE",
+#|                 "source_id": "LOCAL_PATTERN_ANALYZER",
+#|                 "observed_at": now_utc(),
+#|                 "extraction_method": "messages_per_day_threshold",
+#|                 "limitations": "Bursts are behavioral metadata, not proof of coordination.",
+#|             }
+#|         )
+#| 
+#|     return obs[:300]
+#| 
+#| 
+#| def build_candidate_facts(files: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+#|     facts = []
+#| 
+#|     for f in files:
+#|         if f.get("sha256"):
+#|             facts.append(
+#|                 {
+#|                     "candidate_fact": f"The preserved local communication export {f.get('filename')} has SHA256 {f.get('sha256')}.",
+#|                     "status": "SUPPORTED",
+#|                     "evidence_ids": [f.get("communication_evidence_id")],
+#|                     "notes": "Supported by deterministic local hashing. Does not prove message authenticity or external truth.",
+#|                 }
+#|             )
+#| 
+#|     facts.append(
+#|         {
+#|             "candidate_fact": f"The parsed evidence set contains {len(messages)} message objects.",
+#|             "status": "SUPPORTED",
+#|             "evidence_ids": ["AGGREGATE"],
+#|             "notes": "Supported by local parser. Completeness depends on export provenance.",
+#|         }
+#|     )
+#| 
+#|     for m in messages[:50]:
+#|         preview = (m.get("content_reference", {}) or {}).get("preview_redacted", "")[:180]
+#|         facts.append(
+#|             {
+#|                 "candidate_fact": (
+#|                     f"Account {m.get('sender_account')} is associated in the preserved export with message "
+#|                     f"{m.get('message_id')} at {m.get('timestamp_normalized') or m.get('timestamp_original')} "
+#|                     f"containing redacted preview: {preview}"
+#|                 ),
+#|                 "status": "SUPPORTED_AS_COMMUNICATION_EVENT",
+#|                 "evidence_ids": [m.get("source_id")],
+#|                 "not_supported": [
+#|                     "external truth of the statement",
+#|                     "real-world identity of the account",
+#|                     "intent, deception, coordination, or criminality",
+#|                 ],
+#|             }
+#|         )
+#| 
+#|     facts, _ = truncate_list(facts, 100)
+#|     return facts
+#| 
+#| 
+#| def fact_gate_for_local_analysis(files: List[Dict[str, Any]], messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+#|     if not files and not messages:
+#|         return {
+#|             "status": "NO_LOCAL_COMMUNICATION_EVIDENCE",
+#|             "deterministic_findings": "NONE",
+#|             "semantic_findings": "NOT_ATTEMPTED",
+#|             "privacy_status": "NO_PRIVATE_CONTENT_OR_CREDENTIAL_USE_PROCESSED",
+#|         }
+#| 
+#|     return {
+#|         "status": "LOCAL_DETERMINISTIC_ONLY",
+#|         "supported": [
+#|             "file existence",
+#|             "SHA256 hash",
+#|             "parsed message count",
+#|             "message sender/receiver/account metadata where present",
+#|             "message timestamps where parseable",
+#|             "thread grouping where thread/reply metadata exists",
+#|             "statement-made observations for message content",
+#|             "duplicate/forward candidate clustering",
+#|             "attachment metadata references",
+#|             "URL/domain/email/hashtag extraction",
+#|         ],
+#|         "not_supported": [
+#|             "external truth of message claims",
+#|             "real-world person identity behind accounts",
+#|             "account ownership",
+#|             "intent",
+#|             "deception",
+#|             "coordination",
+#|             "criminality",
+#|             "message deletion",
+#|             "complete conversation context",
+#|             "attachment content authenticity",
+#|             "location facts",
+#|             "payment facts",
+#|             "legal/financial facts",
+#|         ],
+#|         "privacy_status": "Secrets redacted. No credentials used. No attachments executed. No network access.",
+#|     }
+#| 
+#| 
+#| def build_knowledge_gaps(
+#|     files: List[Dict[str, Any]],
+#|     messages: List[Dict[str, Any]],
+#|     threads: List[Dict[str, Any]],
+#|     participants: List[Dict[str, Any]],
+#|     attachments: Dict[str, Any],
+#|     urls: Dict[str, Any],
+#|     duplicates: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     gaps = []
+#| 
+#|     if not files:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "What communications are relevant?",
+#|                 "missing_evidence": "No local authorized communication export supplied.",
+#|                 "likely_source": "Authorized export, public channel export, or lawfully supplied transcript.",
+#|                 "specialist_owner": "COMINT AI Employee",
+#|                 "priority": "HIGH",
+#|                 "expected_information_value": "Enables message inventory and thread reconstruction.",
+#|                 "privacy_boundary": "Only public or explicitly authorized communications.",
+#|             }
+#|         )
+#| 
+#|     missing_ts = sum(1 for m in messages if not m.get("timestamp_normalized"))
+#|     if missing_ts:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "When did communications occur?",
+#|                 "missing_evidence": f"{missing_ts} message(s) lack normalized timestamps.",
+#|                 "likely_source": "Original platform export metadata.",
+#|                 "specialist_owner": "COMINT AI Employee",
+#|                 "priority": "HIGH",
+#|                 "expected_information_value": "Improves temporal ordering and event correlation.",
+#|                 "privacy_boundary": "Do not infer timestamps from context alone.",
+#|             }
+#|         )
+#| 
+#|     missing_thread = sum(1 for m in messages if not m.get("thread_id"))
+#|     if missing_thread:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "How do messages relate as threads?",
+#|                 "missing_evidence": f"{missing_thread} message(s) lack thread_id/reply metadata.",
+#|                 "likely_source": "Native platform export with conversation metadata.",
+#|                 "specialist_owner": "COMINT AI Employee",
+#|                 "priority": "MEDIUM",
+#|                 "expected_information_value": "Improves thread reconstruction and context completeness.",
+#|                 "privacy_boundary": "Do not invent reply relationships.",
+#|             }
+#|         )
+#| 
+#|     missing_parents = sum(len(t.get("missing_parent_candidates", [])) for t in threads)
+#|     if missing_parents:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "Are conversations complete?",
+#|                 "missing_evidence": f"{missing_parents} reply parent reference(s) missing from parsed set.",
+#|                 "likely_source": "Full export or independent platform/archive source.",
+#|                 "specialist_owner": "COMINT AI Employee",
+#|                 "priority": "MEDIUM",
+#|                 "expected_information_value": "Reduces risk of selective-context error.",
+#|                 "privacy_boundary": "Do not claim deletion without evidence.",
+#|             }
+#|         )
+#| 
+#|     if attachments.get("count"):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "What do attachments contain?",
+#|                 "missing_evidence": "Attachment content was not opened or executed.",
+#|                 "likely_source": "Authorized attachment store / DOCINT / IMINT / VIDINT / AUDINT / MALWAREINT.",
+#|                 "specialist_owner": "Specialist handoff",
+#|                 "priority": "MEDIUM",
+#|                 "expected_information_value": "May provide document, image, video, audio, or IOC context.",
+#|                 "privacy_boundary": "No automatic execution. Quarantine/hash/route suspicious artifacts.",
+#|             }
+#|         )
+#| 
+#|     if urls.get("urls") or urls.get("domains"):
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "Are linked resources authentic/current/malicious?",
+#|                 "missing_evidence": "URLs/domains were extracted but not visited.",
+#|                 "likely_source": "WEBINT / DOMAININT / CTI / MALWAREINT safe collection systems.",
+#|                 "specialist_owner": "WEBINT / CTI",
+#|                 "priority": "MEDIUM",
+#|                 "expected_information_value": "May verify source context or identify malicious infrastructure.",
+#|                 "privacy_boundary": "Do not click suspicious links outside safe collection systems.",
+#|             }
+#|         )
+#| 
+#|     if participants:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "Which accounts correspond to which persons?",
+#|                 "missing_evidence": "Identity resolution evidence is absent or insufficient.",
+#|                 "likely_source": "Authorized contact records, public profile linkage, organizational records, independent evidence.",
+#|                 "specialist_owner": "COMINT Manager / SOCMINT / COMPANYINT / human review",
+#|                 "priority": "HIGH_IF_CONSEQUENTIAL",
+#|                 "expected_information_value": "Prevents false account-to-person merge.",
+#|                 "privacy_boundary": "Do not merge identities from display name/username/nickname/number fragment alone.",
+#|             }
+#|         )
+#| 
+#|     if duplicates:
+#|         gaps.append(
+#|             {
+#|                 "gap_id": f"GAP-{uuid.uuid4()}",
+#|                 "question": "How many independent sources support a claim?",
+#|                 "missing_evidence": f"{len(duplicates)} duplicate/repost cluster(s) detected.",
+#|                 "likely_source": "Original upstream message/source identification.",
+#|                 "specialist_owner": "COMINT AI Employee / WEBINT / SOCMINT",
+#|                 "priority": "MEDIUM",
+#|                 "expected_information_value": "Prevents treating reposts as independent corroboration.",
+#|                 "privacy_boundary": "Preserve forward/quote chains.",
+#|             }
+#|         )
+#| 
+#|     return gaps[:100]
+#| 
+#| 
+#| def build_specialist_handoffs(payload: Dict[str, Any], messages: List[Dict[str, Any]], attachments: Dict[str, Any], urls: Dict[str, Any]) -> List[Dict[str, Any]]:
+#|     handoffs = []
+#|     text = " ".join(
+#|         [
+#|             str(payload.get("objective", "")),
+#|             " ".join(str(q) for q in payload.get("questions", [])),
+#|             " ".join((m.get("content_reference", {}) or {}).get("preview_redacted", "") for m in messages[:500]),
+#|         ]
+#|     ).lower()
+#| 
+#|     if attachments.get("count"):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "DOCINT / IMINT / VIDINT / AUDINT / MALWAREINT",
+#|                 "reason": "Attachment references detected. Content not executed in COMINT panel.",
+#|                 "expected_output": "Attachment metadata, document/image/video/audio analysis, or malicious-artifact triage.",
+#|             }
+#|         )
+#| 
+#|     if urls.get("urls") or urls.get("domains"):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "WEBINT / DOMAININT / CTI / MALWAREINT",
+#|                 "reason": "URLs/domains extracted from communications.",
+#|                 "expected_output": "Source context, domain registration/infrastructure context, malicious-link triage.",
+#|             }
+#|         )
+#| 
+#|     if any(w in text for w in LOCATION_WORDS):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "GEOINT",
+#|                 "reason": "Location-like references detected in communications.",
+#|                 "expected_output": "Spatial verification of communicated place/venue/address claims without private-person pinpointing.",
+#|             }
+#|         )
+#| 
+#|     if any(w in text for w in PAYMENT_WORDS):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "PAYMENTINT / FININT",
+#|                 "reason": "Payment-like claims detected in communications.",
+#|                 "expected_output": "Independent transaction/payment verification. Message claim is not proof of payment.",
+#|             }
+#|         )
+#| 
+#|     if any(w in text for w in LEGAL_WORDS):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "LEGALINT",
+#|                 "reason": "Legal-like claims detected in communications.",
+#|                 "expected_output": "Legal document/proceeding verification. Conversation is not official proof.",
+#|             }
+#|         )
+#| 
+#|     if any(w in text for w in COMPANY_WORDS):
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "COMPANYINT / REGINT",
+#|                 "reason": "Company/role/affiliation claims detected in communications.",
+#|                 "expected_output": "Corporate registry/affiliation verification.",
+#|             }
+#|         )
+#| 
+#|     if payload.get("target_type") in {"call_transcript", "voice_note_transcript", "meeting_transcript"}:
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "AUDINT",
+#|                 "reason": "Transcript-derived communication context detected.",
+#|                 "expected_output": "Raw audio/speaker-track/acoustic analysis where authorized. COMINT does not identify speakers from voice alone.",
+#|             }
+#|         )
+#| 
+#|     if payload.get("target_type") in {"public_channel", "public_forum", "public_mailing_list"}:
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "SOCMINT / WEBINT",
+#|                 "reason": "Public platform/channel context may require account/post provenance.",
+#|                 "expected_output": "Public account/post context, platform metadata, source independence.",
+#|             }
+#|         )
+#| 
+#|     if not handoffs:
+#|         handoffs.append(
+#|             {
+#|                 "specialist": "COMINT Manager",
+#|                 "reason": "No specialized handoff triggered from current local deterministic evidence alone.",
+#|                 "expected_output": "Review scope, approve independent verification tasks, assign follow-ups.",
+#|             }
+#|         )
+#| 
+#|     return handoffs
+#| 
+#| 
+#| def build_next_best_action(
+#|     payload: Dict[str, Any],
+#|     policy: Dict[str, Any],
+#|     files: List[Dict[str, Any]],
+#|     messages: List[Dict[str, Any]],
+#|     attachments: Dict[str, Any],
+#|     urls: Dict[str, Any],
+#|     participants: List[Dict[str, Any]],
+#| ) -> Dict[str, str]:
+#|     if policy.get("status") == "HUMAN_REVIEW_REQUIRED":
+#|         return {
+#|             "action": "Route to human COMINT reviewer before any person-identity, threat-credibility, or consequential private-communication conclusion.",
+#|             "reason": "Sensitive/authorized communication context applies.",
+#|             "owner": "COMINT Manager / SIGINT Communications Intelligence Manager",
+#|             "expected_output": "Approved privacy-preserving conclusions and verification plan.",
+#|         }
+#| 
+#|     if not files and not payload.get("communication_paths"):
+#|         return {
+#|             "action": "Attach authorized/public communication exports or provide communication source metadata.",
+#|             "reason": "No communication artifact is available for local deterministic analysis.",
+#|             "owner": "COMINT AI Employee",
+#|             "expected_output": "Communication inventory with evidence objects.",
+#|         }
+#| 
+#|     if any(m.get("secret_flags") for m in messages):
+#|         return {
+#|             "action": "Apply secret-handling controls: redact, restrict access, do not use discovered credentials, and preserve minimum evidence.",
+#|             "reason": "Credential/secret-like patterns were detected in message content.",
+#|             "owner": "COMINT Manager / Security Reviewer",
+#|             "expected_output": "Safe handling record and restricted evidence access.",
+#|         }
+#| 
+#|     if attachments.get("count"):
+#|         return {
+#|             "action": "Route attachment references to DOCINT/IMINT/VIDINT/AUDINT/MALWAREINT under safe handling.",
+#|             "reason": "Attachments were detected as metadata only and not executed.",
+#|             "owner": "Specialist handoff",
+#|             "expected_output": "Attachment content analysis or malicious-artifact triage.",
+#|         }
+#| 
+#|     if urls.get("urls") or urls.get("domains"):
+#|         return {
+#|             "action": "Route URL/domain references to WEBINT/DOMAININT/CTI for safe source and infrastructure verification.",
+#|             "reason": "Linked resources were extracted but not visited.",
+#|             "owner": "WEBINT / CTI",
+#|             "expected_output": "Source context, domain context, or malicious-link triage.",
+#|         }
+#| 
+#|     if participants:
+#|         return {
+#|             "action": "Verify account-to-person identity only through independent authorized evidence; do not merge from username/display name alone.",
+#|             "reason": "Accounts were observed but real-world identity remains unresolved.",
+#|             "owner": "COMINT Manager / SOCMINT / COMPANYINT / human review",
+#|             "expected_output": "Identity resolution memo with confidence and limitations.",
+#|         }
+#| 
+#|     return {
+#|         "action": "Proceed with independent verification of material claims through relevant specialists.",
+#|         "reason": "Local parser can establish that statements were made, but not whether they are true.",
+#|         "owner": "COMINT AI Employee / EVENTINT / GEOINT / PAYMENTINT / COMPANYINT",
+#|         "expected_output": "Evidence-linked facts, contradictions, hypotheses, and handoffs.",
+#|     }
+#| 
+#| 
+#| def build_collection_plan(
+#|     payload: Dict[str, Any],
+#|     questions: List[Any],
+#|     files: List[Dict[str, Any]],
+#|     messages: List[Dict[str, Any]],
+#| ) -> List[Dict[str, Any]]:
+#|     plan = []
+#|     priority = 1
+#| 
+#|     questions_limited, _ = truncate_list([str(q) for q in questions], 8)
+#| 
+#|     has_files = bool(files or payload.get("communication_paths"))
+#|     has_sources = bool(payload.get("communication_sources"))
+#|     has_models = bool(payload.get("configured_models")) and not any("None configured" in str(x) for x in payload.get("configured_models", []))
+#|     has_connectors = bool(payload.get("configured_connectors")) and not any("None configured" in str(x) for x in payload.get("configured_connectors", []))
+#| 
+#|     def add(operation: str, tool: str, purpose: str, status: str, expected_output: str, privacy_risk: str = "LOW", policy_note: str = "Authorized/public communication evidence only.") -> None:
+#|         nonlocal priority
+#|         plan.append(
+#|             {
+#|                 "question": "General COMINT collection planning",
+#|                 "operation": operation,
+#|                 "tool_or_provider": tool,
+#|                 "purpose": purpose,
+#|                 "status": status,
+#|                 "expected_output": expected_output,
+#|                 "priority": priority,
+#|                 "privacy_risk": privacy_risk,
+#|                 "policy_note": policy_note,
+#|                 "authorization_status": "ALLOWED_AUTHORIZED_OR_PUBLIC",
+#|                 "execution_status": "NOT_EXECUTED_PLANNING_ONLY",
+#|             }
+#|         )
+#|         priority += 1
+#| 
+#|     add(
+#|         "preserve_original_communication_evidence",
+#|         "local evidence store",
+#|         "Store original export artifact, hash, filename, source reference, and retrieval timestamp.",
+#|         "COMPLETED_LOCAL" if files else "PLANNED_REQUIRES_EXPORT",
+#|         "CommunicationEvidenceObject with SHA256 and provenance fields.",
+#|     )
+#| 
+#|     add(
+#|         "safe_parse_json_csv_mbox_text",
+#|         "local deterministic parser",
+#|         "Parse authorized JSON/CSV/MBOX/TXT communication exports without network access or attachment execution.",
+#|         "COMPLETED_LOCAL" if files else "PLANNED_REQUIRES_EXPORT",
+#|         "Message inventory, source IDs, content hashes, redacted previews.",
+#|     )
+#| 
+#|     add(
+#|         "normalize_timestamps",
+#|         "local timestamp normalizer",
+#|         "Preserve original timestamps and normalize to UTC where parseable.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Normalized timestamps, timezone, method, uncertainty.",
+#|     )
+#| 
+#|     add(
+#|         "reconstruct_threads",
+#|         "local thread reconstructor",
+#|         "Group messages by thread_id, reply_to, references, and channel metadata.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Thread summaries, missing parent candidates, sequence gap candidates.",
+#|     )
+#| 
+#|     add(
+#|         "extract_participants_accounts",
+#|         "local participant extractor",
+#|         "Extract account identifiers as accounts, not verified persons.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Participant/account inventory with UNRESOLVED identity state.",
+#|         privacy_risk="HIGH_IF_MISUSED_FOR_PERSON_ATTRIBUTION",
+#|         policy_note="Account != person.",
+#|     )
+#| 
+#|     add(
+#|         "extract_claims_entities_urls_attachments",
+#|         "local deterministic extractor",
+#|         "Extract statements, URLs, domains, emails, hashtags, and attachment metadata.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Claims, URL/domain summary, attachment metadata summary.",
+#|         policy_note="Message claims are statements made, not verified facts.",
+#|     )
+#| 
+#|     add(
+#|         "redact_secrets",
+#|         "local secret redactor",
+#|         "Detect and redact password/token/key/cookie/session-like patterns without using them.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Secret flags and redacted previews.",
+#|         privacy_risk="MEDIUM",
+#|         policy_note="Do not use exposed credentials.",
+#|     )
+#| 
+#|     add(
+#|         "prompt_injection_guard",
+#|         "local injection detector",
+#|         "Flag instruction-like message content and treat it as untrusted evidence.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Prompt-injection flags.",
+#|     )
+#| 
+#|     add(
+#|         "dedup_forward_source_independence",
+#|         "local dedup/forward analyzer",
+#|         "Cluster duplicate/reposted messages and preserve forward chains.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Duplicate clusters, forward chains, source-dependence notes.",
+#|     )
+#| 
+#|     add(
+#|         "communication_pattern_analysis",
+#|         "local pattern analyzer",
+#|         "Analyze messages per day, bursts, and response-time patterns.",
+#|         "COMPLETED_LOCAL" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Pattern summary with strong caution against intent inference.",
+#|     )
+#| 
+#|     add(
+#|         "topic_and_topic_shift_analysis",
+#|         "configured NLP model or local keyword heuristic",
+#|         "Classify topics and detect topic shifts for routing/segmentation.",
+#|         "COMPLETED_LOCAL_HEURISTIC" if messages else "PLANNED_REQUIRES_MESSAGES",
+#|         "Topic counts and topic shift observations.",
+#|         policy_note="Topic classification does not infer criminal purpose.",
+#|     )
+#| 
+#|     add(
+#|         "identity_resolution",
+#|         "independent authorized evidence / human review",
+#|         "Resolve account-to-person identity only with separate evidence.",
+#|         "BLOCKED_REQUIRES_INDEPENDENT_EVIDENCE",
+#|         "VERIFIED_MATCH / PROBABLE_MATCH / POSSIBLE_MATCH / UNRESOLVED / DISTINCT states.",
+#|         privacy_risk="HIGH",
+#|         policy_note="Do not merge identities from display name/username/nickname/number fragment alone.",
+#|     )
+#| 
+#|     add(
+#|         "attachment_handoff",
+#|         "DOCINT / IMINT / VIDINT / AUDINT / MALWAREINT",
+#|         "Route attachment references for safe content analysis.",
+#|         "PLANNED_REQUIRES_CONNECTOR" if has_connectors else "BLOCKED_CONFIGURATION",
+#|         "Attachment content findings or malicious triage.",
+#|         policy_note="No automatic execution.",
+#|     )
+#| 
+#|     add(
+#|         "url_domain_handoff",
+#|         "WEBINT / DOMAININT / CTI",
+#|         "Verify linked resources and infrastructure context.",
+#|         "PLANNED_REQUIRES_CONNECTOR" if has_connectors else "BLOCKED_CONFIGURATION",
+#|         "Source context, domain context, malicious-link triage.",
+#|     )
+#| 
+#|     add(
+#|         "translation_language_analysis",
+#|         "configured translation/language model",
+#|         "Detect language/code-switching and translate while preserving original text.",
+#|         "BLOCKED_CONFIGURATION" if not has_models else "PLANNED_REQUIRES_MODEL",
+#|         "Original + translated transcript with confidence/limitations.",
+#|     )
+#| 
+#|     add(
+#|         "fact_gate_dual_ai_review",
+#|         "Primary COMINT Analyst + Independent Communication Skeptic",
+#|         "Separate observations, claims, hypotheses, and supported facts.",
+#|         "PLANNED_ANALYTIC",
+#|         "AGREE/PARTIAL_AGREEMENT/DISAGREE/INSUFFICIENT_EVIDENCE and fact-gate states.",
+#|     )
+#| 
+#|     return plan
+#| 
+#| 
+#| class TraceAtlasCOMINTPanel(tk.Tk):
+#|     def __init__(self) -> None:
+#|         super().__init__()
+#|         self.title(APP_TITLE)
+#|         self.geometry("1380x940")
+#|         self.minsize(1100, 760)
+#| 
+#|         self.entries: Dict[str, Any] = {}
+#|         self.last_result: Dict[str, Any] = {}
+#|         self.analyzed_files: List[Dict[str, Any]] = []
+#|         self.analyzed_messages: List[Dict[str, Any]] = []
+#| 
+#|         self._configure_style()
+#|         self._build_ui()
+#|         self._set_defaults()
+#| 
+#|     def _configure_style(self) -> None:
+#|         style = ttk.Style(self)
+#| 
+#|         try:
+#|             style.theme_use("clam")
+#|         except tk.TclError:
+#|             pass
+#| 
+#|         self.configure(bg="#0b0f19")
+#| 
+#|         style.configure("TFrame", background="#0b0f19")
+#|         style.configure("TLabel", background="#0b0f19", foreground="#e5e7eb", font=("Segoe UI", 10))
+#|         style.configure(
+#|             "Header.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#c084fc",
+#|             font=("Segoe UI", 17, "bold"),
+#|         )
+#|         style.configure(
+#|             "Subheader.TLabel",
+#|             background="#0b0f19",
+#|             foreground="#94a3b8",
+#|             font=("Segoe UI", 9),
+#|         )
+#|         style.configure("TNotebook", background="#0b0f19", borderwidth=0)
+#|         style.configure("TNotebook.Tab", padding=[14, 7], font=("Segoe UI", 10, "bold"))
+#| 
+#|         style.configure(
+#|             "TEntry",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             insertcolor="#ffffff",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TCombobox",
+#|             fieldbackground="#111827",
+#|             foreground="#e5e7eb",
+#|             arrowcolor="#e5e7eb",
+#|             bordercolor="#334155",
+#|             lightcolor="#334155",
+#|             darkcolor="#334155",
+#|         )
+#| 
+#|         style.configure(
+#|             "TButton",
+#|             padding=7,
+#|             font=("Segoe UI", 10, "bold"),
+#|             background="#1f2937",
+#|             foreground="#e5e7eb",
+#|             bordercolor="#475569",
+#|             lightcolor="#475569",
+#|             darkcolor="#475569",
+#|         )
+#| 
+#|         style.map(
+#|             "TButton",
+#|             background=[("active", "#334155")],
+#|             foreground=[("active", "#ffffff")],
+#|         )
+#| 
+#|         style.configure(
+#|             "Vertical.TScrollbar",
+#|             background="#1f2937",
+#|             troughcolor="#0b0f19",
+#|             arrowcolor="#e5e7eb",
+#|         )
+#| 
+#|     def _build_ui(self) -> None:
+#|         header = ttk.Frame(self)
+#|         header.pack(fill="x", padx=16, pady=(14, 8))
+#| 
+#|         ttk.Label(header, text="TraceAtlas COMINT AI Employee", style="Header.TLabel").pack(anchor="w")
+#| 
+#|         ttk.Label(
+#|             header,
+#|             text=(
+#|                 "Authorized / public / evidence-first communication intelligence only • Planning-only by default • "
+#|                 "Local deterministic JSON/CSV/MBOX/TXT parsing only • No interception • No stolen credentials • "
+#|                 "No encryption breaking • No autonomous contact/send • Account != person • Claim != fact"
+#|             ),
+#|             style="Subheader.TLabel",
+#|             wraplength=1280,
+#|             justify="left",
+#|         ).pack(anchor="w", pady=(2, 0))
+#| 
+#|         self.notebook = ttk.Notebook(self)
+#|         self.notebook.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+#| 
+#|         self.input_tab = ttk.Frame(self.notebook)
+#|         self.output_tab = ttk.Frame(self.notebook)
+#| 
+#|         self.notebook.add(self.input_tab, text="COMINT Task Input")
+#|         self.notebook.add(self.output_tab, text="Output / COMINT Plan / Evidence")
+#| 
+#|         self._build_input_tab()
+#|         self._build_output_tab()
+#| 
+#|     def _build_input_tab(self) -> None:
+#|         container = ttk.Frame(self.input_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.canvas = tk.Canvas(container, bg="#0b0f19", highlightthickness=0)
+#|         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+#|         self.form = ttk.Frame(self.canvas)
+#| 
+#|         self.form.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+#|         self.canvas_window = self.canvas.create_window((0, 0), window=self.form, anchor="nw")
+#|         self.canvas.configure(yscrollcommand=scrollbar.set)
+#| 
+#|         self.canvas.pack(side="left", fill="both", expand=True)
+#|         scrollbar.pack(side="right", fill="y")
+#| 
+#|         row = 0
+#| 
+#|         for key, label, kind in FIELDS:
+#|             ttk.Label(self.form, text=label).grid(row=row, column=0, sticky="nw", padx=10, pady=6)
+#| 
+#|             if kind == "entry":
+#|                 widget = ttk.Entry(self.form, width=102)
+#| 
+#|             elif kind == "combo":
+#|                 widget = ttk.Combobox(
+#|                     self.form,
+#|                     values=TARGET_TYPES if key == "target_type" else [],
+#|                     width=100,
+#|                     state="readonly",
+#|                 )
+#| 
+#|             else:
+#|                 widget = tk.Text(
+#|                     self.form,
+#|                     height=3,
+#|                     width=102,
+#|                     bg="#111827",
+#|                     fg="#e5e7eb",
+#|                     insertbackground="white",
+#|                     relief="flat",
+#|                     highlightthickness=1,
+#|                     highlightbackground="#334155",
+#|                     font=("Segoe UI", 10),
+#|                     wrap="word",
+#|                 )
+#| 
+#|             widget.grid(row=row, column=1, sticky="ew", padx=10, pady=6)
+#|             self.entries[key] = widget
+#|             row += 1
+#| 
+#|         self.form.columnconfigure(1, weight=1)
+#| 
+#|         buttons = ttk.Frame(self.input_tab)
+#|         buttons.pack(fill="x", padx=10, pady=12)
+#| 
+#|         ttk.Button(buttons, text="Add Communication Files", command=self.add_communication_files).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Analyze Local Communications", command=self.analyze_local_communications).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Run Policy Screen", command=self.run_policy_screen).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Generate COMINT Plan", command=self.generate_plan).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Export JSON", command=self.export_json).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Copy Output", command=self.copy_output).pack(side="left", padx=4)
+#|         ttk.Button(buttons, text="Clear Form", command=self.clear_form).pack(side="left", padx=4)
+#| 
+#|     def _build_output_tab(self) -> None:
+#|         container = ttk.Frame(self.output_tab)
+#|         container.pack(fill="both", expand=True)
+#| 
+#|         self.output = tk.Text(
+#|             container,
+#|             wrap="word",
+#|             bg="#020617",
+#|             fg="#e9d5ff",
+#|             insertbackground="white",
+#|             relief="flat",
+#|             highlightthickness=1,
+#|             highlightbackground="#334155",
+#|             font=("Consolas", 11),
+#|         )
+#| 
+#|         output_scroll = ttk.Scrollbar(container, orient="vertical", command=self.output.yview)
+#|         self.output.configure(yscrollcommand=output_scroll.set)
+#| 
+#|         self.output.pack(side="left", fill="both", expand=True)
+#|         output_scroll.pack(side="right", fill="y")
+#| 
+#|     def _set_defaults(self) -> None:
+#|         self.set_widget_value("case_id", "COMINT-CASE-001")
+#|         self.set_widget_value("task_id", "COMINT-TASK-001")
+#|         self.set_widget_value(
+#|             "objective",
+#|             "Analyze lawfully supplied, public, or explicitly authorized communication exports using evidence-first, "
+#|             "privacy-safe COMINT methods. Preserve originals, parse deterministically, reconstruct threads, extract "
+#|             "accounts/claims/timestamps, separate statements from verified facts, and produce structured intelligence "
+#|             "without interception, credential use, encryption breaking, or autonomous subject contact.",
+#|         )
+#|         self.set_widget_value("target", "Illustrative authorized communication export")
+#|         self.set_widget_value("target_type", "communication_export")
+#|         self.set_widget_value(
+#|             "questions",
+#|             "What communications are relevant and how reliable is their export provenance?\n"
+#|             "Which participants/accounts are present, without merging accounts to persons?\n"
+#|             "What was explicitly communicated, with timestamps and thread context?\n"
+#|             "Which claims were made, and how are they separated from verified facts?\n"
+#|             "How did threads/conversations evolve over time?\n"
+#|             "Which messages reference entities, events, URLs, domains, attachments, or locations?\n"
+#|             "What duplicate/forward/repost patterns reduce source independence?\n"
+#|             "What contradictions or missing context exist?\n"
+#|             "What facts are supportable, and what remains uncertain?\n"
+#|             "Which specialist should investigate next?",
+#|         )
+#|         self.set_widget_value("communication_paths", "")
+#|         self.set_widget_value(
+#|             "communication_sources",
+#|             "https://example.com/about (illustrative public page from Knowledge Base; no communication export attached)",
+#|         )
+#|         self.set_widget_value("known_accounts", "")
+#|         self.set_widget_value("known_entities", "")
+#|         self.set_widget_value("known_channels", "")
+#|         self.set_widget_value("known_events", "")
+#|         self.set_widget_value(
+#|             "time_range",
+#|             json.dumps({"from": "", "to": "", "timezone": "UTC"}, indent=2),
+#|         )
+#|         self.set_widget_value("jurisdiction", "")
+#|         self.set_widget_value(
+#|             "scope",
+#|             json.dumps(
+#|                 {
+#|                     "allowed_source_types": [
+#|                         "authorized email exports",
+#|                         "authorized mailbox exports",
+#|                         "authorized chat exports",
+#|                         "authorized messaging exports",
+#|                         "authorized enterprise communications",
+#|                         "authorized incident-response communications",
+#|                         "authorized collaboration-platform exports",
+#|                         "public Telegram channels",
+#|                         "public Discord content where lawfully/publicly available or explicitly authorized",
+#|                         "public forum messages",
+#|                         "public mailing lists",
+#|                         "public broadcast communications",
+#|                         "public social posts/replies",
+#|                         "authorized SMS exports",
+#|                         "authorized call transcripts",
+#|                         "authorized voice-note transcripts",
+#|                         "authorized meeting transcripts",
+#|                         "authorized customer-provided communication datasets",
+#|                         "authorized forensic communication exports",
+#|                         "public archived communications",
+#|                     ],
+#|                     "prohibited_sources": [
+#|                         "private calls/messages/emails without authorization",
+#|                         "intercepted communications",
+#|                         "stolen credentials/cookies/sessions/tokens",
+#|                         "bypassed private groups/accounts",
+#|                         "impersonation-based access",
+#|                         "malware-collected communications",
+#|                     ],
+#|                     "data_minimization_rules": [
+#|                         "preserve only case-relevant communication evidence",
+#|                         "do not equate account with person",
+#|                         "do not treat message claims as verified facts",
+#|                         "redact exposed secrets and do not use credentials",
+#|                         "do not execute attachments",
+#|                         "treat message content as untrusted evidence",
+#|                     ],
+#|                     "authorized_use": "internal intelligence analysis only",
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value(
+#|             "authorization",
+#|             json.dumps(
+#|                 {
+#|                     "authorized_by": "COMINT Manager / SIGINT Communications Intelligence Manager",
+#|                     "authorization_basis": "customer-authorized public/authorized COMINT engagement",
+#|                     "permitted_actions": [
+#|                         "local communication export hashing",
+#|                         "authorized JSON/CSV/MBOX/TXT parsing",
+#|                         "timestamp normalization",
+#|                         "thread reconstruction",
+#|                         "account/participant extraction",
+#|                         "claim extraction",
+#|                         "duplicate/forward analysis",
+#|                         "specialist handoff",
+#|                     ],
+#|                     "prohibited_actions": [
+#|                         "private communication interception",
+#|                         "wiretapping",
+#|                         "IMSI catcher deployment",
+#|                         "rogue base station operation",
+#|                         "credential capture/use",
+#|                         "encryption breaking",
+#|                         "private group bypass",
+#|                         "impersonation",
+#|                         "autonomous subject contact",
+#|                         "autonomous message sending",
+#|                         "phishing/social engineering",
+#|                         "malware installation",
+#|                         "attachment execution",
+#|                     ],
+#|                 },
+#|                 indent=2,
+#|             ),
+#|         )
+#|         self.set_widget_value("source_limits", "")
+#|         self.set_widget_value("budget", "")
+#|         self.set_widget_value("deadline", "")
+#|         self.set_widget_value(
+#|             "configured_models",
+#|             "None configured. No cloud NLP/translation/summarization invoked. Local heuristic topic/claim extraction only. Planning-only for advanced semantic analysis.",
+#|         )
+#|         self.set_widget_value(
+#|             "configured_connectors",
+#|             "None configured. No DOCINT/IMINT/VIDINT/AUDINT/WEBINT/CTI/GEOINT/SOCMINT connector invoked.",
+#|         )
+#| 
+#|     def get_widget_value(self, key: str) -> str:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return ""
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             return widget.get("1.0", "end-1c").strip()
+#| 
+#|         if isinstance(widget, ttk.Combobox):
+#|             return widget.get().strip()
+#| 
+#|         if isinstance(widget, ttk.Entry):
+#|             return widget.get().strip()
+#| 
+#|         return ""
+#| 
+#|     def set_widget_value(self, key: str, value: str) -> None:
+#|         widget = self.entries.get(key)
+#|         if widget is None:
+#|             return
+#| 
+#|         if isinstance(widget, tk.Text):
+#|             widget.delete("1.0", "end")
+#|             widget.insert("1.0", value)
+#|         elif isinstance(widget, ttk.Combobox):
+#|             widget.set(value)
+#|         elif isinstance(widget, ttk.Entry):
+#|             widget.delete(0, "end")
+#|             widget.insert(0, value)
+#| 
+#|     def collect_payload(self) -> Dict[str, Any]:
+#|         payload: Dict[str, Any] = {}
+#| 
+#|         for key, _, _ in FIELDS:
+#|             raw = self.get_widget_value(key)
+#| 
+#|             if key in LIST_FIELDS:
+#|                 payload[key] = parse_list(raw)
+#|             elif key in DICT_FIELDS:
+#|                 payload[key] = parse_dict(raw)
+#|             else:
+#|                 payload[key] = raw
+#| 
+#|         payload["generated_at"] = now_utc()
+#|         payload["panel_version"] = APP_VERSION
+#|         payload["operating_mode"] = "PLANNING_ONLY"
+#|         payload["source_boundary"] = "AUTHORIZED_OR_PUBLIC_COMMUNICATION_ONLY"
+#|         return payload
+#| 
+#|     def validate_payload(self, payload: Dict[str, Any]) -> List[str]:
+#|         warnings: List[str] = []
+#| 
+#|         required = ["case_id", "task_id", "objective", "target", "target_type"]
+#|         for field in required:
+#|             if not payload.get(field):
+#|                 warnings.append(f"Missing required field: {field}")
+#| 
+#|         if not payload.get("questions"):
+#|             warnings.append("No COMINT questions provided. Default questions will be inferred.")
+#| 
+#|         if not payload.get("communication_paths") and not payload.get("communication_sources"):
+#|             warnings.append("No local communication paths or communication sources provided. Output remains planning-only.")
+#| 
+#|         if not payload.get("configured_models"):
+#|             warnings.append("No NLP/translation/summarization models configured. Advanced semantic analysis remains planning-only.")
+#| 
+#|         if not payload.get("configured_connectors"):
+#|             warnings.append("No specialist connectors configured. Attachment/URL/audio/location/company verification remains planning-only.")
+#| 
+#|         if payload.get("target_type") in SENSITIVE_TARGET_TYPES:
+#|             warnings.append(
+#|                 "Sensitive/authorized communication context triggers privacy controls. "
+#|                 "No interception, credential use, encryption breaking, autonomous contact/send, or account-to-person merge is permitted."
+#|             )
+#| 
+#|         if payload.get("known_accounts") and not payload.get("configured_connectors"):
+#|             warnings.append("Known accounts supplied but no independent identity-resolution connector/evidence configured. Identity remains unresolved.")
+#| 
+#|         time_range = payload.get("time_range", {})
+#|         if isinstance(time_range, dict):
+#|             if not time_range.get("from") and not time_range.get("to"):
+#|                 warnings.append("No time range provided. Temporal communication analysis may be incomplete.")
+#| 
+#|         return warnings
+#| 
+#|     def policy_screen(self, payload: Dict[str, Any]) -> Dict[str, Any]:

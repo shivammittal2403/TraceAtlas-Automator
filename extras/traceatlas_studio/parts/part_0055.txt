@@ -1,0 +1,1000 @@
+#|                 "status": h.status.value,
+#|                 "falsification_conditions": h.falsification_conditions,
+#|                 "limitations": h.limitations,
+#|             }
+#|             for h in c.hypotheses
+#|         ],
+#|         "risk_dimensions": c.risk_dimensions,
+#|         "privacy_flags": [
+#|             PrivacyFlag.CASE_SCOPED.value,
+#|             PrivacyFlag.AUTHORIZED_TENANT_ONLY.value,
+#|             PrivacyFlag.NO_CROSS_TENANT_ACCESS.value,
+#|             PrivacyFlag.NO_CREDENTIAL_USE.value,
+#|             PrivacyFlag.NO_BUCKET_ABUSE.value,
+#|             PrivacyFlag.NO_PRIVATE_OBJECT_DOWNLOAD.value,
+#|             PrivacyFlag.NO_IAM_MODIFICATION.value,
+#|             PrivacyFlag.NO_LOG_DELETION.value,
+#|             PrivacyFlag.NO_ACTIVE_PROBING.value,
+#|             PrivacyFlag.NO_METADATA_EXPLOITATION.value,
+#|         ],
+#|         "legal_flags": [
+#|             "Human/legal review required before breach notification, regulated data exposure conclusion, or production remediation."
+#|         ],
+#|         "unknowns": [
+#|             "Sensitive data exposure unknown due absent data-plane logs/classification.",
+#|             "Breach not established.",
+#|             "Effective IAM permissions unresolved.",
+#|             "Public service listening unconfirmed.",
+#|             "Backup restorability unknown.",
+#|             "Vulnerability applicability unknown.",
+#|         ],
+#|         "knowledge_gaps": c.gaps,
+#|         "recommended_next_actions": c.actions,
+#|         "specialist_handoffs": c.handoffs,
+#|         "limitations": [
+#|             "Local synthetic demo; no live cloud API access.",
+#|             "Passive-first; no active probing or credential testing.",
+#|             "Defensive recommendations only; operational changes require human approval.",
+#|             "CSPM/SIEM derivatives are not independent corroboration of native configuration.",
+#|             "Historical configuration must be used for historical incident analysis.",
+#|         ] + c.validation_errors,
+#|         "analyst_summary": summary,
+#|         "dual_ai_review": dual,
+#|         "replay_manifest": replay_manifest,
+#|         "iam_graph": build_iam_graph(c),
+#|         "source_graph": build_source_graph(c),
+#|         "source_dependency_graph": source_families,
+#|     }
+#| 
+#| 
+#| # =====================================================================
+#| # PIPELINES
+#| # =====================================================================
+#| 
+#| def run_sample_pipeline() -> Dict[str, Any]:
+#|     c = build_sample_cloudint()
+#|     return build_result(c, Status.PARTIAL)
+#| 
+#| 
+#| def run_unconfigured_pipeline(case: Case) -> Dict[str, Any]:
+#|     c = CloudInt(case)
+#| 
+#|     c.gaps.append(KnowledgeGap(
+#|         id="GAP-NO-EVIDENCE",
+#|         gap_type=GapType.RESOURCE_UNRESOLVED,
+#|         description="No authorized cloud inventory, configuration, IAM, audit, flow, CSPM, or public metadata corpus is configured.",
+#|         importance="HIGH",
+#|         recommended_source="Connect authorized read-only cloud intelligence sources or provide sanitized local JSON evidence corpus.",
+#|         specialist="CLOUDINT",
+#|         expected_information_value=0.95,
+#|     ))
+#| 
+#|     c.actions = [NextAction(
+#|         id="ACT-CONFIGURE-EVIDENCE",
+#|         description=(
+#|             "Configure authorized passive cloud sources or supply sanitized local evidence. "
+#|             "Do not use/test credentials, assume roles, access buckets, exploit metadata/SSRF, "
+#|             "modify IAM/logs, or cross tenant boundaries."
+#|         ),
+#|         priority=1,
+#|         privacy_impact="LOW",
+#|         expected_gain=0.95,
+#|         specialist=None,
+#|         requires_human_approval=False,
+#|     )]
+#| 
+#|     c.handoffs = []
+#|     c.recommendations = []
+#|     c.risk_dimensions = {dim.value: "UNKNOWN_NO_EVIDENCE" for dim in RiskDimension}
+#| 
+#|     dual = {
+#|         "primary_cloud_analyst": "No evidence available.",
+#|         "independent_cloud_skeptic_issues": [
+#|             "No sources configured.",
+#|             "No tenant/resource resolution possible.",
+#|             "No configuration history available.",
+#|             "No IAM/exposure conclusion possible.",
+#|         ],
+#|         "verdict": "INSUFFICIENT_EVIDENCE",
+#|         "note": "AI agreement is not independent cloud source corroboration.",
+#|     }
+#| 
+#|     summary = (
+#|         "CLOUD UNRESOLVED: No configured evidence corpus. "
+#|         "No tenants, resources, identities, permissions, exposures, or breaches were fabricated. "
+#|         "Provide authorized passive cloud sources or run sample mode."
+#|     )
+#| 
+#|     result = build_result(c, Status.BLOCKED_CONFIGURATION)
+#|     result["analyst_summary"] = summary
+#|     result["dual_ai_review"] = dual
+#|     return result
+#| 
+#| 
+#| def blocked_policy_result(case: Case, violations: List[Dict[str, str]]) -> Dict[str, Any]:
+#|     return {
+#|         "case_id": case.case_id,
+#|         "task_id": case.task_id,
+#|         "objective": case.objective,
+#|         "status": Status.BLOCKED_POLICY.value,
+#|         "policy_violations": violations,
+#|         "message": (
+#|             "Prohibited cloud-intelligence request detected. CLOUDINT supports authorized defensive, "
+#|             "passive-first cloud intelligence only. It does not use/test credentials, assume roles, "
+#|             "access buckets, download private objects, exploit metadata/SSRF, modify IAM/logs/network, "
+#|             "cross tenant boundaries, or perform unauthorized scanning."
+#|         ),
+#|         "lawful_alternatives": [
+#|             "Use authorized read-only inventory/configuration exports.",
+#|             "Use native configuration history for temporal analysis.",
+#|             "Use IAM exports for policy observation, not effective-access proof.",
+#|             "Use audit/flow logs for defensive telemetry.",
+#|             "Hand off credential exposure to CREDINT and vulnerability applicability to VULNINT.",
+#|             "Require human approval for remediation or operational changes.",
+#|         ],
+#|         "privacy_flags": [
+#|             PrivacyFlag.NO_CREDENTIAL_USE.value,
+#|             PrivacyFlag.NO_BUCKET_ABUSE.value,
+#|             PrivacyFlag.NO_CROSS_TENANT_ACCESS.value,
+#|             PrivacyFlag.NO_METADATA_EXPLOITATION.value,
+#|             PrivacyFlag.NO_IAM_MODIFICATION.value,
+#|         ],
+#|         "limitations": [
+#|             "No cloud analysis performed.",
+#|             "No resources or findings fabricated.",
+#|             "No private data accessed.",
+#|         ],
+#|     }
+#| 
+#| 
+#| def run_pipeline(case: Case) -> Dict[str, Any]:
+#|     text = " ".join(
+#|         [
+#|             case.objective,
+#|             *case.questions,
+#|             *case.resources,
+#|             case.tenant_id or "",
+#|             case.account_id or "",
+#|             case.authorization or "",
+#|             " ".join(case.scope),
+#|         ]
+#|     )
+#|     violations = policy_guard(text)
+#|     if violations:
+#|         return blocked_policy_result(case, violations)
+#| 
+#|     if case.sample:
+#|         return run_sample_pipeline()
+#| 
+#|     return run_unconfigured_pipeline(case)
+#| 
+#| 
+#| # =====================================================================
+#| # CLI
+#| # =====================================================================
+#| 
+#| def main() -> None:
+#|     parser = argparse.ArgumentParser(
+#|         description=(
+#|             "TRACEATLAS CLOUDINT local defensive passive-first cloud intelligence pipeline. "
+#|             "Sample mode uses synthetic authorized-cloud-record-style data."
+#|         )
+#|     )
+#|     parser.add_argument("--sample", action="store_true", help="Run built-in synthetic CLOUDINT sample.")
+#|     parser.add_argument("--objective", help="Defensive cloud intelligence objective.")
+#|     parser.add_argument("--question", action="append", default=[], help="Analytic question. Repeatable.")
+#|     parser.add_argument("--provider", help="Cloud provider hint.")
+#|     parser.add_argument("--tenant", help="Tenant ID.")
+#|     parser.add_argument("--account", help="Account ID.")
+#|     parser.add_argument("--subscription", help="Subscription ID.")
+#|     parser.add_argument("--project", help="Project ID.")
+#|     parser.add_argument("--resource", action="append", default=[], help="Resource ID. Repeatable.")
+#|     parser.add_argument("--time-range", help="Time range hint, e.g. 2026-09-01/2026-10-08.")
+#| 
+#|     args = parser.parse_args()
+#| 
+#|     if args.sample or not args.objective:
+#|         case = sample_case()
+#|     else:
+#|         case = Case(
+#|             case_id=new_id("CASE-", args.objective),
+#|             task_id=new_id("TASK-", args.objective),
+#|             objective=args.objective,
+#|             questions=args.question,
+#|             provider=args.provider,
+#|             tenant_id=args.tenant,
+#|             account_id=args.account,
+#|             subscription_id=args.subscription,
+#|             project_id=args.project,
+#|             resources=args.resource,
+#|             time_range=args.time_range,
+#|             sample=False,
+#|         )
+#| 
+#|     result = run_pipeline(case)
+#|     print(json.dumps(jsonable(result), indent=2, ensure_ascii=False))
+#| 
+#| 
+#| if __name__ == "__main__":
+#|     main()
+# TRACEATLAS EMBEDDED ORIGINAL MODULE cloudint END
+# TRACEATLAS EMBEDDED ORIGINAL MODULE codeint BEGIN
+#| #!/usr/bin/env python3
+#| """
+#| TRACEATLAS / CODEINT — Local defensive source-code intelligence pipeline.
+#| 
+#| IMPORTANT SAFETY / POLICY NOTES:
+#| - This is a local demo implementation.
+#| - It does NOT access live repositories, private repos, package registries, CI systems, or cloud deployments.
+#| - It does NOT use/test/redeem discovered secrets, API keys, tokens, or private keys.
+#| - It does NOT execute unknown code.
+#| - It does NOT generate exploits, payloads, malware, persistence, EDR bypass, or attack chains.
+#| - It supports authorized, defensive, static-first, evidence-first source-code intelligence only.
+#| - Sample data is synthetic.
+#| """
+#| 
+#| from __future__ import annotations
+#| 
+#| import argparse
+#| import hashlib
+#| import json
+#| import re
+#| import unicodedata
+#| from collections import defaultdict, deque
+#| from dataclasses import dataclass, field, fields, is_dataclass
+#| from datetime import datetime, timezone
+#| from enum import Enum
+#| from typing import Any, Dict, List, Optional, Set, Tuple
+#| 
+#| 
+#| PIPELINE_VERSION = "0.1.0-codeint-static-safe-demo"
+#| 
+#| 
+#| # =====================================================================
+#| # ENUMS
+#| # =====================================================================
+#| 
+#| class Status(str, Enum):
+#|     SUCCEEDED = "SUCCEEDED"
+#|     PARTIAL = "PARTIAL"
+#|     FAILED = "FAILED"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#|     LANGUAGE_UNSUPPORTED = "LANGUAGE_UNSUPPORTED"
+#|     PARSER_FAILED = "PARSER_FAILED"
+#|     DEPENDENCY_UNRESOLVED = "DEPENDENCY_UNRESOLVED"
+#|     BUILD_UNRESOLVED = "BUILD_UNRESOLVED"
+#|     RUNTIME_STATE_UNKNOWN = "RUNTIME_STATE_UNKNOWN"
+#|     DEPLOYED_VERSION_UNKNOWN = "DEPLOYED_VERSION_UNKNOWN"
+#|     SBOM_STALE = "SBOM_STALE"
+#|     FINDING_UNVALIDATED = "FINDING_UNVALIDATED"
+#|     BLOCKED_CONFIGURATION = "BLOCKED_CONFIGURATION"
+#|     BLOCKED_POLICY = "BLOCKED_POLICY"
+#|     HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+#| 
+#| 
+#| class SourceType(str, Enum):
+#|     PUBLIC_REPO = "PUBLIC_REPO"
+#|     AUTHORIZED_REPO = "AUTHORIZED_REPO"
+#|     USER_SUPPLIED_SOURCE = "USER_SUPPLIED_SOURCE"
+#|     PACKAGE_REGISTRY = "PACKAGE_REGISTRY"
+#|     SBOM = "SBOM"
+#|     LOCKFILE = "LOCKFILE"
+#|     BUILD_FILE = "BUILD_FILE"
+#|     CI_CD_CONFIG = "CI_CD_CONFIG"
+#|     DOCUMENTATION = "DOCUMENTATION"
+#|     SECURITY_REPORT = "SECURITY_REPORT"
+#|     TEST_RESULT = "TEST_RESULT"
+#|     PUBLIC_ADVISORY = "PUBLIC_ADVISORY"
+#|     OTHER = "OTHER"
+#| 
+#| 
+#| class Visibility(str, Enum):
+#|     PUBLIC = "PUBLIC"
+#|     PRIVATE_AUTHORIZED = "PRIVATE_AUTHORIZED"
+#|     USER_SUPPLIED = "USER_SUPPLIED"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class Language(str, Enum):
+#|     PYTHON = "PYTHON"
+#|     JAVASCRIPT = "JAVASCRIPT"
+#|     TYPESCRIPT = "TYPESCRIPT"
+#|     JAVA = "JAVA"
+#|     GO = "GO"
+#|     RUST = "RUST"
+#|     YAML = "YAML"
+#|     JSON = "JSON"
+#|     TOML = "TOML"
+#|     DOCKERFILE = "DOCKERFILE"
+#|     MARKDOWN = "MARKDOWN"
+#|     SQL = "SQL"
+#|     SHELL = "SHELL"
+#|     TEXT = "TEXT"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class Framework(str, Enum):
+#|     FASTAPI = "FASTAPI"
+#|     DJANGO = "DJANGO"
+#|     FLASK = "FLASK"
+#|     EXPRESS = "EXPRESS"
+#|     SPRING = "SPRING"
+#|     PYTEST = "PYTEST"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class BuildSystem(str, Enum):
+#|     POETRY = "POETRY"
+#|     PIP = "PIP"
+#|     NPM = "NPM"
+#|     MAVEN = "MAVEN"
+#|     GRADLE = "GRADLE"
+#|     CARGO = "CARGO"
+#|     GO_MODULES = "GO_MODULES"
+#|     DOCKER = "DOCKER"
+#|     GITHUB_ACTIONS = "GITHUB_ACTIONS"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class PackageManager(str, Enum):
+#|     POETRY = "POETRY"
+#|     PIP = "PIP"
+#|     NPM = "NPM"
+#|     MAVEN = "MAVEN"
+#|     GRADLE = "GRADLE"
+#|     CARGO = "CARGO"
+#|     GO_MODULES = "GO_MODULES"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class SymbolType(str, Enum):
+#|     MODULE = "MODULE"
+#|     CLASS = "CLASS"
+#|     FUNCTION = "FUNCTION"
+#|     METHOD = "METHOD"
+#|     INTERFACE = "INTERFACE"
+#|     TYPE = "TYPE"
+#|     STRUCT = "STRUCT"
+#|     ENUM = "ENUM"
+#|     VARIABLE = "VARIABLE"
+#|     CONSTANT = "CONSTANT"
+#|     ROUTE = "ROUTE"
+#|     ENDPOINT = "ENDPOINT"
+#|     COMMAND = "COMMAND"
+#|     HANDLER = "HANDLER"
+#|     JOB = "JOB"
+#|     WORKER = "WORKER"
+#|     ENTRYPOINT = "ENTRYPOINT"
+#|     CONFIG = "CONFIG"
+#|     OTHER = "OTHER"
+#| 
+#| 
+#| class ReachabilityState(str, Enum):
+#|     REACHABLE_SUPPORTED = "REACHABLE_SUPPORTED"
+#|     LIKELY_REACHABLE = "LIKELY_REACHABLE"
+#|     POSSIBLY_REACHABLE = "POSSIBLY_REACHABLE"
+#|     NOT_REACHABLE_SUPPORTED = "NOT_REACHABLE_SUPPORTED"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class FindingType(str, Enum):
+#|     OBSERVATION = "OBSERVATION"
+#|     RISKY_PATTERN = "RISKY_PATTERN"
+#|     VULNERABILITY_CANDIDATE = "VULNERABILITY_CANDIDATE"
+#|     VULNERABILITY_SUPPORTED = "VULNERABILITY_SUPPORTED"
+#|     FALSE_POSITIVE = "FALSE_POSITIVE"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#|     ACCESS_CONTROL_GAP_CANDIDATE = "ACCESS_CONTROL_GAP_CANDIDATE"
+#|     SECRET_CANDIDATE = "SECRET_CANDIDATE"
+#|     SOURCE_TO_SINK_RISKY_PATTERN = "SOURCE_TO_SINK_RISKY_PATTERN"
+#|     DOCUMENTATION_DRIFT = "DOCUMENTATION_DRIFT"
+#|     DEPENDENCY_VERSION_CONFLICT = "DEPENDENCY_VERSION_CONFLICT"
+#|     SBOM_STALE = "SBOM_STALE"
+#|     TEST_COVERAGE_GAP = "TEST_COVERAGE_GAP"
+#|     MALICIOUS_BEHAVIOR_CANDIDATE = "MALICIOUS_BEHAVIOR_CANDIDATE"
+#|     PROVENANCE_CANDIDATE = "PROVENANCE_CANDIDATE"
+#|     FORK_LINEAGE = "FORK_LINEAGE"
+#|     CODE_SIMILARITY = "CODE_SIMILARITY"
+#|     LICENSE_CONTEXT = "LICENSE_CONTEXT"
+#|     CI_SUPPLY_CHAIN_CONTEXT = "CI_SUPPLY_CHAIN_CONTEXT"
+#| 
+#| 
+#| class FindingState(str, Enum):
+#|     OBSERVED = "OBSERVED"
+#|     RISKY_PATTERN = "RISKY_PATTERN"
+#|     VULNERABILITY_CANDIDATE = "VULNERABILITY_CANDIDATE"
+#|     VULNERABILITY_SUPPORTED = "VULNERABILITY_SUPPORTED"
+#|     FALSE_POSITIVE = "FALSE_POSITIVE"
+#|     INCONCLUSIVE = "INCONCLUSIVE"
+#| 
+#| 
+#| class SecretState(str, Enum):
+#|     CANDIDATE = "CANDIDATE"
+#|     REDACTED = "REDACTED"
+#|     FINGERPRINTED = "FINGERPRINTED"
+#|     NOT_TESTED = "NOT_TESTED"
+#|     HISTORY_PRESENT = "HISTORY_PRESENT"
+#|     REMOVED_IN_HEAD_NOT_REVOKED = "REMOVED_IN_HEAD_NOT_REVOKED"
+#| 
+#| 
+#| class ProvenanceState(str, Enum):
+#|     FIRST_PARTY = "FIRST_PARTY"
+#|     VENDORED = "VENDORED"
+#|     GENERATED = "GENERATED"
+#|     FORK_DERIVED = "FORK_DERIVED"
+#|     UPSTREAM_PACKAGE = "UPSTREAM_PACKAGE"
+#|     LOCAL_MODIFICATION = "LOCAL_MODIFICATION"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class ForkState(str, Enum):
+#|     VERIFIED_FORK = "VERIFIED_FORK"
+#|     SUPPORTED_FORK = "SUPPORTED_FORK"
+#|     PROBABLE_FORK = "PROBABLE_FORK"
+#|     POSSIBLE_FORK = "POSSIBLE_FORK"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class SimilarityState(str, Enum):
+#|     EXACT_DUPLICATE = "EXACT_DUPLICATE"
+#|     NEAR_DUPLICATE = "NEAR_DUPLICATE"
+#|     STRUCTURALLY_SIMILAR = "STRUCTURALLY_SIMILAR"
+#|     COMMON_TEMPLATE = "COMMON_TEMPLATE"
+#|     UNKNOWN = "UNKNOWN"
+#| 
+#| 
+#| class HypothesisStatus(str, Enum):
+#|     SUPPORTED = "SUPPORTED"
+#|     PROBABLE = "PROBABLE"
+#|     POSSIBLE = "POSSIBLE"
+#|     UNRESOLVED = "UNRESOLVED"
+#|     DISPUTED = "DISPUTED"
+#|     REJECTED = "REJECTED"
+#| 
+#| 
+#| class GapType(str, Enum):
+#|     DEPLOYED_VERSION_UNKNOWN = "DEPLOYED_VERSION_UNKNOWN"
+#|     REACHABILITY_UNKNOWN = "REACHABILITY_UNKNOWN"
+#|     RUNTIME_CONFIG_UNKNOWN = "RUNTIME_CONFIG_UNKNOWN"
+#|     SBOM_STALE = "SBOM_STALE"
+#|     SECRET_VALIDITY_UNKNOWN = "SECRET_VALIDITY_UNKNOWN"
+#|     TEST_COVERAGE_MISSING = "TEST_COVERAGE_MISSING"
+#|     PROVENANCE_UNRESOLVED = "PROVENANCE_UNRESOLVED"
+#|     LICENSE_REVIEW_REQUIRED = "LICENSE_REVIEW_REQUIRED"
+#|     MALWARE_HANDOFF_REQUIRED = "MALWARE_HANDOFF_REQUIRED"
+#|     VULN_APPLICABILITY_UNKNOWN = "VULN_APPLICABILITY_UNKNOWN"
+#|     CI_SUPPLY_CHAIN_UNKNOWN = "CI_SUPPLY_CHAIN_UNKNOWN"
+#|     SOURCE_INDEPENDENCE_GAP = "SOURCE_INDEPENDENCE_GAP"
+#| 
+#| 
+#| class PrivacyFlag(str, Enum):
+#|     CASE_SCOPED = "CASE_SCOPED"
+#|     AUTHORIZED_SOURCE_ONLY = "AUTHORIZED_SOURCE_ONLY"
+#|     NO_PRIVATE_REPO_ACCESS = "NO_PRIVATE_REPO_ACCESS"
+#|     NO_SECRET_USE = "NO_SECRET_USE"
+#|     NO_RAW_SECRET_EXPOSURE = "NO_RAW_SECRET_EXPOSURE"
+#|     NO_UNKNOWN_CODE_EXECUTION = "NO_UNKNOWN_CODE_EXECUTION"
+#|     LOCAL_ONLY_DEFAULT = "LOCAL_ONLY_DEFAULT"
+#|     PROPRIETARY_CODE_CONFIDENTIAL = "PROPRIETARY_CODE_CONFIDENTIAL"
+#| 
+#| 
+#| class PolicyFlag(str, Enum):
+#|     NONE = "NONE"
+#|     BLOCKED_REQUEST = "BLOCKED_REQUEST"
+#|     HUMAN_REVIEW_REQUIRED = "HUMAN_REVIEW_REQUIRED"
+#|     DEFENSIVE_ONLY = "DEFENSIVE_ONLY"
+#|     STATIC_FIRST = "STATIC_FIRST"
+#| 
+#| 
+#| class Approval(str, Enum):
+#|     AUTONOMOUS_ANALYTIC = "AUTONOMOUS_ANALYTIC"
+#|     HUMAN_APPROVAL_REQUIRED = "HUMAN_APPROVAL_REQUIRED"
+#|     SANDBOX_AUTHORIZATION_REQUIRED = "SANDBOX_AUTHORIZATION_REQUIRED"
+#| 
+#| 
+#| # =====================================================================
+#| # CONSTANTS
+#| # =====================================================================
+#| 
+#| SOURCE_FACTOR: Dict[SourceType, float] = {
+#|     SourceType.AUTHORIZED_REPO: 0.95,
+#|     SourceType.PUBLIC_REPO: 0.90,
+#|     SourceType.USER_SUPPLIED_SOURCE: 0.92,
+#|     SourceType.PACKAGE_REGISTRY: 0.88,
+#|     SourceType.SBOM: 0.75,
+#|     SourceType.LOCKFILE: 0.90,
+#|     SourceType.BUILD_FILE: 0.88,
+#|     SourceType.CI_CD_CONFIG: 0.82,
+#|     SourceType.DOCUMENTATION: 0.55,
+#|     SourceType.SECURITY_REPORT: 0.75,
+#|     SourceType.TEST_RESULT: 0.78,
+#|     SourceType.PUBLIC_ADVISORY: 0.80,
+#|     SourceType.OTHER: 0.65,
+#| }
+#| 
+#| REACH_FACTOR: Dict[ReachabilityState, float] = {
+#|     ReachabilityState.REACHABLE_SUPPORTED: 1.00,
+#|     ReachabilityState.LIKELY_REACHABLE: 0.90,
+#|     ReachabilityState.POSSIBLY_REACHABLE: 0.70,
+#|     ReachabilityState.NOT_REACHABLE_SUPPORTED: 0.30,
+#|     ReachabilityState.UNKNOWN: 0.50,
+#| }
+#| 
+#| EXT_LANG: Dict[str, Language] = {
+#|     ".py": Language.PYTHON,
+#|     ".js": Language.JAVASCRIPT,
+#|     ".ts": Language.TYPESCRIPT,
+#|     ".java": Language.JAVA,
+#|     ".go": Language.GO,
+#|     ".rs": Language.RUST,
+#|     ".yaml": Language.YAML,
+#|     ".yml": Language.YAML,
+#|     ".json": Language.JSON,
+#|     ".toml": Language.TOML,
+#|     ".md": Language.MARKDOWN,
+#|     ".sql": Language.SQL,
+#|     ".sh": Language.SHELL,
+#|     ".txt": Language.TEXT,
+#| }
+#| 
+#| PROHIBITED_PATTERNS: List[Tuple[str, re.Pattern[str]]] = [
+#|     (
+#|         "EXPLOIT_OR_MALWARE_GENERATION",
+#|         re.compile(
+#|             r"\b(write|generate|create|develop|improve)\s+"
+#|             r"(an?\s+)?(exploit|payload|weaponized\s+code|malware|ransomware|keylogger|"
+#|             r"rootkit|botnet|loader|dropper|credential\s+stealer|backdoor)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "SECRET_USE_OR_TESTING",
+#|         re.compile(
+#|             r"\b(use|test|validate|redeem|authenticate\s+with|login\s+with|query\s+with)\s+"
+#|             r"(secret|api\s+key|token|private\s+key|credential|cloud\s+key|access\s+key)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "UNAUTHORIZED_REPO_ACCESS",
+#|         re.compile(
+#|             r"\b(access|scrape|bypass|steal|stolen)\s+"
+#|             r"(private\s+repository|git\s+credential|access\s+token|repository\s+authentication|"
+#|             r"branch\s+protection)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "UNAUTHORIZED_CODE_EXECUTION",
+#|         re.compile(
+#|             r"\b(execute|run|deploy|launch)\s+(unknown|malicious|untrusted|unauthorized)\s+"
+#|             r"(code|payload|container|binary|script)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "EDR_AV_BYPASS",
+#|         re.compile(
+#|             r"\b(bypass|evade|disable|optimize\s+bypass)\s+"
+#|             r"(edr|av|antivirus|security\s+control|logging|audit\s+trail)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "PERSISTENCE_OR_STEALTH",
+#|         re.compile(
+#|             r"\b(install|create|design|add)\s+"
+#|             r"(persistence|stealth\s+mechanism|hidden\s+service|malicious\s+startup)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#|     (
+#|         "TARGET_SPECIFIC_ATTACK",
+#|         re.compile(
+#|             r"\b(target[- ]specific\s+exploit|attack\s+chain|weaponize|compromise\s+production|"
+#|             r"breach\s+live\s+system)\b",
+#|             re.IGNORECASE,
+#|         ),
+#|     ),
+#| ]
+#| 
+#| 
+#| # =====================================================================
+#| # UTILITIES
+#| # =====================================================================
+#| 
+#| def now_iso() -> str:
+#|     return datetime.now(timezone.utc).isoformat()
+#| 
+#| 
+#| def new_id(prefix: str, seed: str) -> str:
+#|     h = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:10]
+#|     return f"{prefix}{h}" if prefix else h
+#| 
+#| 
+#| def stable_hash(text: str) -> str:
+#|     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+#| 
+#| 
+#| def sha256_short(text: str) -> str:
+#|     return stable_hash(text)[:16]
+#| 
+#| 
+#| def jsonable(obj: Any) -> Any:
+#|     if isinstance(obj, Enum):
+#|         return obj.value
+#|     if is_dataclass(obj) and not isinstance(obj, type):
+#|         return {f.name: jsonable(getattr(obj, f.name)) for f in fields(obj)}
+#|     if isinstance(obj, (list, tuple, set)):
+#|         return [jsonable(x) for x in obj]
+#|     if isinstance(obj, dict):
+#|         return {str(k): jsonable(v) for k, v in obj.items()}
+#|     return obj
+#| 
+#| 
+#| def normalize_text(value: str) -> str:
+#|     s = unicodedata.normalize("NFKC", value or "")
+#|     s = s.lower().strip()
+#|     s = re.sub(r"[^\w\s\-'.:/@]", " ", s)
+#|     s = re.sub(r"\s+", " ", s)
+#|     return s
+#| 
+#| 
+#| def parse_dt(value: Optional[str]) -> Optional[datetime]:
+#|     if not value:
+#|         return None
+#|     try:
+#|         return datetime.fromisoformat(value.replace("Z", "+00:00"))
+#|     except Exception:
+#|         return None
+#| 
+#| 
+#| def dt_or_min(value: Optional[str]) -> datetime:
+#|     dt = parse_dt(value)
+#|     return dt if dt else datetime.min.replace(tzinfo=timezone.utc)
+#| 
+#| 
+#| def infer_language(path: str, declared: Optional[Language] = None) -> Language:
+#|     if declared and declared != Language.UNKNOWN:
+#|         return declared
+#|     lower = path.lower()
+#|     if lower.endswith("dockerfile") or "/dockerfile" in lower:
+#|         return Language.DOCKERFILE
+#|     for ext, lang in EXT_LANG.items():
+#|         if lower.endswith(ext):
+#|             return lang
+#|     return Language.UNKNOWN
+#| 
+#| 
+#| def fingerprint_secret(value: str) -> str:
+#|     # Never store raw secret. Only deterministic fingerprint of provided shape/value.
+#|     return sha256_short("codeint-secret:" + value)
+#| 
+#| 
+#| def redact_preview(value: str) -> str:
+#|     if not value:
+#|         return "****"
+#|     if len(value) <= 4:
+#|         return "****"
+#|     return value[:2] + "****" + value[-2:]
+#| 
+#| 
+#| def policy_guard(text: str) -> List[Dict[str, str]]:
+#|     violations: List[Dict[str, str]] = []
+#|     for rule, rx in PROHIBITED_PATTERNS:
+#|         m = rx.search(text or "")
+#|         if m:
+#|             violations.append({"rule": rule, "matched": m.group(0)})
+#|     return violations
+#| 
+#| 
+#| # =====================================================================
+#| # DATACLASSES
+#| # =====================================================================
+#| 
+#| @dataclass
+#| class Source:
+#|     id: str
+#|     title: str
+#|     url: str
+#|     source_type: SourceType
+#|     independence_group: str = "UNKNOWN"
+#|     reliability: float = 0.5
+#|     derived_from: Optional[str] = None
+#|     published_at: Optional[str] = None
+#|     retrieved_at: Optional[str] = None
+#|     notes: str = ""
+#| 
+#| 
+#| @dataclass
+#| class Evidence:
+#|     id: str
+#|     source_id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     file_path: Optional[str] = None
+#|     symbol: Optional[str] = None
+#|     start_line: Optional[int] = None
+#|     end_line: Optional[int] = None
+#|     artifact_hash: str = ""
+#|     language: Language = Language.UNKNOWN
+#|     parser_version: str = "synthetic-code-parser-0.1"
+#|     analysis_version: str = PIPELINE_VERSION
+#|     observed_at: Optional[str] = None
+#|     excerpt: str = ""
+#|     parsed_fields: Dict[str, Any] = field(default_factory=dict)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Repository:
+#|     id: str
+#|     name: str
+#|     remote_reference: str
+#|     visibility: Visibility = Visibility.UNKNOWN
+#|     default_branch: str = "main"
+#|     current_commit: str = ""
+#|     languages: List[Language] = field(default_factory=list)
+#|     frameworks: List[Framework] = field(default_factory=list)
+#|     build_systems: List[BuildSystem] = field(default_factory=list)
+#|     package_managers: List[PackageManager] = field(default_factory=list)
+#|     components: List[str] = field(default_factory=list)
+#|     services: List[str] = field(default_factory=list)
+#|     entrypoints: List[str] = field(default_factory=list)
+#|     dependencies: List[str] = field(default_factory=list)
+#|     licenses: List[str] = field(default_factory=list)
+#|     security_controls: List[str] = field(default_factory=list)
+#|     sources: List[str] = field(default_factory=list)
+#|     confidence: float = 0.0
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Commit:
+#|     id: str
+#|     repository_id: str
+#|     hash: str
+#|     parents: List[str] = field(default_factory=list)
+#|     author_metadata: Dict[str, str] = field(default_factory=dict)
+#|     committer_metadata: Dict[str, str] = field(default_factory=dict)
+#|     timestamp: Optional[str] = None
+#|     message: str = ""
+#|     changed_files: List[str] = field(default_factory=list)
+#|     signature_status: str = "UNSIGNED"
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Branch:
+#|     id: str
+#|     repository_id: str
+#|     name: str
+#|     is_default: bool = False
+#|     head_commit_id: Optional[str] = None
+#|     protected: Optional[bool] = None
+#|     source_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Tag:
+#|     id: str
+#|     repository_id: str
+#|     name: str
+#|     commit_id: Optional[str] = None
+#|     annotated: bool = False
+#|     signature_status: str = "UNSIGNED"
+#|     date: Optional[str] = None
+#|     source_ids: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Release:
+#|     id: str
+#|     repository_id: str
+#|     version: str
+#|     tag_id: Optional[str] = None
+#|     artifact_hashes: List[str] = field(default_factory=list)
+#|     publication_date: Optional[str] = None
+#|     release_notes: str = ""
+#|     source_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SourceFile:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     path: str
+#|     language: Language = Language.UNKNOWN
+#|     size: Optional[int] = None
+#|     hash: str = ""
+#|     generated_status: str = "NOT_GENERATED"
+#|     vendor_status: str = "FIRST_PARTY"
+#|     test_status: str = "NOT_TEST"
+#|     configuration_status: str = "NOT_CONFIG"
+#|     security_relevance: str = "UNKNOWN"
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Symbol:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     file_id: str
+#|     name: str
+#|     symbol_type: SymbolType = SymbolType.OTHER
+#|     start_line: Optional[int] = None
+#|     end_line: Optional[int] = None
+#|     decorators: List[str] = field(default_factory=list)
+#|     imports: List[str] = field(default_factory=list)
+#|     calls: List[str] = field(default_factory=list)
+#|     entrypoint: bool = False
+#|     route: Optional[str] = None
+#|     method: Optional[str] = None
+#|     handler: Optional[str] = None
+#|     reachability_state: ReachabilityState = ReachabilityState.UNKNOWN
+#|     confidence: float = 0.0
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Component:
+#|     id: str
+#|     repository_id: str
+#|     name: str
+#|     component_type: str
+#|     files: List[str] = field(default_factory=list)
+#|     symbols: List[str] = field(default_factory=list)
+#|     description: str = ""
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.0
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Service:
+#|     id: str
+#|     repository_id: str
+#|     name: str
+#|     deployment_unit: Optional[str] = None
+#|     entrypoint_symbol_ids: List[str] = field(default_factory=list)
+#|     route_symbols: List[str] = field(default_factory=list)
+#|     dependencies: List[str] = field(default_factory=list)
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     confidence: float = 0.0
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Dependency:
+#|     id: str
+#|     consumer: str
+#|     provider: str
+#|     package: str
+#|     ecosystem: str
+#|     declared_version: Optional[str] = None
+#|     resolved_version: Optional[str] = None
+#|     scope: str = "RUNTIME"
+#|     directness: str = "DIRECT"
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     hash: Optional[str] = None
+#|     license: Optional[str] = None
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SBOMComponent:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     purl: Optional[str] = None
+#|     name: str = ""
+#|     version: Optional[str] = None
+#|     license: Optional[str] = None
+#|     hashes: List[str] = field(default_factory=list)
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class LicenseInfo:
+#|     id: str
+#|     repository_id: str
+#|     declared_license: Optional[str] = None
+#|     file_level_notices: List[str] = field(default_factory=list)
+#|     dependency_licenses: Dict[str, str] = field(default_factory=dict)
+#|     conflict_candidates: List[str] = field(default_factory=list)
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     legal_review_required: bool = True
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SecretCandidate:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     file_path: str
+#|     line: Optional[int]
+#|     secret_type: str
+#|     redacted_preview: str
+#|     fingerprint: str
+#|     state: SecretState = SecretState.CANDIDATE
+#|     first_seen: Optional[str] = None
+#|     last_seen: Optional[str] = None
+#|     removed_in_head: bool = False
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class ConfigItem:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     key: str
+#|     value_type: str
+#|     redacted_value: str
+#|     fingerprint: str
+#|     environment: str = "UNKNOWN"
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class SecurityFinding:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     finding_type: FindingType
+#|     state: FindingState
+#|     title: str
+#|     description: str
+#|     file_path: Optional[str] = None
+#|     symbol: Optional[str] = None
+#|     start_line: Optional[int] = None
+#|     end_line: Optional[int] = None
+#|     severity: str = "MEDIUM"
+#|     confidence: float = 0.0
+#|     reachability: ReachabilityState = ReachabilityState.UNKNOWN
+#|     deployment_context: str = "UNKNOWN"
+#|     source_ids: List[str] = field(default_factory=list)
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     introduced_in: Optional[str] = None
+#|     fixed_in: Optional[str] = None
+#|     limitations: List[str] = field(default_factory=list)
+#|     specialist_handoff: Optional[str] = None
+#|     remediation: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class Provenance:
+#|     id: str
+#|     repository_id: str
+#|     commit_id: str
+#|     subject: str
+#|     origin: str
+#|     state: ProvenanceState
+#|     upstream_repository_id: Optional[str] = None
+#|     upstream_commit_id: Optional[str] = None
+#|     evidence_ids: List[str] = field(default_factory=list)
+#|     limitations: List[str] = field(default_factory=list)
+#| 
+#| 
+#| @dataclass
+#| class CodeSimilarity:
+#|     id: str
+#|     left_repository_id: str
