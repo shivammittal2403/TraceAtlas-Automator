@@ -1,0 +1,6 @@
+# Local extraction and test output
+TraceAtlas_OSINT_Repaired/
+__pycache__/
+*.pyc
+*.sqlite
+*.db
