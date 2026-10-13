@@ -1,3 +1,21 @@
+# Fact-first multi-domain Query Employee (feature branch, 2026-10-13)
+
+CODED (in review): New bounded, deterministic query planner and offline
+specialist-result fusion under canonical traceatlas.workforce. The existing
+CLI now includes workforce query-plan and query-fuse. Domain labels include
+OSINT, FININT/FINMINT, GEOINT/GEOMINT, CORPINT, CTI, WEBINT, DOCINT,
+CODEINT, SOCMINT, PROCINT and BLOCKINT. A routing label does not imply a
+working provider. Specialist results must use existing SourceDocument
+contracts; independence and temporal conflict logic reuses canonical code.
+Unsupported extraction, cross-case/task results and instruction-like content
+cannot be promoted. Fusion emits ONLY fact candidates, not approved facts.
+Existing EvidenceStore, VerificationEngine, approvals and human review remain
+the single truth boundary. No live source calls, new autonomous dispatch,
+model-produced conclusions, actual human approval or hosted rollout added.
+TESTED: Pending new-head repository CI and dedicated 17-case test gate.
+DEPLOYED/LIVE_VERIFIED: NOT DONE. See docs/QUERY_EMPLOYEE.md and
+docs/QUERY_EMPLOYEE_MASTER_PROMPT.md.
+
 # Supplied intelligence suite integration — 2026-10-10
 
 All 135 Python modules from the supplied ZIP have maintained copies in

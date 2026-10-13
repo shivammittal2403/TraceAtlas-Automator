@@ -28,6 +28,16 @@ def add_workforce_parser(sub) -> None:
     sources.add_argument("--capability", help="Filter the catalog by capability")
     sources.add_argument("--describe", help="Describe one registered source")
     sources.add_argument("--candidates", action="store_true", help="Show non-executable discovery candidates")
+    qplan = commands.add_parser("query-plan", help="Offline fact-first domain task planner; does not collect")
+    qplan.add_argument("--case", required=True)
+    qplan.add_argument("--query", required=True)
+    qplan.add_argument("--target-type", required=True,
+                       choices=("domain", "ip", "person", "company", "cve", "vulnerability",
+                                "package", "location", "account", "crypto_address"))
+    qplan.add_argument("--target", required=True)
+    qplan.add_argument("--max-domains", type=int, default=5)
+    qfuse = commands.add_parser("query-fuse", help="Review previously captured specialist documents offline")
+    qfuse.add_argument("--input", type=Path, required=True)
     authorize = commands.add_parser("authorize-domain", help="Register an immutable local owned-domain authority")
     authorize.add_argument("--case", required=True)
     authorize.add_argument("--domain", required=True)
@@ -91,6 +101,18 @@ def add_workforce_parser(sub) -> None:
 
 
 def run_workforce(args, engine) -> dict:
+    if args.workforce_command == "query-plan":
+        from .query_employee import create_plan
+        return create_plan(args.case, args.query, args.target_type, args.target,
+                           max_domains=args.max_domains)
+    if args.workforce_command == "query-fuse":
+        from .query_employee import fuse, MAX_DOCUMENT_TOTAL_BYTES
+        if args.input.is_symlink() or not args.input.is_file() or args.input.stat().st_size > MAX_DOCUMENT_TOTAL_BYTES + 256 * 1024:
+            raise ValueError("query-fuse requires a bounded regular JSON file")
+        payload = json.loads(args.input.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or set(payload) != {"plan", "results"}:
+            raise ValueError("query-fuse JSON needs exactly plan and results")
+        return fuse(payload["plan"], payload["results"])
     if args.workforce_command == "registry":
         return {"employees": [item.to_dict() for item in EmployeeRegistry().list()], "count": 5}
     if args.workforce_command == "golden":
