@@ -1979,7 +1979,7 @@ def compute_source_bias(sources: Dict[str, Dict[str, Any]]) -> List[Dict[str, An
         if st in {"operator_statement"}:
             bias.append("recollection/visibility limitations")
         if st in {"threat_report"}:
-            bias.append="generic IT/CTI may not fit OT context" if False else bias.append("generic IT/CTI may not fit OT context")
+            bias.append("generic IT/CTI may not fit OT context")
         if st in {"historian", "alarm_system", "scada_server_log", "controller_log"}:
             bias.append("telemetry visibility/clock/source-processing limitations")
         out.append({

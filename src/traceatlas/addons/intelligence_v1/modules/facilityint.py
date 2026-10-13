@@ -2090,7 +2090,7 @@ class FacilityInt:
             issues.append("Natural/environmental hazard exposure is present but does not establish facility failure.")
 
         if any(f.finding_type == FindingType.IMAGERY_STALE for f in self.findings.values()):
-            issues.append="Some imagery is stale or undated; current-state claims are constrained."
+            issues.append("Some imagery is stale or undated; current-state claims are constrained.")
 
         if any(f.finding_type == FindingType.SENSITIVE_DETAIL_WITHHELD for f in self.findings.values()):
             issues.append("Sensitive facility details are withheld; assessment is high-level defensive only.")

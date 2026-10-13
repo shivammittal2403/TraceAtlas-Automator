@@ -1361,9 +1361,7 @@ class FusionIntAgent:
                 intervals.append(("source_publication_time", interval_for_value(src.publication_time)))
                 intervals.append(("source_retrieval_time", interval_for_value(src.retrieval_time)))
 
-            for label, (s_pair, e_pair) in intervals:
-                s = s_pair[0] or s_pair[1]
-                e = e_pair[0] or e_pair[1]
+            for label, (s, e) in intervals:
                 if not s and not e:
                     continue
                 if label in {"observed_at", "event_time_candidate"}:
