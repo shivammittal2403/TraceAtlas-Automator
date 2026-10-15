@@ -148,7 +148,7 @@ class ReconNgIntegrationTests(unittest.TestCase):
         self.assertEqual(report["stats"]["out_of_scope_dropped"],1)
         self.assertGreater(len(self.db.evidence("case-1")),0)
         events=self.db.spider_events(report["scan_id"])
-        self.assertEqual([e["data"] for e in events[1:]],["example.org","api.example.org"])
+        self.assertEqual([e["data"] for e in events],["example.org","api.example.org"])
 
 if __name__=="__main__":
     unittest.main()
