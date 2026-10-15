@@ -1,3 +1,6 @@
 [submodule "third_party/opencti-connectors"]
 	path = third_party/opencti-connectors
 	url = https://github.com/OpenCTI-Platform/connectors.git
+[submodule "third_party/spiderfoot"]
+	path = third_party/spiderfoot
+	url = https://github.com/smicallef/spiderfoot.git
