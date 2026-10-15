@@ -72,6 +72,19 @@ class PipelineTests(unittest.TestCase):
         relationships = {e['edge_type'] for e in product['analysis']['graph']['edges']}
         self.assertTrue({'CITES', 'DERIVED_FROM', 'ACQUIRED_FROM'}.issubset(relationships))
 
+    def test_colrf_overlay_replays_without_network_and_detects_modified_review(self):
+        product = self.run_docs(self.structured(self.document()))
+        overlay = product["colrf_review"]
+        self.assertEqual(overlay["schema"], "traceatlas-colrf-review/v1")
+        self.assertEqual(len(overlay["stages"]), 9)
+        self.assertEqual(overlay["release_gate"], "DRAFT_REQUIRES_HUMAN_RELEASE")
+        self.assertIn("## COLRF lifecycle and reliability review", product["report_markdown"])
+        self.assertTrue(self.pipeline.replay(self.task_id)["verified"])
+        product["colrf_review"]["source_summary"]["captured_sources"] = 999
+        self.rewrite_product(product)
+        with self.assertRaisesRegex(ValueError, "COLRF review derivation"):
+            self.pipeline.replay(self.task_id)
+
     def test_retry_completed_run_does_not_collect_again(self):
         product = self.run_docs(self.document())
         self.assertEqual(self.run_docs(self.document()), product)

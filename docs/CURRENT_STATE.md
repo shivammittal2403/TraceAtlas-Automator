@@ -1,3 +1,21 @@
+# COLRF evidence-review overlay — 2026-10-13
+
+CODED on feature branch: a deterministic, source-backed mapping of the
+user-supplied nine-stage COLRF research framework and eight reliability
+dimensions is attached to canonical investigation draft products. The overlay
+uses existing evidence, normalized observations, source-lineage groups and
+verification decisions; it does not add new source collection, automatic
+attribution, identity merges, legal certification or report release powers.
+The workflow version and legacy product replay path remain unchanged, while
+new overlays are replay-checked from captured evidence. Documentation:
+[COLRF_INTEGRATION.md](COLRF_INTEGRATION.md).
+
+Five focused local synthetic tests passed before connector delivery. A canonical
+pipeline regression test was added, but full repository CI/CodeQL and hosted
+verification have not yet been established for the final branch head.
+COLRF confidence remains uncalibrated; source trust histories, operational
+feedback and empirical improvement are NOT VERIFIED.
+
 # Fact-first multi-domain Query Employee (feature branch, 2026-10-13)
 
 CODED (in review): New bounded, deterministic query planner and offline
