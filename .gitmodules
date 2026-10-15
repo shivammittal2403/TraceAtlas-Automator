@@ -4,3 +4,9 @@
 [submodule "third_party/spiderfoot"]
 	path = third_party/spiderfoot
 	url = https://github.com/smicallef/spiderfoot.git
+[submodule "third_party/recon-ng"]
+	path = third_party/recon-ng
+	url = https://github.com/lanmaster53/recon-ng.git
+[submodule "third_party/recon-ng-marketplace"]
+	path = third_party/recon-ng-marketplace
+	url = https://github.com/lanmaster53/recon-ng-marketplace.git

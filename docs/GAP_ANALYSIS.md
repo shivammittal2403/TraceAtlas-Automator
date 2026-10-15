@@ -156,3 +156,21 @@ candidate queue is discovery data only. The current implementation and remaining
 50/100/400-source production objectives are reconciled in
 `sources/DELIVERY_LEDGER.md`; this supersedes older source-count snapshots without
 rewriting their historical verification results.
+
+## Recon-ng source bridge (2026-10-15, initial PR)
+
+TraceAtlas already had one permissive Recon-ng command adapter. The governed
+integration now pins official Recon-ng core and module marketplace as separate
+GPL-3.0 Git submodules, statically inventories the 109 marketplace Python
+modules, restricts execution to two manually reviewed passive domain-data
+providers, isolates subprocess HOME/workspace, and reads sanitized host/domain
+observations from a bounded read-only SQLite workspace. The canonical
+IntegrationRunner records sanitized evidence and structured events; sensitive
+tables and terminal text are excluded.
+
+**Not finished:** optional Recon-ng Python dependencies and real provider API
+requests have not been live validated; module catalog membership does not grant
+execution authority. The other 107 marketplace modules remain catalog-only.
+The subprocess HOME is isolated but not a hardened OS/container sandbox. A
+GPL/Apache distribution compatibility review and integration E2E qualification
+are needed before claiming enterprise readiness. See docs/integrations/RECON_NG.md.
