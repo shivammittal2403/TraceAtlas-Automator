@@ -1,3 +1,4 @@
 # Hash-bound archive snapshots/adaptations must retain their exact bytes on checkout.
 /packages/archive_sources/** -text
 /src/traceatlas/addons/** -text
+/integrations/osint-tool-typescript/** -text

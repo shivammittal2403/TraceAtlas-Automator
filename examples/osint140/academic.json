@@ -1,0 +1,54 @@
+{
+  "case_id": "CASE-SYNTHETIC",
+  "task_id": "TASK-SYNTHETIC",
+  "objective": "Review supplied synthetic academic records",
+  "authorization": {
+    "approved": true,
+    "scope": "provided_records_only",
+    "model_mode": "LOCAL_ONLY"
+  },
+  "sources": [
+    {
+      "source_id": "S1",
+      "source_type": "official_publisher",
+      "reliability": 0.88
+    },
+    {
+      "source_id": "S2",
+      "source_type": "institutional_repository",
+      "reliability": 0.84
+    }
+  ],
+  "publications": [
+    {
+      "publication_id": "P1",
+      "doi": "10.9999/synthetic-one",
+      "title": "Synthetic study one",
+      "year": 2024,
+      "authors": [
+        "Synthetic Author One"
+      ],
+      "source_ids": [
+        "S1"
+      ],
+      "evidence_ids": [
+        "E1"
+      ]
+    },
+    {
+      "publication_id": "P2",
+      "doi": "10.9999/synthetic-two",
+      "title": "Synthetic study two",
+      "year": 2025,
+      "authors": [
+        "Synthetic Author Two"
+      ],
+      "source_ids": [
+        "S2"
+      ],
+      "evidence_ids": [
+        "E2"
+      ]
+    }
+  ]
+}

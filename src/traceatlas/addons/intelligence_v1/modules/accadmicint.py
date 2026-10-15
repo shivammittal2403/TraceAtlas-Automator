@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 import unicodedata
@@ -329,7 +330,13 @@ def iso(dt: Optional[datetime]) -> Optional[str]:
 
 
 def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
-    return max(lo, min(hi, value))
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("numeric value must be a finite number") from exc
+    if not math.isfinite(number):
+        raise ValueError("numeric value must be a finite number")
+    return max(lo, min(hi, number))
 
 
 def unique_preserve(items: Iterable[Any]) -> List[Any]:
@@ -556,7 +563,7 @@ def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
     auth = manifest.get("authorization") or {}
     reasons: List[str] = []
 
-    if not auth.get("approved"):
+    if auth.get("approved") is not True:
         reasons.append("AUTHORIZATION_MISSING_OR_NOT_APPROVED")
 
     scope = auth.get("scope", "provided_records_only")
@@ -564,13 +571,13 @@ def authorization_check(manifest: Dict[str, Any]) -> Tuple[bool, List[str]]:
         reasons.append("UNSUPPORTED_SCOPE")
 
     model_mode = auth.get("model_mode", "LOCAL_ONLY")
-    if model_mode == "CLOUD" and not auth.get("cloud_approved"):
+    if model_mode in {"HYBRID", "CLOUD"} and auth.get("cloud_approved") is not True:
         reasons.append("CLOUD_PROCESSING_NOT_APPROVED")
 
     if model_mode not in {"LOCAL_ONLY", "HYBRID", "CLOUD"}:
         reasons.append("UNKNOWN_MODEL_MODE")
 
-    if manifest.get("private_lab_records") and not auth.get("private_research_approved"):
+    if manifest.get("private_lab_records") and auth.get("private_research_approved") is not True:
         reasons.append("PRIVATE_RESEARCH_RECORDS_NOT_APPROVED")
 
     return (len(reasons) == 0), reasons
@@ -1226,6 +1233,7 @@ def ingest_publications(
     repositories: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Dict[str, Any]]:
     publications: Dict[str, Dict[str, Any]] = {}
+    seen_dois: Set[str] = set()
 
     for idx, p in enumerate(manifest.get("publications", []) or []):
         doi = normalize_doi(p.get("doi"))
@@ -1248,6 +1256,13 @@ def ingest_publications(
                 pid = f"DOI:{doi}"
             else:
                 pid = stable_id("PUB", normalize_title(title), normalize_person_name(first_author_raw), year or 0)
+
+        if pid in publications:
+            raise ValueError("duplicate publication_id: " + pid)
+        if doi and doi in seen_dois:
+            raise ValueError("duplicate DOI: " + doi)
+        if doi:
+            seen_dois.add(doi)
 
         author_ids = []
         default_inst = p.get("institution") or p.get("affiliation")
@@ -3213,7 +3228,46 @@ def finalize_status(
     return "SUCCEEDED"
 
 
+def validate_manifest(manifest: Any) -> None:
+    """Reject malformed record containers before analysis can mutate evidence."""
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest must be an object")
+    auth = manifest.get("authorization")
+    if auth is not None and not isinstance(auth, dict):
+        raise ValueError("authorization must be an object")
+    for key in ("questions", "requested_actions"):
+        rows = manifest.get(key)
+        if rows is not None and (not isinstance(rows, list) or
+                                 any(not isinstance(row, str) for row in rows)):
+            raise ValueError(key + " must be an array of strings")
+    record_buckets = (
+        "sources", "publications", "authors", "institutions", "journals",
+        "conferences", "publishers", "claims", "citations", "datasets",
+        "repositories", "grants", "funders", "corrections", "retractions",
+        "expressions_of_concern", "replications", "integrity_signals",
+    )
+    for key in record_buckets:
+        rows = manifest.get(key)
+        if rows is None:
+            continue
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError(key + " must be an array of objects")
+        for row in rows:
+            refs = row.get("source_ids")
+            if refs is not None and (not isinstance(refs, list) or
+                                     any(not isinstance(ref, str) for ref in refs)):
+                raise ValueError(key + ".source_ids must be an array of strings")
+    for publication in manifest.get("publications") or []:
+        authors = publication.get("authors")
+        if isinstance(authors, str) or authors is None:
+            continue
+        if not isinstance(authors, list) or any(
+                not isinstance(author, (str, dict)) for author in authors):
+            raise ValueError("publication authors must be text or an array of author records")
+
+
 def analyze_academicint_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    validate_manifest(manifest)
     result = empty_result(manifest)
 
     policy_blocked = policy_screen(manifest)
@@ -3670,4 +3724,8 @@ def generate_report(result: Dict[str, Any]) -> str:
     lines.append("## Research-Integrity Signals")
     for signal in result.get("research_integrity_signals", [])[:500]:
         lines.append("- " + json.dumps(signal, ensure_ascii=False, default=str))
+    lines.append("")
+    lines.append("## Limitations")
+    for limitation in result.get("limitations", [])[:500]:
+        lines.append(f"- {limitation}")
     return "\n".join(lines)
