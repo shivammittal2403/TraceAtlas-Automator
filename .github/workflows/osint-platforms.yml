@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'OSINT PYTHON.py'
+      - '.gitattributes'
+      - 'scripts/build_osint_bundle.py'
       - 'src/traceatlas/osint_*.py'
       - 'src/traceatlas/addons/intelligence_v1/**'
       - 'src/traceatlas/workforce/intelligence.py'
@@ -18,6 +20,8 @@ on:
     branches: [main]
     paths:
       - 'OSINT PYTHON.py'
+      - '.gitattributes'
+      - 'scripts/build_osint_bundle.py'
       - 'src/traceatlas/osint_*.py'
       - 'src/traceatlas/addons/intelligence_v1/**'
       - 'src/traceatlas/workforce/intelligence.py'
@@ -64,3 +68,18 @@ jobs:
         run: python -m unittest discover -s tests/intelligence -p test_contracts.py -v
       - name: Verify complete requested inventory and pinned sources
         run: python "OSINT PYTHON.py" check
+      - name: Build and smoke-test the downloadable source bundle
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: |
+          python scripts/build_osint_bundle.py --output artifacts/TraceAtlas_OSINT_Python.zip
+          python -c "import zipfile; zipfile.ZipFile('artifacts/TraceAtlas_OSINT_Python.zip').extractall('artifacts/portable')"
+          python -I -S "artifacts/portable/OSINT PYTHON.py" check
+          python -I -S "artifacts/portable/OSINT PYTHON.py" run ACADEMICINT --input artifacts/portable/examples/osint140/academic.json --output artifacts/bundle-smoke.json
+          python -c "import json; r=json.load(open('artifacts/bundle-smoke.json')); assert len(r['draft']['publications']) == 2"
+      - uses: actions/upload-artifact@v7
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        with:
+          name: TraceAtlas_OSINT_Python
+          path: artifacts/portable/
+          if-no-files-found: error
+          retention-days: 30

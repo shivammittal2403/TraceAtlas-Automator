@@ -1,6 +1,6 @@
 # OSINT Python: 140 requested names
 
-Requires Python 3.10 or newer. Run from this repository:
+Requires Python 3.10 or newer. Download the `TraceAtlas_OSINT_Python` artifact from the PR's **OSINT platform contracts** run, extract it, and run these commands in the extracted folder. The same commands work from the repository:
 
 ```powershell
 python "OSINT PYTHON.py" list
@@ -47,9 +47,19 @@ Every result records `requested_discipline`, `canonical_id`, `route_kind`, `exec
 
 The maintained Academic module shares its analysis implementation with the recovered source. Its original and stored-source provenance hashes are preserved; the catalog runtime hash changes to identify the repaired code.
 
-The full historical recovery is still available under `extras/osint_module_recovery_20261015`. It contains 136 source segments, duplicated/generic sections and 36 documented incomplete original tails. The archive is preserved as source recovery; it is not evidence that every historical function or live integration has been repaired.
+The repository retains the full historical recovery outside the portable bundle, under `extras/osint_module_recovery_20261015`. It contains 136 source segments, duplicated/generic sections and 36 documented incomplete original tails. The archive is preserved as source recovery; it is not evidence that every historical function or live integration has been repaired.
+
+## Build the portable source bundle
+
+```powershell
+python scripts/build_osint_bundle.py --output artifacts/TraceAtlas_OSINT_Python.zip
+```
+
+The source bundle preserves pinned bytes and includes the full Python package, launcher, example and instructions. Its extracted launcher is tested with Python `-I -S`, so successful execution does not depend on an installed TraceAtlas package.
 
 ## Validation
+
+Install the extracted package with `python -m pip install .` before running the test commands below.
 
 GitHub Actions runs the new CLI, taxonomy, Academic and worker regressions plus all 135 native contracts on Windows and Linux with Python 3.10 and 3.12. The normal repository CI also runs. Native GUI checks require a display and are reported as skipped in the platform matrix; the existing Linux/Xvfb job covers those panels.
 
