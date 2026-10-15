@@ -43,12 +43,22 @@
     },
     {
       "path": "OSINT-SPY/requirements.txt",
-      "change": "Replace untrusted 2019 CA bundle pin with security-updated certifi lower bound",
+      "change": "Replace vulnerable 2019 certifi, 2019 urllib3 and incompatible old requests pins with modern dependency lower bounds",
       "upstream_dependency": "certifi==2019.11.28",
       "replacement_dependency": "certifi>=2026.6.17",
-      "risk": "GHSA-xqr8-7jwr-rhp7",
-      "content_sha256": "96a58b200979a21b1721b12805185d590c8051f3c15ca646c30781350e3c28d1",
-      "feature_status": "legacy OSINT-SPY execution still blocked"
+      "risk": "GHSA-xqr8-7jwr-rhp7; GHSA-hmv2-79q8-fv6g; GHSA-q2q7-5pp4-w6pg; GHSA-v845-jxx5-vc9f and related urllib3 advisories",
+      "content_sha256": "d994102f82102414e677b83a75d3a5956cbcd128a5ad4aa665a439823965170b",
+      "feature_status": "OSINT-SPY runtime remains blocked; compatibility not verified",
+      "replaced_dependencies": [
+        "certifi==2019.11.28",
+        "requests==2.22.0",
+        "urllib3==1.25.7"
+      ],
+      "replacement_dependencies": [
+        "certifi>=2026.6.17",
+        "requests>=2.34.2",
+        "urllib3>=2.8.0"
+      ]
     }
   ],
   "file_integrity_policy": "All other listed upstream files are byte-identical; these two requirements.txt files have explicit security modifications"

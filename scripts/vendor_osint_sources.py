@@ -103,6 +103,12 @@ def main() -> None:
                 if marker not in content:
                     raise SystemExit("OSINT-SPY upstream dependency manifest has changed")
                 content = content.replace(marker, b"certifi>=2026.6.17")
+                updates = ((b"requests==2.22.0", b"requests>=2.34.2"),
+                           (b"urllib3==1.25.7", b"urllib3>=2.8.0"))
+                for original, secured in updates:
+                    if original not in content:
+                        raise SystemExit("OSINT-SPY expected legacy dependency has changed")
+                    content = content.replace(original, secured)
             if any(p.search(content) for p in SECRET_PATTERNS):
                 excluded.append({"path": rel.as_posix(), "reason": "credential-pattern"})
                 continue
@@ -129,9 +135,9 @@ def main() -> None:
         "content_sha256": "73e7c51493de03084f47b212864f71ba2f6da4da4a790d02bfb8c0e6b0e54d4b",
     }, {
         "path": "OSINT-SPY/requirements.txt",
-        "change": "Upgrade certifi lower bound to >=2026.6.17",
+        "change": "Upgrade certifi, requests and urllib3 pins for the nonexecuting vendor mirror",
         "risk": "GHSA-xqr8-7jwr-rhp7",
-        "content_sha256": "96a58b200979a21b1721b12805185d590c8051f3c15ca646c30781350e3c28d1",
+        "content_sha256": "d994102f82102414e677b83a75d3a5956cbcd128a5ad4aa665a439823965170b",
     }]
     if total < 250:
         raise SystemExit("Unexpectedly small third-party source export")
