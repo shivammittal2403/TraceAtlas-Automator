@@ -245,6 +245,8 @@ class IntegrationRunner:
                 }
                 if tool_name == "recon-ng":
                     stats["structured_records"] = len(parsed)
+                    stats["out_of_scope_dropped"] += (
+                        (recon_receipt or {}).get("out_of_scope_or_invalid_dropped", 0))
                     stats["source_verified"] = False
                     stats["workspace_db_sha256"] = (recon_receipt or {}).get("workspace_db_sha256")
                 self.db.end_spider_scan(scan_id, status, stats)
