@@ -1,0 +1,7 @@
+PyQRCode==1.2.1
+phonenumbers==8.12.25
+requests>=2.31.0
+# SECURITY: upstream pdfkit==1.0.0 disabled due to GHSA-9g3x-6x24-vf9f.
+# No safe verified replacement available; PDF export intentionally unsupported.
+beautifulsoup4==4.9.3
+stem>=1.4.0
