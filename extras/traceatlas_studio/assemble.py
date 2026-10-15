@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reconstruct and verify the unchanged TraceAtlas Studio standalone program."""
+"""Reconstruct and verify the maintained TraceAtlas Studio standalone program."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,7 @@ import tempfile
 HERE = Path(__file__).resolve().parent
 PARTS = HERE / "parts"
 EXPECTED_PARTS = 110
-EXPECTED_SHA256 = "9ee8f313baf68aff74f38c8d3a3a01e0ff513789ca5d131880d9da433fa0ba65"
+EXPECTED_SHA256 = "93883144c84a3c37861f47f69b20171ffabaec51a5217a4cdb5dec9341d88c97"
 OUTPUT = HERE / "TraceAtlas_AllInOne_Studio.py"
 
 def pieces():

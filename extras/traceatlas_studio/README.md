@@ -4,9 +4,9 @@ This directory adds the existing TraceAtlas Studio **standalone GUI and 19-domai
 
 ## Why 110 checked source pieces?
 
-The verified standalone GUI source is 109,983 lines / 8,252,241 bytes. It is stored in 110 ordered UTF-8 source pieces so GitHub's limited connector upload can deliver it without truncating a single large file. The pieces are **not** individual executables; the deterministic assembler restores the exact original single-file Python program, verified by SHA-256. Do not edit them independently.
+The verified standalone GUI source is 109,986 lines / 8,252,551 bytes. It is stored in 110 ordered UTF-8 source pieces so GitHub's limited connector upload can deliver it without truncating a single large file. The pieces are **not** individual executables; the deterministic assembler restores the maintained single-file Python program, verified by SHA-256. Do not edit them independently.
 
-**Expected SHA-256**: `9ee8f313baf68aff74f38c8d3a3a01e0ff513789ca5d131880d9da433fa0ba65`
+**Expected SHA-256**: `93883144c84a3c37861f47f69b20171ffabaec51a5217a4cdb5dec9341d88c97`
 
 ## Install and run
 
@@ -43,7 +43,7 @@ The GUI binds to localhost by default. Do not publish its local bearer URL or bi
 
 No existing TraceAtlas-Automator files were changed by this addition. The assembler checks SHA-256 **before execution**. Running it restores only the named Python file inside this subdirectory. Original code is preserved in the standalone file's embedded archive.
 
-The historical source includes synthetic token-shaped strings in examples. Before any new public release or deployment, independently review the complete source for secrets, privacy, licenses and dependencies.
+Two plaintext AWS-key-shaped synthetic fingerprint examples were replaced with non-credential placeholders on 2026-10-15. The maintained source checksum above reflects this change; the original source checksum was `9ee8f313baf68aff74f38c8d3a3a01e0ff513789ca5d131880d9da433fa0ba65`. The compressed historical archive is unchanged. Before any new public release or deployment, independently review the complete source for secrets, privacy, licenses and dependencies.
 
 ## Verification
 
