@@ -16,6 +16,8 @@ from ..policy import PolicyError, validate_target
 from ..spider.events import Event, child
 from .parsers import in_scope, parse_output
 from .registry import PROFILES, TOOLS, ToolSpec
+from .recon_ng import (marketplace_root, read_workspace_events,
+                       stage_approved_module, validate_module, workspace_alias)
 
 
 MAX_CAPTURE_BYTES = 10 * 1024 * 1024
@@ -69,6 +71,12 @@ class IntegrationRunner:
 
     def build_command(self, spec: ToolSpec, binary: str, target: str, case_id: str,
                       temp_dir: Path, options: dict[str, str]) -> tuple[list[str], Path | None]:
+        if spec.name == "recon-ng":
+            # Only static-allowlisted passive modules. Do not use the analyst's
+            # unescaped case ID as a Recon-ng filesystem workspace name.
+            if set(options) != {"module"}:
+                raise PolicyError("Recon-ng accepts exactly one approved module option.")
+            validate_module(options["module"], "domain", target)
         missing = [key for key in spec.required_options if not options.get(key)]
         if missing:
             raise PolicyError(f"{spec.name} requires option(s): {', '.join(missing)}")
@@ -92,6 +100,8 @@ class IntegrationRunner:
             "sources": DEFAULT_THEHARVESTER_SOURCES,
             **options,
         }
+        if spec.name == "recon-ng":
+            values["case"] = workspace_alias(case_id)
         command: list[str] = []
         for token in spec.command:
             try:
@@ -116,6 +126,13 @@ class IntegrationRunner:
             validate_target(target_type, target)
         if spec.mode in {"passive", "active", "identity"} and not authorized:
             raise PolicyError("External network/identity tools require explicit --authorized confirmation")
+        if tool_name == "recon-ng":
+            # The selected module must not change target type or approved scope.
+            # Check BEFORE creating any scan or evidence side effects.
+            selected_options = options or {}
+            if set(selected_options) != {"module"}:
+                raise PolicyError("Recon-ng requires exactly one module option.")
+            validate_module(selected_options["module"], target_type, target)
         if spec.mode == "active" and not allow_active:
             raise PolicyError(f"{tool_name} performs direct probing; add --allow-active after confirming scope")
         if not self.db.get_case(case_id):
@@ -139,12 +156,18 @@ class IntegrationRunner:
             with tempfile.TemporaryDirectory(prefix=f"traceatlas-{tool_name}-") as tmp:
                 temp_dir = Path(tmp)
                 command, output_path = self.build_command(spec, binary, target, case_id, temp_dir, opts)
+                if tool_name == "recon-ng":
+                    # The marketplace snapshot is local and pinned. Never load
+                    # all marketplace modules into the subprocess.
+                    stage_approved_module(marketplace_root(), temp_dir, opts["module"])
                 stdin = target + "\n" if spec.stdin_target else None
                 try:
                     completed = subprocess.run(
                         command, input=stdin, text=True, capture_output=True,
                         timeout=effective_timeout, check=False, shell=False,
-                        env=os.environ.copy(), cwd=temp_dir,
+                        env=({**os.environ.copy(), "HOME": str(temp_dir), "USERPROFILE": str(temp_dir)}
+                             if tool_name == "recon-ng" else os.environ.copy()),
+                        cwd=temp_dir,
                     )
                     timed_out = False
                 except subprocess.TimeoutExpired as exc:
@@ -163,9 +186,31 @@ class IntegrationRunner:
                 raw = stdout
                 if output_path and output_path.is_file():
                     raw = output_path.read_text(encoding="utf-8", errors="replace")[:MAX_CAPTURE_BYTES]
-                parsed = parse_output(spec, raw)
+                recon_receipt = None
+                if tool_name == "recon-ng":
+                    # Recon-cli stdout is UI text, not structured observations.
+                    # Read only allowlisted columns from its temporary DB.
+                    database = (temp_dir / ".recon-ng" / "workspaces" /
+                                workspace_alias(case_id) / "data.db")
+                    if database.is_file() and not timed_out:
+                        recon_receipt = read_workspace_events(
+                            database, target_type=target_type, target=target,
+                            module=opts["module"])
+                        parsed = recon_receipt["records"]
+                    else:
+                        parsed = []
+                else:
+                    parsed = parse_output(spec, raw)
                 scoped = [event for event in parsed if in_scope(event, target_type, target)]
-                if spec.emitted_type == "SECRET_CANDIDATE":
+                if tool_name == "recon-ng":
+                    if recon_receipt is not None:
+                        redacted_path = temp_dir / "recon_sanitized_workspace.json"
+                        redacted_path.write_text(
+                            json.dumps(recon_receipt, sort_keys=True), encoding="utf-8")
+                        store.preserve_file(redacted_path, "integration-output:recon-ng:sanitized")
+                    # Deliberately never preserve arbitrary Recon-ng stdout or
+                    # stderr: modules can print private API keys or subjects.
+                elif spec.emitted_type == "SECRET_CANDIDATE":
                     # Scanner output can contain live credentials. Preserve only the
                     # normalized, redacted representation; values are represented by hashes.
                     redacted_path = temp_dir / "redacted-findings.json"
@@ -187,13 +232,23 @@ class IntegrationRunner:
                     self.db.add_spider_event(event.to_dict())
                 exit_code = None if completed is None else completed.returncode
                 status = "failed" if timed_out else "completed" if exit_code == 0 else "partial"
+                if tool_name == "recon-ng" and not parsed and status == "completed":
+                    status = "partial"
                 stats = {
                     "tool": tool_name, "mode": spec.mode, "events": len(scoped) + 1,
                     "parsed": len(parsed), "out_of_scope_dropped": len(parsed) - len(scoped),
                     "exit_code": exit_code, "timed_out": timed_out,
                     "stdout_bytes": len(stdout.encode()), "stderr_bytes": len(stderr.encode()),
-                    "command": [Path(command[0]).name, *command[1:]],
+                    "command": ([Path(command[0]).name, "--stealth", "-m", opts["module"],
+                                 "-o", "SOURCE=<redacted>", "-x"]
+                                if tool_name == "recon-ng" else [Path(command[0]).name, *command[1:]]),
                 }
+                if tool_name == "recon-ng":
+                    stats["structured_records"] = len(parsed)
+                    stats["out_of_scope_dropped"] += (
+                        (recon_receipt or {}).get("out_of_scope_or_invalid_dropped", 0))
+                    stats["source_verified"] = False
+                    stats["workspace_db_sha256"] = (recon_receipt or {}).get("workspace_db_sha256")
                 self.db.end_spider_scan(scan_id, status, stats)
                 self.db.record_integration_result(
                     tool_name, status, "TimeoutExpired" if timed_out else
