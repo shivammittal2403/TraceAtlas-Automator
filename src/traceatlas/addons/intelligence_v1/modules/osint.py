@@ -122,6 +122,7 @@ class TraceAtlasOSINTPanel(tk.Tk):
         self.minsize(1000, 700)
 
         self.entries: Dict[str, Any] = {}
+        self.last_result: Dict[str, Any] = {}
 
         self._configure_style()
         self._build_ui()
@@ -622,6 +623,7 @@ class TraceAtlasOSINTPanel(tk.Tk):
             "next_best_action": self._next_best_action(payload),
         }
 
+        self.last_result = result
         self.output.delete("1.0", "end")
         self.output.insert(
             "1.0",
