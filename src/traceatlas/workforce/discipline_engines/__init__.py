@@ -8,7 +8,7 @@ from pathlib import Path
 from ...osint_taxonomy import GROUP_TERMS
 from .common import ENGINE_VERSION, MAX_BYTES, _json, canonical, digest, make_context
 
-FAMILIES = ("network", "software", "discovery")
+FAMILIES = ("network", "software", "discovery", "economic")
 
 
 def registered_handlers():
