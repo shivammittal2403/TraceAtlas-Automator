@@ -1,0 +1,24 @@
+name: Recovered OSINT Module Integrity
+on:
+  pull_request:
+    paths:
+      - "extras/osint_module_recovery_20261015/**"
+      - ".github/workflows/osint-module-recovery.yml"
+  push:
+    branches:
+      - "feat/osint-module-recovery-20261015"
+jobs:
+  compile-recovered:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify source and compile Python modules
+        run: |
+          python extras/osint_module_recovery_20261015/restore.py --extract
+          python extras/osint_module_recovery_20261015/_extracted/modules/_validate_modules.py --json
+          python -m compileall -q extras/osint_module_recovery_20261015/_extracted/modules
+      - name: Existing repository secret checks
+        run: python scripts/check_secrets.py
