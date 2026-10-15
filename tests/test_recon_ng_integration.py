@@ -118,6 +118,15 @@ class ReconNgIntegrationTests(unittest.TestCase):
             self.runner.run("case-1","recon-ng","domain","example.org",
                             authorized=True,options={"module":"exploitation/injection/command_injector"})
 
+    def test_recon_ng_rejects_cross_type_scope_and_extra_options(self):
+        for kind, value in (("username","example.org"),("email","alice@example.org")):
+            with self.subTest(kind=kind), self.assertRaises(PolicyError):
+                self.runner.run("case-1","recon-ng",kind,value,authorized=True,
+                                options={"module":APPROVED})
+        with self.assertRaises(PolicyError):
+            self.runner.run("case-1","recon-ng","domain","example.org",
+                            authorized=True,options={"module":APPROVED,"case":"../../escape"})
+
     def test_end_to_end_mocked_workspace_event_ingestion(self):
         self._make_marketplace()
         market=self.root/"marketplace"

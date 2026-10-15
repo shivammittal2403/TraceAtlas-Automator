@@ -126,6 +126,13 @@ class IntegrationRunner:
             validate_target(target_type, target)
         if spec.mode in {"passive", "active", "identity"} and not authorized:
             raise PolicyError("External network/identity tools require explicit --authorized confirmation")
+        if tool_name == "recon-ng":
+            # The selected module must not change target type or approved scope.
+            # Check BEFORE creating any scan or evidence side effects.
+            selected_options = options or {}
+            if set(selected_options) != {"module"}:
+                raise PolicyError("Recon-ng requires exactly one module option.")
+            validate_module(selected_options["module"], target_type, target)
         if spec.mode == "active" and not allow_active:
             raise PolicyError(f"{tool_name} performs direct probing; add --allow-active after confirming scope")
         if not self.db.get_case(case_id):
