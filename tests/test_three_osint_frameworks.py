@@ -28,6 +28,9 @@ class ThreeOsintFrameworkTests(unittest.TestCase):
         self.assertEqual(len(rows), 3)
         self.assertFalse(any(x["live_verified"] for x in rows))
         self.assertFalse(any(x["source_present"] for x in rows))
+        from traceatlas.integrations.registry import TOOLS
+        self.assertEqual(TOOLS["osint-spy"].mode, "blocked")
+        self.assertEqual(TOOLS["mr-holmes"].mode, "blocked")
 
     def test_harvester_native_jsonl_filters_out_of_scope_and_emails(self):
         raw = "\n".join(json.dumps(x) for x in [
@@ -39,7 +42,7 @@ class ThreeOsintFrameworkTests(unittest.TestCase):
         ])
         report = normalize("theharvester", raw, target_type="domain", target="example.org")
         self.assertEqual([(x["event_type"],x["data"]) for x in report["observations"]],
-                         [("DOMAIN","www.example.org"),("URL","https://api.example.org/p")])
+                         [("DOMAIN","www.example.org"),("URL","https://api.example.org/")])
         self.assertEqual(report["counts"]["invalid_or_out_of_scope_dropped"],1)
         self.assertNotIn("access_token",json.dumps(report))
         self.assertNotIn("alice@",json.dumps(report))

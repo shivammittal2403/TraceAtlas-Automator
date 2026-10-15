@@ -45,3 +45,13 @@ The importer is intentionally offline: it does not contact websites, install pac
 5. Container/network sandbox before any newly enabled script execution. Do not treat tests as live-verified results.
 
 Status: **CODED source pinning + offline canonical evidence importer**, **CI TESTED only after green GitHub checks**. No live provider or full-feature-parity claim.
+
+## Upload provenance
+
+Original uploaded ZIP SHA-256 checksums (these ZIP bytes are **not** uploaded as a second copy to GitHub):
+
+- theHarvester-master.zip: `5e6f37c61d1fef3bc800b1bfb1a8403d8c0372ca929e5abf4c0c76d8b0274c8c`
+- OSINT-SPY-master.zip: `9fe498ca2f02480fdb2d3e2dda288d793c301782cba807fba7397c2a13175065`
+- Mr.Holmes-master.zip: `036c3583597655983665e3e156eecfd5f17b4385465830c7ff1048d883c420e2`
+
+Imported URLs retain only `scheme://hostname/`, because query parameters, fragments and paths may carry sensitive tokens. Existing `integrations list` now shows OSINT-SPY and Mr.Holmes as blocked until individually qualified.

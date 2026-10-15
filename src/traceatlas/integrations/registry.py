@@ -276,6 +276,20 @@ for name, binary, description, reason, homepage in (
     ))
 
 
+# Complete upstream code is available as separate pinned GPL submodules.
+# These two legacy frameworks are not safe to run in the standard worker.
+for name, description, reason, homepage in (
+    ("osint-spy", "Legacy OSINT-SPY source; offline domain report ingestion only.",
+     "Older networking dependencies and unqualified API code; use offline importer.",
+     "https://github.com/SharadKumar97/OSINT-SPY"),
+    ("mr-holmes", "Mr.Holmes source; offline domain report ingestion only.",
+     "Interactive subject collection, SMTP and active scanning are not qualified.",
+     "https://github.com/Lucksi/Mr.Holmes"),
+):
+    _add(ToolSpec(name, (), description, "osint-framework", ("domain",),
+                  "blocked", homepage=homepage, blocked_reason=reason))
+
+
 PROFILES: dict[str, tuple[str, ...]] = {
     "passive-domain": (
         "amass", "subfinder", "assetfinder", "findomain", "theharvester",

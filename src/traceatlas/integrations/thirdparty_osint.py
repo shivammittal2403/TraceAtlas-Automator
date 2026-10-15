@@ -118,10 +118,9 @@ def _in_scope_url(value: Any, target: str) -> str | None:
     hostname = _in_scope_domain(parsed.hostname, target)
     if not hostname:
         return None
-    # Query parameters and fragments may contain credentials or tracking tokens.
-    # Keep an origin/path-only record, never raw request or full URL.
-    safe_path = parsed.path[:300] if parsed.path.startswith("/") else "/"
-    return f"{parsed.scheme}://{hostname}{safe_path or '/'}"
+    # Query, fragment AND path can carry credentials and personal tokens.
+    # Capture only the safe origin, never the untrusted path.
+    return f"{parsed.scheme}://{hostname}/"
 
 
 def _flatten(document: Any, *, depth: int = 0):
