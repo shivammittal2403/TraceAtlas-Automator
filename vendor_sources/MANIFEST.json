@@ -1,0 +1,35 @@
+{
+  "generated_from": "pinned verified upstream Git commits",
+  "license_separation": "third-party LICENSE files govern these copies",
+  "non_executable": true,
+  "projects": {
+    "Mr.Holmes": {
+      "files_copied": 386,
+      "files_excluded": [
+        {
+          "path": "Launchers/Win_Launcher.exe",
+          "reason": "executable-binary"
+        }
+      ],
+      "original_upstream_repo": "third_party/Mr.Holmes",
+      "pinned_commit": "028bffba615c8b95db4cf1babe1b0e5925237eb4",
+      "status": "vendored-for-source-review-not-runtime-qualified"
+    },
+    "OSINT-SPY": {
+      "files_copied": 15,
+      "files_excluded": [],
+      "original_upstream_repo": "third_party/OSINT-SPY",
+      "pinned_commit": "03dcf4868f7a63a2d863996c4bbc62db1c60bc82",
+      "status": "vendored-for-source-review-not-runtime-qualified"
+    },
+    "theHarvester": {
+      "files_copied": 315,
+      "files_excluded": [],
+      "original_upstream_repo": "third_party/theHarvester",
+      "pinned_commit": "49a38f8d33c32336bbf6a111ea723ea223116265",
+      "status": "vendored-for-source-review-not-runtime-qualified"
+    }
+  },
+  "schema": "traceatlas.vendor_sources/v1",
+  "total_files_copied": 716
+}
