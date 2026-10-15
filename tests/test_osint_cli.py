@@ -235,4 +235,4 @@ class OSINTCLITests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    unittest.main()
