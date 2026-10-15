@@ -1,0 +1,41 @@
+name: Query Employee Fact-First Regression
+on:
+  push:
+    branches:
+      - feat/query-employee-fact-first-20261013
+  pull_request:
+    paths:
+      - src/traceatlas/workforce/query_employee.py
+      - src/traceatlas/workforce/cli.py
+      - tests/test_query_employee.py
+      - tests/test_query_employee_cli.py
+      - .github/workflows/query-employee.yml
+jobs:
+  focused-offline-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile planner and CLI
+        run: |
+          python -m py_compile src/traceatlas/workforce/query_employee.py src/traceatlas/workforce/cli.py
+      - name: Run independent query-employee regression
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m unittest discover -s tests -p 'test_query_employee*.py' -v
+      - name: Exercise planner module CLI, no network
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m traceatlas.workforce.query_employee plan --case case-123 --target-type company --target ACME --query 'Cross-check financial ownership and geolocation' > /tmp/query-plan.json
+          python -m json.tool /tmp/query-plan.json > /dev/null
+      - name: Run repository secret scanner
+        run: python scripts/check_secrets.py

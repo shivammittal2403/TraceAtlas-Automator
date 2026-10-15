@@ -1,0 +1,34 @@
+name: COLRF focused regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/traceatlas/workforce/colrf.py'
+      - 'src/traceatlas/workforce/pipeline.py'
+      - 'tests/test_colrf_review.py'
+      - 'tests/test_investigation_pipeline.py'
+      - '.github/workflows/colrf-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-colrf:
+    name: COLRF / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install canonical TraceAtlas package
+        run: python -m pip install .
+      - name: Run COLRF contracts
+        run: python -m unittest discover -s tests -p test_colrf_review.py -v
+      - name: Run canonical investigation pipeline regressions
+        run: python -m unittest discover -s tests -p test_investigation_pipeline.py -v
