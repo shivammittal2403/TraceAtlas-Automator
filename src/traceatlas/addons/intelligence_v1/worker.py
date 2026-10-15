@@ -102,11 +102,22 @@ def decode(value, annotation):
 
 
 def restrict_process():
-    import resource
-    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
-    resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+    # The parent enforces a wall-clock deadline on every platform. POSIX also
+    # supplies hard limits; Windows does not provide the resource module.
+    try:
+        import resource
+    except ImportError:
+        resource = None
+    if resource is not None:
+        for name, budget in (("RLIMIT_CPU", 10),
+                             ("RLIMIT_AS", 512 * 1024 * 1024),
+                             ("RLIMIT_FSIZE", 0), ("RLIMIT_NOFILE", 64)):
+            limit = getattr(resource, name, None)
+            if limit is None:
+                continue
+            _, hard = resource.getrlimit(limit)
+            ceiling = budget if hard == resource.RLIM_INFINITY else min(budget, hard)
+            resource.setrlimit(limit, (ceiling, ceiling))
     sys.dont_write_bytecode = True
     roots = [Path(sys.base_prefix).resolve(), Path(sys.prefix).resolve(),
              Path(__file__).resolve().parents[3]]
@@ -114,7 +125,8 @@ def restrict_process():
         if path and ("site-packages" in path or "dist-packages" in path):
             roots.append(Path(path).resolve())
     blocked = ("socket.", "subprocess.", "os.system", "os.exec", "os.spawn", "os.fork",
-               "sqlite3.connect", "ctypes.", "resource.setrlimit")
+               "sqlite3.connect", "ctypes.", "resource.setrlimit",
+               "os.posix_spawn", "os.startfile", "winreg.")
     mutations = {"os.remove", "os.rename", "os.rmdir", "os.mkdir", "os.chmod", "os.chown",
                  "os.link", "os.symlink", "os.truncate", "os.chdir", "os.putenv"}
 
@@ -248,7 +260,7 @@ def main():
         output = json.dumps(result, default=json_default, ensure_ascii=False, allow_nan=False)
     if len(output.encode("utf-8")) > MAX_BYTES:
         raise ValueError("Intelligence result exceeded its limit")
-    sys.stdout.write(output)
+    sys.stdout.buffer.write(output.encode("utf-8"))
 
 
 if __name__ == "__main__":

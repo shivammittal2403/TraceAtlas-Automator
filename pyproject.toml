@@ -19,6 +19,7 @@ mcp = ["mcp>=2.2.0,<3"]
 traceatlas = "traceatlas.cli:main"
 traceatlas-worker = "traceatlas.worker_cli:main"
 traceatlas-research = "traceatlas.research_cli:main"
+traceatlas-osint = "traceatlas.osint_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -46,6 +47,13 @@ def validate_case_input(value, case_id, depth=0):
             validate_case_input(item, case_id, depth + 1)
 
 
+def finite_float(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError("Non-finite output")
+    return value
+
+
 def run_offline(module_id, payload, *, timeout=20):
     item = contract(module_id)
     encoded = json.dumps({"module": module_id, "input": payload}, ensure_ascii=False, allow_nan=False).encode()
@@ -59,6 +67,8 @@ def run_offline(module_id, payload, *, timeout=20):
                                 env=env, cwd=ROOT, timeout=timeout, check=False)
     except subprocess.TimeoutExpired as exc:
         raise PolicyError("Offline intelligence exceeded its deadline; no evidence was added") from exc
+    except OSError as exc:
+        raise PolicyError("Offline intelligence process could not start; no evidence was added") from exc
     if result.returncode:
         category = result.stderr.decode("utf-8", errors="replace").split(":", 1)[0]
         category = category if category in {"ValueError", "TypeError", "PermissionError", "ImportError",
@@ -67,9 +77,11 @@ def run_offline(module_id, payload, *, timeout=20):
     if len(result.stdout) > MAX_REPORT:
         raise PolicyError("Intelligence output exceeds the report limit")
     try:
-        value = json.loads(result.stdout, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Non-finite output")))
+        value = json.loads(result.stdout, parse_float=finite_float, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Non-finite output")))
     except (ValueError, UnicodeError) as exc:
         raise PolicyError("Intelligence output is not a finite JSON contract") from exc
+    if not isinstance(value, (dict, list)):
+        raise PolicyError("Intelligence output must be an object or array")
     return item, value
 
 

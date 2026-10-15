@@ -1,0 +1,66 @@
+name: OSINT platform contracts
+
+on:
+  pull_request:
+    paths:
+      - 'OSINT PYTHON.py'
+      - 'src/traceatlas/osint_*.py'
+      - 'src/traceatlas/addons/intelligence_v1/**'
+      - 'src/traceatlas/workforce/intelligence.py'
+      - 'tests/test_osint*.py'
+      - 'tests/test_academic_input_integrity.py'
+      - 'tests/test_intelligence_portability.py'
+      - 'tests/intelligence/**'
+      - 'examples/osint140/**'
+      - 'pyproject.toml'
+      - '.github/workflows/osint-platforms.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'OSINT PYTHON.py'
+      - 'src/traceatlas/osint_*.py'
+      - 'src/traceatlas/addons/intelligence_v1/**'
+      - 'src/traceatlas/workforce/intelligence.py'
+      - 'tests/test_osint*.py'
+      - 'tests/test_academic_input_integrity.py'
+      - 'tests/test_intelligence_portability.py'
+      - 'tests/intelligence/**'
+      - 'examples/osint140/**'
+      - 'pyproject.toml'
+      - '.github/workflows/osint-platforms.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osint-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  platform-contracts:
+    name: OSINT / ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install .
+      - name: Test CLI, taxonomy and case inputs
+        run: python -m unittest discover -s tests -p 'test_osint*.py' -v
+      - name: Test academic evidence integrity
+        run: python -m unittest discover -s tests -p test_academic_input_integrity.py -v
+      - name: Test child restrictions, Unicode and finite results
+        run: python -m unittest discover -s tests -p test_intelligence_portability.py -v
+      - name: Invoke all native contracts offline
+        run: python -m unittest discover -s tests/intelligence -p test_contracts.py -v
+      - name: Verify complete requested inventory and pinned sources
+        run: python "OSINT PYTHON.py" check
