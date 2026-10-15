@@ -10,3 +10,12 @@
 [submodule "third_party/recon-ng-marketplace"]
 	path = third_party/recon-ng-marketplace
 	url = https://github.com/lanmaster53/recon-ng-marketplace.git
+[submodule "third_party/theHarvester"]
+	path = third_party/theHarvester
+	url = https://github.com/laramies/theHarvester.git
+[submodule "third_party/OSINT-SPY"]
+	path = third_party/OSINT-SPY
+	url = https://github.com/SharadKumar97/OSINT-SPY.git
+[submodule "third_party/Mr.Holmes"]
+	path = third_party/Mr.Holmes
+	url = https://github.com/Lucksi/Mr.Holmes.git
