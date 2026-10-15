@@ -24,3 +24,7 @@ The temporary import workflow uses an exact integration branch and pushes
 the generated source files only there, not to main. Run full security CI after
 the generated commit and remove the temporary write-enabled workflow before
 merging the final code.
+
+## Security-mitigated manifest
+
+The vendored Mr.Holmes `requirements.txt` intentionally comments out vulnerable `pdfkit==1.0.0` (GHSA-9g3x-6x24-vf9f); PDF export is unsupported. The original untouched dependency manifest remains available through the pinned upstream Git submodule. The single byte-level deviation is explicitly recorded in `vendor_sources/MANIFEST.json` and the per-file checksum is updated. Do not reinstall the unsafe package to restore legacy PDF export.

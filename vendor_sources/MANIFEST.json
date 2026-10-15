@@ -31,5 +31,16 @@
     }
   },
   "schema": "traceatlas.vendor_sources/v1",
-  "total_files_copied": 716
+  "total_files_copied": 716,
+  "security_modifications": [
+    {
+      "path": "Mr.Holmes/requirements.txt",
+      "change": "Disabled upstream pdfkit==1.0.0 dependency; no safe confirmed fixed release",
+      "upstream_dependency": "pdfkit==1.0.0",
+      "risk": "GHSA-9g3x-6x24-vf9f",
+      "feature_status": "PDF export unsupported",
+      "content_sha256": "73e7c51493de03084f47b212864f71ba2f6da4da4a790d02bfb8c0e6b0e54d4b"
+    }
+  ],
+  "file_integrity_policy": "All other listed source files match pinned upstream bytes; modified requirements.txt is listed separately under security_modifications"
 }

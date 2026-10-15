@@ -87,6 +87,17 @@ def main() -> None:
                 excluded.append({"path": rel.as_posix(), "reason": "large-asset"})
                 continue
             content = origin.read_bytes()
+            if label == "Mr.Holmes" and rel.as_posix() == "requirements.txt":
+                marker = b"pdfkit==1.0.0\n"
+                replacement = (
+                    b"# SECURITY: upstream pdfkit==1.0.0 disabled due to "
+                    b"GHSA-9g3x-6x24-vf9f.\n"
+                    b"# No safe verified replacement available; "
+                    b"PDF export intentionally unsupported.\n"
+                )
+                if marker not in content:
+                    raise SystemExit("Mr.Holmes upstream dependency manifest has changed")
+                content = content.replace(marker, replacement)
             if any(p.search(content) for p in SECRET_PATTERNS):
                 excluded.append({"path": rel.as_posix(), "reason": "credential-pattern"})
                 continue
@@ -105,6 +116,13 @@ def main() -> None:
             "status": "vendored-for-source-review-not-runtime-qualified",
         }
     summary["total_files_copied"] = total
+    summary["security_modifications"] = [{
+        "path": "Mr.Holmes/requirements.txt",
+        "change": "Disabled vulnerable pdfkit==1.0.0 dependency",
+        "risk": "GHSA-9g3x-6x24-vf9f",
+        "feature_status": "PDF export unsupported",
+        "content_sha256": "73e7c51493de03084f47b212864f71ba2f6da4da4a790d02bfb8c0e6b0e54d4b",
+    }]
     if total < 250:
         raise SystemExit("Unexpectedly small third-party source export")
     (DEST / "MANIFEST.json").write_text(
@@ -114,8 +132,8 @@ def main() -> None:
     (DEST / "README.md").write_text(
         "# Readable vendor source snapshots\n\n"
         "These are **actual Git-tracked files**, not submodule pointers. "
-        "They were copied byte-for-byte from the three pinned upstream source "
-        "repositories, with explicit exclusions documented in MANIFEST.json. "
+        "They were copied from the three pinned upstream source "
+        "repositories; one unsafe PDF dependency was disabled and is documented in MANIFEST.json. "
         "Git submodules under third_party/ remain the authoritative upstream references.\n\n"
         "Each source tree retains its original LICENSE and authorship. "
         "Do not import or execute unreviewed third-party scripts inside TraceAtlas. "
