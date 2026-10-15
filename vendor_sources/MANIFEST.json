@@ -40,7 +40,16 @@
       "risk": "GHSA-9g3x-6x24-vf9f",
       "feature_status": "PDF export unsupported",
       "content_sha256": "73e7c51493de03084f47b212864f71ba2f6da4da4a790d02bfb8c0e6b0e54d4b"
+    },
+    {
+      "path": "OSINT-SPY/requirements.txt",
+      "change": "Replace untrusted 2019 CA bundle pin with security-updated certifi lower bound",
+      "upstream_dependency": "certifi==2019.11.28",
+      "replacement_dependency": "certifi>=2026.6.17",
+      "risk": "GHSA-xqr8-7jwr-rhp7",
+      "content_sha256": "96a58b200979a21b1721b12805185d590c8051f3c15ca646c30781350e3c28d1",
+      "feature_status": "legacy OSINT-SPY execution still blocked"
     }
   ],
-  "file_integrity_policy": "All other listed source files match pinned upstream bytes; modified requirements.txt is listed separately under security_modifications"
+  "file_integrity_policy": "All other listed upstream files are byte-identical; these two requirements.txt files have explicit security modifications"
 }

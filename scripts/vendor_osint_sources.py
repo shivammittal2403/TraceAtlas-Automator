@@ -98,6 +98,11 @@ def main() -> None:
                 if marker not in content:
                     raise SystemExit("Mr.Holmes upstream dependency manifest has changed")
                 content = content.replace(marker, replacement)
+            if label == "OSINT-SPY" and rel.as_posix() == "requirements.txt":
+                marker = b"certifi==2019.11.28"
+                if marker not in content:
+                    raise SystemExit("OSINT-SPY upstream dependency manifest has changed")
+                content = content.replace(marker, b"certifi>=2026.6.17")
             if any(p.search(content) for p in SECRET_PATTERNS):
                 excluded.append({"path": rel.as_posix(), "reason": "credential-pattern"})
                 continue
@@ -122,6 +127,11 @@ def main() -> None:
         "risk": "GHSA-9g3x-6x24-vf9f",
         "feature_status": "PDF export unsupported",
         "content_sha256": "73e7c51493de03084f47b212864f71ba2f6da4da4a790d02bfb8c0e6b0e54d4b",
+    }, {
+        "path": "OSINT-SPY/requirements.txt",
+        "change": "Upgrade certifi lower bound to >=2026.6.17",
+        "risk": "GHSA-xqr8-7jwr-rhp7",
+        "content_sha256": "96a58b200979a21b1721b12805185d590c8051f3c15ca646c30781350e3c28d1",
     }]
     if total < 250:
         raise SystemExit("Unexpectedly small third-party source export")

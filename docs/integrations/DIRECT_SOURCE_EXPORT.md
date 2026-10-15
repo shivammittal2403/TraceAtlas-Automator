@@ -28,3 +28,5 @@ merging the final code.
 ## Security-mitigated manifest
 
 The vendored Mr.Holmes `requirements.txt` intentionally comments out vulnerable `pdfkit==1.0.0` (GHSA-9g3x-6x24-vf9f); PDF export is unsupported. The original untouched dependency manifest remains available through the pinned upstream Git submodule. The single byte-level deviation is explicitly recorded in `vendor_sources/MANIFEST.json` and the per-file checksum is updated. Do not reinstall the unsafe package to restore legacy PDF export.
+
+The separately vendored OSINT-SPY requirements now use `certifi>=2026.6.17` instead of the vulnerable `certifi==2019.11.28` pin (GHSA-xqr8-7jwr-rhp7). This is a source-review mitigation, not evidence that all legacy dependencies or runtime paths are safe. Original upstream manifest remains in the pinned submodule.
