@@ -37,7 +37,7 @@ class ReconNgIntegrationTests(unittest.TestCase):
         src = self.root / "marketplace" / "modules" / "recon" / "domains-hosts"
         src.mkdir(parents=True, exist_ok=True)
         (src / "certificate_transparency.py").write_text(
-            "class Module:\\n    meta = {'name':'CT', 'description':'Cert lookup', 'version':'1'}\\n",encoding="utf8")
+            "class Module:\n    meta = {'name':'CT', 'description':'Cert lookup', 'version':'1'}\n",encoding="utf8")
         other = self.root / "marketplace" / "modules" / "exploitation" / "injection"
         other.mkdir(parents=True)
         (other / "command_injector.py").write_text("raise RuntimeError('must never run')\\n")
@@ -132,7 +132,7 @@ class ReconNgIntegrationTests(unittest.TestCase):
         market=self.root/"marketplace"
         def fake_run(command, **kwargs):
             self.assertFalse(kwargs["shell"])
-            self.assertEqual(kwargs["env"]["HOME"],kwargs["cwd"])
+            self.assertEqual(kwargs["env"]["HOME"],str(kwargs["cwd"]))
             self.assertIn("--stealth",command)
             home=Path(kwargs["cwd"])
             db=home/".recon-ng"/"workspaces"/workspace_alias("case-1")/"data.db"
