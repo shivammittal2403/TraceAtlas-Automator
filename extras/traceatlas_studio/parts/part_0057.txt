@@ -458,7 +458,7 @@
 #|         parsed_fields={
 #|             "secret_type": "aws_access_key_candidate",
 #|             "redacted_preview": "AKIA****",
-#|             "fingerprint": fingerprint_secret("AKIAIOSFODNN7EXAMPLE-SYNTHETIC"),
+#|             "fingerprint": fingerprint_secret("SYNTHETIC_AWS_CANDIDATE_NOT_A_CREDENTIAL"),
 #|             "removed_in_head": True,
 #|             "tested": False,
 #|             "used": False,
@@ -819,7 +819,7 @@
 #|         line=10,
 #|         secret_type="aws_access_key_candidate",
 #|         redacted_preview="AKIA****",
-#|         fingerprint=fingerprint_secret("AKIAIOSFODNN7EXAMPLE-SYNTHETIC"),
+#|         fingerprint=fingerprint_secret("SYNTHETIC_AWS_CANDIDATE_NOT_A_CREDENTIAL"),
 #|         state=SecretState.REMOVED_IN_HEAD_NOT_REVOKED,
 #|         first_seen="2026-03-01T00:00:00Z",
 #|         last_seen="2026-09-15T00:00:00Z",

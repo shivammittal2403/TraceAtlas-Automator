@@ -60,6 +60,8 @@ NAME_TO_FILE = {
     "contradictionint": "contradictionint(1).py",
 }
 ORIGINAL_SHA256 = {'academicint': 'a0ccec4c7c702d1ba9c3c7eb0457df3f9d3c20152663a2b11f49e06acf84e058', 'acoustint': '380238acf021dbe0f0886b269807b4b3cd23fe86c5886535c14b05ea8ee8d939', 'adsbint': '7efeebc4dbff67b5f072eafbe2f55736ba08516b549272d2f2bdb6365723c2d0', 'aiint': '8af170331a3080fb45deb837324e57ff27a20f5535e411bdf2fa098db3b64bb3', 'aisint': '6817077d0ba8159aa28c5da95901a7b49e028b5dd935a40a0b67e3a1849786bf', 'anomalyint': 'acddb2122318f0890d86f5fcfaa81e013dc87f746dfa1e4367f724892095cca7', 'assetint': '9a0877997317b0a0ba51b50e67e177490d2813d92f40ac1056a68b95fdae0982', 'audint': 'c4730b03e3aa601db913ae911275e13d907c5b1f8756ce55d4367ec283fe41bd', 'automotiveint': '4905b1360f462ac34e1b1788540c0c93cf0e5ea946eee3aade94d3f90f4b50d2', 'aviationcyberint': '6d2a459dddf71bd1a7cd3be615bdcdd6fb0d691618c986e44af3337f0bf21a1d', 'aviationint': 'e8ed52648fb9035a3d79f4c950515e99f613501020f465de3702078fd95506c4', 'behaveint': '39f184d8c861136fa47ea0d47d68d82adbb4eb14c3cb701a8a60ffc7b6cd009b', 'brandint': 'a7b22333026107da8fa8cef2bce52f7ea235886f6e3c5af3755c8c732e1f065d', 'breachint': 'b5580bb572c625aecba6d4d44258b4223904cea1b822fab89292ec2ef9a858f2', 'cloudint': 'bb79e42e537187c352de74f92e20484e56d7bae3eb9ccb4debd7b0cb74ad8990', 'codeint': '867692a548348907996c138d7f113778ce835381d2ca4199e48e2b2ba6a990ad', 'comint': '03fad57f0b48b943998e86ced67bc4435680a41409497285bd9d879a26eb18d1', 'containerint': '1359e3550895611ddcebc45f7894db7884d9887d4f0bbe7b6439af47ffee14b8', 'contradictionint': '3853699241a9b5f76e67df1266a4dbabd7f8f8a37a241849edfe2a8ade25f484'}  # SHA-256 of original embedded source
+# Original identities remain provenance; maintained CODEINT redacts synthetic key shapes.
+MAINTAINED_SOURCE_SHA256 = {**ORIGINAL_SHA256, "codeint": "c8e8a4de2ed3d6d3f02bfe36191eded9aabbe83f2c50ba72b0b231fa8b6fced7"}
 DOMAIN_MODE = {x: "native" for x in KNOWN_DOMAINS}
 for _gui in ("audint", "aviationint", "breachint", "comint"):
     DOMAIN_MODE[_gui] = "file_or_gui"
@@ -161,7 +163,7 @@ def _read_embedded_archive() -> None:
             raise ValueError("Incomplete embedded archive")
         for domain, lines in chunks.items():
             source = "".join(lines)
-            expected = ORIGINAL_SHA256.get(domain)
+            expected = MAINTAINED_SOURCE_SHA256.get(domain)
             if expected and hashlib.sha256(source.encode()).hexdigest() != expected:
                 raise ValueError("Source archive integrity check failed: " + domain)
             _SOURCE_CACHE[domain] = source
@@ -238,7 +240,8 @@ def domain_info(domain: str, runtime: bool = False) -> dict[str, Any]:
     info = {"domain": domain, "original_file": NAME_TO_FILE[domain],
             "original_lines": len(src.splitlines()),
             "runtime_lines": len(repaired.splitlines()),
-            "original_sha256": hashlib.sha256(src.encode()).hexdigest(),
+            "original_sha256": ORIGINAL_SHA256[domain],
+            "maintained_source_sha256": hashlib.sha256(src.encode()).hexdigest(),
             "source_repair": REPAIR_NOTES.get(domain),
             "mode": DOMAIN_MODE[domain]}
     if runtime:
