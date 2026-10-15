@@ -174,3 +174,19 @@ execution authority. The other 107 marketplace modules remain catalog-only.
 The subprocess HOME is isolated but not a hardened OS/container sandbox. A
 GPL/Apache distribution compatibility review and integration E2E qualification
 are needed before claiming enterprise readiness. See docs/integrations/RECON_NG.md.
+
+## Three upstream OSINT ZIP imports (2026-10-15)
+
+A new source-preserving integration pins GPL-2.0-only theHarvester, GPL-3.0
+OSINT-SPY and GPL-3.0 Mr.Holmes as independently licensed Git submodules.
+The provided archive root file blob hashes match these upstream revisions.
+TraceAtlas includes an offline, canonical CaseDB/EvidenceStore importer with
+bounded JSON/JSONL parsing, domain/URL scope filtering and sanitized provenance.
+
+**Still unqualified:** theHarvester's uploaded revision requires Python
+>=3.14, different from core CI Python 3.10/3.12. OSINT-SPY dependencies
+include obsolete networking libraries. Mr.Holmes includes interactive,
+SMTP, person/phone and active-scanning paths, so automatic execution is
+disabled. No live provider calls, full runtime integration of all third-party
+modules, performance parity or production deployment has been verified.
+See docs/integrations/THREE_OSINT_FRAMEWORKS.md.
