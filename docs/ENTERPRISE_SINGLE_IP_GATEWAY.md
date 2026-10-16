@@ -46,6 +46,7 @@ Then open http://127.0.0.1:8780/employee/ on that workstation and authenticate. 
     PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_enterprise_local_gateway.py' -v
     PYTHONPATH=src python3 -m unittest discover -s tests -q
     python3 scripts/check_secrets.py
+    python3 scripts/gateway_smoke.py  # only after gateway is running; prompts for password
 
 Caddy config validation is built into the launcher because it must receive a real bcrypt hash and secret environment. Validate the live reverse proxy separately before use. The gateway heartbeat is not proof of full deployment.
 
