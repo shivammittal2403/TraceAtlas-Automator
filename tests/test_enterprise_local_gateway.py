@@ -105,6 +105,7 @@ class EnterpriseGatewayTests(unittest.TestCase):
         self.assertIn("http://127.0.0.1:8780", config)
         self.assertIn("bind 127.0.0.1", config)
         self.assertIn("basic_auth", config)
+        self.assertIn("admin off", config)
         self.assertIn("reverse_proxy 127.0.0.1:8765", config)
         self.assertIn("header_up -Authorization", config)
         self.assertIn("X-TraceAtlas-Internal-Token", config)
