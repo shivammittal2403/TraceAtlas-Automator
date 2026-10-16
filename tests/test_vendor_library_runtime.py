@@ -25,7 +25,9 @@ def fixture(root: Path) -> VendorLibrary:
     csv_path = root / "osint.csv"
     csv_path.write_text(
         "Project,Repository,Description,Categories,License,Target Input\n"
-        "DNS Research,https://github.com/example/dns,Review public DNS history,Infrastructure,MIT,Domain\n",
+        "DNS Research,https://github.com/example/dns,Review public DNS history,Infrastructure,MIT,Domain\n"
+        "Media Archive,https://codeberg.org/example/archive,Review public media archives,Media,MIT,URL\n"
+        "Open Public Docs,https://gitlab.com/example/public/docs,Read public project documents,Web,MIT,URL\n",
         encoding="utf-8")
     return VendorLibrary(skills, csv_path)
 
@@ -36,11 +38,12 @@ class VendorRuntimeTests(unittest.TestCase):
             lib = fixture(Path(tmp))
             status = lib.status()
             self.assertEqual(status["skills_indexed"], 1)
-            self.assertEqual(status["repositories_indexed"], 1)
+            self.assertEqual(status["repositories_indexed"], 3)
             self.assertEqual(status["invalid_skills"], 1)
             self.assertFalse(status["execution_enabled"])
             found = lib.search("dns")
             self.assertEqual(found["matched"], 2)
+            self.assertEqual(lib.search("archive", kind="repository")["matched"], 1)
             self.assertTrue(all(not row["execution_enabled"] for row in found["results"]))
             self.assertIn("Never execute automatically", lib.reference("skill:dns-analysis")["markdown"])
 
