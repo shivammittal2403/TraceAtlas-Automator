@@ -1275,3 +1275,7 @@ Local attestations still do not prove reviewer identity/review quality; independ
 anchor rollback protection and unanchored full rewrite remain OPEN. Enterprise
 8/10 is NOT ESTABLISHED. Parent CI 37300581400 and CodeQL 37300581482 passed;
 separate AI review failed with confirmed monthly quota/HTTP 402, not a code result.
+
+## Ollama-guided employee prioritization (2026-10-16)
+
+CODED, not live-verified: optional --agentic-ollama on the existing employee investigate CLI obtains an Ollama-suggested permutation of the immutable, preauthorized actions. It cannot expand authority, target identities, runtime budgets, or release reports. Missing or invalid model output uses deterministic ranking. The source-fabric parallel scheduler continues unchanged. See docs/OLLAMA_OSINT_EMPLOYEE.md.
