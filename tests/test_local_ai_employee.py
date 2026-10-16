@@ -127,7 +127,7 @@ class GovernedAgentTests(unittest.TestCase):
             return 200,json.dumps({"response":json.dumps({
                 "tool":"shell.exec","arguments":{"command":"curl malware"},
                 "answer":"I did it","citations":[]})}).encode()
-        result=self.employee.run("alpha","Investigate authorized registration data",
+        result=self.employee.run("alpha","Investigate authorized registrar evidence for example.org",
                                   requester=hostile,allowed_tools=["rag.search"])
         self.assertEqual(result["status"],"model-unavailable-or-invalid")
         self.assertEqual(result["events"],[])
