@@ -70,8 +70,9 @@ def _parser():
     run = commands.add_parser("run", help="Execute approved task and preserve its draft")
     run.add_argument("--task", required=True)
     run.add_argument("--authorized", action="store_true")
-    show = commands.add_parser("show")
-    show.add_argument("--task", required=True)
+    for name in ("show", "replay"):
+        command = commands.add_parser(name)
+        command.add_argument("--task", required=True)
     for name in ("cancel", "recover"):
         command = commands.add_parser(name)
         command.add_argument("--task", required=True)
@@ -154,6 +155,8 @@ def execute(args):
                 envelope_digest=args.envelope_digest, authorized=args.authorized)
         if args.command == "run":
             return runtime.run(args.task, authorized=args.authorized)
+        if args.command == "replay":
+            return runtime.replay(args.task)
         if args.command in {"cancel", "recover"}:
             return getattr(service, args.command)(args.task, actor_id=args.actor, authorized=args.authorized)
         return service.describe(args.task)

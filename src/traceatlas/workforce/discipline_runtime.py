@@ -12,6 +12,7 @@ from uuid import uuid4
 from .contracts import (Budget, CostRecord, Observation, ResultEnvelope,
                         SemanticClass, TaskEnvelope, TraceSpan)
 from .discipline_engines.common import make_context
+from .discipline_review import project_discipline_review, REVIEWED_DISCIPLINES, REVIEWED_PRODUCT_SCHEMA
 from .documents import DOCUMENT_SCHEMA, MAX_DOCUMENT_BYTES, SourceDocument
 from .intelligence import validate_case_input
 from .registry import EmployeeRegistry, INITIAL_EMPLOYEES
@@ -22,6 +23,7 @@ INPUT_PREFIX = "discipline-input-sha256:"
 SOURCE_PREFIX = "discipline-input-source:"
 LABEL_PREFIX = "discipline-label:"
 ENGINE_PREFIX = "discipline-engine-sha256:"
+REVIEW_PREFIX = "discipline-review-version:"
 MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 
 
@@ -37,7 +39,10 @@ def digest(value):
 def _identity(label):
     if label != "MANAGER":
         from .discipline_engines import engine_identity
-        return engine_identity(label)
+        from . import discipline_review
+        return digest({"processors": engine_identity(label),
+                       "runtime": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                       "canonical_review": hashlib.sha256(Path(discipline_review.__file__).read_bytes()).hexdigest()})
     from . import discipline_registry
     return digest({name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
                    for name, path in (("runtime", __file__),
@@ -163,7 +168,8 @@ class DisciplineRuntime:
             required_capabilities=employee.required_capabilities, evidence_context_ids=(),
             constraints=("provided_records_only", "no_external_collection", "human_release_required",
                          LABEL_PREFIX + label, INPUT_PREFIX + input_sha, SOURCE_PREFIX + source_id,
-                         ENGINE_PREFIX + _identity(label)),
+                         ENGINE_PREFIX + _identity(label)) + (
+                             (REVIEW_PREFIX + REVIEWED_PRODUCT_SCHEMA,) if label in REVIEWED_DISCIPLINES else ()),
             budget=Budget("USD", min(1.0, limit.amount), min(120, limit.runtime_seconds),
                           min(8, limit.tool_calls), 0),
             deadline=min(now + timedelta(minutes=15), datetime.fromisoformat(context.expires_at)).isoformat(),
@@ -313,6 +319,11 @@ class DisciplineRuntime:
             if not self.store.verify_evidence(evidence):
                 raise ValueError("discipline input evidence changed during analysis")
             draft = self._validate_output(wrapped["result"], data, employee, evidence)
+            hypotheses, hypothesis_review, review_gaps = project_discipline_review(
+                json.loads(canonical(data)), evidence.evidence_id, evidence.acquisition_id)
+            runtime.check(task.task_id, token)
+            if _identity(label) != _bound(task, ENGINE_PREFIX):
+                raise ValueError("discipline engine changed during analysis")
             runtime.checkpoint(task.task_id, token, "discipline-result",
                                {"output_sha256": digest(draft),
                                 "finding_ids": [finding["finding_id"] for finding in draft["findings"]]})
@@ -324,13 +335,13 @@ class DisciplineRuntime:
                 for finding in draft["findings"])
             gaps = ("source-authenticity-unverified", "human-review-required") + tuple(
                 "issue-" + digest(issue)[:24] for issue in draft["issues"])
-            gaps = tuple(dict.fromkeys(gaps))
+            gaps = tuple(dict.fromkeys(gaps + review_gaps))
             completed_at = _stamp()
             elapsed = int((time.monotonic() - started) * 1000)
             result = ResultEnvelope(
                 schema_version="1.0", task_id=task.task_id, employee_id=employee.employee_id,
                 observations=observations, evidence_ids=(evidence.evidence_id,), entities=(),
-                relationships=(), claims=(), hypotheses=(), contradictions=(),
+                relationships=(), claims=(), hypotheses=hypotheses, contradictions=(),
                 uncertainties=("submitted-source-assertions",),
                 confidence_basis=("deterministic-supplied-record-analysis",),
                 source_independence=("single-canonical-input-artifact",), information_gaps=gaps,
@@ -356,12 +367,86 @@ class DisciplineRuntime:
                        "source_record_ids_are_canonical_evidence": False,
                        "report_status": "DRAFT_REQUIRES_HUMAN_RELEASE",
                        "source_independence_note": "Submitted source IDs and URIs are assertions inside one preserved artifact."}
+            if hypothesis_review is not None:
+                product["schema"] = REVIEWED_PRODUCT_SCHEMA
+                product["analysis"]["hypotheses"] = [item.to_dict() for item in hypotheses]
+                product["analysis"]["hypothesis_review"] = hypothesis_review
             return result
 
         def finalize_product():
+            if _identity(label) != _bound(task, ENGINE_PREFIX):
+                raise ValueError("discipline engine changed before completion")
             if not self.store.verify_evidence(evidence):
                 raise ValueError("discipline input evidence changed before completion")
             return product
 
         self.service.execute(task_id, runner, authorized=authorized, product_factory=finalize_product)
         return self.store.product(task_id)
+
+    def replay(self, task_id):
+        """Verify stored custody and recompute v2 reviews without callback or provider calls."""
+        from ..evidence import EvidenceStore
+
+        row = self.store.task(task_id)
+        if row["status"] != "completed" or row["result"] is None:
+            raise ValueError("discipline replay requires a completed stored result")
+        task = row["envelope"]
+        product = self.store.product(task_id)
+        data, evidence = self._input(task)
+        if not EvidenceStore(self.workspace, self.store.db, task.case_id).verify_ledger()[0]:
+            raise ValueError("discipline replay custody ledger failed")
+        acquisition = self.store.db.conn.execute(
+            "SELECT source_id,method,retrieved_at,trace_id FROM acquisitions_v2 "
+            "WHERE case_id=? AND acquisition_id=?", (task.case_id, evidence.acquisition_id)
+        ).fetchone()
+        if (not acquisition or acquisition["source_id"] != evidence.source_id
+                or acquisition["method"] != evidence.acquisition_method
+                or acquisition["retrieved_at"] != evidence.retrieved_at
+                or acquisition["trace_id"] != task.trace_id):
+            raise ValueError("discipline replay acquisition metadata mismatch")
+        if (product.get("task_id") != task.task_id or product.get("case_id") != task.case_id
+                or product.get("employee_id") != row["employee_id"]
+                or product.get("discipline") != data["discipline"]
+                or product.get("input_sha256") != digest(data)
+                or product.get("input_evidence_id") != evidence.evidence_id
+                or product.get("result") != row["result"].to_dict()
+                or row["result"].evidence_ids != (evidence.evidence_id,)
+                or any(item.evidence_id != evidence.evidence_id
+                       or item.acquisition_id != evidence.acquisition_id
+                       for item in row["result"].observations)):
+            raise ValueError("discipline replay product/result binding mismatch")
+        receipt = {"schema": "traceatlas.discipline.replay.v1", "task_id": task.task_id,
+                   "case_id": task.case_id, "product_schema": product.get("schema"),
+                   "input_evidence_id": evidence.evidence_id, "input_sha256": digest(data),
+                   "custody_verified": True, "source_authenticity_verified": False,
+                   "factual_entailment_verified": False, "requires_human_review": True}
+        versions = [value[len(REVIEW_PREFIX):] for value in task.constraints
+                    if value.startswith(REVIEW_PREFIX)]
+        if not versions:
+            if product.get("schema") != "traceatlas-discipline-product/v1":
+                raise ValueError("discipline replay review schema lacks its approved version binding")
+            return {**receipt, "status": "LEGACY_INTEGRITY_ONLY", "semantic_recomputed": False,
+                    "semantics_verified_scope": "none", "callback_draft_semantics_verified": False}
+        label = _bound(task, LABEL_PREFIX)
+        if (versions != [REVIEWED_PRODUCT_SCHEMA] or product.get("schema") != REVIEWED_PRODUCT_SCHEMA
+                or label not in REVIEWED_DISCIPLINES):
+            raise ValueError("unsupported discipline review product schema or version binding")
+        if (_identity(label) != _bound(task, ENGINE_PREFIX)
+                or product.get("engine_sha256") != _bound(task, ENGINE_PREFIX)):
+            raise ValueError("discipline review engine changed since approval")
+        hypotheses, review, review_gaps = project_discipline_review(
+            json.loads(canonical(data)), evidence.evidence_id, evidence.acquisition_id)
+        if _identity(label) != _bound(task, ENGINE_PREFIX):
+            raise ValueError("discipline review engine changed during replay")
+        projected = [item.to_dict() for item in hypotheses]
+        analysis = product.get("analysis")
+        if (not isinstance(analysis, dict) or analysis.get("hypothesis_review") != review
+                or analysis.get("hypotheses") != projected
+                or product["result"]["hypotheses"] != projected
+                or not set(review_gaps).issubset(row["result"].information_gaps)
+                or analysis.get("information_gaps") != product["result"]["information_gaps"]):
+            raise ValueError("canonical discipline hypothesis review replay mismatch")
+        return {**receipt, "status": "VERIFIED_NATIVE_REVIEW", "semantic_recomputed": True,
+                "hypotheses_verified": len(hypotheses),
+                "semantics_verified_scope": "canonical_hypothesis_review",
+                "callback_draft_semantics_verified": False}
