@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import threading
 from dataclasses import dataclass
@@ -18,7 +19,22 @@ from urllib.request import Request, urlopen
 
 from ..workforce.model_fabric import ModelRequest, ModelRouter, default_registry
 
-ROOT = Path(__file__).resolve().parents[3]
+def _repository_root() -> Path:
+    """Resolve vendor data from the working checkout even after pip wheel install."""
+    candidates = []
+    configured = os.environ.get("TRACEATLAS_VENDOR_ROOT")
+    if configured:
+        candidates.append(Path(configured).expanduser())
+    candidates.extend((Path.cwd(), Path(__file__).resolve().parents[3]))
+    for candidate in candidates:
+        root = candidate.resolve()
+        if ((root / "integrations/traceatlas-agentic-skills-library/skills").is_dir()
+                and (root / "integrations/awesome-osint-repos/osint-repositories.csv").is_file()):
+            return root
+    return Path(configured).expanduser().resolve() if configured else Path.cwd().resolve()
+
+
+ROOT = _repository_root()
 SKILL_DIR = ROOT / "integrations/traceatlas-agentic-skills-library/skills"
 SOURCE_CSV = ROOT / "integrations/awesome-osint-repos/osint-repositories.csv"
 IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
