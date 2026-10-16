@@ -20,6 +20,9 @@ def _parser():
     parser.add_argument("--workspace", type=Path, default=Path(".traceatlas"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("catalog", help="List requested and actually implemented employees")
+    skill = commands.add_parser("skill", help="Read a validated discipline Markdown procedure")
+    skill.add_argument("discipline")
+    commands.add_parser("skills", help="Validate the entire installed Markdown skill catalog")
     analyze = commands.add_parser("analyze", help="Analyze supplied JSON without case persistence")
     analyze.add_argument("discipline")
     analyze.add_argument("--input", type=Path, required=True)
@@ -71,6 +74,12 @@ def _parser():
 def execute(args):
     if args.command == "catalog":
         return employee_catalog()
+    if args.command == "skill":
+        from .discipline_skills import get_skill_guide
+        return get_skill_guide(args.discipline)
+    if args.command == "skills":
+        from .discipline_skills import skill_inventory
+        return skill_inventory()
     if args.command == "analyze":
         data = load_input(args.input)
         label = args.discipline.strip().upper()

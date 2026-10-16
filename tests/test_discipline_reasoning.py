@@ -50,6 +50,8 @@ class EmployeeReasoningTests(unittest.TestCase):
         self.assertFalse(body["stream"])
         self.assertIn(self.analysis["findings"][0]["finding_id"], body["prompt"])
         self.assertIn("untrusted source data", body["prompt"])
+        self.assertIn("APPROVED_EMPLOYEE_PROCEDURE", body["prompt"])
+        self.assertIn("CNAME", body["prompt"])
         self.assertEqual(timeout, 120)
 
     def test_foreign_finding_reference_cannot_become_a_proposal(self):
