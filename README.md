@@ -37,6 +37,15 @@ gates and resume checkpoint are tracked in [docs/program](docs/program/README.md
 and [.ai](.ai/SESSION_CONTEXT.md). Maturity scores remain unestablished until
 representative workflows have reproducible evaluation evidence.
 
+## Native localhost skill and source integration
+
+The existing employee console at `http://127.0.0.1:8765` now includes a
+searchable bridge to the full vendor skills library and 497 linked OSINT projects,
+plus optional **local Ollama advisory** recommendations. These are reference
+capabilities, not autonomously activated third-party tools. See
+[Local AI employee and library integration](docs/integrations/LOCAL_AI_EMPLOYEE_LIBRARY.md)
+for setup, endpoints, permission boundaries and tests.
+
 ## Quick start
 
 Requires Python 3.10 or newer.
