@@ -51,3 +51,7 @@ are qualified. Verify unauthenticated denial, real JWT/case/tenant revocation,
 Storage/Realtime/export, two-session races, cancellation/recovery and restore.
 Compare the actual deployment SHA and health metadata with the tested main SHA.
 Only then consider a separately authorized production release.
+
+## Single-IP local ingress
+
+The optional Caddy gateway, internal console token and secure SSH-tunnel usage are documented in [Enterprise Single-IP Gateway](ENTERPRISE_SINGLE_IP_GATEWAY.md). It is intentionally local-only, not a public or cloud production ingress; hosted /api remains separately deployed and unverified.
