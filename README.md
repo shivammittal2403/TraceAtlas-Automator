@@ -57,6 +57,18 @@ Open the local console at [http://127.0.0.1:8765](http://127.0.0.1:8765). Keep t
 
 The console can use local records and configured public-source connectors. Provider credentials and optional integrations are operator-managed; see [Live Sources](docs/LIVE_SOURCES.md), [Deployment](docs/DEPLOYMENT.md), and [Runbook](docs/RUNBOOK.md).
 
+
+## Authenticated single-IP local gateway (opt-in)
+
+A loopback-only Caddy entrypoint can now combine the static interface and the
+existing authorized local OSINT Employee console at
+http://127.0.0.1:8780/ and /employee/. It uses hashed gateway credentials,
+an independent internal proxy token, exact Origin checks and the existing case
+authorization/evidence boundaries. Hosted /api endpoints, separate workers and
+Ollama are **not** published or falsely represented as operational. This is
+a single-user local operator deployment, not production multi-tenancy.
+See [Secure gateway deployment](docs/ENTERPRISE_SINGLE_IP_GATEWAY.md).
+
 ## Safety and evidence rules
 
 - Only analyst-provided evidence and explicitly authorized public research belong in a case.
