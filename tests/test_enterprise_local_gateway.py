@@ -112,5 +112,9 @@ class EnterpriseGatewayTests(unittest.TestCase):
         self.assertNotIn("0.0.0.0:8780", config)
         self.assertIn("TRACEATLAS_GATEWAY_PASSWORD_HASH", launcher)
         self.assertIn("TRACEATLAS_CONSOLE_GATEWAY_ORIGIN", launcher)
+        self.assertIn("handle_path /hub/*", config)
+        hub = (ROOT / "deploy/gateway/ui/index.html").read_text(encoding="utf-8")
+        for href in ('href="/employee/"', 'href="/directory/"', 'href="/academy/"'):
+            self.assertIn(href, hub)
         self.assertIn("const API_BASE=", html)
         self.assertIn("fetch(API_BASE+path", html)
