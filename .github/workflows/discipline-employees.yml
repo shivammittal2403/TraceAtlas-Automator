@@ -1,0 +1,58 @@
+name: Dedicated discipline employees
+
+on:
+  pull_request:
+    paths:
+      - 'src/traceatlas/workforce/**'
+      - 'src/traceatlas/osint_taxonomy.py'
+      - 'tests/test_discipline*.py'
+      - 'tests/test_*employees.py'
+      - 'examples/employees/**'
+      - 'EMPLOYEES_README.md'
+      - 'pyproject.toml'
+      - '.github/workflows/discipline-employees.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/traceatlas/workforce/**'
+      - 'tests/test_discipline*.py'
+      - 'tests/test_*employees.py'
+      - '.github/workflows/discipline-employees.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discipline-employees-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  employees:
+    name: Employees / ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install .
+      - name: Employee semantics, contracts and case lifecycle
+        run: |
+          python -m unittest discover -s tests -p 'test_discipline*.py' -v
+          python -m unittest discover -s tests -p 'test_*employees.py' -v
+      - name: CLI with real supplied records
+        run: |
+          traceatlas-employees catalog
+          traceatlas-employees analyze DNSINT --input examples/employees/dns.json --output employee-dns.json
+          python -c "import json; r=json.load(open('employee-dns.json')); assert r['metrics']['cname_cycles']==1; assert r['model_calls']==0"
+      - name: Existing workforce regression
+        run: python -m unittest discover -s tests -p test_ai_workforce.py -v

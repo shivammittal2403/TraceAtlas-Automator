@@ -1,0 +1,35 @@
+{
+  "case_id": "case-test",
+  "task_id": "task-offline",
+  "discipline": "DNSINT",
+  "objective": "Review supplied synthetic DNS observations",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "fixture",
+      "uri": "urn:traceatlas:synthetic-dns"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "dns-a",
+      "source_id": "fixture",
+      "data": {
+        "name": "a.example.org",
+        "type": "CNAME",
+        "value": "b.example.org",
+        "ttl": 300
+      }
+    },
+    {
+      "record_id": "dns-b",
+      "source_id": "fixture",
+      "data": {
+        "name": "b.example.org",
+        "type": "CNAME",
+        "value": "a.example.org",
+        "ttl": 300
+      }
+    }
+  ]
+}
