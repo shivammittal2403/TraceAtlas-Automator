@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>TraceAtlas | Private Research Gateway</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#0c1420;color:#ecf2f8}
+*{box-sizing:border-box}body{margin:0 auto;padding:40px 24px;max-width:1050px}
+header{border-bottom:1px solid #344458;padding-bottom:22px}
+h1{font-size:2.1rem;margin:.25em 0}h2{font-size:1.05rem;margin:.1em 0}
+p{color:#c1cddb}small{color:#a5b6c9}a{color:#92d8ff;text-decoration:none}
+a:hover,a:focus{text-decoration:underline}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:24px}
+article{padding:21px;background:#162436;border:1px solid #384b63;border-radius:12px}
+article p{min-height:66px}
+.state{font-size:.8rem;color:#c5d8e9}
+.warning{margin-top:24px;border-left:3px solid #6ea8d9;padding:12px 20px;background:#132135}
+footer{padding:24px 0;border-top:1px solid #344458;margin-top:30px}
+</style>
+</head>
+<body>
+<header><small>TRACEATLAS · LOCAL OPERATOR GATEWAY</small><h1>Investigation workspace</h1>
+<p>One authenticated local entrypoint. Actual tools retain their original authorization and evidence boundaries.</p></header>
+<main>
+<div class="grid">
+<article><small class="state">LOCAL EMPLOYEE · AUTHORIZED</small><h2><a href="/employee/">AI OSINT Employee ↗</a></h2>
+<p>Case workspace, scoped public-source investigation, evidence and analysis. Optional local Ollama advisory.</p></article>
+<article><small class="state">STATIC UI · PARTIAL</small><h2><a href="/">TraceAtlas frontend ↗</a></h2>
+<p>Frontend and local planner pages. Hosted API actions remain unavailable here until a separate cloud integration is verified.</p></article>
+<article><small class="state">CATALOGUE · READ-ONLY</small><h2><a href="/directory/">Intelligence directory ↗</a></h2>
+<p>Browse documented tools and sources. A catalogue entry does not mean that a live connector is configured.</p></article>
+<article><small class="state">EDUCATION · READ-ONLY</small><h2><a href="/academy/">Research academy ↗</a></h2>
+<p>Research and learning materials served from the existing static frontend.</p></article>
+</div>
+<div class="warning"><strong>Not exposed from this gateway:</strong>
+<p>Ollama API, worker control endpoints, database files, provider credentials and hosted Supabase/Vercel APIs. This gateway does not supply SSO or multi-tenant authorization. Use a secured tunnel for remote operator access.</p></div>
+</main>
+<footer><small>Gateway heartbeat: <a href="/gateway/healthz">/gateway/healthz</a> (liveness only). All findings and reports require the existing TraceAtlas human review controls.</small></footer>
+</body></html>
