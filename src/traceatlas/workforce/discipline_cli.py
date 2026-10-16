@@ -21,12 +21,14 @@ def _parser():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("catalog", help="List requested and actually implemented employees")
     external = commands.add_parser("external-skills", help="Read third-party skill ZIP as an inert catalog")
-    external.add_argument("--archive", type=Path, required=True)
+    external.add_argument("--archive", type=Path)
+    external.add_argument("--directory", type=Path)
     external.add_argument("--query", default="")
     external.add_argument("--limit", type=int, default=50)
     reference = commands.add_parser("external-skill", help="Inspect untrusted Markdown without executing scripts")
     reference.add_argument("skill_id")
-    reference.add_argument("--archive", type=Path, required=True)
+    reference.add_argument("--archive", type=Path)
+    reference.add_argument("--directory", type=Path)
     skill = commands.add_parser("skill", help="Read a validated discipline Markdown procedure")
     skill.add_argument("discipline")
     commands.add_parser("skills", help="Validate the entire installed Markdown skill catalog")
@@ -82,11 +84,11 @@ def execute(args):
     if args.command == "catalog":
         return employee_catalog()
     if args.command == "external-skills":
-        from ..skills.external_skills import ExternalSkillArchive
-        return ExternalSkillArchive(args.archive).catalog(query=args.query, limit=args.limit)
+        from ..skills.external_skills import open_external_skills
+        return open_external_skills(archive=args.archive, directory=args.directory).catalog(query=args.query, limit=args.limit)
     if args.command == "external-skill":
-        from ..skills.external_skills import ExternalSkillArchive
-        return ExternalSkillArchive(args.archive).reference(args.skill_id)
+        from ..skills.external_skills import open_external_skills
+        return open_external_skills(archive=args.archive, directory=args.directory).reference(args.skill_id)
     if args.command == "skill":
         from .discipline_skills import get_skill_guide
         return get_skill_guide(args.discipline)

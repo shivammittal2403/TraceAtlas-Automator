@@ -1,0 +1,58 @@
+name: Import original 818 cybersecurity skill folders
+
+on:
+  push:
+    branches:
+      - feature/vendor-complete-skills-archive-20261016
+    paths:
+      - .github/workflows/import-complete-cyber-skills.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import-byte-identical-skills:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/vendor-complete-skills-archive-20261016
+          persist-credentials: true
+          submodules: false
+      - name: Fetch pinned public origin without executing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_COMMIT=54a798831d2266a3ca61ce68a7acb80b81160d57
+          SOURCE_TREE=82fac49869491010960184cbdbbe91cf668148d5
+          mkdir -p "$RUNNER_TEMP/source"
+          git -C "$RUNNER_TEMP/source" init -q
+          git -C "$RUNNER_TEMP/source" remote add origin https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git
+          git -C "$RUNNER_TEMP/source" fetch --depth 1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/source" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/source" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/source" rev-parse HEAD:skills)" = "$SOURCE_TREE"
+          # The user ZIP's exact Git subtree matches this pinned upstream tree
+          # when adding its sole missing (quarantined) SKILL.md.
+          TARGET=vendor_sources/anthropic_cybersecurity_skills/skills
+          test ! -e "$TARGET"
+          mkdir -p "$TARGET"
+          cp -a "$RUNNER_TEMP/source/skills/." "$TARGET/"
+          test "$(find "$TARGET" -type f | wc -l | tr -d ' ')" = 4484
+          test "$(find "$TARGET" -name SKILL.md -type f | wc -l | tr -d ' ')" = 818
+          test "$(find "$TARGET" -name '*.py' -type f | wc -l | tr -d ' ')" = 1096
+          git add -A -- "$TARGET"
+          IMPORT_TREE=$(git ls-tree -d "$(git write-tree)" "$TARGET" | awk '{print $3}')
+          echo "Imported Git subtree: $IMPORT_TREE"
+          test "$IMPORT_TREE" = "$SOURCE_TREE"
+          git diff --cached --name-only -- "$TARGET" | wc -l
+      - name: Push complete source tree to the feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Vendor all 818 original cybersecurity skill folders (4484 source files)"
+          git push origin HEAD:refs/heads/feature/vendor-complete-skills-archive-20261016
