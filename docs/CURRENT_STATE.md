@@ -1294,3 +1294,7 @@ separate AI review failed with confirmed monthly quota/HTTP 402, not a code resu
 ## Ollama-guided employee prioritization (2026-10-16)
 
 CODED, not live-verified: optional --agentic-ollama on the existing employee investigate CLI obtains an Ollama-suggested permutation of the immutable, preauthorized actions. It cannot expand authority, target identities, runtime budgets, or release reports. Missing or invalid model output uses deterministic ranking. The source-fabric parallel scheduler continues unchanged. See docs/OLLAMA_OSINT_EMPLOYEE.md.
+
+## Enterprise loopback gateway (2026-10-16)
+
+CODED, CI pending: `deploy/gateway/` adds authenticated 127.0.0.1:8780 Caddy ingress for the static frontend and existing single-user Employee console. The console requires a separate internal token in gateway mode and preserves Origin/CSRF checks. The local gateway does not mount Vercel/Supabase /api or expose Ollama/worker/database routes. Full multi-tenant enterprise operation and live deployment are NOT VERIFIED. See `docs/ENTERPRISE_SINGLE_IP_GATEWAY.md`.
