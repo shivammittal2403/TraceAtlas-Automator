@@ -72,3 +72,18 @@ validates cited finding IDs and keeps model prose separate from deterministic ev
 Unavailable models return MODEL_UNAVAILABLE and preserve the deterministic draft.
 Attempt counts include failed requests. Fixture transport tests do not establish that
 a local model is installed or that live generation has been verified on this machine.
+
+## Team coordinator
+
+`traceatlas-employees team --input examples/employees/team.json --output team-review.json`
+runs explicit discipline assignments under one case. Each assignment supplies its own
+records and optional parameters. Child task IDs are deterministic, evidence IDs
+cannot change meaning between disciplines, and empty/invalid work remains visible
+as a gap. Team agreement is not independent corroboration. Persistent employee
+tasks continue through the approved canonical runtime described above.
+
+Derived output is bounded as well as input: large data arrays, artifact fields
+or findings can be omitted with explicit output_budget counts and PARTIAL status.
+Every retained finding keeps its complete canonical record/source references.
+Source identity binds the full processor set and Python version, including shared
+measurement, temporal and graph dependencies.

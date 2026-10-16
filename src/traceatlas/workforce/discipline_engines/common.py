@@ -63,6 +63,31 @@ def _json(value: Any, depth: int = 0) -> None:
     raise ValueError("Employee input must contain JSON values only")
 
 
+
+def _bounded_output(value, truncations, depth=0):
+    """Clip derived data structures without changing canonical finding references."""
+    if depth > MAX_DEPTH - 5:
+        truncations[0] += 1
+        return None
+    if isinstance(value, dict):
+        if any(type(key) is not str for key in value):
+            raise ValueError("Output objects require string keys")
+        items = list(value.items())
+        if len(items) > MAX_RECORDS:
+            truncations[0] += 1
+        return {key: _bounded_output(item, truncations, depth + 1)
+                for key, item in items[:MAX_RECORDS]}
+    if isinstance(value, list):
+        if len(value) > MAX_RECORDS:
+            truncations[0] += 1
+        return [_bounded_output(item, truncations, depth + 1) for item in value[:MAX_RECORDS]]
+    if isinstance(value, str) and len(value) > MAX_TEXT:
+        truncations[0] += 1
+        return value[:MAX_TEXT]
+    _json(value)
+    return value
+
+
 def text(value: Any, name: str, *, maximum: int = 2000) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > maximum:
         raise ValueError(name + " must be nonempty bounded text")
@@ -194,6 +219,7 @@ class AnalysisContext:
         self._finding_ids: set[str] = set()
         self._findings_suppressed = 0
         self._issues_suppressed = 0
+        self._structures_truncated = 0
 
     def finding(self, kind: str, summary: str, record_ids: Iterable[str],
                 data: dict | None = None) -> dict:
@@ -207,7 +233,11 @@ class AnalysisContext:
         data = {} if data is None else data
         if not isinstance(data, dict):
             raise ValueError("Finding data must be an object")
-        _json(data)
+        truncations = [0]
+        data = _bounded_output(data, truncations)
+        if truncations[0]:
+            self._structures_truncated += truncations[0]
+            self.issue(None, "derived_data_truncated", "Derived data structures exceeded the bounded output contract.")
         item = {"kind": kind, "summary": summary, "record_ids": refs,
                 "source_ids": sorted(set(self._records[ref].source_id for ref in refs)),
                 "canonical_evidence_ids": list(self.evidence_ids), "data": deepcopy(data)}
@@ -254,13 +284,60 @@ class AnalysisContext:
             metrics["issue_reports_suppressed"] = self._issues_suppressed
         if self._findings_suppressed:
             metrics["finding_reports_suppressed"] = self._findings_suppressed
-        result = {"findings": deepcopy(self.findings), "issues": deepcopy(self.issues),
-                  "metrics": metrics, "artifacts": deepcopy(artifacts or {}),
-                  "limitations": limits}
+        truncations = [0]
+        artifacts = _bounded_output(deepcopy(artifacts or {}), truncations)
+        metrics = _bounded_output(metrics, truncations)
+        limits = limits[:500]
+        if truncations[0]:
+            self._structures_truncated += truncations[0]
+            self.issue(None, "derived_data_truncated", "Derived data structures exceeded the bounded output contract.")
+        previous_budget = metrics.get("output_budget", {})
+        if not isinstance(previous_budget, dict):
+            previous_budget = {}
+        def previous_count(key):
+            value = previous_budget.get(key, 0)
+            return value if type(value) is int and value >= 0 else 0
+        budget = {"structures_truncated": self._structures_truncated,
+                  "artifact_fields_omitted": previous_count("artifact_fields_omitted"),
+                  "findings_omitted": previous_count("findings_omitted"),
+                  "issue_reports_omitted": max(self._issues_suppressed, previous_count("issue_reports_omitted")),
+                  "metric_fields_omitted": previous_count("metric_fields_omitted"),
+                  "limitation_reports_omitted": previous_count("limitation_reports_omitted")}
+        result = {"findings": self.findings, "issues": self.issues,
+                  "metrics": metrics, "artifacts": artifacts, "limitations": limits}
+        limit = MAX_BYTES - 16384
+        if self._structures_truncated:
+            metrics["output_budget"] = budget
+        def size():
+            return len(canonical(result).encode("utf-8"))
+        if size() > limit:
+            self.issue(None, "output_budget_exhausted",
+                       "Derived output was omitted to retain a bounded partial result; preserved input references remain available.")
+            metrics["output_budget"] = budget
+            while artifacts and size() > limit:
+                artifacts.pop(next(reversed(artifacts)))
+                budget["artifact_fields_omitted"] += 1
+            while self.findings and size() > limit:
+                # Remove a bounded block proportional to excess, avoiding one
+                # full serialization for every individual finding.
+                current_size = size()
+                remove = max(1, math.ceil(len(self.findings) * (current_size - limit) / current_size))
+                del self.findings[-remove:]
+                budget["findings_omitted"] += remove
+            while len(self.issues) > 1 and size() > limit:
+                self.issues.pop(-2)
+                budget["issue_reports_omitted"] += 1
+            while len(metrics) > 1 and size() > limit:
+                key = next(key for key in reversed(metrics) if key != "output_budget")
+                metrics.pop(key)
+                budget["metric_fields_omitted"] += 1
+            while limits and size() > limit:
+                limits.pop()
+                budget["limitation_reports_omitted"] += 1
         _json(result)
-        if len(canonical(result).encode("utf-8")) > MAX_BYTES:
-            raise ValueError("Employee output exceeds 2 MiB")
-        return result
+        if size() > limit:
+            raise ValueError("Employee output cannot fit its bounded result envelope")
+        return deepcopy(result)
 
 
 def make_context(payload: dict, *, evidence_ids: Iterable[str] = ()) -> AnalysisContext:

@@ -1,0 +1,464 @@
+{
+  "EXPOSUREINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:exposureint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "asset_id": "A",
+          "snapshot_id": "Q",
+          "visibility": "PUBLIC",
+          "authentication_required": false,
+          "sensitive_classes": [
+            "PERSONAL_DATA"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "asset_id": "A",
+          "snapshot_id": "Q",
+          "visibility": "PRIVATE",
+          "authentication_required": true,
+          "sensitive_classes": []
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "BREACHINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:breachint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "notice_id": "N1",
+          "organization_id": "O",
+          "incident_id": "I",
+          "disclosed_at": "2026-01-05T00:00:00Z",
+          "incident_end": "2026-01-01T00:00:00Z",
+          "affected_records": 100,
+          "data_classes": [
+            "EMAIL_METADATA"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "notice_id": "N2",
+          "organization_id": "O",
+          "incident_id": "I",
+          "disclosed_at": "2026-01-05T00:00:00Z",
+          "incident_end": "2026-01-01T00:00:00Z",
+          "affected_records": 200
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CREDINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:credint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "credential_id": "C1",
+          "account_id": "A1",
+          "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "last_rotated_at": "2025-01-01T00:00:00Z",
+          "expires_at": "2026-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "credential_id": "C2",
+          "account_id": "A2",
+          "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "FRAUDINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:fraudint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "kind": "transaction",
+          "transaction_id": "T1",
+          "amount": "1",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "kind": "transaction",
+          "transaction_id": "T2",
+          "amount": "2",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "kind": "transaction",
+          "transaction_id": "T3",
+          "amount": "3",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R4",
+        "source_id": "S1",
+        "data": {
+          "kind": "transaction",
+          "transaction_id": "T4",
+          "amount": "4",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R5",
+        "source_id": "S1",
+        "data": {
+          "kind": "transaction",
+          "transaction_id": "T5",
+          "amount": "100",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R6",
+        "source_id": "S1",
+        "data": {
+          "kind": "reversal",
+          "transaction_id": "T5",
+          "amount": "120",
+          "currency": "EUR"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "SCAMINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:scamint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "text": "Guaranteed return: pay now and provide your seed phrase. Payment by gift card.",
+          "expected_domain": "brand.test",
+          "urls": [
+            "https://other.test/fixture"
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "PAYMENTINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:paymentint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "kind": "invoice",
+          "invoice_id": "I",
+          "amount": "100.00",
+          "currency": "EUR"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "kind": "payment",
+          "payment_id": "P1",
+          "invoice_id": "I",
+          "amount": "60.00",
+          "currency": "EUR",
+          "status": "SETTLED"
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "kind": "payment",
+          "payment_id": "P2",
+          "invoice_id": "I",
+          "amount": "50.00",
+          "currency": "EUR",
+          "status": "SETTLED"
+        }
+      },
+      {
+        "record_id": "R4",
+        "source_id": "S1",
+        "data": {
+          "kind": "payment",
+          "payment_id": "P3",
+          "invoice_id": "I",
+          "amount": "20.00",
+          "currency": "EUR",
+          "status": "PENDING"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CRYPTOINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:cryptoint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "chain": "ethereum",
+          "transfer_id": "X1",
+          "asset": "ETH",
+          "from_address": "0x1111111111111111111111111111111111111111",
+          "to_address": "0x2222222222222222222222222222222222222222",
+          "amount": "1.25",
+          "status": "CONFIRMED",
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "chain": "ethereum",
+          "transfer_id": "X2",
+          "asset": "ETH",
+          "from_address": "0x2222222222222222222222222222222222222222",
+          "to_address": "0x1111111111111111111111111111111111111111",
+          "amount": "1.25",
+          "status": "CONFIRMED",
+          "timestamp": "2026-01-01T01:00:00Z"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "MARKETPLACEINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:marketplaceint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "marketplace": "fixture",
+          "listing_id": "L1",
+          "seller_id": "S1",
+          "product_id": "P",
+          "price": "10.00",
+          "currency": "EUR",
+          "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "marketplace": "fixture",
+          "listing_id": "L2",
+          "seller_id": "S2",
+          "product_id": "P",
+          "price": "11.00",
+          "currency": "EUR",
+          "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "marketplace": "fixture",
+          "listing_id": "L3",
+          "seller_id": "S3",
+          "product_id": "P",
+          "price": "100.00",
+          "currency": "EUR",
+          "image_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "BRANDINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:brandint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "kind": "official_brand",
+          "brand_id": "B",
+          "name": "Brand",
+          "domains": [
+            "brand.test"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "kind": "mention",
+          "brand_id": "B",
+          "display_name": "BRAND",
+          "domain": "bramd.test"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "ADINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:adint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "ad_id": "A",
+          "period_start": "2026-01-01T00:00:00Z",
+          "period_end": "2026-01-02T00:00:00Z",
+          "spend": "12.00",
+          "currency": "EUR",
+          "impressions": 100,
+          "clicks": 120,
+          "conversions": 130,
+          "count_basis": "UNIQUE_USERS"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "COMPLAINTINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:complaintint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "complaint_id": "C",
+          "opened_at": "2026-01-01T00:00:00Z",
+          "status": "OPEN",
+          "category": "DELIVERY"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "REPUTATIONINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:synthetic:fraud:reputationint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "entity_id": "E",
+          "platform": "fixture",
+          "review_id": "R1",
+          "reviewer_id": "U1",
+          "rating": 5,
+          "scale_min": 1,
+          "scale_max": 5,
+          "text": "same submitted review"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "entity_id": "E",
+          "platform": "fixture",
+          "review_id": "R2",
+          "reviewer_id": "U2",
+          "rating": 1,
+          "scale_min": 1,
+          "scale_max": 5,
+          "text": "SAME submitted review"
+        }
+      }
+    ],
+    "parameters": {}
+  }
+}

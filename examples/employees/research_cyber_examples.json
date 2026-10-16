@@ -1,0 +1,1123 @@
+{
+  "CYBINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:cybint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "asset_id": "fixture-web-1",
+          "internet_exposed": true,
+          "criticality": "high",
+          "controls": {
+            "mfa": false,
+            "logging": true,
+            "backups": true,
+            "patching": false,
+            "endpoint_protection": true
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CTI": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:cti",
+        "original_source_id": "declared-original-report"
+      },
+      {
+        "source_id": "S2",
+        "uri": "urn:traceatlas:synthetic:cti:republication",
+        "original_source_id": "declared-original-report"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "report_id": "report-1",
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example[.]org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ],
+          "published_at": "2026-09-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "verdict": "suspicious"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S2",
+        "data": {
+          "report_id": "report-2",
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example.org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ],
+          "published_at": "2026-09-02T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "verdict": "suspicious"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "IOCINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:iocint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "indicator_type": "domain",
+          "value": "Example[.]ORG",
+          "verdict": "malicious",
+          "expires_at": "2027-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "indicator_type": "domain",
+          "value": "example.org",
+          "verdict": "benign",
+          "expires_at": "2027-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "indicator_type": "url",
+          "value": "hxxps://example[.]org/fixture",
+          "verdict": "unknown"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "TTPINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:ttpint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "technique_id": "T1059.001",
+          "procedure": "Synthetic report asserts a command interpreter invocation in a lab.",
+          "attack_version": "16.1"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "THREATACTORINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:threatactorint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "provider": "Fixture Provider A",
+          "actor_label": "Example Cluster A",
+          "aliases": [
+            "Example Alias A"
+          ],
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example[.]org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "provider": "Fixture Provider B",
+          "actor_label": "Example Cluster B",
+          "aliases": [],
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example.org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CAMPAIGNINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:campaignint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "campaign_id": "fixture-campaign-a",
+          "start_at": "2026-09-01T00:00:00Z",
+          "end_at": "2026-09-20T00:00:00Z",
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example[.]org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "campaign_id": "fixture-campaign-b",
+          "start_at": "2026-09-10T00:00:00Z",
+          "end_at": "2026-09-30T00:00:00Z",
+          "indicators": [
+            {
+              "type": "domain",
+              "value": "example.org"
+            }
+          ],
+          "techniques": [
+            "T1059.001"
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "MALINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:malint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "file_name": "synthetic-fixture.bin",
+          "file_size": 42,
+          "hashes": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "imports": [
+            "KERNEL32!WriteProcessMemory",
+            "KERNEL32!CreateRemoteThread"
+          ],
+          "strings": [
+            "https://example.org/fixture"
+          ],
+          "signature": {
+            "verified": false,
+            "signer": "Synthetic unsigned fixture"
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "EXPLOITINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:exploitint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "cve_id": "CVE-2026-99999999",
+          "public_poc": true,
+          "exploitation_reported": false,
+          "asset_product": "Fixture Widget",
+          "affected_product": "Fixture Widget",
+          "installed_version": "2.1",
+          "affected_from": "2.0",
+          "fixed_version": "3.0"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "VULNINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:vulnint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "asset_id": "fixture-host-1",
+          "product": "Fixture Widget",
+          "installed_version": "2.1",
+          "cve_id": "CVE-2026-99999999",
+          "affected_product": "Fixture Widget",
+          "affected_from": "2.0",
+          "fixed_version": "3.0"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "INCIDENTINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:incidentint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "incident_id": "fixture-incident-1",
+          "event_id": "event-1",
+          "event_type": "authentication_failure",
+          "timestamp": "2026-10-01T01:00:00Z",
+          "asset_id": "fixture-host-1",
+          "description": "Synthetic login failure."
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "incident_id": "fixture-incident-1",
+          "event_id": "event-2",
+          "event_type": "review_started",
+          "timestamp": "2026-10-01T02:00:00Z",
+          "asset_id": "fixture-host-1",
+          "description": "Synthetic analyst review event."
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "LOGINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:logint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "format": "structured",
+          "event": {
+            "timestamp": "2026-10-01T00:01:00Z",
+            "event_type": "authentication",
+            "src_ip": "192.0.2.10",
+            "account": "fixture-account",
+            "outcome": "failure"
+          }
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "format": "structured",
+          "event": {
+            "timestamp": "2026-10-01T00:02:00Z",
+            "event_type": "authentication",
+            "src_ip": "192.0.2.10",
+            "account": "fixture-account",
+            "outcome": "failure"
+          }
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "format": "structured",
+          "event": {
+            "timestamp": "2026-10-01T00:03:00Z",
+            "event_type": "authentication",
+            "src_ip": "192.0.2.10",
+            "account": "fixture-account",
+            "outcome": "failure"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "failure_threshold": 3
+    }
+  },
+  "DFIRINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:dfirint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "artifact_id": "fixture-artifact-1",
+          "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "claimed_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "path": "fixture-capture.bin",
+          "size_bytes": 42,
+          "timestamps": {
+            "created": "2026-09-29T00:00:00Z",
+            "modified": "2026-09-30T00:00:00Z",
+            "collected": "2026-10-01T00:00:00Z"
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "HUNTINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:huntint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "record_type": "hypothesis",
+          "hypothesis_id": "fixture-hunt-1",
+          "description": "Review administrator events and declared nonadministrator counterexamples.",
+          "selector": {
+            "admin": true
+          },
+          "counter_selector": {
+            "admin": false
+          }
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "record_type": "event",
+          "event_id": "event-1",
+          "fields": {
+            "admin": true,
+            "action": "configuration-change"
+          }
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "record_type": "event",
+          "event_id": "event-2",
+          "fields": {
+            "admin": false,
+            "action": "read-only"
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "DETECTIONINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:detectionint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "record_type": "rule",
+          "rule_id": "fixture-rule-1",
+          "selector": {
+            "event": "login",
+            "success": false
+          },
+          "enabled": true,
+          "techniques": [
+            "T1110"
+          ]
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "record_type": "test_event",
+          "event_id": "event-1",
+          "fields": {
+            "event": "login",
+            "success": false
+          },
+          "expected_rule_ids": [
+            "fixture-rule-1"
+          ]
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "record_type": "test_event",
+          "event_id": "event-2",
+          "fields": {
+            "event": "login",
+            "success": true
+          },
+          "expected_rule_ids": []
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "ACADEMICINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:academicint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "paper_id": "fixture-paper-a",
+          "title": "Synthetic Study of Evidence Review",
+          "doi": "https://doi.org/10.5555/traceatlas.fixture.a",
+          "year": 2025,
+          "authors": [
+            "Avery Example",
+            "Riley Example"
+          ],
+          "references": [
+            "10.5555/traceatlas.fixture.b"
+          ],
+          "retracted": false
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "paper_id": "fixture-paper-b",
+          "title": "Synthetic Bibliographic Reference",
+          "doi": "10.5555/traceatlas.fixture.b",
+          "year": 2024,
+          "authors": [
+            "Riley Example"
+          ],
+          "references": [],
+          "retracted": false
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "REGINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:regint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "regulation_id": "fixture-rule-base",
+          "jurisdiction": "Example Jurisdiction",
+          "subject": "Synthetic reporting rule",
+          "effective_from": "2025-01-01T00:00:00Z",
+          "effective_until": "2027-01-01T00:00:00Z",
+          "status": "enacted"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "regulation_id": "fixture-rule-amendment",
+          "jurisdiction": "Example Jurisdiction",
+          "subject": "Synthetic amendment",
+          "effective_from": "2026-01-01T00:00:00Z",
+          "effective_until": "2027-01-01T00:00:00Z",
+          "status": "enacted",
+          "amendment_of": "fixture-rule-base"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "LEGALINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:legalint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "decision_id": "fixture-decision-a",
+          "court": "Example Court",
+          "jurisdiction": "Example Jurisdiction",
+          "decision_at": "2025-01-01T00:00:00Z",
+          "outcome": "Synthetic motion granted",
+          "issue_tags": [
+            "reporting"
+          ],
+          "cites": []
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "decision_id": "fixture-decision-b",
+          "court": "Example Court",
+          "jurisdiction": "Example Jurisdiction",
+          "decision_at": "2026-01-01T00:00:00Z",
+          "outcome": "Synthetic motion denied",
+          "issue_tags": [
+            "reporting",
+            "procedure"
+          ],
+          "cites": [
+            "fixture-decision-a"
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "SANCTIONSINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:sanctionsint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "record_type": "entry",
+          "list_entry_id": "fixture-list-entry-1",
+          "list_name": "Synthetic Example List",
+          "jurisdiction": "Example Jurisdiction",
+          "program": "Synthetic Program",
+          "subject_name": "Example Research Organization",
+          "aliases": [
+            "Example Research Org"
+          ],
+          "identifiers": {
+            "registration_id": "EXAMPLE-001"
+          },
+          "effective_from": "2025-01-01T00:00:00Z",
+          "effective_until": "2027-01-01T00:00:00Z",
+          "snapshot_at": "2026-10-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "record_type": "subject",
+          "subject_id": "fixture-subject-1",
+          "name": "Example Research Org",
+          "identifiers": {
+            "registration_id": "EXAMPLE-001"
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "GOVINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:govint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "agency": "Example Agency",
+          "program_id": "fixture-program-usd",
+          "budget": 100.1,
+          "spent": 90.05,
+          "currency": "USD",
+          "period_start": "2025-01-01T00:00:00Z",
+          "period_end": "2026-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "agency": "Example Agency",
+          "program_id": "fixture-program-eur",
+          "budget": 200,
+          "spent": 220,
+          "currency": "EUR",
+          "period_start": "2025-01-01T00:00:00Z",
+          "period_end": "2026-01-01T00:00:00Z"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "POLICYINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:policyint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "policy_id": "fixture-policy-1",
+          "deadline": "2027-01-01T00:00:00Z",
+          "objectives": [
+            {
+              "objective_id": "objective-a",
+              "text": "Reduce synthetic review delay."
+            },
+            {
+              "objective_id": "objective-b",
+              "text": "Improve synthetic evidence coverage."
+            }
+          ],
+          "measures": [
+            {
+              "measure_id": "measure-a",
+              "objective_ids": [
+                "objective-a"
+              ]
+            },
+            {
+              "measure_id": "measure-b",
+              "objective_ids": [
+                "objective-b"
+              ]
+            }
+          ],
+          "metrics": [
+            {
+              "metric_id": "delay",
+              "baseline": 100,
+              "target": 80,
+              "direction": "decrease",
+              "current": 90,
+              "observed_at": "2026-10-01T00:00:00Z"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "DIPLOINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:diploint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "event_id": "fixture-meeting",
+          "timestamp": "2026-09-01T00:00:00Z",
+          "actor": "Example State A",
+          "counterparty": "Example State B",
+          "relation": "meeting"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "event_id": "fixture-agreement",
+          "timestamp": "2026-09-10T00:00:00Z",
+          "actor": "Example State B",
+          "counterparty": "Example State A",
+          "relation": "agreement"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "NGOINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:ngoint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "organization_id": "fixture-ngo-1",
+          "name": "Example Research Organization",
+          "reporting_year": 2025,
+          "income": 100,
+          "program_expense": 70,
+          "admin_expense": 20,
+          "fundraising_expense": 5,
+          "currency": "USD",
+          "reported_total_expense": 95
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "EDUINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:eduint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "institution_id": "fixture-institution-1",
+          "program_id": "fixture-program-1",
+          "accreditation_body": "Example Accreditation Body",
+          "accreditation_status": "accredited",
+          "valid_from": "2025-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z",
+          "qualification_level": "Synthetic degree level"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "PATENTINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:patentint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "publication_number": "FIXTURE-PUB-A",
+          "application_number": "FIXTURE-APP-A",
+          "family_id": "fixture-family-1",
+          "jurisdiction": "Example Jurisdiction",
+          "filing_date": "2024-02-01",
+          "priority_date": "2024-01-01",
+          "publication_date": "2025-02-01",
+          "claims": [
+            "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+          ],
+          "inventors": [
+            "Avery Example"
+          ],
+          "legal_status": "Unverified synthetic assertion"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "publication_number": "FIXTURE-PUB-B",
+          "application_number": "FIXTURE-APP-B",
+          "family_id": "fixture-family-1",
+          "jurisdiction": "Example Jurisdiction",
+          "filing_date": "2024-02-02",
+          "priority_date": "2024-01-01",
+          "publication_date": "2025-02-02",
+          "claims": [
+            "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+          ],
+          "inventors": [
+            "Avery Example",
+            "Riley Example"
+          ],
+          "legal_status": "Unverified synthetic assertion"
+        }
+      }
+    ],
+    "parameters": {
+      "similarity_threshold": 0.5
+    }
+  },
+  "IPRINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:iprint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "record_type": "license",
+          "license_id": "fixture-license-1",
+          "asset_id": "fixture-document-1",
+          "permissions": [
+            {
+              "action": "copy",
+              "territories": [
+                "US"
+              ]
+            }
+          ],
+          "prohibitions": [
+            "resell"
+          ],
+          "conditions": [
+            "attribution"
+          ],
+          "valid_from": "2025-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "record_type": "usage",
+          "usage_id": "fixture-use-1",
+          "asset_id": "fixture-document-1",
+          "license_id": "fixture-license-1",
+          "action": "copy",
+          "territory": "US",
+          "conditions_satisfied": [
+            "attribution"
+          ],
+          "when": "2026-10-01T00:00:00Z"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "STANDARDSINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:standardsint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "record_type": "requirement",
+          "standard_id": "FIXTURE-STANDARD",
+          "version": "1.0",
+          "requirement_id": "requirement-1",
+          "text": "Synthetic review requires an evidence capture record.",
+          "mandatory": true
+        }
+      },
+      {
+        "record_id": "R2",
+        "source_id": "S1",
+        "data": {
+          "record_type": "evidence",
+          "artifact_id": "fixture-evidence-1",
+          "description": "Synthetic audit-test metadata.",
+          "collected_at": "2026-10-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      },
+      {
+        "record_id": "R3",
+        "source_id": "S1",
+        "data": {
+          "record_type": "control",
+          "control_id": "fixture-control-1",
+          "standard_id": "FIXTURE-STANDARD",
+          "version": "1.0",
+          "requirement_ids": [
+            "requirement-1"
+          ],
+          "evidence_record_ids": [
+            "R2"
+          ],
+          "implemented": true,
+          "test_result": "pass"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "RNDINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:rndint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "project_id": "fixture-rnd-1",
+          "hypothesis": "Supplied treatment samples have a higher observed success rate.",
+          "experiments": [
+            {
+              "experiment_id": "experiment-a",
+              "control_n": 10,
+              "treatment_n": 10,
+              "control_successes": 4,
+              "treatment_successes": 8
+            },
+            {
+              "experiment_id": "experiment-b",
+              "control_n": 10,
+              "treatment_n": 10,
+              "control_successes": 3,
+              "treatment_successes": 5
+            }
+          ],
+          "minimum_effect": 0.1
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "INNOVATIONINT": {
+    "sources": [
+      {
+        "source_id": "S1",
+        "uri": "urn:traceatlas:synthetic:innovationint"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "R1",
+        "source_id": "S1",
+        "data": {
+          "innovation_id": "fixture-innovation-1",
+          "title": "Synthetic evidence review prototype",
+          "readiness_level": 2,
+          "readiness_evidence": [
+            {
+              "level": 1,
+              "description": "Supplied statement of observed basic principles.",
+              "record_ids": [
+                "R1"
+              ]
+            },
+            {
+              "level": 2,
+              "description": "Supplied concept formulation record.",
+              "record_ids": [
+                "R1"
+              ]
+            }
+          ],
+          "milestones": [
+            {
+              "milestone_id": "prototype-review",
+              "completed": false,
+              "due_at": "2026-12-01T00:00:00Z"
+            }
+          ],
+          "dependencies": []
+        }
+      }
+    ],
+    "parameters": {}
+  }
+}

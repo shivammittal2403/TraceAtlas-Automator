@@ -113,6 +113,28 @@ class DisciplineContractTests(unittest.TestCase):
         self.assertEqual(output["metrics"]["finding_reports_suppressed"], 100)
         self.assertGreater(output["metrics"]["issue_reports_suppressed"], 0)
 
+    def test_amplified_output_retains_bounded_evidence_linked_partial_result(self):
+        context = make_context(fixture(), evidence_ids=("evidence-input",))
+        for index in range(30):
+            context.finding("large_" + str(index), "Large submitted derived field.", ["r1"],
+                            {"text": "x" * 100000})
+        result = context.output(artifacts={"large": ["y" * 100000 for _ in range(30)]})
+        self.assertLess(len(__import__("json").dumps(result).encode()), 2 * 1024 * 1024)
+        self.assertTrue(result["metrics"]["output_budget"]["artifact_fields_omitted"])
+        self.assertGreater(result["metrics"]["output_budget"]["findings_omitted"], 0)
+        self.assertIn("output_budget_exhausted", {issue["code"] for issue in result["issues"]})
+        for finding in result["findings"]:
+            self.assertEqual(finding["canonical_evidence_ids"], ["evidence-input"])
+            self.assertEqual(finding["record_ids"], ["r1"])
+
+    def test_derived_arrays_are_clipped_with_explicit_budget_metadata(self):
+        context = make_context(fixture())
+        context.finding("large_array", "Large derived row set.", ["r1"], {"rows": list(range(750))})
+        result = context.output()
+        self.assertEqual(len(result["findings"][0]["data"]["rows"]), 500)
+        self.assertGreater(result["metrics"]["output_budget"]["structures_truncated"], 0)
+        self.assertIn("derived_data_truncated", {issue["code"] for issue in result["issues"]})
+
     def test_actual_dns_engine_completes_canonical_case_lifecycle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
