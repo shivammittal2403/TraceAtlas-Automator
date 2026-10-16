@@ -32,6 +32,33 @@ KNOWN_VENDOR_SAMPLES = {
     "vendor_sources/anthropic_cybersecurity_skills/skills/testing-for-sensitive-data-exposure/references/api-reference.md": "f10e1d9dacbff59ca936fca16938faf17d6a4bbc16632919163d33535f4d3279",
 }
 
+# Only explicitly reviewed public training examples from the immutable upstream tree.
+# Any changed byte invalidates a pin and must be reviewed again. No directory-wide exclusions.
+KNOWN_VENDOR_SAMPLES.update({
+    "integrations/traceatlas-agentic-skills-library/docs/maintainers/full-repo-audit-2026-05-23.md": "e11922219e9aa7371ec0eab6deb6c0a91256118ff117e52cf94b64e8b7b58e3e",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/argocd-gitops/SKILL.md": "b1100bb899a6f0ebefed4cc2dd6cbde9cb637b084e1c9258deffb7a68edf3489",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/cloud-iam-deep/SKILL.md": "0efa5e2f8211b0b024e202b2dc10141ca3cc3dd49ad767fcdec75c3fe60f9c56",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/comfyui-gateway/references/integration.md": "ada39508446ca392b2d52b5c3e353e9d7c6d30d8d2be78c80234d383c474ce9a",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/offensive-osint/references/helpers-and-automation.md": "33afbf50ffe66ab4183133d0a97f542796aaf7003ba0565720536634c71e1f2a",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/offensive-osint/references/secret-patterns.md": "6215d215a7d13be433db27bbd82e873b28e8403260e68a5c9c225aecb1a3f592",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills-claude/skills/rclone-cli/references/providers/sftp.md": "cb8965104586336e45100c6f738906823406ac35b99d508a26cbb1076b3e3ddc",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/argocd-gitops/SKILL.md": "b1100bb899a6f0ebefed4cc2dd6cbde9cb637b084e1c9258deffb7a68edf3489",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/cloud-iam-deep/SKILL.md": "0efa5e2f8211b0b024e202b2dc10141ca3cc3dd49ad767fcdec75c3fe60f9c56",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/comfyui-gateway/references/integration.md": "ada39508446ca392b2d52b5c3e353e9d7c6d30d8d2be78c80234d383c474ce9a",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/offensive-osint/references/helpers-and-automation.md": "33afbf50ffe66ab4183133d0a97f542796aaf7003ba0565720536634c71e1f2a",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/offensive-osint/references/secret-patterns.md": "6215d215a7d13be433db27bbd82e873b28e8403260e68a5c9c225aecb1a3f592",
+    "integrations/traceatlas-agentic-skills-library/plugins/agentic-awesome-skills/skills/rclone-cli/references/providers/sftp.md": "cb8965104586336e45100c6f738906823406ac35b99d508a26cbb1076b3e3ddc",
+    "integrations/traceatlas-agentic-skills-library/skills/argocd-gitops/SKILL.md": "b1100bb899a6f0ebefed4cc2dd6cbde9cb637b084e1c9258deffb7a68edf3489",
+    "integrations/traceatlas-agentic-skills-library/skills/cloud-iam-deep/SKILL.md": "0efa5e2f8211b0b024e202b2dc10141ca3cc3dd49ad767fcdec75c3fe60f9c56",
+    "integrations/traceatlas-agentic-skills-library/skills/comfyui-gateway/references/integration.md": "ada39508446ca392b2d52b5c3e353e9d7c6d30d8d2be78c80234d383c474ce9a",
+    "integrations/traceatlas-agentic-skills-library/skills/offensive-osint/references/helpers-and-automation.md": "33afbf50ffe66ab4183133d0a97f542796aaf7003ba0565720536634c71e1f2a",
+    "integrations/traceatlas-agentic-skills-library/skills/offensive-osint/references/secret-patterns.md": "6215d215a7d13be433db27bbd82e873b28e8403260e68a5c9c225aecb1a3f592",
+    "integrations/traceatlas-agentic-skills-library/skills/openclaw-local-mac-mini/SKILL.md": "4d1ee8bdb74caeec3915e598a3c2a9d77cb95b3450250f2d950eb9513651917b",
+    "integrations/traceatlas-agentic-skills-library/skills/rclone-cli/references/providers/sftp.md": "cb8965104586336e45100c6f738906823406ac35b99d508a26cbb1076b3e3ddc",
+    "integrations/traceatlas-agentic-skills-library/tools/scripts/tests/docs_security_content.test.js": "ae2fe326cc75f0428169827613c2d11f7683de4cc1f162e4f8cd76edcfc7815c",
+    "integrations/traceatlas-agentic-skills-library/tools/scripts/tests/test_skill_scanner_report_boundaries.py": "0bc1b3070da343779411e6e1b1bf4f59339220c40409ad69f0f9b6ab18d9b0e6",
+})
+
 SKIP_PREFIXES = {("third_party", "opencti-connectors")}
 PATTERNS = {
     "GitHub token": re.compile(rb"(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})"),
