@@ -24,7 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: false
+      - name: Fetch established runtime submodules only
+        run: |
+          git submodule update --init --recursive -- \
+            third_party/opencti-connectors \
+            third_party/spiderfoot \
+            third_party/recon-ng \
+            third_party/recon-ng-marketplace \
+            third_party/theHarvester \
+            third_party/OSINT-SPY \
+            third_party/Mr.Holmes
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
