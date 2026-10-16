@@ -1,0 +1,57 @@
+{
+  "schema": "traceatlas.local-ai-employee.profile.v1",
+  "name": "TraceAtlas Autonomous Research Employee",
+  "purpose": "Case-scoped research, verified retrieval, attributed relationship graph, local Ollama tool decisions",
+  "runtime": {
+    "console": "http://127.0.0.1:8765/agent",
+    "ollama": "http://127.0.0.1:11434",
+    "max_steps": 5,
+    "max_tool_chars": 6000,
+    "max_document_chars": 32768,
+    "model_default": "qwen2.5:7b",
+    "model_required": false
+  },
+  "governance": {
+    "human_case_approval": true,
+    "tools_read_only": true,
+    "workspace_isolation": true,
+    "third_party_skill_execution": false,
+    "arbitrary_shell": false,
+    "arbitrary_network": false,
+    "provider_keys_not_exposed_to_model": true,
+    "verified_evidence_only": false,
+    "source_collection_requires_existing_authorized_pipeline": true
+  },
+  "tools": [
+    {
+      "name": "rag.search",
+      "parameter": "query",
+      "type": "read-only"
+    },
+    {
+      "name": "graph.neighbors",
+      "parameter": "entity",
+      "type": "read-only"
+    },
+    {
+      "name": "skills.search",
+      "parameter": "query",
+      "type": "read-only"
+    },
+    {
+      "name": "osint.sources",
+      "parameter": "query",
+      "type": "read-only"
+    },
+    {
+      "name": "skills.inspect",
+      "parameter": "ref",
+      "type": "read-only"
+    }
+  ],
+  "boundaries": [
+    "Model may select tools only from explicit analyst allowlist.",
+    "A model-generated claim is advisory; user-supplied evidence is not independently verified.",
+    "An external skill is documentation until a reviewed TraceAtlas-native adapter is activated."
+  ]
+}
