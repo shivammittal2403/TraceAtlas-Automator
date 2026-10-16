@@ -20,7 +20,7 @@ SKIP_DIRS = {
 KNOWN_VENDOR_SAMPLES = {
     "vendor_sources/anthropic_cybersecurity_skills/skills/deploying-ransomware-canary-files/scripts/agent.py": "70626a4f30e74d9a58519a1431a788c1fab7725c77bd4e18941f22f8c26e101d",
     "vendor_sources/anthropic_cybersecurity_skills/skills/detecting-aws-credential-exposure-with-trufflehog/references/api-reference.md": "5f513515e35a92c800c303d8489c3e28ec745197a12ac3ef64ebab5376fd98e0",
-    "vendor_sources/anthropic_cybersecurity_skills/skills/detecting-aws-credential-exposure-with-trufflehog/SKILL.md": "aafe742fca6245cdaaf75366e6a1f3a20661efe324bf952a641",
+    "vendor_sources/anthropic_cybersecurity_skills/skills/detecting-aws-credential-exposure-with-trufflehog/SKILL.md": "aafe742fca6245cdaaf75366e6a1f3a2062ecc70727150661efe324bf952a641",
     "vendor_sources/anthropic_cybersecurity_skills/skills/detecting-compromised-cloud-credentials/references/api-reference.md": "7636302b9d9b4e634e02bc0479b45171adf66f832755b974fa63b6dc6162dd8e",
     "vendor_sources/anthropic_cybersecurity_skills/skills/detecting-cryptomining-in-cloud/SKILL.md": "401b2b47c9c753aa2d2e9344a49cb69818dd3d40fd6369ab10b1fa7f220d8611",
     "vendor_sources/anthropic_cybersecurity_skills/skills/implementing-canary-tokens-for-network-intrusion/SKILL.md": "91478d919212791e38629117928269803ec605801a59aa3c356a753364aef71c",
