@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-innovationint",
+  "discipline": "INNOVATIONINT",
+  "objective": "Analyze supplied synthetic INNOVATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "INNOVATIONINT-S1",
+      "uri": "urn:traceatlas:synthetic:innovationint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "INNOVATIONINT-R1",
+      "source_id": "INNOVATIONINT-S1",
+      "data": {
+        "innovation_id": "fixture-innovation-1",
+        "title": "Synthetic evidence review prototype",
+        "readiness_level": 2,
+        "readiness_evidence": [
+          {
+            "level": 1,
+            "description": "Supplied statement of observed basic principles.",
+            "record_ids": [
+              "INNOVATIONINT-R1"
+            ]
+          },
+          {
+            "level": 2,
+            "description": "Supplied concept formulation record.",
+            "record_ids": [
+              "INNOVATIONINT-R1"
+            ]
+          }
+        ],
+        "milestones": [
+          {
+            "milestone_id": "prototype-review",
+            "completed": false,
+            "due_at": "2026-12-01T00:00:00Z"
+          }
+        ],
+        "dependencies": []
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,37 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cloudint",
+  "discipline": "CLOUDINT",
+  "objective": "Analyze supplied synthetic CLOUDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CLOUDINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CLOUDINT-R1",
+      "source_id": "CLOUDINT-S1",
+      "data": {
+        "resource_id": "bucket-fixture",
+        "public_access": true,
+        "encrypted": false,
+        "logging_enabled": true,
+        "statements": [
+          {
+            "effect": "Allow",
+            "actions": [
+              "storage:*"
+            ],
+            "resources": [
+              "*"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-icsint",
+  "discipline": "ICSINT",
+  "objective": "Analyze supplied synthetic ICSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ICSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ICSINT-R1",
+      "source_id": "ICSINT-S1",
+      "data": {
+        "kind": "threshold",
+        "asset_id": "A",
+        "tag": "pressure",
+        "unit": "bar",
+        "low": 0,
+        "high": 10
+      }
+    },
+    {
+      "record_id": "ICSINT-R2",
+      "source_id": "ICSINT-S1",
+      "data": {
+        "kind": "process_sample",
+        "asset_id": "A",
+        "tag": "pressure",
+        "unit": "bar",
+        "value": 11,
+        "quality": "BAD"
+      }
+    },
+    {
+      "record_id": "ICSINT-R3",
+      "source_id": "ICSINT-S1",
+      "data": {
+        "kind": "command",
+        "command_id": "C",
+        "approved": false
+      }
+    }
+  ],
+  "parameters": {}
+}

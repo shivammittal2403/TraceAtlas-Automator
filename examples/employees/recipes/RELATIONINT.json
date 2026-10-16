@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-relationint",
+  "discipline": "RELATIONINT",
+  "objective": "Analyze supplied synthetic RELATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "RELATIONINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "RELATIONINT-R1",
+      "source_id": "RELATIONINT-S1",
+      "data": {
+        "subject_id": "S",
+        "predicate": "employed_by",
+        "object_id": "O",
+        "negated": false,
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_to": "2026-01-10T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "RELATIONINT-R2",
+      "source_id": "RELATIONINT-S1",
+      "data": {
+        "subject_id": "S",
+        "predicate": "employed_by",
+        "object_id": "O",
+        "negated": true,
+        "valid_from": "2026-01-05T00:00:00Z",
+        "valid_to": "2026-01-12T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

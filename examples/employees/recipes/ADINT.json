@@ -1,0 +1,31 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-adint",
+  "discipline": "ADINT",
+  "objective": "Analyze supplied synthetic ADINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ADINT-S1",
+      "uri": "urn:synthetic:fraud:adint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ADINT-R1",
+      "source_id": "ADINT-S1",
+      "data": {
+        "ad_id": "A",
+        "period_start": "2026-01-01T00:00:00Z",
+        "period_end": "2026-01-02T00:00:00Z",
+        "spend": "12.00",
+        "currency": "EUR",
+        "impressions": 100,
+        "clicks": 120,
+        "conversions": 130,
+        "count_basis": "UNIQUE_USERS"
+      }
+    }
+  ],
+  "parameters": {}
+}

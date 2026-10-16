@@ -190,3 +190,8 @@ SMTP, person/phone and active-scanning paths, so automatic execution is
 disabled. No live provider calls, full runtime integration of all third-party
 modules, performance parity or production deployment has been verified.
 See docs/integrations/THREE_OSINT_FRAMEWORKS.md.
+
+
+## Extreme Recon 45 source catalog (2026-10-16)
+
+The user supplied 45 tools/services: 33 additional GitHub gitlink sources at exact commits, 1 previously vendored theHarvester, 1 GitLab nrich source without a verified full SHA, 10 external web/API services. Native TraceAtlas ToolSpecs already cover 13 of the named tools. New source pins do not grant execution permission or production validation. Large optional submodules are not fetched during default CI. See docs/integrations/EXTREME_RECON.md.

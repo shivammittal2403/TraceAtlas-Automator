@@ -1,8 +1,8 @@
 # Dedicated discipline employees
 
 The new employee runtime executes discipline-specific Python analyzers over
-supplied records. The catalog separately reports the requested 140 labels and
-the implemented count. An unimplemented label cannot execute or acquire an
+supplied records. All 140 requested labels have distinct implemented processors. The catalog
+reports the requested and implemented counts from executable handlers. An unimplemented label cannot execute or acquire an
 employee definition. This is separate from the older native-module route catalog.
 
 Install Python 3.10 or newer, then run:
@@ -87,3 +87,8 @@ or findings can be omitted with explicit output_budget counts and PARTIAL status
 Every retained finding keeps its complete canonical record/source references.
 Source identity binds the full processor set and Python version, including shared
 measurement, temporal and graph dependencies.
+
+Every employee has a runnable [input recipe](EMPLOYEE_INPUTS.md). The complete
+synthetic acceptance pack is examples/employees/all140.json. Run it with the
+team command to exercise all140 production processors without external services.
+Downloadable source bundles include all processor code, recipes and semantic tests.

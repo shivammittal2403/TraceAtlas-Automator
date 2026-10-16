@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-deceptionint",
+  "discipline": "DECEPTIONINT",
+  "objective": "Analyze supplied synthetic DECEPTIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DECEPTIONINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DECEPTIONINT-R1",
+      "source_id": "DECEPTIONINT-S1",
+      "data": {
+        "kind": "assertion",
+        "subject_id": "S",
+        "field": "color",
+        "snapshot_id": "Q",
+        "value": "red"
+      }
+    },
+    {
+      "record_id": "DECEPTIONINT-R2",
+      "source_id": "DECEPTIONINT-S1",
+      "data": {
+        "kind": "observation",
+        "subject_id": "S",
+        "field": "color",
+        "snapshot_id": "Q",
+        "value": "blue"
+      }
+    }
+  ],
+  "parameters": {}
+}

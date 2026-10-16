@@ -1,0 +1,62 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-transportint",
+  "discipline": "TRANSPORTINT",
+  "objective": "Analyze supplied synthetic TRANSPORTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TRANSPORTINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TRANSPORTINT-r1",
+      "source_id": "TRANSPORTINT-s1",
+      "data": {
+        "stops": [
+          {
+            "stop_id": "stop-a"
+          },
+          {
+            "stop_id": "stop-b"
+          },
+          {
+            "stop_id": "stop-c"
+          }
+        ],
+        "services": [
+          {
+            "service_id": "synthetic-train",
+            "from": "stop-a",
+            "to": "stop-b",
+            "departure": "2026-10-14T10:00:00Z",
+            "arrival": "2026-10-14T11:00:00Z"
+          },
+          {
+            "service_id": "synthetic-bus-early",
+            "from": "stop-b",
+            "to": "stop-c",
+            "departure": "2026-10-14T11:05:00Z",
+            "arrival": "2026-10-14T11:30:00Z"
+          },
+          {
+            "service_id": "synthetic-bus-late",
+            "from": "stop-b",
+            "to": "stop-c",
+            "departure": "2026-10-14T11:15:00Z",
+            "arrival": "2026-10-14T12:00:00Z"
+          }
+        ],
+        "journey": {
+          "origin": "stop-a",
+          "destination": "stop-c",
+          "earliest_departure": "2026-10-14T09:00:00Z",
+          "minimum_transfer_minutes": 10
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

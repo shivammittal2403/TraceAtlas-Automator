@@ -1,0 +1,74 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-hypothesisint",
+  "discipline": "HYPOTHESISINT",
+  "objective": "Analyze supplied synthetic HYPOTHESISINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "HYPOTHESISINT-s1",
+      "uri": "urn:synthetic:s1"
+    },
+    {
+      "source_id": "HYPOTHESISINT-s2",
+      "uri": "urn:synthetic:s2",
+      "original_source_id": "HYPOTHESISINT-synthetic-origin-a"
+    },
+    {
+      "source_id": "HYPOTHESISINT-s3",
+      "uri": "urn:synthetic:s3",
+      "original_source_id": "HYPOTHESISINT-synthetic-origin-b"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "HYPOTHESISINT-r1",
+      "source_id": "HYPOTHESISINT-s1",
+      "data": {
+        "hypotheses": [
+          {
+            "id": "hypothesis-a",
+            "statement": "First synthetic explanation"
+          },
+          {
+            "id": "hypothesis-b",
+            "statement": "Second synthetic explanation"
+          }
+        ],
+        "evidence": [
+          {
+            "record_id": "HYPOTHESISINT-r2",
+            "weight": 0.7,
+            "assessments": {
+              "hypothesis-a": "supports",
+              "hypothesis-b": "refutes"
+            }
+          },
+          {
+            "record_id": "HYPOTHESISINT-r3",
+            "weight": 0.4,
+            "assessments": {
+              "hypothesis-a": "unknown",
+              "hypothesis-b": "supports"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "HYPOTHESISINT-r2",
+      "source_id": "HYPOTHESISINT-s2",
+      "data": {
+        "observation": "Synthetic first observation"
+      }
+    },
+    {
+      "record_id": "HYPOTHESISINT-r3",
+      "source_id": "HYPOTHESISINT-s3",
+      "data": {
+        "observation": "Synthetic second observation"
+      }
+    }
+  ],
+  "parameters": {}
+}

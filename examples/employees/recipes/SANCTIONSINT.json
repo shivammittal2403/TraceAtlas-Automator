@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-sanctionsint",
+  "discipline": "SANCTIONSINT",
+  "objective": "Analyze supplied synthetic SANCTIONSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SANCTIONSINT-S1",
+      "uri": "urn:traceatlas:synthetic:sanctionsint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SANCTIONSINT-R1",
+      "source_id": "SANCTIONSINT-S1",
+      "data": {
+        "record_type": "entry",
+        "list_entry_id": "fixture-list-entry-1",
+        "list_name": "Synthetic Example List",
+        "jurisdiction": "Example Jurisdiction",
+        "program": "Synthetic Program",
+        "subject_name": "Example Research Organization",
+        "aliases": [
+          "Example Research Org"
+        ],
+        "identifiers": {
+          "registration_id": "EXAMPLE-001"
+        },
+        "effective_from": "2025-01-01T00:00:00Z",
+        "effective_until": "2027-01-01T00:00:00Z",
+        "snapshot_at": "2026-10-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "SANCTIONSINT-R2",
+      "source_id": "SANCTIONSINT-S1",
+      "data": {
+        "record_type": "subject",
+        "subject_id": "fixture-subject-1",
+        "name": "Example Research Org",
+        "identifiers": {
+          "registration_id": "EXAMPLE-001"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

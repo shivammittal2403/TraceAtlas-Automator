@@ -1,0 +1,46 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-socmint",
+  "discipline": "SOCMINT",
+  "objective": "Analyze supplied synthetic SOCMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SOCMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SOCMINT-R1",
+      "source_id": "SOCMINT-S1",
+      "data": {
+        "platform": "fixture",
+        "post_id": "P",
+        "author_id": "A",
+        "text": "Hello #News"
+      }
+    },
+    {
+      "record_id": "SOCMINT-R2",
+      "source_id": "SOCMINT-S1",
+      "data": {
+        "platform": "fixture",
+        "post_id": "P",
+        "author_id": "A",
+        "text": "Different #News"
+      }
+    },
+    {
+      "record_id": "SOCMINT-R3",
+      "source_id": "SOCMINT-S1",
+      "data": {
+        "platform": "fixture",
+        "post_id": "P2",
+        "author_id": "B",
+        "text": "HELLO #news"
+      }
+    }
+  ],
+  "parameters": {}
+}

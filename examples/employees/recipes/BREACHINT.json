@@ -1,0 +1,43 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-breachint",
+  "discipline": "BREACHINT",
+  "objective": "Analyze supplied synthetic BREACHINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "BREACHINT-S1",
+      "uri": "urn:synthetic:fraud:breachint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "BREACHINT-R1",
+      "source_id": "BREACHINT-S1",
+      "data": {
+        "notice_id": "N1",
+        "organization_id": "O",
+        "incident_id": "I",
+        "disclosed_at": "2026-01-05T00:00:00Z",
+        "incident_end": "2026-01-01T00:00:00Z",
+        "affected_records": 100,
+        "data_classes": [
+          "EMAIL_METADATA"
+        ]
+      }
+    },
+    {
+      "record_id": "BREACHINT-R2",
+      "source_id": "BREACHINT-S1",
+      "data": {
+        "notice_id": "N2",
+        "organization_id": "O",
+        "incident_id": "I",
+        "disclosed_at": "2026-01-05T00:00:00Z",
+        "incident_end": "2026-01-01T00:00:00Z",
+        "affected_records": 200
+      }
+    }
+  ],
+  "parameters": {}
+}

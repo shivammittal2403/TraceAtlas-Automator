@@ -1,0 +1,57 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-standardsint",
+  "discipline": "STANDARDSINT",
+  "objective": "Analyze supplied synthetic STANDARDSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "STANDARDSINT-S1",
+      "uri": "urn:traceatlas:synthetic:standardsint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "STANDARDSINT-R1",
+      "source_id": "STANDARDSINT-S1",
+      "data": {
+        "record_type": "requirement",
+        "standard_id": "FIXTURE-STANDARD",
+        "version": "1.0",
+        "requirement_id": "requirement-1",
+        "text": "Synthetic review requires an evidence capture record.",
+        "mandatory": true
+      }
+    },
+    {
+      "record_id": "STANDARDSINT-R2",
+      "source_id": "STANDARDSINT-S1",
+      "data": {
+        "record_type": "evidence",
+        "artifact_id": "fixture-evidence-1",
+        "description": "Synthetic audit-test metadata.",
+        "collected_at": "2026-10-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "STANDARDSINT-R3",
+      "source_id": "STANDARDSINT-S1",
+      "data": {
+        "record_type": "control",
+        "control_id": "fixture-control-1",
+        "standard_id": "FIXTURE-STANDARD",
+        "version": "1.0",
+        "requirement_ids": [
+          "requirement-1"
+        ],
+        "evidence_record_ids": [
+          "STANDARDSINT-R2"
+        ],
+        "implemented": true,
+        "test_result": "pass"
+      }
+    }
+  ],
+  "parameters": {}
+}

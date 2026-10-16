@@ -1,0 +1,52 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-jobint",
+  "discipline": "JOBINT",
+  "objective": "Analyze supplied synthetic JOBINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "JOBINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "JOBINT-R1",
+      "source_id": "JOBINT-S1",
+      "data": {
+        "posting_id": "j",
+        "employer_id": "org",
+        "role": "Engineer",
+        "skills": [
+          "Python",
+          "PYTHON",
+          "SQL"
+        ],
+        "currency": "INR",
+        "pay_period": "year",
+        "pay_min": "100",
+        "pay_max": "200"
+      }
+    },
+    {
+      "record_id": "JOBINT-R2",
+      "source_id": "JOBINT-S1",
+      "data": {
+        "posting_id": "j",
+        "employer_id": "org",
+        "role": "Engineer",
+        "skills": [
+          "Python",
+          "PYTHON",
+          "SQL"
+        ],
+        "currency": "INR",
+        "pay_period": "year",
+        "pay_min": "100",
+        "pay_max": "200"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,31 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-hostint",
+  "discipline": "HOSTINT",
+  "objective": "Analyze supplied synthetic HOSTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "HOSTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "HOSTINT-R1",
+      "source_id": "HOSTINT-S1",
+      "data": {
+        "host_id": "host-1",
+        "ports": [
+          22,
+          443
+        ],
+        "approved_ports": [
+          443
+        ],
+        "support_ends": "2026-10-01"
+      }
+    }
+  ],
+  "parameters": {}
+}

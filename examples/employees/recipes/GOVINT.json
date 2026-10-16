@@ -1,0 +1,42 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-govint",
+  "discipline": "GOVINT",
+  "objective": "Analyze supplied synthetic GOVINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "GOVINT-S1",
+      "uri": "urn:traceatlas:synthetic:govint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "GOVINT-R1",
+      "source_id": "GOVINT-S1",
+      "data": {
+        "agency": "Example Agency",
+        "program_id": "fixture-program-usd",
+        "budget": 100.1,
+        "spent": 90.05,
+        "currency": "USD",
+        "period_start": "2025-01-01T00:00:00Z",
+        "period_end": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "GOVINT-R2",
+      "source_id": "GOVINT-S1",
+      "data": {
+        "agency": "Example Agency",
+        "program_id": "fixture-program-eur",
+        "budget": 200,
+        "spent": 220,
+        "currency": "EUR",
+        "period_start": "2025-01-01T00:00:00Z",
+        "period_end": "2026-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

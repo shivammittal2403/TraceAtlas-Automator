@@ -1,0 +1,32 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-finint",
+  "discipline": "FININT",
+  "objective": "Analyze supplied synthetic FININT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "FININT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "FININT-R1",
+      "source_id": "FININT-S1",
+      "data": {
+        "entity_id": "org",
+        "period": "2026",
+        "currency": "INR",
+        "assets": "100.10",
+        "liabilities": "40.03",
+        "equity": "60.07",
+        "revenue": "200",
+        "operating_profit": "50",
+        "current_assets": "30",
+        "current_liabilities": "10"
+      }
+    }
+  ],
+  "parameters": {}
+}

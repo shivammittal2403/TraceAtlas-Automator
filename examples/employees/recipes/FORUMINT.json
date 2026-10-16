@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-forumint",
+  "discipline": "FORUMINT",
+  "objective": "Analyze supplied synthetic FORUMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "FORUMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "FORUMINT-R1",
+      "source_id": "FORUMINT-S1",
+      "data": {
+        "thread_id": "T",
+        "post_id": "P1",
+        "author_id": "A",
+        "parent_post_id": "P2",
+        "posted_at": "2026-01-02T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "FORUMINT-R2",
+      "source_id": "FORUMINT-S1",
+      "data": {
+        "thread_id": "T",
+        "post_id": "P2",
+        "author_id": "B",
+        "parent_post_id": "P1",
+        "posted_at": "2026-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

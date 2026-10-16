@@ -1,0 +1,32 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-dfirint",
+  "discipline": "DFIRINT",
+  "objective": "Analyze supplied synthetic DFIRINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DFIRINT-S1",
+      "uri": "urn:traceatlas:synthetic:dfirint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DFIRINT-R1",
+      "source_id": "DFIRINT-S1",
+      "data": {
+        "artifact_id": "fixture-artifact-1",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "claimed_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "path": "fixture-capture.bin",
+        "size_bytes": 42,
+        "timestamps": {
+          "created": "2026-09-29T00:00:00Z",
+          "modified": "2026-09-30T00:00:00Z",
+          "collected": "2026-10-01T00:00:00Z"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

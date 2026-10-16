@@ -1,0 +1,36 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-tlsint",
+  "discipline": "TLSINT",
+  "objective": "Analyze supplied synthetic TLSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TLSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TLSINT-R1",
+      "source_id": "TLSINT-S1",
+      "data": {
+        "version": "TLSv1.1",
+        "cipher": "ECDHE-RSA-RC4-SHA"
+      }
+    },
+    {
+      "record_id": "TLSINT-R2",
+      "source_id": "TLSINT-S1",
+      "data": {
+        "version": "TLS1.3",
+        "cipher": "TLS_AES_256_GCM_SHA384",
+        "server_name": "a.example.org",
+        "certificate_dns_names": [
+          "*.example.org"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

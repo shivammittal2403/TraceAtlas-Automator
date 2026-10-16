@@ -1,0 +1,42 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-archiveint",
+  "discipline": "ARCHIVEINT",
+  "objective": "Analyze supplied synthetic ARCHIVEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ARCHIVEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ARCHIVEINT-R1",
+      "source_id": "ARCHIVEINT-S1",
+      "data": {
+        "cdx": [
+          [
+            "timestamp",
+            "original",
+            "statuscode",
+            "digest"
+          ],
+          [
+            "20261012000000",
+            "https://example.org/",
+            "200",
+            "A"
+          ],
+          [
+            "20261014000000",
+            "https://example.org/",
+            "200",
+            "B"
+          ]
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

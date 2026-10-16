@@ -3,6 +3,9 @@ name: Dedicated discipline employees
 on:
   pull_request:
     paths:
+      - 'EMPLOYEES PYTHON.py'
+      - 'scripts/build_employee_bundle.py'
+      - 'EMPLOYEE_INPUTS.md'
       - 'src/traceatlas/workforce/**'
       - 'src/traceatlas/osint_taxonomy.py'
       - 'tests/test_discipline*.py'
@@ -56,3 +59,15 @@ jobs:
           python -c "import json; r=json.load(open('employee-dns.json')); assert r['metrics']['cname_cycles']==1; assert r['model_calls']==0"
       - name: Existing workforce regression
         run: python -m unittest discover -s tests -p test_ai_workforce.py -v
+
+      - name: Build the complete downloadable employee source bundle
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: |
+          python scripts/build_employee_bundle.py --output artifacts/TraceAtlas_Employees_All140.zip
+      - uses: actions/upload-artifact@v7
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        with:
+          name: TraceAtlas_Employees_All140
+          path: artifacts/TraceAtlas_Employees_All140.zip
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,25 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-mobileint",
+  "discipline": "MOBILEINT",
+  "objective": "Analyze supplied synthetic MOBILEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MOBILEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MOBILEINT-R1",
+      "source_id": "MOBILEINT-S1",
+      "data": {
+        "kind": "mobile_manifest",
+        "platform": "android",
+        "content": "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"synthetic.fixture\"><uses-sdk android:targetSdkVersion=\"33\"/><uses-permission android:name=\"android.permission.CAMERA\"/><application android:debuggable=\"true\" android:usesCleartextTraffic=\"true\"><activity android:name=\".Fixture\" android:exported=\"true\"/></application></manifest>"
+      }
+    }
+  ],
+  "parameters": {}
+}

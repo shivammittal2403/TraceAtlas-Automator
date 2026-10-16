@@ -1,0 +1,43 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-ownershipint",
+  "discipline": "OWNERSHIPINT",
+  "objective": "Analyze supplied synthetic OWNERSHIPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "OWNERSHIPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "OWNERSHIPINT-R1",
+      "source_id": "OWNERSHIPINT-S1",
+      "data": {
+        "owner_id": "a",
+        "entity_id": "b",
+        "percent": "60"
+      }
+    },
+    {
+      "record_id": "OWNERSHIPINT-R2",
+      "source_id": "OWNERSHIPINT-S1",
+      "data": {
+        "owner_id": "b",
+        "entity_id": "c",
+        "percent": "50"
+      }
+    },
+    {
+      "record_id": "OWNERSHIPINT-R3",
+      "source_id": "OWNERSHIPINT-S1",
+      "data": {
+        "owner_id": "c",
+        "entity_id": "a",
+        "percent": "10"
+      }
+    }
+  ],
+  "parameters": {}
+}

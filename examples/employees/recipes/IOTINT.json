@@ -1,0 +1,48 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-iotint",
+  "discipline": "IOTINT",
+  "objective": "Analyze supplied synthetic IOTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IOTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IOTINT-R1",
+      "source_id": "IOTINT-S1",
+      "data": {
+        "kind": "device",
+        "device_id": "D",
+        "firmware_version": "1",
+        "support_until": "2025-12-31",
+        "secure_boot": false,
+        "updates_signed": false,
+        "telemetry_max_age_seconds": 60
+      }
+    },
+    {
+      "record_id": "IOTINT-R2",
+      "source_id": "IOTINT-S1",
+      "data": {
+        "kind": "firmware",
+        "device_id": "D",
+        "version": "2",
+        "released_at": "2025-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "IOTINT-R3",
+      "source_id": "IOTINT-S1",
+      "data": {
+        "kind": "telemetry",
+        "device_id": "D",
+        "timestamp": "2026-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

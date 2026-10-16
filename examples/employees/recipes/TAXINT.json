@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-taxint",
+  "discipline": "TAXINT",
+  "objective": "Analyze supplied synthetic TAXINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TAXINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TAXINT-R1",
+      "source_id": "TAXINT-S1",
+      "data": {
+        "statement_id": "s",
+        "currency": "INR",
+        "lines": [
+          {
+            "line_id": "1",
+            "base": "10.05",
+            "rate_fraction": "0.10",
+            "declared_tax": "1.01"
+          },
+          {
+            "line_id": "2",
+            "base": "10.15",
+            "rate_fraction": "0.10",
+            "declared_tax": "1.02"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

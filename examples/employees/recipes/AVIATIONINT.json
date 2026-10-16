@@ -1,0 +1,37 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-aviationint",
+  "discipline": "AVIATIONINT",
+  "objective": "Analyze supplied synthetic AVIATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "AVIATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "AVIATIONINT-r1",
+      "source_id": "AVIATIONINT-s1",
+      "data": {
+        "aircraft": {
+          "icao24": "abc123",
+          "registration": "VT-ABC"
+        },
+        "flights": [
+          {
+            "flight_id": "synthetic-flight",
+            "off_block": "2026-10-14T09:00:00Z",
+            "takeoff": "2026-10-14T09:10:00Z",
+            "landing": "2026-10-14T11:50:00Z",
+            "on_block": "2026-10-14T12:00:00Z",
+            "scheduled_departure": "2026-10-14T08:55:00Z",
+            "scheduled_arrival": "2026-10-14T11:55:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

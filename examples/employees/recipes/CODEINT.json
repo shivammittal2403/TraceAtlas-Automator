@@ -1,0 +1,25 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-codeint",
+  "discipline": "CODEINT",
+  "objective": "Analyze supplied synthetic CODEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CODEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CODEINT-R1",
+      "source_id": "CODEINT-S1",
+      "data": {
+        "kind": "source_file",
+        "path": "fixture.py",
+        "content": "import subprocess\npassword = \"SYNTHETIC_LITERAL_ONLY\"\nsubprocess.run([\"echo\", \"fixture\"], shell=True)\ndef sample():\n    return 1\n"
+      }
+    }
+  ],
+  "parameters": {}
+}

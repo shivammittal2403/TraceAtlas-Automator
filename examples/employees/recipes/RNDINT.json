@@ -1,0 +1,41 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-rndint",
+  "discipline": "RNDINT",
+  "objective": "Analyze supplied synthetic RNDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "RNDINT-S1",
+      "uri": "urn:traceatlas:synthetic:rndint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "RNDINT-R1",
+      "source_id": "RNDINT-S1",
+      "data": {
+        "project_id": "fixture-rnd-1",
+        "hypothesis": "Supplied treatment samples have a higher observed success rate.",
+        "experiments": [
+          {
+            "experiment_id": "experiment-a",
+            "control_n": 10,
+            "treatment_n": 10,
+            "control_successes": 4,
+            "treatment_successes": 8
+          },
+          {
+            "experiment_id": "experiment-b",
+            "control_n": 10,
+            "treatment_n": 10,
+            "control_successes": 3,
+            "treatment_successes": 5
+          }
+        ],
+        "minimum_effect": 0.1
+      }
+    }
+  ],
+  "parameters": {}
+}

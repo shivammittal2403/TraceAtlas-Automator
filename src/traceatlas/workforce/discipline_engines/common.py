@@ -72,7 +72,7 @@ def _bounded_output(value, truncations, depth=0):
     if isinstance(value, dict):
         if any(type(key) is not str for key in value):
             raise ValueError("Output objects require string keys")
-        items = list(value.items())
+        items = sorted(value.items())
         if len(items) > MAX_RECORDS:
             truncations[0] += 1
         return {key: _bounded_output(item, truncations, depth + 1)
@@ -220,6 +220,12 @@ class AnalysisContext:
         self._findings_suppressed = 0
         self._issues_suppressed = 0
         self._structures_truncated = 0
+        self._issue_reports_pruned = 0
+        self._output_budget = {
+            "structures_truncated": 0, "artifact_fields_omitted": 0,
+            "findings_omitted": 0, "issue_reports_omitted": 0,
+            "metric_fields_omitted": 0, "limitation_reports_omitted": 0,
+        }
 
     def finding(self, kind: str, summary: str, record_ids: Iterable[str],
                 data: dict | None = None) -> dict:
@@ -280,6 +286,9 @@ class AnalysisContext:
         for limit in limits:
             text(limit, "limitation", maximum=4000)
         metrics = deepcopy(metrics or {})
+        # Budget metadata is owned by this context, never by a family result or
+        # a caller replaying a prior output through the kernel's second pass.
+        metrics.pop("output_budget", None)
         if self._issues_suppressed:
             metrics["issue_reports_suppressed"] = self._issues_suppressed
         if self._findings_suppressed:
@@ -287,35 +296,44 @@ class AnalysisContext:
         truncations = [0]
         artifacts = _bounded_output(deepcopy(artifacts or {}), truncations)
         metrics = _bounded_output(metrics, truncations)
-        limits = limits[:500]
         if truncations[0]:
             self._structures_truncated += truncations[0]
             self.issue(None, "derived_data_truncated", "Derived data structures exceeded the bounded output contract.")
-        previous_budget = metrics.get("output_budget", {})
-        if not isinstance(previous_budget, dict):
-            previous_budget = {}
-        def previous_count(key):
-            value = previous_budget.get(key, 0)
-            return value if type(value) is int and value >= 0 else 0
-        budget = {"structures_truncated": self._structures_truncated,
-                  "artifact_fields_omitted": previous_count("artifact_fields_omitted"),
-                  "findings_omitted": previous_count("findings_omitted"),
-                  "issue_reports_omitted": max(self._issues_suppressed, previous_count("issue_reports_omitted")),
-                  "metric_fields_omitted": previous_count("metric_fields_omitted"),
-                  "limitation_reports_omitted": previous_count("limitation_reports_omitted")}
+        budget = self._output_budget
+        if len(limits) > MAX_RECORDS:
+            budget["limitation_reports_omitted"] += len(limits) - MAX_RECORDS
+            limits = limits[:MAX_RECORDS]
+            self.issue(None, "limitations_truncated", "Additional limitation reports exceeded the bounded output contract.")
         result = {"findings": self.findings, "issues": self.issues,
                   "metrics": metrics, "artifacts": artifacts, "limitations": limits}
         limit = MAX_BYTES - 16384
-        if self._structures_truncated:
+
+        def sync_budget():
+            budget["structures_truncated"] = self._structures_truncated
+            budget["issue_reports_omitted"] = self._issues_suppressed + self._issue_reports_pruned
+
+        def attach_budget():
+            # Reserve a key before inserting metadata into a full metric map.
+            while "output_budget" not in metrics and len(metrics) >= MAX_RECORDS:
+                metrics.pop(max(metrics))
+                budget["metric_fields_omitted"] += 1
+                self.issue(None, "metric_budget_exhausted", "Derived metric fields were omitted to preserve trusted output budget metadata.")
             metrics["output_budget"] = budget
+            sync_budget()
+
         def size():
+            sync_budget()
             return len(canonical(result).encode("utf-8"))
+
+        sync_budget()
+        if any(budget.values()):
+            attach_budget()
         if size() > limit:
             self.issue(None, "output_budget_exhausted",
                        "Derived output was omitted to retain a bounded partial result; preserved input references remain available.")
-            metrics["output_budget"] = budget
+            attach_budget()
             while artifacts and size() > limit:
-                artifacts.pop(next(reversed(artifacts)))
+                artifacts.pop(max(artifacts))
                 budget["artifact_fields_omitted"] += 1
             while self.findings and size() > limit:
                 # Remove a bounded block proportional to excess, avoiding one
@@ -326,14 +344,15 @@ class AnalysisContext:
                 budget["findings_omitted"] += remove
             while len(self.issues) > 1 and size() > limit:
                 self.issues.pop(-2)
-                budget["issue_reports_omitted"] += 1
+                self._issue_reports_pruned += 1
             while len(metrics) > 1 and size() > limit:
-                key = next(key for key in reversed(metrics) if key != "output_budget")
+                key = max(key for key in metrics if key != "output_budget")
                 metrics.pop(key)
                 budget["metric_fields_omitted"] += 1
             while limits and size() > limit:
                 limits.pop()
                 budget["limitation_reports_omitted"] += 1
+        sync_budget()
         _json(result)
         if size() > limit:
             raise ValueError("Employee output cannot fit its bounded result envelope")

@@ -1,0 +1,32 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-sigint",
+  "discipline": "SIGINT",
+  "objective": "Analyze supplied synthetic SIGINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SIGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SIGINT-R1",
+      "source_id": "SIGINT-S1",
+      "data": {
+        "center_frequency_hz": 1000,
+        "bandwidth_hz": 100,
+        "sample_rate_hz": 150,
+        "samples": [
+          0,
+          2,
+          -2,
+          0
+        ],
+        "occupancy_threshold": 1
+      }
+    }
+  ],
+  "parameters": {}
+}

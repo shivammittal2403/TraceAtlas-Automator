@@ -1,0 +1,23 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-sentimentint",
+  "discipline": "SENTIMENTINT",
+  "objective": "Analyze supplied synthetic SENTIMENTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SENTIMENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SENTIMENTINT-R1",
+      "source_id": "SENTIMENTINT-S1",
+      "data": {
+        "text": "not very good but excellent"
+      }
+    }
+  ],
+  "parameters": {}
+}

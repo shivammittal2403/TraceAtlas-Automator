@@ -1,0 +1,68 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-supplychainint",
+  "discipline": "SUPPLYCHAININT",
+  "objective": "Analyze supplied synthetic SUPPLYCHAININT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SUPPLYCHAININT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SUPPLYCHAININT-r1",
+      "source_id": "SUPPLYCHAININT-s1",
+      "data": {
+        "nodes": [
+          {
+            "id": "product"
+          },
+          {
+            "id": "component"
+          },
+          {
+            "id": "raw"
+          },
+          {
+            "id": "vendor-a"
+          },
+          {
+            "id": "vendor-b"
+          }
+        ],
+        "root_ids": [
+          "product"
+        ],
+        "edges": [
+          {
+            "from": "product",
+            "to": "component",
+            "lead_time_days": 2
+          },
+          {
+            "from": "component",
+            "to": "raw",
+            "lead_time_days": 3
+          },
+          {
+            "from": "vendor-a",
+            "to": "component",
+            "relation": "supplies",
+            "lead_time_days": 1,
+            "share": 0.6
+          },
+          {
+            "from": "vendor-b",
+            "to": "component",
+            "relation": "supplies",
+            "lead_time_days": 1,
+            "share": 0.4
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

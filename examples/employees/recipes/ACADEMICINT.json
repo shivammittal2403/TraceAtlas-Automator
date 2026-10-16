@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-academicint",
+  "discipline": "ACADEMICINT",
+  "objective": "Analyze supplied synthetic ACADEMICINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ACADEMICINT-S1",
+      "uri": "urn:traceatlas:synthetic:academicint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ACADEMICINT-R1",
+      "source_id": "ACADEMICINT-S1",
+      "data": {
+        "paper_id": "fixture-paper-a",
+        "title": "Synthetic Study of Evidence Review",
+        "doi": "https://doi.org/10.5555/traceatlas.fixture.a",
+        "year": 2025,
+        "authors": [
+          "Avery Example",
+          "Riley Example"
+        ],
+        "references": [
+          "10.5555/traceatlas.fixture.b"
+        ],
+        "retracted": false
+      }
+    },
+    {
+      "record_id": "ACADEMICINT-R2",
+      "source_id": "ACADEMICINT-S1",
+      "data": {
+        "paper_id": "fixture-paper-b",
+        "title": "Synthetic Bibliographic Reference",
+        "doi": "10.5555/traceatlas.fixture.b",
+        "year": 2024,
+        "authors": [
+          "Riley Example"
+        ],
+        "references": [],
+        "retracted": false
+      }
+    }
+  ],
+  "parameters": {}
+}

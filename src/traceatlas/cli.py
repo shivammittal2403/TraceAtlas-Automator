@@ -184,6 +184,10 @@ def parser() -> argparse.ArgumentParser:
 
     integrations = sub.add_parser("integrations", help="Manage external OSINT/recon tool adapters")
     int_sub = integrations.add_subparsers(dest="integration_command", required=True)
+    int_extreme = int_sub.add_parser("extreme", help="List 45 sourced reconnaissance tools")
+    int_extreme.add_argument("--json", action="store_true")
+    int_extreme.add_argument("--query", default="")
+    int_extreme.add_argument("--kind", choices=["github_gitlink", "existing_vendor", "external_git_unpinned", "external_service"])
     int_list = int_sub.add_parser("list", help="List supported tools and installation state")
     int_list.add_argument("--json", action="store_true")
     int_list.add_argument("--installed", action="store_true")
@@ -971,7 +975,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps({"output": str(path), "format": args.format}))
         elif args.command == "integrations":
             runner = IntegrationRunner(engine.db, args.workspace)
-            if args.integration_command == "list":
+            if args.integration_command == "extreme":
+                from .integrations.extreme_recon import inventory as extreme_inventory, summary as extreme_summary
+                entries = extreme_inventory(query=args.query, kind=args.kind)
+                if args.json:
+                    print(json.dumps({"summary": extreme_summary(), "entries": entries}, indent=2))
+                else:
+                    for item in entries:
+                        print(f'{item["id"]:18} {item["source_kind"]:23} {item["execution_status"]}')
+            elif args.integration_command == "list":
                 rows = runner.inventory()
                 if args.installed:
                     rows = [row for row in rows if row["installed"]]

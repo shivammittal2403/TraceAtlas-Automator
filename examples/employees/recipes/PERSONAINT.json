@@ -1,0 +1,37 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-personaint",
+  "discipline": "PERSONAINT",
+  "objective": "Analyze supplied synthetic PERSONAINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PERSONAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PERSONAINT-R1",
+      "source_id": "PERSONAINT-S1",
+      "data": {
+        "kind": "persona",
+        "persona_id": "P",
+        "account_id": "A",
+        "claimed_role": "Engineer",
+        "active_from": "2026-01-02T00:00:00Z",
+        "active_to": "2026-01-04T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "PERSONAINT-R2",
+      "source_id": "PERSONAINT-S1",
+      "data": {
+        "kind": "activity",
+        "account_id": "A",
+        "activity_at": "2026-01-01T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

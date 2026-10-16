@@ -1,0 +1,64 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-devint",
+  "discipline": "DEVINT",
+  "objective": "Analyze supplied synthetic DEVINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DEVINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DEVINT-R1",
+      "source_id": "DEVINT-S1",
+      "data": {
+        "kind": "contribution",
+        "developer_id": "A",
+        "repository_id": "R",
+        "contribution_id": "C1"
+      }
+    },
+    {
+      "record_id": "DEVINT-R2",
+      "source_id": "DEVINT-S1",
+      "data": {
+        "kind": "contribution",
+        "developer_id": "A",
+        "repository_id": "R",
+        "contribution_id": "C2"
+      }
+    },
+    {
+      "record_id": "DEVINT-R3",
+      "source_id": "DEVINT-S1",
+      "data": {
+        "kind": "contribution",
+        "developer_id": "B",
+        "repository_id": "R",
+        "contribution_id": "C3"
+      }
+    },
+    {
+      "record_id": "DEVINT-R4",
+      "source_id": "DEVINT-S1",
+      "data": {
+        "kind": "release",
+        "repository_id": "R",
+        "released_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "DEVINT-R5",
+      "source_id": "DEVINT-S1",
+      "data": {
+        "kind": "release",
+        "repository_id": "R",
+        "released_at": "2026-01-06T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

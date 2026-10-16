@@ -1,0 +1,39 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-vidint",
+  "discipline": "VIDINT",
+  "objective": "Analyze supplied synthetic VIDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "VIDINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "VIDINT-r1",
+      "source_id": "VIDINT-s1",
+      "data": {
+        "duration": 3,
+        "fps": 1,
+        "sampling": "complete",
+        "frames": [
+          {
+            "timestamp": 0,
+            "dhash": "0000000000000000"
+          },
+          {
+            "timestamp": 1,
+            "dhash": "0000000000000000"
+          },
+          {
+            "timestamp": 2,
+            "dhash": "ffffffffffffffff"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

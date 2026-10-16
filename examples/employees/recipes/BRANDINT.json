@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-brandint",
+  "discipline": "BRANDINT",
+  "objective": "Analyze supplied synthetic BRANDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "BRANDINT-S1",
+      "uri": "urn:synthetic:fraud:brandint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "BRANDINT-R1",
+      "source_id": "BRANDINT-S1",
+      "data": {
+        "kind": "official_brand",
+        "brand_id": "B",
+        "name": "Brand",
+        "domains": [
+          "brand.test"
+        ]
+      }
+    },
+    {
+      "record_id": "BRANDINT-R2",
+      "source_id": "BRANDINT-S1",
+      "data": {
+        "kind": "mention",
+        "brand_id": "B",
+        "display_name": "BRAND",
+        "domain": "bramd.test"
+      }
+    }
+  ],
+  "parameters": {}
+}

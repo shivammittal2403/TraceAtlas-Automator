@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-provenanceint",
+  "discipline": "PROVENANCEINT",
+  "objective": "Analyze supplied synthetic PROVENANCEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PROVENANCEINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PROVENANCEINT-r1",
+      "source_id": "PROVENANCEINT-s1",
+      "data": {
+        "artifact_id": "artifact-a",
+        "content_text": "abc",
+        "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      }
+    },
+    {
+      "record_id": "PROVENANCEINT-r2",
+      "source_id": "PROVENANCEINT-s1",
+      "data": {
+        "artifact_id": "artifact-b",
+        "content_text": "derived synthetic text",
+        "transformation": "declared-render",
+        "parents": [
+          {
+            "artifact_id": "artifact-a",
+            "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

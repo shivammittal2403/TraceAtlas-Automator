@@ -1,0 +1,25 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-ttpint",
+  "discipline": "TTPINT",
+  "objective": "Analyze supplied synthetic TTPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TTPINT-S1",
+      "uri": "urn:traceatlas:synthetic:ttpint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TTPINT-R1",
+      "source_id": "TTPINT-S1",
+      "data": {
+        "technique_id": "T1059.001",
+        "procedure": "Synthetic report asserts a command interpreter invocation in a lab.",
+        "attack_version": "16.1"
+      }
+    }
+  ],
+  "parameters": {}
+}

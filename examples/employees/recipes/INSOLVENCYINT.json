@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-insolvencyint",
+  "discipline": "INSOLVENCYINT",
+  "objective": "Analyze supplied synthetic INSOLVENCYINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "INSOLVENCYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "INSOLVENCYINT-R1",
+      "source_id": "INSOLVENCYINT-S1",
+      "data": {
+        "proceeding_id": "p",
+        "entity_id": "e",
+        "jurisdiction": "IN",
+        "event_at": "2026-01-01",
+        "status": "filed"
+      }
+    },
+    {
+      "record_id": "INSOLVENCYINT-R2",
+      "source_id": "INSOLVENCYINT-S1",
+      "data": {
+        "proceeding_id": "p",
+        "entity_id": "e",
+        "jurisdiction": "IN",
+        "event_at": "2026-09-01",
+        "status": "closed"
+      }
+    },
+    {
+      "record_id": "INSOLVENCYINT-R3",
+      "source_id": "INSOLVENCYINT-S1",
+      "data": {
+        "proceeding_id": "p",
+        "entity_id": "e",
+        "jurisdiction": "IN",
+        "event_at": "2026-09-01",
+        "status": "open"
+      }
+    }
+  ],
+  "parameters": {}
+}

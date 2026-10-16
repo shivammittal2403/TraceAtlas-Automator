@@ -1,0 +1,31 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-ngoint",
+  "discipline": "NGOINT",
+  "objective": "Analyze supplied synthetic NGOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "NGOINT-S1",
+      "uri": "urn:traceatlas:synthetic:ngoint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "NGOINT-R1",
+      "source_id": "NGOINT-S1",
+      "data": {
+        "organization_id": "fixture-ngo-1",
+        "name": "Example Research Organization",
+        "reporting_year": 2025,
+        "income": 100,
+        "program_expense": 70,
+        "admin_expense": 20,
+        "fundraising_expense": 5,
+        "currency": "USD",
+        "reported_total_expense": 95
+      }
+    }
+  ],
+  "parameters": {}
+}

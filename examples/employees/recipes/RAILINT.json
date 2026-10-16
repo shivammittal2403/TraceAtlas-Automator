@@ -1,0 +1,46 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-railint",
+  "discipline": "RAILINT",
+  "objective": "Analyze supplied synthetic RAILINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "RAILINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "RAILINT-r1",
+      "source_id": "RAILINT-s1",
+      "data": {
+        "trip_id": "synthetic-rail",
+        "service_date": "2026-10-13",
+        "timezone_offset": "+05:30",
+        "stops": [
+          {
+            "stop_id": "station-a",
+            "sequence": 1,
+            "departure": "23:50:00",
+            "distance_km": 0
+          },
+          {
+            "stop_id": "station-b",
+            "sequence": 2,
+            "arrival": "24:10:00",
+            "departure": "24:15:00",
+            "distance_km": 20
+          },
+          {
+            "stop_id": "station-c",
+            "sequence": 3,
+            "arrival": "25:00:00",
+            "distance_km": 50
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

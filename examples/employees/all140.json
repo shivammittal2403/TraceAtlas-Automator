@@ -1,0 +1,5204 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "team-all140-examples",
+  "objective": "Analyze meaningful supplied synthetic records using all140 dedicated employees",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ACADEMICINT-S1",
+      "uri": "urn:traceatlas:synthetic:academicint"
+    },
+    {
+      "source_id": "ADDRESSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "ADINT-S1",
+      "uri": "urn:synthetic:fraud:adint"
+    },
+    {
+      "source_id": "APIINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "APPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "ARCHIVEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "ASNINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "ASSETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "AUDINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "AVIATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "BGPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "BRANDINT-S1",
+      "uri": "urn:synthetic:fraud:brandint"
+    },
+    {
+      "source_id": "BREACHINT-S1",
+      "uri": "urn:synthetic:fraud:breachint"
+    },
+    {
+      "source_id": "CAMPAIGNINT-S1",
+      "uri": "urn:traceatlas:synthetic:campaignint"
+    },
+    {
+      "source_id": "CDNINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CERTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CICDINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CLOUDINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CODEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "COMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "COMPETITORINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "COMPLAINTINT-S1",
+      "uri": "urn:synthetic:fraud:complaintint"
+    },
+    {
+      "source_id": "CONTRACTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CONTRADICTIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "CONTRADICTIONINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    },
+    {
+      "source_id": "CORPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CORROBORATIONINT-s1",
+      "uri": "urn:synthetic:s1",
+      "original_source_id": "CORROBORATIONINT-synthetic-origin-a"
+    },
+    {
+      "source_id": "CORROBORATIONINT-s2",
+      "uri": "urn:synthetic:s2",
+      "original_source_id": "CORROBORATIONINT-synthetic-origin-b"
+    },
+    {
+      "source_id": "CREDINT-S1",
+      "uri": "urn:synthetic:fraud:credint"
+    },
+    {
+      "source_id": "CRYPTOINT-S1",
+      "uri": "urn:synthetic:fraud:cryptoint"
+    },
+    {
+      "source_id": "CTI-S1",
+      "uri": "urn:traceatlas:synthetic:cti",
+      "original_source_id": "CTI-declared-original-report"
+    },
+    {
+      "source_id": "CTI-S2",
+      "uri": "urn:traceatlas:synthetic:cti:republication",
+      "original_source_id": "CTI-declared-original-report"
+    },
+    {
+      "source_id": "CUSTOMERINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CWEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "CYBINT-S1",
+      "uri": "urn:traceatlas:synthetic:cybint"
+    },
+    {
+      "source_id": "DATASETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DECEPTIONINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DEPENDENCYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DETECTIONINT-S1",
+      "uri": "urn:traceatlas:synthetic:detectionint"
+    },
+    {
+      "source_id": "DEVINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DFIRINT-S1",
+      "uri": "urn:traceatlas:synthetic:dfirint"
+    },
+    {
+      "source_id": "DIPLOINT-S1",
+      "uri": "urn:traceatlas:synthetic:diploint"
+    },
+    {
+      "source_id": "DISINFOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DNSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DOCINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "DOMAININT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "DORKINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "EDUINT-S1",
+      "uri": "urn:traceatlas:synthetic:eduint"
+    },
+    {
+      "source_id": "ELINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "EMAILINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "EVENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "EXPLOITINT-S1",
+      "uri": "urn:traceatlas:synthetic:exploitint"
+    },
+    {
+      "source_id": "EXPOSUREINT-S1",
+      "uri": "urn:synthetic:fraud:exposureint"
+    },
+    {
+      "source_id": "FALSIFICATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "FININT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "FORUMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "FRAUDINT-S1",
+      "uri": "urn:synthetic:fraud:fraudint"
+    },
+    {
+      "source_id": "GEOINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "GOVINT-S1",
+      "uri": "urn:traceatlas:synthetic:govint"
+    },
+    {
+      "source_id": "HOSTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "HUMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "HUNTINT-S1",
+      "uri": "urn:traceatlas:synthetic:huntint"
+    },
+    {
+      "source_id": "HYPOTHESISINT-s1",
+      "uri": "urn:synthetic:s1"
+    },
+    {
+      "source_id": "HYPOTHESISINT-s2",
+      "uri": "urn:synthetic:s2",
+      "original_source_id": "HYPOTHESISINT-synthetic-origin-a"
+    },
+    {
+      "source_id": "HYPOTHESISINT-s3",
+      "uri": "urn:synthetic:s3",
+      "original_source_id": "HYPOTHESISINT-synthetic-origin-b"
+    },
+    {
+      "source_id": "ICSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "IDENTITYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "IMINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "IMINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    },
+    {
+      "source_id": "INCIDENTINT-S1",
+      "uri": "urn:traceatlas:synthetic:incidentint"
+    },
+    {
+      "source_id": "INFRAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "INNOVATIONINT-S1",
+      "uri": "urn:traceatlas:synthetic:innovationint"
+    },
+    {
+      "source_id": "INSOLVENCYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "IOCINT-S1",
+      "uri": "urn:traceatlas:synthetic:iocint"
+    },
+    {
+      "source_id": "IOTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "IPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "IPRINT-S1",
+      "uri": "urn:traceatlas:synthetic:iprint"
+    },
+    {
+      "source_id": "JOBINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "LANGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "LEGALINT-S1",
+      "uri": "urn:traceatlas:synthetic:legalint"
+    },
+    {
+      "source_id": "LOGINT-S1",
+      "uri": "urn:traceatlas:synthetic:logint"
+    },
+    {
+      "source_id": "LOGISTICSINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "MAILINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "MALINT-S1",
+      "uri": "urn:traceatlas:synthetic:malint"
+    },
+    {
+      "source_id": "MARITIMEINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "MARKETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "MARKETPLACEINT-S1",
+      "uri": "urn:synthetic:fraud:marketplaceint"
+    },
+    {
+      "source_id": "MASINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "MEMEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "MESSENGERINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "METADATAINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "MISINFOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "MNAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "MOBILEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "NARRATIVEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "NETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "NETWORKINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "NEWSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "NGOINT-S1",
+      "uri": "urn:traceatlas:synthetic:ngoint"
+    },
+    {
+      "source_id": "ORGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "OSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "OTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "OWNERSHIPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PACKAGEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PATENTINT-S1",
+      "uri": "urn:traceatlas:synthetic:patentint"
+    },
+    {
+      "source_id": "PAYMENTINT-S1",
+      "uri": "urn:synthetic:fraud:paymentint"
+    },
+    {
+      "source_id": "PERSONAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PHONEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "POLICYINT-S1",
+      "uri": "urn:traceatlas:synthetic:policyint"
+    },
+    {
+      "source_id": "PROCUREMENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PROPERTYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PROPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "PROVENANCEINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "RAILINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "REGINT-S1",
+      "uri": "urn:traceatlas:synthetic:regint"
+    },
+    {
+      "source_id": "RELATIONINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "REPOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "REPUTATIONINT-S1",
+      "uri": "urn:synthetic:fraud:reputationint"
+    },
+    {
+      "source_id": "RNDINT-S1",
+      "uri": "urn:traceatlas:synthetic:rndint"
+    },
+    {
+      "source_id": "ROUTEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SANCTIONSINT-S1",
+      "uri": "urn:traceatlas:synthetic:sanctionsint"
+    },
+    {
+      "source_id": "SBOMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SCAMINT-S1",
+      "uri": "urn:synthetic:fraud:scamint"
+    },
+    {
+      "source_id": "SEARCHINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SENTIMENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SIGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SOCMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "SOURCEINT-s1",
+      "uri": "urn:synthetic:s1",
+      "original_source_id": "SOURCEINT-synthetic-wire",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "source_id": "SOURCEINT-s2",
+      "uri": "urn:synthetic:s2",
+      "original_source_id": "SOURCEINT-synthetic-wire",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "source_id": "STANDARDSINT-S1",
+      "uri": "urn:traceatlas:synthetic:standardsint"
+    },
+    {
+      "source_id": "SUPPLYCHAININT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "TAXINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "TECHINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "TEXTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "THREATACTORINT-S1",
+      "uri": "urn:traceatlas:synthetic:threatactorint"
+    },
+    {
+      "source_id": "TIMELINEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "TLSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "TRADEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "TRANSPORTINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "TRUSTINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "TTPINT-S1",
+      "uri": "urn:traceatlas:synthetic:ttpint"
+    },
+    {
+      "source_id": "USERNAMEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    },
+    {
+      "source_id": "VENDORINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "VERIFICATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "VERIFICATIONINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    },
+    {
+      "source_id": "VERIFICATIONINT-s3",
+      "uri": "urn:synthetic:employee-example:s3"
+    },
+    {
+      "source_id": "VIDINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "VULNINT-S1",
+      "uri": "urn:traceatlas:synthetic:vulnint"
+    },
+    {
+      "source_id": "WEBINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "assignments": [
+    {
+      "discipline": "ACADEMICINT",
+      "records": [
+        {
+          "record_id": "ACADEMICINT-R1",
+          "source_id": "ACADEMICINT-S1",
+          "data": {
+            "paper_id": "fixture-paper-a",
+            "title": "Synthetic Study of Evidence Review",
+            "doi": "https://doi.org/10.5555/traceatlas.fixture.a",
+            "year": 2025,
+            "authors": [
+              "Avery Example",
+              "Riley Example"
+            ],
+            "references": [
+              "10.5555/traceatlas.fixture.b"
+            ],
+            "retracted": false
+          }
+        },
+        {
+          "record_id": "ACADEMICINT-R2",
+          "source_id": "ACADEMICINT-S1",
+          "data": {
+            "paper_id": "fixture-paper-b",
+            "title": "Synthetic Bibliographic Reference",
+            "doi": "10.5555/traceatlas.fixture.b",
+            "year": 2024,
+            "authors": [
+              "Riley Example"
+            ],
+            "references": [],
+            "retracted": false
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ADDRESSINT",
+      "records": [
+        {
+          "record_id": "ADDRESSINT-R1",
+          "source_id": "ADDRESSINT-S1",
+          "data": {
+            "address_id": "a",
+            "components": {
+              "line1": " １２ Road ",
+              "city": " DELHI",
+              "country": "IN"
+            }
+          }
+        },
+        {
+          "record_id": "ADDRESSINT-R2",
+          "source_id": "ADDRESSINT-S1",
+          "data": {
+            "address_id": "b",
+            "components": {
+              "line1": "12 road",
+              "city": "delhi",
+              "country": "in"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ADINT",
+      "records": [
+        {
+          "record_id": "ADINT-R1",
+          "source_id": "ADINT-S1",
+          "data": {
+            "ad_id": "A",
+            "period_start": "2026-01-01T00:00:00Z",
+            "period_end": "2026-01-02T00:00:00Z",
+            "spend": "12.00",
+            "currency": "EUR",
+            "impressions": 100,
+            "clicks": 120,
+            "conversions": 130,
+            "count_basis": "UNIQUE_USERS"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "APIINT",
+      "records": [
+        {
+          "record_id": "APIINT-R1",
+          "source_id": "APIINT-S1",
+          "data": {
+            "kind": "openapi",
+            "document": {
+              "openapi": "3.0.3",
+              "components": {
+                "securitySchemes": {
+                  "bearer": {
+                    "type": "http",
+                    "scheme": "bearer"
+                  }
+                }
+              },
+              "security": [
+                {
+                  "bearer": []
+                }
+              ],
+              "paths": {
+                "/items/{id}": {
+                  "get": {
+                    "operationId": "duplicate",
+                    "security": [],
+                    "responses": {}
+                  }
+                },
+                "/health": {
+                  "get": {
+                    "operationId": "duplicate",
+                    "responses": {
+                      "200": {
+                        "description": "ok"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "APPINT",
+      "records": [
+        {
+          "record_id": "APPINT-R1",
+          "source_id": "APPINT-S1",
+          "data": {
+            "kind": "application",
+            "application_id": "A",
+            "version": "1",
+            "public": true,
+            "authentication_required": false,
+            "support_until": "2025-12-31"
+          }
+        },
+        {
+          "record_id": "APPINT-R2",
+          "source_id": "APPINT-S1",
+          "data": {
+            "kind": "route",
+            "application_id": "A",
+            "path": "/public",
+            "method": "get",
+            "public": true,
+            "authentication_required": false
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ARCHIVEINT",
+      "records": [
+        {
+          "record_id": "ARCHIVEINT-R1",
+          "source_id": "ARCHIVEINT-S1",
+          "data": {
+            "cdx": [
+              [
+                "timestamp",
+                "original",
+                "statuscode",
+                "digest"
+              ],
+              [
+                "20261012000000",
+                "https://example.org/",
+                "200",
+                "A"
+              ],
+              [
+                "20261014000000",
+                "https://example.org/",
+                "200",
+                "B"
+              ]
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ASNINT",
+      "records": [
+        {
+          "record_id": "ASNINT-R1",
+          "source_id": "ASNINT-S1",
+          "data": {
+            "asn": "AS64512",
+            "prefixes": [
+              "192.0.2.0/24"
+            ],
+            "organization_id": "org-example"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ASSETINT",
+      "records": [
+        {
+          "record_id": "ASSETINT-R1",
+          "source_id": "ASSETINT-S1",
+          "data": {
+            "asset_id": "a",
+            "serial_id": "s",
+            "currency": "INR",
+            "cost": "100",
+            "salvage": "20",
+            "useful_life_years": "4",
+            "elapsed_years": "2"
+          }
+        },
+        {
+          "record_id": "ASSETINT-R2",
+          "source_id": "ASSETINT-S1",
+          "data": {
+            "asset_id": "b",
+            "serial_id": "s",
+            "currency": "INR",
+            "cost": "100",
+            "salvage": "20",
+            "useful_life_years": "4",
+            "elapsed_years": "8"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "AUDINT",
+      "records": [
+        {
+          "record_id": "AUDINT-r1",
+          "source_id": "AUDINT-s1",
+          "data": {
+            "samples": [
+              0,
+              1,
+              -1,
+              0
+            ],
+            "sample_rate": 4
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "AVIATIONINT",
+      "records": [
+        {
+          "record_id": "AVIATIONINT-r1",
+          "source_id": "AVIATIONINT-s1",
+          "data": {
+            "aircraft": {
+              "icao24": "abc123",
+              "registration": "VT-ABC"
+            },
+            "flights": [
+              {
+                "flight_id": "synthetic-flight",
+                "off_block": "2026-10-14T09:00:00Z",
+                "takeoff": "2026-10-14T09:10:00Z",
+                "landing": "2026-10-14T11:50:00Z",
+                "on_block": "2026-10-14T12:00:00Z",
+                "scheduled_departure": "2026-10-14T08:55:00Z",
+                "scheduled_arrival": "2026-10-14T11:55:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "BGPINT",
+      "records": [
+        {
+          "record_id": "BGPINT-R1",
+          "source_id": "BGPINT-S1",
+          "data": {
+            "prefix": "192.0.2.0/24",
+            "origin_asn": 64496,
+            "as_path": [
+              64497,
+              64496
+            ],
+            "roas": [
+              {
+                "prefix": "192.0.0.0/16",
+                "asn": 64496,
+                "max_length": 24
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "BRANDINT",
+      "records": [
+        {
+          "record_id": "BRANDINT-R1",
+          "source_id": "BRANDINT-S1",
+          "data": {
+            "kind": "official_brand",
+            "brand_id": "B",
+            "name": "Brand",
+            "domains": [
+              "brand.test"
+            ]
+          }
+        },
+        {
+          "record_id": "BRANDINT-R2",
+          "source_id": "BRANDINT-S1",
+          "data": {
+            "kind": "mention",
+            "brand_id": "B",
+            "display_name": "BRAND",
+            "domain": "bramd.test"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "BREACHINT",
+      "records": [
+        {
+          "record_id": "BREACHINT-R1",
+          "source_id": "BREACHINT-S1",
+          "data": {
+            "notice_id": "N1",
+            "organization_id": "O",
+            "incident_id": "I",
+            "disclosed_at": "2026-01-05T00:00:00Z",
+            "incident_end": "2026-01-01T00:00:00Z",
+            "affected_records": 100,
+            "data_classes": [
+              "EMAIL_METADATA"
+            ]
+          }
+        },
+        {
+          "record_id": "BREACHINT-R2",
+          "source_id": "BREACHINT-S1",
+          "data": {
+            "notice_id": "N2",
+            "organization_id": "O",
+            "incident_id": "I",
+            "disclosed_at": "2026-01-05T00:00:00Z",
+            "incident_end": "2026-01-01T00:00:00Z",
+            "affected_records": 200
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CAMPAIGNINT",
+      "records": [
+        {
+          "record_id": "CAMPAIGNINT-R1",
+          "source_id": "CAMPAIGNINT-S1",
+          "data": {
+            "campaign_id": "fixture-campaign-a",
+            "start_at": "2026-09-01T00:00:00Z",
+            "end_at": "2026-09-20T00:00:00Z",
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example[.]org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ]
+          }
+        },
+        {
+          "record_id": "CAMPAIGNINT-R2",
+          "source_id": "CAMPAIGNINT-S1",
+          "data": {
+            "campaign_id": "fixture-campaign-b",
+            "start_at": "2026-09-10T00:00:00Z",
+            "end_at": "2026-09-30T00:00:00Z",
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example.org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CDNINT",
+      "records": [
+        {
+          "record_id": "CDNINT-R1",
+          "source_id": "CDNINT-S1",
+          "data": {
+            "url": "https://example.org/a",
+            "headers": {
+              "Cache-Control": "public, max-age=30, s-maxage=60",
+              "Age": "40",
+              "Vary": "Accept-Encoding",
+              "Set-Cookie": "fixture=1"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CERTINT",
+      "records": [
+        {
+          "record_id": "CERTINT-R1",
+          "source_id": "CERTINT-S1",
+          "data": {
+            "not_before": "2026-01-01T00:00:00Z",
+            "not_after": "2027-01-01T00:00:00Z",
+            "dns_names": [
+              "*.example.org"
+            ],
+            "sha256": "abababababababababababababababababababababababababababababababab",
+            "target": "a.example.org"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CICDINT",
+      "records": [
+        {
+          "record_id": "CICDINT-R1",
+          "source_id": "CICDINT-S1",
+          "data": {
+            "kind": "workflow",
+            "workflow_id": "W",
+            "triggers": [
+              "pull_request_target"
+            ],
+            "permissions": {
+              "contents": "write"
+            },
+            "jobs": [
+              {
+                "job_id": "build",
+                "needs": [
+                  "deploy"
+                ],
+                "steps": [
+                  {
+                    "uses": "actions/checkout@v4",
+                    "with": {
+                      "ref": "${{ github.event.pull_request.head.sha }}"
+                    },
+                    "run": "curl https://example.invalid/fixture | sh"
+                  }
+                ]
+              },
+              {
+                "job_id": "deploy",
+                "needs": [
+                  "build"
+                ],
+                "steps": []
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CLOUDINT",
+      "records": [
+        {
+          "record_id": "CLOUDINT-R1",
+          "source_id": "CLOUDINT-S1",
+          "data": {
+            "resource_id": "bucket-fixture",
+            "public_access": true,
+            "encrypted": false,
+            "logging_enabled": true,
+            "statements": [
+              {
+                "effect": "Allow",
+                "actions": [
+                  "storage:*"
+                ],
+                "resources": [
+                  "*"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CODEINT",
+      "records": [
+        {
+          "record_id": "CODEINT-R1",
+          "source_id": "CODEINT-S1",
+          "data": {
+            "kind": "source_file",
+            "path": "fixture.py",
+            "content": "import subprocess\npassword = \"SYNTHETIC_LITERAL_ONLY\"\nsubprocess.run([\"echo\", \"fixture\"], shell=True)\ndef sample():\n    return 1\n"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "COMINT",
+      "records": [
+        {
+          "record_id": "COMINT-R1",
+          "source_id": "COMINT-S1",
+          "data": {
+            "channel": "fixture",
+            "message_id": "M1",
+            "sender_id": "A",
+            "recipient_ids": [
+              "B"
+            ],
+            "sent_at": "2026-01-01T00:00:01Z"
+          }
+        },
+        {
+          "record_id": "COMINT-R2",
+          "source_id": "COMINT-S1",
+          "data": {
+            "channel": "fixture",
+            "message_id": "M2",
+            "sender_id": "A",
+            "recipient_ids": [
+              "B"
+            ],
+            "sent_at": "2026-01-01T00:00:02Z"
+          }
+        },
+        {
+          "record_id": "COMINT-R3",
+          "source_id": "COMINT-S1",
+          "data": {
+            "channel": "fixture",
+            "message_id": "M1",
+            "sender_id": "C",
+            "recipient_ids": [
+              "B"
+            ],
+            "sent_at": "2026-01-01T00:00:03Z"
+          }
+        }
+      ],
+      "parameters": {
+        "burst_messages_per_minute": 1
+      }
+    },
+    {
+      "discipline": "COMPETITORINT",
+      "records": [
+        {
+          "record_id": "COMPETITORINT-R1",
+          "source_id": "COMPETITORINT-S1",
+          "data": {
+            "product_id": "a",
+            "cohort_id": "c",
+            "features": [
+              "one",
+              "two"
+            ]
+          }
+        },
+        {
+          "record_id": "COMPETITORINT-R2",
+          "source_id": "COMPETITORINT-S1",
+          "data": {
+            "product_id": "b",
+            "cohort_id": "c",
+            "features": [
+              "two",
+              "three"
+            ]
+          }
+        },
+        {
+          "record_id": "COMPETITORINT-R3",
+          "source_id": "COMPETITORINT-S1",
+          "data": {
+            "product_id": "x",
+            "cohort_id": "different",
+            "features": [
+              "one"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "COMPLAINTINT",
+      "records": [
+        {
+          "record_id": "COMPLAINTINT-R1",
+          "source_id": "COMPLAINTINT-S1",
+          "data": {
+            "complaint_id": "C",
+            "opened_at": "2026-01-01T00:00:00Z",
+            "status": "OPEN",
+            "category": "DELIVERY"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CONTRACTINT",
+      "records": [
+        {
+          "record_id": "CONTRACTINT-R1",
+          "source_id": "CONTRACTINT-S1",
+          "data": {
+            "contract_id": "c",
+            "currency": "INR",
+            "amount": "100",
+            "starts_at": "2026-01-01",
+            "ends_at": "2026-12-31",
+            "payments": [
+              {
+                "due_at": "2026-02-01",
+                "amount": "20"
+              },
+              {
+                "due_at": "2027-01-01",
+                "amount": "70"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CONTRADICTIONINT",
+      "records": [
+        {
+          "record_id": "CONTRADICTIONINT-r1",
+          "source_id": "CONTRADICTIONINT-s1",
+          "data": {
+            "subject": "synthetic-asset",
+            "predicate": "state",
+            "value": "active",
+            "cardinality": "one"
+          }
+        },
+        {
+          "record_id": "CONTRADICTIONINT-r2",
+          "source_id": "CONTRADICTIONINT-s2",
+          "data": {
+            "subject": "synthetic-asset",
+            "predicate": "state",
+            "value": "closed",
+            "cardinality": "one"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CORPINT",
+      "records": [
+        {
+          "record_id": "CORPINT-R1",
+          "source_id": "CORPINT-S1",
+          "data": {
+            "jurisdiction": "in",
+            "registry_id": "R",
+            "name": " Example   Ltd ",
+            "status": "active"
+          }
+        },
+        {
+          "record_id": "CORPINT-R2",
+          "source_id": "CORPINT-S1",
+          "data": {
+            "jurisdiction": "IN",
+            "registry_id": "R",
+            "name": "Example Ltd",
+            "status": "closed"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CORROBORATIONINT",
+      "records": [
+        {
+          "record_id": "CORROBORATIONINT-r1",
+          "source_id": "CORROBORATIONINT-s1",
+          "data": {
+            "claim_id": "synthetic-claim",
+            "stance": "support"
+          }
+        },
+        {
+          "record_id": "CORROBORATIONINT-r2",
+          "source_id": "CORROBORATIONINT-s2",
+          "data": {
+            "claim_id": "synthetic-claim",
+            "stance": "support"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CREDINT",
+      "records": [
+        {
+          "record_id": "CREDINT-R1",
+          "source_id": "CREDINT-S1",
+          "data": {
+            "credential_id": "C1",
+            "account_id": "A1",
+            "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "last_rotated_at": "2025-01-01T00:00:00Z",
+            "expires_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "CREDINT-R2",
+          "source_id": "CREDINT-S1",
+          "data": {
+            "credential_id": "C2",
+            "account_id": "A2",
+            "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CRYPTOINT",
+      "records": [
+        {
+          "record_id": "CRYPTOINT-R1",
+          "source_id": "CRYPTOINT-S1",
+          "data": {
+            "chain": "ethereum",
+            "transfer_id": "X1",
+            "asset": "ETH",
+            "from_address": "0x1111111111111111111111111111111111111111",
+            "to_address": "0x2222222222222222222222222222222222222222",
+            "amount": "1.25",
+            "status": "CONFIRMED",
+            "timestamp": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "CRYPTOINT-R2",
+          "source_id": "CRYPTOINT-S1",
+          "data": {
+            "chain": "ethereum",
+            "transfer_id": "X2",
+            "asset": "ETH",
+            "from_address": "0x2222222222222222222222222222222222222222",
+            "to_address": "0x1111111111111111111111111111111111111111",
+            "amount": "1.25",
+            "status": "CONFIRMED",
+            "timestamp": "2026-01-01T01:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CTI",
+      "records": [
+        {
+          "record_id": "CTI-R1",
+          "source_id": "CTI-S1",
+          "data": {
+            "report_id": "report-1",
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example[.]org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ],
+            "published_at": "2026-09-01T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z",
+            "verdict": "suspicious"
+          }
+        },
+        {
+          "record_id": "CTI-R2",
+          "source_id": "CTI-S2",
+          "data": {
+            "report_id": "report-2",
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example.org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ],
+            "published_at": "2026-09-02T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z",
+            "verdict": "suspicious"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CUSTOMERINT",
+      "records": [
+        {
+          "record_id": "CUSTOMERINT-R1",
+          "source_id": "CUSTOMERINT-S1",
+          "data": {
+            "customer_id": "a",
+            "period": "p1",
+            "currency": "INR",
+            "revenue": "10"
+          }
+        },
+        {
+          "record_id": "CUSTOMERINT-R2",
+          "source_id": "CUSTOMERINT-S1",
+          "data": {
+            "customer_id": "b",
+            "period": "p1",
+            "currency": "INR",
+            "revenue": "10"
+          }
+        },
+        {
+          "record_id": "CUSTOMERINT-R3",
+          "source_id": "CUSTOMERINT-S1",
+          "data": {
+            "customer_id": "a",
+            "period": "p2",
+            "currency": "INR",
+            "revenue": "30"
+          }
+        },
+        {
+          "record_id": "CUSTOMERINT-R4",
+          "source_id": "CUSTOMERINT-S1",
+          "data": {
+            "customer_id": "c",
+            "period": "p2",
+            "currency": "INR",
+            "revenue": "5"
+          }
+        }
+      ],
+      "parameters": {
+        "ordered_periods": [
+          "p1",
+          "p2"
+        ]
+      }
+    },
+    {
+      "discipline": "CWEINT",
+      "records": [
+        {
+          "record_id": "CWEINT-R1",
+          "source_id": "CWEINT-S1",
+          "data": {
+            "kind": "cwe",
+            "cwe_id": "CWE-79",
+            "parents": [
+              "CWE-89"
+            ]
+          }
+        },
+        {
+          "record_id": "CWEINT-R2",
+          "source_id": "CWEINT-S1",
+          "data": {
+            "kind": "cwe",
+            "cwe_id": "CWE-89",
+            "parents": [
+              "CWE-79"
+            ]
+          }
+        },
+        {
+          "record_id": "CWEINT-R3",
+          "source_id": "CWEINT-S1",
+          "data": {
+            "kind": "finding_mapping",
+            "finding_id": "F1",
+            "cwe_ids": [
+              "CWE-79"
+            ]
+          }
+        },
+        {
+          "record_id": "CWEINT-R4",
+          "source_id": "CWEINT-S1",
+          "data": {
+            "kind": "finding_mapping",
+            "finding_id": "F2",
+            "cwe_ids": [
+              "CWE-79"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "CYBINT",
+      "records": [
+        {
+          "record_id": "CYBINT-R1",
+          "source_id": "CYBINT-S1",
+          "data": {
+            "asset_id": "fixture-web-1",
+            "internet_exposed": true,
+            "criticality": "high",
+            "controls": {
+              "mfa": false,
+              "logging": true,
+              "backups": true,
+              "patching": false,
+              "endpoint_protection": true
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DATASETINT",
+      "records": [
+        {
+          "record_id": "DATASETINT-R1",
+          "source_id": "DATASETINT-S1",
+          "data": {
+            "rows": [
+              {
+                "id": 1,
+                "value": 0
+              },
+              {
+                "id": 1,
+                "value": null
+              },
+              {
+                "id": 2
+              }
+            ],
+            "schema": {
+              "id": "integer",
+              "value": "number"
+            },
+            "key_fields": [
+              "id"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DECEPTIONINT",
+      "records": [
+        {
+          "record_id": "DECEPTIONINT-R1",
+          "source_id": "DECEPTIONINT-S1",
+          "data": {
+            "kind": "assertion",
+            "subject_id": "S",
+            "field": "color",
+            "snapshot_id": "Q",
+            "value": "red"
+          }
+        },
+        {
+          "record_id": "DECEPTIONINT-R2",
+          "source_id": "DECEPTIONINT-S1",
+          "data": {
+            "kind": "observation",
+            "subject_id": "S",
+            "field": "color",
+            "snapshot_id": "Q",
+            "value": "blue"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DEPENDENCYINT",
+      "records": [
+        {
+          "record_id": "DEPENDENCYINT-R1",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "component",
+            "component_id": "A",
+            "version": "1",
+            "root": true
+          }
+        },
+        {
+          "record_id": "DEPENDENCYINT-R2",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "component",
+            "component_id": "B",
+            "version": "2"
+          }
+        },
+        {
+          "record_id": "DEPENDENCYINT-R3",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "component",
+            "component_id": "C",
+            "version": "3"
+          }
+        },
+        {
+          "record_id": "DEPENDENCYINT-R4",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "dependency",
+            "from": "A",
+            "to": "B",
+            "constraint": ">=3"
+          }
+        },
+        {
+          "record_id": "DEPENDENCYINT-R5",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "dependency",
+            "from": "B",
+            "to": "C"
+          }
+        },
+        {
+          "record_id": "DEPENDENCYINT-R6",
+          "source_id": "DEPENDENCYINT-S1",
+          "data": {
+            "kind": "dependency",
+            "from": "C",
+            "to": "B"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DETECTIONINT",
+      "records": [
+        {
+          "record_id": "DETECTIONINT-R1",
+          "source_id": "DETECTIONINT-S1",
+          "data": {
+            "record_type": "rule",
+            "rule_id": "fixture-rule-1",
+            "selector": {
+              "event": "login",
+              "success": false
+            },
+            "enabled": true,
+            "techniques": [
+              "T1110"
+            ]
+          }
+        },
+        {
+          "record_id": "DETECTIONINT-R2",
+          "source_id": "DETECTIONINT-S1",
+          "data": {
+            "record_type": "test_event",
+            "event_id": "event-1",
+            "fields": {
+              "event": "login",
+              "success": false
+            },
+            "expected_rule_ids": [
+              "fixture-rule-1"
+            ]
+          }
+        },
+        {
+          "record_id": "DETECTIONINT-R3",
+          "source_id": "DETECTIONINT-S1",
+          "data": {
+            "record_type": "test_event",
+            "event_id": "event-2",
+            "fields": {
+              "event": "login",
+              "success": true
+            },
+            "expected_rule_ids": []
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DEVINT",
+      "records": [
+        {
+          "record_id": "DEVINT-R1",
+          "source_id": "DEVINT-S1",
+          "data": {
+            "kind": "contribution",
+            "developer_id": "A",
+            "repository_id": "R",
+            "contribution_id": "C1"
+          }
+        },
+        {
+          "record_id": "DEVINT-R2",
+          "source_id": "DEVINT-S1",
+          "data": {
+            "kind": "contribution",
+            "developer_id": "A",
+            "repository_id": "R",
+            "contribution_id": "C2"
+          }
+        },
+        {
+          "record_id": "DEVINT-R3",
+          "source_id": "DEVINT-S1",
+          "data": {
+            "kind": "contribution",
+            "developer_id": "B",
+            "repository_id": "R",
+            "contribution_id": "C3"
+          }
+        },
+        {
+          "record_id": "DEVINT-R4",
+          "source_id": "DEVINT-S1",
+          "data": {
+            "kind": "release",
+            "repository_id": "R",
+            "released_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "DEVINT-R5",
+          "source_id": "DEVINT-S1",
+          "data": {
+            "kind": "release",
+            "repository_id": "R",
+            "released_at": "2026-01-06T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DFIRINT",
+      "records": [
+        {
+          "record_id": "DFIRINT-R1",
+          "source_id": "DFIRINT-S1",
+          "data": {
+            "artifact_id": "fixture-artifact-1",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "claimed_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": "fixture-capture.bin",
+            "size_bytes": 42,
+            "timestamps": {
+              "created": "2026-09-29T00:00:00Z",
+              "modified": "2026-09-30T00:00:00Z",
+              "collected": "2026-10-01T00:00:00Z"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DIPLOINT",
+      "records": [
+        {
+          "record_id": "DIPLOINT-R1",
+          "source_id": "DIPLOINT-S1",
+          "data": {
+            "event_id": "fixture-meeting",
+            "timestamp": "2026-09-01T00:00:00Z",
+            "actor": "Example State A",
+            "counterparty": "Example State B",
+            "relation": "meeting"
+          }
+        },
+        {
+          "record_id": "DIPLOINT-R2",
+          "source_id": "DIPLOINT-S1",
+          "data": {
+            "event_id": "fixture-agreement",
+            "timestamp": "2026-09-10T00:00:00Z",
+            "actor": "Example State B",
+            "counterparty": "Example State A",
+            "relation": "agreement"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DISINFOINT",
+      "records": [
+        {
+          "record_id": "DISINFOINT-R1",
+          "source_id": "DISINFOINT-S1",
+          "data": {
+            "kind": "claim",
+            "claim_id": "C",
+            "statement": "Submitted claim"
+          }
+        },
+        {
+          "record_id": "DISINFOINT-R2",
+          "source_id": "DISINFOINT-S1",
+          "data": {
+            "kind": "check",
+            "claim_id": "C",
+            "verdict": "FALSE",
+            "basis_record_ids": [
+              "DISINFOINT-R1"
+            ],
+            "checked_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "DISINFOINT-R3",
+          "source_id": "DISINFOINT-S1",
+          "data": {
+            "kind": "publication",
+            "claim_id": "C",
+            "published_at": "2026-01-02T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "DISINFOINT-R4",
+          "source_id": "DISINFOINT-S1",
+          "data": {
+            "kind": "intent_record",
+            "claim_id": "C",
+            "allegation": "Source alleges deliberate conduct"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DNSINT",
+      "records": [
+        {
+          "record_id": "DNSINT-R1",
+          "source_id": "DNSINT-S1",
+          "data": {
+            "name": "a.example.org",
+            "type": "CNAME",
+            "value": "b.example.org",
+            "ttl": 300
+          }
+        },
+        {
+          "record_id": "DNSINT-R2",
+          "source_id": "DNSINT-S1",
+          "data": {
+            "name": "b.example.org",
+            "type": "CNAME",
+            "value": "a.example.org",
+            "ttl": 300
+          }
+        },
+        {
+          "record_id": "DNSINT-R3",
+          "source_id": "DNSINT-S1",
+          "data": {
+            "name": "a.example.org",
+            "type": "A",
+            "value": "192.0.2.1",
+            "ttl": 300
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DOCINT",
+      "records": [
+        {
+          "record_id": "DOCINT-r1",
+          "source_id": "DOCINT-s1",
+          "data": {
+            "pages": [
+              {
+                "page_number": 1,
+                "text": "Synthetic study 10.1234/example",
+                "tables": [
+                  {
+                    "headers": [
+                      "sample",
+                      "value"
+                    ],
+                    "rows": [
+                      [
+                        "a",
+                        2
+                      ],
+                      [
+                        "b",
+                        3
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "page_number": 2,
+                "text": "The supplied table has two synthetic observations."
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DOMAININT",
+      "records": [
+        {
+          "record_id": "DOMAININT-R1",
+          "source_id": "DOMAININT-S1",
+          "data": {
+            "domain": "BÜCHER.example.",
+            "registrant_id": "owner-a",
+            "expires_at": "2027-01-01"
+          }
+        },
+        {
+          "record_id": "DOMAININT-R2",
+          "source_id": "DOMAININT-S1",
+          "data": {
+            "domain": "xn--bcher-kva.example",
+            "registrant_id": "owner-b",
+            "expires_at": "2027-01-01"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "DORKINT",
+      "records": [
+        {
+          "record_id": "DORKINT-R1",
+          "source_id": "DORKINT-S1",
+          "data": {
+            "query": "site:example.org filetype:pdf intitle:\"Annual Report\"",
+            "provider": "brave",
+            "results": [
+              {
+                "url": "https://docs.example.org/report.pdf",
+                "title": "Annual Report 2026"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "EDUINT",
+      "records": [
+        {
+          "record_id": "EDUINT-R1",
+          "source_id": "EDUINT-S1",
+          "data": {
+            "institution_id": "fixture-institution-1",
+            "program_id": "fixture-program-1",
+            "accreditation_body": "Example Accreditation Body",
+            "accreditation_status": "accredited",
+            "valid_from": "2025-01-01T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z",
+            "qualification_level": "Synthetic degree level"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ELINT",
+      "records": [
+        {
+          "record_id": "ELINT-R1",
+          "source_id": "ELINT-S1",
+          "data": {
+            "frequency_hz": 1000000000,
+            "pulse_width_us": 10,
+            "pulse_arrivals_us": [
+              0,
+              100,
+              200,
+              300
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "EMAILINT",
+      "records": [
+        {
+          "record_id": "EMAILINT-R1",
+          "source_id": "EMAILINT-S1",
+          "data": {
+            "raw_message": "From: a@origin.test\nReply-To: b@other.test\nReturn-Path: bounce@origin.test\nMessage-ID: <fixture@origin.test>\nAuthentication-Results: fixture.test; spf=fail\nReceived: by fixture-one; Thu, 01 Jan 2026 00:00:00 +0000\nReceived: by fixture-two; Thu, 01 Jan 2026 01:00:00 +0000\n\nSynthetic body"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "EVENTINT",
+      "records": [
+        {
+          "record_id": "EVENTINT-R1",
+          "source_id": "EVENTINT-S1",
+          "data": {
+            "event_type": "meeting",
+            "start": "2026-10-14T01:00:00Z",
+            "end": "2026-10-14T02:00:00Z",
+            "place_id": "hall"
+          }
+        },
+        {
+          "record_id": "EVENTINT-R2",
+          "source_id": "EVENTINT-S1",
+          "data": {
+            "event_type": "meeting",
+            "start": "2026-10-14T01:30:00Z",
+            "end": "2026-10-14T02:30:00Z",
+            "place_id": "hall"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "EXPLOITINT",
+      "records": [
+        {
+          "record_id": "EXPLOITINT-R1",
+          "source_id": "EXPLOITINT-S1",
+          "data": {
+            "cve_id": "CVE-2026-99999999",
+            "public_poc": true,
+            "exploitation_reported": false,
+            "asset_product": "Fixture Widget",
+            "affected_product": "Fixture Widget",
+            "installed_version": "2.1",
+            "affected_from": "2.0",
+            "fixed_version": "3.0"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "EXPOSUREINT",
+      "records": [
+        {
+          "record_id": "EXPOSUREINT-R1",
+          "source_id": "EXPOSUREINT-S1",
+          "data": {
+            "asset_id": "A",
+            "snapshot_id": "Q",
+            "visibility": "PUBLIC",
+            "authentication_required": false,
+            "sensitive_classes": [
+              "PERSONAL_DATA"
+            ]
+          }
+        },
+        {
+          "record_id": "EXPOSUREINT-R2",
+          "source_id": "EXPOSUREINT-S1",
+          "data": {
+            "asset_id": "A",
+            "snapshot_id": "Q",
+            "visibility": "PRIVATE",
+            "authentication_required": true,
+            "sensitive_classes": []
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "FALSIFICATIONINT",
+      "records": [
+        {
+          "record_id": "FALSIFICATIONINT-r1",
+          "source_id": "FALSIFICATIONINT-s1",
+          "data": {
+            "hypothesis_id": "synthetic-temperature-bound",
+            "tests": [
+              {
+                "test_id": "necessary-bound",
+                "field": "temperature",
+                "operator": "lte",
+                "expected_value": 10,
+                "record_ids": [
+                  "FALSIFICATIONINT-r2",
+                  "FALSIFICATIONINT-r3"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "record_id": "FALSIFICATIONINT-r2",
+          "source_id": "FALSIFICATIONINT-s1",
+          "data": {
+            "temperature": 9
+          }
+        },
+        {
+          "record_id": "FALSIFICATIONINT-r3",
+          "source_id": "FALSIFICATIONINT-s1",
+          "data": {
+            "temperature": 12
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "FININT",
+      "records": [
+        {
+          "record_id": "FININT-R1",
+          "source_id": "FININT-S1",
+          "data": {
+            "entity_id": "org",
+            "period": "2026",
+            "currency": "INR",
+            "assets": "100.10",
+            "liabilities": "40.03",
+            "equity": "60.07",
+            "revenue": "200",
+            "operating_profit": "50",
+            "current_assets": "30",
+            "current_liabilities": "10"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "FORUMINT",
+      "records": [
+        {
+          "record_id": "FORUMINT-R1",
+          "source_id": "FORUMINT-S1",
+          "data": {
+            "thread_id": "T",
+            "post_id": "P1",
+            "author_id": "A",
+            "parent_post_id": "P2",
+            "posted_at": "2026-01-02T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "FORUMINT-R2",
+          "source_id": "FORUMINT-S1",
+          "data": {
+            "thread_id": "T",
+            "post_id": "P2",
+            "author_id": "B",
+            "parent_post_id": "P1",
+            "posted_at": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "FRAUDINT",
+      "records": [
+        {
+          "record_id": "FRAUDINT-R1",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "transaction",
+            "transaction_id": "T1",
+            "amount": "1",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "FRAUDINT-R2",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "transaction",
+            "transaction_id": "T2",
+            "amount": "2",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "FRAUDINT-R3",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "transaction",
+            "transaction_id": "T3",
+            "amount": "3",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "FRAUDINT-R4",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "transaction",
+            "transaction_id": "T4",
+            "amount": "4",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "FRAUDINT-R5",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "transaction",
+            "transaction_id": "T5",
+            "amount": "100",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "FRAUDINT-R6",
+          "source_id": "FRAUDINT-S1",
+          "data": {
+            "kind": "reversal",
+            "transaction_id": "T5",
+            "amount": "120",
+            "currency": "EUR"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "GEOINT",
+      "records": [
+        {
+          "record_id": "GEOINT-r1",
+          "source_id": "GEOINT-s1",
+          "data": {
+            "crs": "EPSG:3857",
+            "x": 0,
+            "y": 0,
+            "uncertainty_m": 5,
+            "geofence": {
+              "center": {
+                "latitude": 0,
+                "longitude": 0
+              },
+              "radius_m": 10
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "GOVINT",
+      "records": [
+        {
+          "record_id": "GOVINT-R1",
+          "source_id": "GOVINT-S1",
+          "data": {
+            "agency": "Example Agency",
+            "program_id": "fixture-program-usd",
+            "budget": 100.1,
+            "spent": 90.05,
+            "currency": "USD",
+            "period_start": "2025-01-01T00:00:00Z",
+            "period_end": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "GOVINT-R2",
+          "source_id": "GOVINT-S1",
+          "data": {
+            "agency": "Example Agency",
+            "program_id": "fixture-program-eur",
+            "budget": 200,
+            "spent": 220,
+            "currency": "EUR",
+            "period_start": "2025-01-01T00:00:00Z",
+            "period_end": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "HOSTINT",
+      "records": [
+        {
+          "record_id": "HOSTINT-R1",
+          "source_id": "HOSTINT-S1",
+          "data": {
+            "host_id": "host-1",
+            "ports": [
+              22,
+              443
+            ],
+            "approved_ports": [
+              443
+            ],
+            "support_ends": "2026-10-01"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "HUMINT",
+      "records": [
+        {
+          "record_id": "HUMINT-R1",
+          "source_id": "HUMINT-S1",
+          "data": {
+            "witness_id": "W",
+            "claim_id": "C",
+            "statement": "Submitted account A",
+            "stance": "SUPPORTS",
+            "directness": "FIRSTHAND"
+          }
+        },
+        {
+          "record_id": "HUMINT-R2",
+          "source_id": "HUMINT-S1",
+          "data": {
+            "witness_id": "W",
+            "claim_id": "C",
+            "statement": "Submitted account B",
+            "stance": "REFUTES",
+            "directness": "SECONDHAND"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "HUNTINT",
+      "records": [
+        {
+          "record_id": "HUNTINT-R1",
+          "source_id": "HUNTINT-S1",
+          "data": {
+            "record_type": "hypothesis",
+            "hypothesis_id": "fixture-hunt-1",
+            "description": "Review administrator events and declared nonadministrator counterexamples.",
+            "selector": {
+              "admin": true
+            },
+            "counter_selector": {
+              "admin": false
+            }
+          }
+        },
+        {
+          "record_id": "HUNTINT-R2",
+          "source_id": "HUNTINT-S1",
+          "data": {
+            "record_type": "event",
+            "event_id": "event-1",
+            "fields": {
+              "admin": true,
+              "action": "configuration-change"
+            }
+          }
+        },
+        {
+          "record_id": "HUNTINT-R3",
+          "source_id": "HUNTINT-S1",
+          "data": {
+            "record_type": "event",
+            "event_id": "event-2",
+            "fields": {
+              "admin": false,
+              "action": "read-only"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "HYPOTHESISINT",
+      "records": [
+        {
+          "record_id": "HYPOTHESISINT-r1",
+          "source_id": "HYPOTHESISINT-s1",
+          "data": {
+            "hypotheses": [
+              {
+                "id": "hypothesis-a",
+                "statement": "First synthetic explanation"
+              },
+              {
+                "id": "hypothesis-b",
+                "statement": "Second synthetic explanation"
+              }
+            ],
+            "evidence": [
+              {
+                "record_id": "HYPOTHESISINT-r2",
+                "weight": 0.7,
+                "assessments": {
+                  "hypothesis-a": "supports",
+                  "hypothesis-b": "refutes"
+                }
+              },
+              {
+                "record_id": "HYPOTHESISINT-r3",
+                "weight": 0.4,
+                "assessments": {
+                  "hypothesis-a": "unknown",
+                  "hypothesis-b": "supports"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "record_id": "HYPOTHESISINT-r2",
+          "source_id": "HYPOTHESISINT-s2",
+          "data": {
+            "observation": "Synthetic first observation"
+          }
+        },
+        {
+          "record_id": "HYPOTHESISINT-r3",
+          "source_id": "HYPOTHESISINT-s3",
+          "data": {
+            "observation": "Synthetic second observation"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ICSINT",
+      "records": [
+        {
+          "record_id": "ICSINT-R1",
+          "source_id": "ICSINT-S1",
+          "data": {
+            "kind": "threshold",
+            "asset_id": "A",
+            "tag": "pressure",
+            "unit": "bar",
+            "low": 0,
+            "high": 10
+          }
+        },
+        {
+          "record_id": "ICSINT-R2",
+          "source_id": "ICSINT-S1",
+          "data": {
+            "kind": "process_sample",
+            "asset_id": "A",
+            "tag": "pressure",
+            "unit": "bar",
+            "value": 11,
+            "quality": "BAD"
+          }
+        },
+        {
+          "record_id": "ICSINT-R3",
+          "source_id": "ICSINT-S1",
+          "data": {
+            "kind": "command",
+            "command_id": "C",
+            "approved": false
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IDENTITYINT",
+      "records": [
+        {
+          "record_id": "IDENTITYINT-R1",
+          "source_id": "IDENTITYINT-S1",
+          "data": {
+            "entity_id": "E1",
+            "identifiers": {
+              "email": "same@Example.TEST"
+            }
+          }
+        },
+        {
+          "record_id": "IDENTITYINT-R2",
+          "source_id": "IDENTITYINT-S1",
+          "data": {
+            "entity_id": "E2",
+            "identifiers": {
+              "email": "same@example.test"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IMINT",
+      "records": [
+        {
+          "record_id": "IMINT-r1",
+          "source_id": "IMINT-s1",
+          "data": {
+            "pixels": [
+              [
+                0,
+                255
+              ],
+              [
+                50,
+                100
+              ]
+            ],
+            "orientation": 6
+          }
+        },
+        {
+          "record_id": "IMINT-r2",
+          "source_id": "IMINT-s2",
+          "data": {
+            "pixels": [
+              [
+                50,
+                0
+              ],
+              [
+                100,
+                255
+              ]
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "INCIDENTINT",
+      "records": [
+        {
+          "record_id": "INCIDENTINT-R1",
+          "source_id": "INCIDENTINT-S1",
+          "data": {
+            "incident_id": "fixture-incident-1",
+            "event_id": "event-1",
+            "event_type": "authentication_failure",
+            "timestamp": "2026-10-01T01:00:00Z",
+            "asset_id": "fixture-host-1",
+            "description": "Synthetic login failure."
+          }
+        },
+        {
+          "record_id": "INCIDENTINT-R2",
+          "source_id": "INCIDENTINT-S1",
+          "data": {
+            "incident_id": "fixture-incident-1",
+            "event_id": "event-2",
+            "event_type": "review_started",
+            "timestamp": "2026-10-01T02:00:00Z",
+            "asset_id": "fixture-host-1",
+            "description": "Synthetic analyst review event."
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "INFRAINT",
+      "records": [
+        {
+          "record_id": "INFRAINT-R1",
+          "source_id": "INFRAINT-S1",
+          "data": {
+            "asset_id": "one",
+            "ips": [
+              "192.0.2.1"
+            ],
+            "domains": [
+              "one.example"
+            ],
+            "services": [
+              "web"
+            ]
+          }
+        },
+        {
+          "record_id": "INFRAINT-R2",
+          "source_id": "INFRAINT-S1",
+          "data": {
+            "asset_id": "two",
+            "ips": [
+              "192.0.2.1"
+            ],
+            "domains": [
+              "two.example"
+            ],
+            "services": [
+              "web"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "INNOVATIONINT",
+      "records": [
+        {
+          "record_id": "INNOVATIONINT-R1",
+          "source_id": "INNOVATIONINT-S1",
+          "data": {
+            "innovation_id": "fixture-innovation-1",
+            "title": "Synthetic evidence review prototype",
+            "readiness_level": 2,
+            "readiness_evidence": [
+              {
+                "level": 1,
+                "description": "Supplied statement of observed basic principles.",
+                "record_ids": [
+                  "INNOVATIONINT-R1"
+                ]
+              },
+              {
+                "level": 2,
+                "description": "Supplied concept formulation record.",
+                "record_ids": [
+                  "INNOVATIONINT-R1"
+                ]
+              }
+            ],
+            "milestones": [
+              {
+                "milestone_id": "prototype-review",
+                "completed": false,
+                "due_at": "2026-12-01T00:00:00Z"
+              }
+            ],
+            "dependencies": []
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "INSOLVENCYINT",
+      "records": [
+        {
+          "record_id": "INSOLVENCYINT-R1",
+          "source_id": "INSOLVENCYINT-S1",
+          "data": {
+            "proceeding_id": "p",
+            "entity_id": "e",
+            "jurisdiction": "IN",
+            "event_at": "2026-01-01",
+            "status": "filed"
+          }
+        },
+        {
+          "record_id": "INSOLVENCYINT-R2",
+          "source_id": "INSOLVENCYINT-S1",
+          "data": {
+            "proceeding_id": "p",
+            "entity_id": "e",
+            "jurisdiction": "IN",
+            "event_at": "2026-09-01",
+            "status": "closed"
+          }
+        },
+        {
+          "record_id": "INSOLVENCYINT-R3",
+          "source_id": "INSOLVENCYINT-S1",
+          "data": {
+            "proceeding_id": "p",
+            "entity_id": "e",
+            "jurisdiction": "IN",
+            "event_at": "2026-09-01",
+            "status": "open"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IOCINT",
+      "records": [
+        {
+          "record_id": "IOCINT-R1",
+          "source_id": "IOCINT-S1",
+          "data": {
+            "indicator_type": "domain",
+            "value": "Example[.]ORG",
+            "verdict": "malicious",
+            "expires_at": "2027-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "IOCINT-R2",
+          "source_id": "IOCINT-S1",
+          "data": {
+            "indicator_type": "domain",
+            "value": "example.org",
+            "verdict": "benign",
+            "expires_at": "2027-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "IOCINT-R3",
+          "source_id": "IOCINT-S1",
+          "data": {
+            "indicator_type": "url",
+            "value": "hxxps://example[.]org/fixture",
+            "verdict": "unknown"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IOTINT",
+      "records": [
+        {
+          "record_id": "IOTINT-R1",
+          "source_id": "IOTINT-S1",
+          "data": {
+            "kind": "device",
+            "device_id": "D",
+            "firmware_version": "1",
+            "support_until": "2025-12-31",
+            "secure_boot": false,
+            "updates_signed": false,
+            "telemetry_max_age_seconds": 60
+          }
+        },
+        {
+          "record_id": "IOTINT-R2",
+          "source_id": "IOTINT-S1",
+          "data": {
+            "kind": "firmware",
+            "device_id": "D",
+            "version": "2",
+            "released_at": "2025-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "IOTINT-R3",
+          "source_id": "IOTINT-S1",
+          "data": {
+            "kind": "telemetry",
+            "device_id": "D",
+            "timestamp": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IPINT",
+      "records": [
+        {
+          "record_id": "IPINT-R1",
+          "source_id": "IPINT-S1",
+          "data": {
+            "ip": "2001:db8::1",
+            "prefixes": [
+              "2001:db8::/32",
+              "192.0.2.0/24"
+            ],
+            "ports": [
+              443
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "IPRINT",
+      "records": [
+        {
+          "record_id": "IPRINT-R1",
+          "source_id": "IPRINT-S1",
+          "data": {
+            "record_type": "license",
+            "license_id": "fixture-license-1",
+            "asset_id": "fixture-document-1",
+            "permissions": [
+              {
+                "action": "copy",
+                "territories": [
+                  "US"
+                ]
+              }
+            ],
+            "prohibitions": [
+              "resell"
+            ],
+            "conditions": [
+              "attribution"
+            ],
+            "valid_from": "2025-01-01T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "IPRINT-R2",
+          "source_id": "IPRINT-S1",
+          "data": {
+            "record_type": "usage",
+            "usage_id": "fixture-use-1",
+            "asset_id": "fixture-document-1",
+            "license_id": "fixture-license-1",
+            "action": "copy",
+            "territory": "US",
+            "conditions_satisfied": [
+              "attribution"
+            ],
+            "when": "2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "JOBINT",
+      "records": [
+        {
+          "record_id": "JOBINT-R1",
+          "source_id": "JOBINT-S1",
+          "data": {
+            "posting_id": "j",
+            "employer_id": "org",
+            "role": "Engineer",
+            "skills": [
+              "Python",
+              "PYTHON",
+              "SQL"
+            ],
+            "currency": "INR",
+            "pay_period": "year",
+            "pay_min": "100",
+            "pay_max": "200"
+          }
+        },
+        {
+          "record_id": "JOBINT-R2",
+          "source_id": "JOBINT-S1",
+          "data": {
+            "posting_id": "j",
+            "employer_id": "org",
+            "role": "Engineer",
+            "skills": [
+              "Python",
+              "PYTHON",
+              "SQL"
+            ],
+            "currency": "INR",
+            "pay_period": "year",
+            "pay_min": "100",
+            "pay_max": "200"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "LANGINT",
+      "records": [
+        {
+          "record_id": "LANGINT-R1",
+          "source_id": "LANGINT-S1",
+          "data": {
+            "kind": "document",
+            "text": "hello",
+            "language": "hi"
+          }
+        },
+        {
+          "record_id": "LANGINT-R2",
+          "source_id": "LANGINT-S1",
+          "data": {
+            "kind": "translation",
+            "original_text": "value 10",
+            "translated_text": "value 11"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "LEGALINT",
+      "records": [
+        {
+          "record_id": "LEGALINT-R1",
+          "source_id": "LEGALINT-S1",
+          "data": {
+            "decision_id": "fixture-decision-a",
+            "court": "Example Court",
+            "jurisdiction": "Example Jurisdiction",
+            "decision_at": "2025-01-01T00:00:00Z",
+            "outcome": "Synthetic motion granted",
+            "issue_tags": [
+              "reporting"
+            ],
+            "cites": []
+          }
+        },
+        {
+          "record_id": "LEGALINT-R2",
+          "source_id": "LEGALINT-S1",
+          "data": {
+            "decision_id": "fixture-decision-b",
+            "court": "Example Court",
+            "jurisdiction": "Example Jurisdiction",
+            "decision_at": "2026-01-01T00:00:00Z",
+            "outcome": "Synthetic motion denied",
+            "issue_tags": [
+              "reporting",
+              "procedure"
+            ],
+            "cites": [
+              "fixture-decision-a"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "LOGINT",
+      "records": [
+        {
+          "record_id": "LOGINT-R1",
+          "source_id": "LOGINT-S1",
+          "data": {
+            "format": "structured",
+            "event": {
+              "timestamp": "2026-10-01T00:01:00Z",
+              "event_type": "authentication",
+              "src_ip": "192.0.2.10",
+              "account": "fixture-account",
+              "outcome": "failure"
+            }
+          }
+        },
+        {
+          "record_id": "LOGINT-R2",
+          "source_id": "LOGINT-S1",
+          "data": {
+            "format": "structured",
+            "event": {
+              "timestamp": "2026-10-01T00:02:00Z",
+              "event_type": "authentication",
+              "src_ip": "192.0.2.10",
+              "account": "fixture-account",
+              "outcome": "failure"
+            }
+          }
+        },
+        {
+          "record_id": "LOGINT-R3",
+          "source_id": "LOGINT-S1",
+          "data": {
+            "format": "structured",
+            "event": {
+              "timestamp": "2026-10-01T00:03:00Z",
+              "event_type": "authentication",
+              "src_ip": "192.0.2.10",
+              "account": "fixture-account",
+              "outcome": "failure"
+            }
+          }
+        }
+      ],
+      "parameters": {
+        "failure_threshold": 3
+      }
+    },
+    {
+      "discipline": "LOGISTICSINT",
+      "records": [
+        {
+          "record_id": "LOGISTICSINT-r1",
+          "source_id": "LOGISTICSINT-s1",
+          "data": {
+            "shipment_id": "synthetic-shipment",
+            "events": [
+              {
+                "event_id": "event-a",
+                "status": "CREATED",
+                "time": "2026-10-14T00:00:00Z"
+              },
+              {
+                "event_id": "event-b",
+                "status": "PICKED_UP",
+                "time": "2026-10-14T00:10:00Z"
+              },
+              {
+                "event_id": "event-c",
+                "status": "IN_TRANSIT",
+                "time": "2026-10-14T00:20:00Z"
+              },
+              {
+                "event_id": "event-d",
+                "status": "DELIVERED",
+                "time": "2026-10-14T03:00:00Z"
+              }
+            ],
+            "legs": [
+              {
+                "origin": "depot-a",
+                "destination": "hub-b",
+                "departed_at": "2026-10-14T00:00:00Z",
+                "arrived_at": "2026-10-14T01:00:00Z"
+              },
+              {
+                "origin": "hub-b",
+                "destination": "depot-c",
+                "departed_at": "2026-10-14T02:00:00Z",
+                "arrived_at": "2026-10-14T03:00:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MAILINT",
+      "records": [
+        {
+          "record_id": "MAILINT-R1",
+          "source_id": "MAILINT-S1",
+          "data": {
+            "domain": "example.org",
+            "mx": [
+              {
+                "preference": 10,
+                "exchange": "mx.example.org"
+              }
+            ],
+            "spf": "v=spf1 include:mail.example.org -all",
+            "dmarc": "v=DMARC1; p=reject; pct=100",
+            "dkim": [
+              {
+                "selector": "retired",
+                "record": "v=DKIM1; k=rsa; p="
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MALINT",
+      "records": [
+        {
+          "record_id": "MALINT-R1",
+          "source_id": "MALINT-S1",
+          "data": {
+            "file_name": "synthetic-fixture.bin",
+            "file_size": 42,
+            "hashes": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "imports": [
+              "KERNEL32!WriteProcessMemory",
+              "KERNEL32!CreateRemoteThread"
+            ],
+            "strings": [
+              "https://example.org/fixture"
+            ],
+            "signature": {
+              "verified": false,
+              "signer": "Synthetic unsigned fixture"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MARITIMEINT",
+      "records": [
+        {
+          "record_id": "MARITIMEINT-r1",
+          "source_id": "MARITIMEINT-s1",
+          "data": {
+            "vessel": {
+              "imo": "9074729",
+              "mmsi": "234567890"
+            },
+            "positions": [
+              {
+                "timestamp": "2026-10-14T00:00:00Z",
+                "latitude": 0,
+                "longitude": 179.9,
+                "raw_sog": 1023
+              },
+              {
+                "timestamp": "2026-10-14T01:00:00Z",
+                "latitude": 0,
+                "longitude": -179.9,
+                "raw_sog": 120
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MARKETINT",
+      "records": [
+        {
+          "record_id": "MARKETINT-R1",
+          "source_id": "MARKETINT-S1",
+          "data": {
+            "seller_id": "a",
+            "market_id": "m",
+            "period": "q1",
+            "currency": "INR",
+            "revenue": "50"
+          }
+        },
+        {
+          "record_id": "MARKETINT-R2",
+          "source_id": "MARKETINT-S1",
+          "data": {
+            "seller_id": "b",
+            "market_id": "m",
+            "period": "q1",
+            "currency": "INR",
+            "revenue": "50"
+          }
+        },
+        {
+          "record_id": "MARKETINT-R3",
+          "source_id": "MARKETINT-S1",
+          "data": {
+            "seller_id": "a",
+            "market_id": "m",
+            "period": "q1",
+            "currency": "USD",
+            "revenue": "2"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MARKETPLACEINT",
+      "records": [
+        {
+          "record_id": "MARKETPLACEINT-R1",
+          "source_id": "MARKETPLACEINT-S1",
+          "data": {
+            "marketplace": "fixture",
+            "listing_id": "L1",
+            "seller_id": "MARKETPLACEINT-S1",
+            "product_id": "P",
+            "price": "10.00",
+            "currency": "EUR",
+            "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "record_id": "MARKETPLACEINT-R2",
+          "source_id": "MARKETPLACEINT-S1",
+          "data": {
+            "marketplace": "fixture",
+            "listing_id": "L2",
+            "seller_id": "S2",
+            "product_id": "P",
+            "price": "11.00",
+            "currency": "EUR",
+            "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "record_id": "MARKETPLACEINT-R3",
+          "source_id": "MARKETPLACEINT-S1",
+          "data": {
+            "marketplace": "fixture",
+            "listing_id": "L3",
+            "seller_id": "S3",
+            "product_id": "P",
+            "price": "100.00",
+            "currency": "EUR",
+            "image_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MASINT",
+      "records": [
+        {
+          "record_id": "MASINT-r1",
+          "source_id": "MASINT-s1",
+          "data": {
+            "value": 200,
+            "unit": "cm",
+            "uncertainty": 1,
+            "reference": {
+              "value": 2,
+              "unit": "m",
+              "uncertainty": 0.02
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MEMEINT",
+      "records": [
+        {
+          "record_id": "MEMEINT-R1",
+          "source_id": "MEMEINT-S1",
+          "data": {
+            "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "phash": "0000000000000000",
+            "caption": "Old caption"
+          }
+        },
+        {
+          "record_id": "MEMEINT-R2",
+          "source_id": "MEMEINT-S1",
+          "data": {
+            "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "phash": "0000000000000001",
+            "caption": "New caption"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MESSENGERINT",
+      "records": [
+        {
+          "record_id": "MESSENGERINT-R1",
+          "source_id": "MESSENGERINT-S1",
+          "data": {
+            "conversation_id": "C",
+            "message_id": "M1",
+            "sender_id": "A",
+            "sent_at": "2026-01-02T00:00:00Z",
+            "edited_at": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "MESSENGERINT-R2",
+          "source_id": "MESSENGERINT-S1",
+          "data": {
+            "conversation_id": "C",
+            "message_id": "M2",
+            "sender_id": "B",
+            "sent_at": "2026-01-01T00:00:00Z",
+            "reply_to": "M1"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "METADATAINT",
+      "records": [
+        {
+          "record_id": "METADATAINT-r1",
+          "source_id": "METADATAINT-s1",
+          "data": {
+            "metadata": {
+              "CreationDate": "2026-10-13T12:00:00Z",
+              "ModifyDate": "2026-10-14T12:00:00Z",
+              "Creator": "Synthetic Fixture"
+            },
+            "content_text": "abc",
+            "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MISINFOINT",
+      "records": [
+        {
+          "record_id": "MISINFOINT-R1",
+          "source_id": "MISINFOINT-S1",
+          "data": {
+            "kind": "claim",
+            "claim_id": "C",
+            "statement": "Account A"
+          }
+        },
+        {
+          "record_id": "MISINFOINT-R2",
+          "source_id": "MISINFOINT-S1",
+          "data": {
+            "kind": "claim",
+            "claim_id": "C",
+            "statement": "Account B"
+          }
+        },
+        {
+          "record_id": "MISINFOINT-R3",
+          "source_id": "MISINFOINT-S1",
+          "data": {
+            "kind": "check",
+            "claim_id": "C",
+            "verdict": "TRUE",
+            "basis_record_ids": [
+              "MISINFOINT-R1"
+            ]
+          }
+        },
+        {
+          "record_id": "MISINFOINT-R4",
+          "source_id": "MISINFOINT-S1",
+          "data": {
+            "kind": "check",
+            "claim_id": "C",
+            "verdict": "FALSE",
+            "basis_record_ids": [
+              "MISINFOINT-R2"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MNAINT",
+      "records": [
+        {
+          "record_id": "MNAINT-R1",
+          "source_id": "MNAINT-S1",
+          "data": {
+            "deal_id": "d",
+            "acquirer_id": "a",
+            "target_id": "b",
+            "stage": "CLOSED",
+            "at": "2026-01-01",
+            "stake_percent": "60"
+          }
+        },
+        {
+          "record_id": "MNAINT-R2",
+          "source_id": "MNAINT-S1",
+          "data": {
+            "deal_id": "d",
+            "acquirer_id": "a",
+            "target_id": "b",
+            "stage": "ANNOUNCED",
+            "at": "2026-02-01",
+            "stake_percent": "60"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "MOBILEINT",
+      "records": [
+        {
+          "record_id": "MOBILEINT-R1",
+          "source_id": "MOBILEINT-S1",
+          "data": {
+            "kind": "mobile_manifest",
+            "platform": "android",
+            "content": "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"synthetic.fixture\"><uses-sdk android:targetSdkVersion=\"33\"/><uses-permission android:name=\"android.permission.CAMERA\"/><application android:debuggable=\"true\" android:usesCleartextTraffic=\"true\"><activity android:name=\".Fixture\" android:exported=\"true\"/></application></manifest>"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "NARRATIVEINT",
+      "records": [
+        {
+          "record_id": "NARRATIVEINT-R1",
+          "source_id": "NARRATIVEINT-S1",
+          "data": {
+            "kind": "frame",
+            "narrative_id": "N",
+            "frame": "Urgent threat"
+          }
+        },
+        {
+          "record_id": "NARRATIVEINT-R2",
+          "source_id": "NARRATIVEINT-S1",
+          "data": {
+            "kind": "frame",
+            "narrative_id": "N",
+            "frame": "urgent threat"
+          }
+        },
+        {
+          "record_id": "NARRATIVEINT-R3",
+          "source_id": "NARRATIVEINT-S1",
+          "data": {
+            "kind": "event",
+            "narrative_id": "N",
+            "event_id": "E",
+            "event_time": "2026-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "NARRATIVEINT-R4",
+          "source_id": "NARRATIVEINT-S1",
+          "data": {
+            "kind": "event",
+            "narrative_id": "N",
+            "event_id": "E",
+            "event_time": "2026-01-02T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "NETINT",
+      "records": [
+        {
+          "record_id": "NETINT-R1",
+          "source_id": "NETINT-S1",
+          "data": {
+            "nodes": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "links": [
+              [
+                "a",
+                "b"
+              ],
+              [
+                "b",
+                "c"
+              ]
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "NETWORKINT",
+      "records": [
+        {
+          "record_id": "NETWORKINT-R1",
+          "source_id": "NETWORKINT-S1",
+          "data": {
+            "from": "A",
+            "to": "B"
+          }
+        },
+        {
+          "record_id": "NETWORKINT-R2",
+          "source_id": "NETWORKINT-S1",
+          "data": {
+            "from": "B",
+            "to": "C"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "NEWSINT",
+      "records": [
+        {
+          "record_id": "NEWSINT-R1",
+          "source_id": "NEWSINT-S1",
+          "data": {
+            "url": "https://one.example/a",
+            "title": "First",
+            "body": "A supplied article with the same complete body across published copies."
+          }
+        },
+        {
+          "record_id": "NEWSINT-R2",
+          "source_id": "NEWSINT-S1",
+          "data": {
+            "url": "https://two.example/b",
+            "title": "Second",
+            "body": "A supplied article with the same complete body across published copies."
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "NGOINT",
+      "records": [
+        {
+          "record_id": "NGOINT-R1",
+          "source_id": "NGOINT-S1",
+          "data": {
+            "organization_id": "fixture-ngo-1",
+            "name": "Example Research Organization",
+            "reporting_year": 2025,
+            "income": 100,
+            "program_expense": 70,
+            "admin_expense": 20,
+            "fundraising_expense": 5,
+            "currency": "USD",
+            "reported_total_expense": 95
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ORGINT",
+      "records": [
+        {
+          "record_id": "ORGINT-R1",
+          "source_id": "ORGINT-S1",
+          "data": {
+            "organization_id": "o",
+            "unit_id": "a",
+            "parent_unit_id": "b"
+          }
+        },
+        {
+          "record_id": "ORGINT-R2",
+          "source_id": "ORGINT-S1",
+          "data": {
+            "organization_id": "o",
+            "unit_id": "b",
+            "parent_unit_id": "a"
+          }
+        },
+        {
+          "record_id": "ORGINT-R3",
+          "source_id": "ORGINT-S1",
+          "data": {
+            "organization_id": "o",
+            "unit_id": "c",
+            "parent_unit_id": "b"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "OSINT",
+      "records": [
+        {
+          "record_id": "OSINT-R1",
+          "source_id": "OSINT-S1",
+          "data": {
+            "source_type": "public-report",
+            "claims": [
+              {
+                "subject": "org",
+                "predicate": "status",
+                "value": "active"
+              }
+            ]
+          }
+        },
+        {
+          "record_id": "OSINT-R2",
+          "source_id": "OSINT-S1",
+          "data": {
+            "source_type": "public-report",
+            "claims": [
+              {
+                "subject": "org",
+                "predicate": "status",
+                "value": "closed"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "OTINT",
+      "records": [
+        {
+          "record_id": "OTINT-R1",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "zone",
+            "zone_id": "Z1"
+          }
+        },
+        {
+          "record_id": "OTINT-R2",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "zone",
+            "zone_id": "Z2"
+          }
+        },
+        {
+          "record_id": "OTINT-R3",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "asset",
+            "asset_id": "A",
+            "zone_id": "Z1"
+          }
+        },
+        {
+          "record_id": "OTINT-R4",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "asset",
+            "asset_id": "B",
+            "zone_id": "Z2"
+          }
+        },
+        {
+          "record_id": "OTINT-R5",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "conduit",
+            "from_zone": "Z1",
+            "to_zone": "Z2",
+            "allowed_protocols": [
+              "modbus"
+            ]
+          }
+        },
+        {
+          "record_id": "OTINT-R6",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "communication",
+            "from_asset": "A",
+            "to_asset": "B",
+            "protocol": "s7"
+          }
+        },
+        {
+          "record_id": "OTINT-R7",
+          "source_id": "OTINT-S1",
+          "data": {
+            "kind": "change",
+            "asset_id": "A",
+            "approved": false
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "OWNERSHIPINT",
+      "records": [
+        {
+          "record_id": "OWNERSHIPINT-R1",
+          "source_id": "OWNERSHIPINT-S1",
+          "data": {
+            "owner_id": "a",
+            "entity_id": "b",
+            "percent": "60"
+          }
+        },
+        {
+          "record_id": "OWNERSHIPINT-R2",
+          "source_id": "OWNERSHIPINT-S1",
+          "data": {
+            "owner_id": "b",
+            "entity_id": "c",
+            "percent": "50"
+          }
+        },
+        {
+          "record_id": "OWNERSHIPINT-R3",
+          "source_id": "OWNERSHIPINT-S1",
+          "data": {
+            "owner_id": "c",
+            "entity_id": "a",
+            "percent": "10"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PACKAGEINT",
+      "records": [
+        {
+          "record_id": "PACKAGEINT-R1",
+          "source_id": "PACKAGEINT-S1",
+          "data": {
+            "kind": "package",
+            "ecosystem": "pypi",
+            "name": "My_Pkg",
+            "version": "1.5.0",
+            "registry": "pypi.org"
+          }
+        },
+        {
+          "record_id": "PACKAGEINT-R2",
+          "source_id": "PACKAGEINT-S1",
+          "data": {
+            "kind": "package",
+            "ecosystem": "pypi",
+            "name": "my-pkg",
+            "version": "2.5.0",
+            "registry": "pypi.org"
+          }
+        },
+        {
+          "record_id": "PACKAGEINT-R3",
+          "source_id": "PACKAGEINT-S1",
+          "data": {
+            "kind": "advisory",
+            "ecosystem": "pypi",
+            "name": "my.pkg",
+            "affected_versions": ">=1.0.0,<2.0.0",
+            "advisory_id": "SYNTHETIC-ADVISORY"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PATENTINT",
+      "records": [
+        {
+          "record_id": "PATENTINT-R1",
+          "source_id": "PATENTINT-S1",
+          "data": {
+            "publication_number": "FIXTURE-PUB-A",
+            "application_number": "FIXTURE-APP-A",
+            "family_id": "fixture-family-1",
+            "jurisdiction": "Example Jurisdiction",
+            "filing_date": "2024-02-01",
+            "priority_date": "2024-01-01",
+            "publication_date": "2025-02-01",
+            "claims": [
+              "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+            ],
+            "inventors": [
+              "Avery Example"
+            ],
+            "legal_status": "Unverified synthetic assertion"
+          }
+        },
+        {
+          "record_id": "PATENTINT-R2",
+          "source_id": "PATENTINT-S1",
+          "data": {
+            "publication_number": "FIXTURE-PUB-B",
+            "application_number": "FIXTURE-APP-B",
+            "family_id": "fixture-family-1",
+            "jurisdiction": "Example Jurisdiction",
+            "filing_date": "2024-02-02",
+            "priority_date": "2024-01-01",
+            "publication_date": "2025-02-02",
+            "claims": [
+              "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+            ],
+            "inventors": [
+              "Avery Example",
+              "Riley Example"
+            ],
+            "legal_status": "Unverified synthetic assertion"
+          }
+        }
+      ],
+      "parameters": {
+        "similarity_threshold": 0.5
+      }
+    },
+    {
+      "discipline": "PAYMENTINT",
+      "records": [
+        {
+          "record_id": "PAYMENTINT-R1",
+          "source_id": "PAYMENTINT-S1",
+          "data": {
+            "kind": "invoice",
+            "invoice_id": "I",
+            "amount": "100.00",
+            "currency": "EUR"
+          }
+        },
+        {
+          "record_id": "PAYMENTINT-R2",
+          "source_id": "PAYMENTINT-S1",
+          "data": {
+            "kind": "payment",
+            "payment_id": "P1",
+            "invoice_id": "I",
+            "amount": "60.00",
+            "currency": "EUR",
+            "status": "SETTLED"
+          }
+        },
+        {
+          "record_id": "PAYMENTINT-R3",
+          "source_id": "PAYMENTINT-S1",
+          "data": {
+            "kind": "payment",
+            "payment_id": "P2",
+            "invoice_id": "I",
+            "amount": "50.00",
+            "currency": "EUR",
+            "status": "SETTLED"
+          }
+        },
+        {
+          "record_id": "PAYMENTINT-R4",
+          "source_id": "PAYMENTINT-S1",
+          "data": {
+            "kind": "payment",
+            "payment_id": "P3",
+            "invoice_id": "I",
+            "amount": "20.00",
+            "currency": "EUR",
+            "status": "PENDING"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PERSONAINT",
+      "records": [
+        {
+          "record_id": "PERSONAINT-R1",
+          "source_id": "PERSONAINT-S1",
+          "data": {
+            "kind": "persona",
+            "persona_id": "P",
+            "account_id": "A",
+            "claimed_role": "Engineer",
+            "active_from": "2026-01-02T00:00:00Z",
+            "active_to": "2026-01-04T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "PERSONAINT-R2",
+          "source_id": "PERSONAINT-S1",
+          "data": {
+            "kind": "activity",
+            "account_id": "A",
+            "activity_at": "2026-01-01T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PHONEINT",
+      "records": [
+        {
+          "record_id": "PHONEINT-R1",
+          "source_id": "PHONEINT-S1",
+          "data": {
+            "phone": "+1 (202) 555-0100 ext 12"
+          }
+        },
+        {
+          "record_id": "PHONEINT-R2",
+          "source_id": "PHONEINT-S1",
+          "data": {
+            "phone": "2025550100 ext12",
+            "country_calling_code": "+1"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "POLICYINT",
+      "records": [
+        {
+          "record_id": "POLICYINT-R1",
+          "source_id": "POLICYINT-S1",
+          "data": {
+            "policy_id": "fixture-policy-1",
+            "deadline": "2027-01-01T00:00:00Z",
+            "objectives": [
+              {
+                "objective_id": "objective-a",
+                "text": "Reduce synthetic review delay."
+              },
+              {
+                "objective_id": "objective-b",
+                "text": "Improve synthetic evidence coverage."
+              }
+            ],
+            "measures": [
+              {
+                "measure_id": "measure-a",
+                "objective_ids": [
+                  "objective-a"
+                ]
+              },
+              {
+                "measure_id": "measure-b",
+                "objective_ids": [
+                  "objective-b"
+                ]
+              }
+            ],
+            "metrics": [
+              {
+                "metric_id": "delay",
+                "baseline": 100,
+                "target": 80,
+                "direction": "decrease",
+                "current": 90,
+                "observed_at": "2026-10-01T00:00:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PROCUREMENTINT",
+      "records": [
+        {
+          "record_id": "PROCUREMENTINT-R1",
+          "source_id": "PROCUREMENTINT-S1",
+          "data": {
+            "tender_id": "t",
+            "bid_id": "a",
+            "vendor_id": "v1",
+            "currency": "INR",
+            "amount": "100",
+            "deadline": "2026-10-14T12:00:00Z",
+            "submitted_at": "2026-10-14T11:00:00Z",
+            "awarded": false
+          }
+        },
+        {
+          "record_id": "PROCUREMENTINT-R2",
+          "source_id": "PROCUREMENTINT-S1",
+          "data": {
+            "tender_id": "t",
+            "bid_id": "b",
+            "vendor_id": "v2",
+            "currency": "INR",
+            "amount": "125",
+            "deadline": "2026-10-14T12:00:00Z",
+            "submitted_at": "2026-10-14T13:00:00Z",
+            "awarded": true
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PROPERTYINT",
+      "records": [
+        {
+          "record_id": "PROPERTYINT-R1",
+          "source_id": "PROPERTYINT-S1",
+          "data": {
+            "jurisdiction": "IN",
+            "parcel_id": "p",
+            "title_id": "t",
+            "owner_id": "a",
+            "valuation": "100",
+            "currency": "INR"
+          }
+        },
+        {
+          "record_id": "PROPERTYINT-R2",
+          "source_id": "PROPERTYINT-S1",
+          "data": {
+            "jurisdiction": "IN",
+            "parcel_id": "p",
+            "title_id": "t",
+            "owner_id": "b",
+            "valuation": "100",
+            "currency": "INR"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PROPINT",
+      "records": [
+        {
+          "record_id": "PROPINT-R1",
+          "source_id": "PROPINT-S1",
+          "data": {
+            "text": "Everyone knows the imminent threat. Share this."
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "PROVENANCEINT",
+      "records": [
+        {
+          "record_id": "PROVENANCEINT-r1",
+          "source_id": "PROVENANCEINT-s1",
+          "data": {
+            "artifact_id": "artifact-a",
+            "content_text": "abc",
+            "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          }
+        },
+        {
+          "record_id": "PROVENANCEINT-r2",
+          "source_id": "PROVENANCEINT-s1",
+          "data": {
+            "artifact_id": "artifact-b",
+            "content_text": "derived synthetic text",
+            "transformation": "declared-render",
+            "parents": [
+              {
+                "artifact_id": "artifact-a",
+                "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "RAILINT",
+      "records": [
+        {
+          "record_id": "RAILINT-r1",
+          "source_id": "RAILINT-s1",
+          "data": {
+            "trip_id": "synthetic-rail",
+            "service_date": "2026-10-13",
+            "timezone_offset": "+05:30",
+            "stops": [
+              {
+                "stop_id": "station-a",
+                "sequence": 1,
+                "departure": "23:50:00",
+                "distance_km": 0
+              },
+              {
+                "stop_id": "station-b",
+                "sequence": 2,
+                "arrival": "24:10:00",
+                "departure": "24:15:00",
+                "distance_km": 20
+              },
+              {
+                "stop_id": "station-c",
+                "sequence": 3,
+                "arrival": "25:00:00",
+                "distance_km": 50
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "REGINT",
+      "records": [
+        {
+          "record_id": "REGINT-R1",
+          "source_id": "REGINT-S1",
+          "data": {
+            "regulation_id": "fixture-rule-base",
+            "jurisdiction": "Example Jurisdiction",
+            "subject": "Synthetic reporting rule",
+            "effective_from": "2025-01-01T00:00:00Z",
+            "effective_until": "2027-01-01T00:00:00Z",
+            "status": "enacted"
+          }
+        },
+        {
+          "record_id": "REGINT-R2",
+          "source_id": "REGINT-S1",
+          "data": {
+            "regulation_id": "fixture-rule-amendment",
+            "jurisdiction": "Example Jurisdiction",
+            "subject": "Synthetic amendment",
+            "effective_from": "2026-01-01T00:00:00Z",
+            "effective_until": "2027-01-01T00:00:00Z",
+            "status": "enacted",
+            "amendment_of": "fixture-rule-base"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "RELATIONINT",
+      "records": [
+        {
+          "record_id": "RELATIONINT-R1",
+          "source_id": "RELATIONINT-S1",
+          "data": {
+            "subject_id": "S",
+            "predicate": "employed_by",
+            "object_id": "O",
+            "negated": false,
+            "valid_from": "2026-01-01T00:00:00Z",
+            "valid_to": "2026-01-10T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "RELATIONINT-R2",
+          "source_id": "RELATIONINT-S1",
+          "data": {
+            "subject_id": "S",
+            "predicate": "employed_by",
+            "object_id": "O",
+            "negated": true,
+            "valid_from": "2026-01-05T00:00:00Z",
+            "valid_to": "2026-01-12T00:00:00Z"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "REPOINT",
+      "records": [
+        {
+          "record_id": "REPOINT-R1",
+          "source_id": "REPOINT-S1",
+          "data": {
+            "kind": "repository",
+            "url": "https://github.com/Example/Repo.git"
+          }
+        },
+        {
+          "record_id": "REPOINT-R2",
+          "source_id": "REPOINT-S1",
+          "data": {
+            "kind": "commit",
+            "repository_url": "git@github.com:example/repo.git",
+            "commit_id": "abc",
+            "tree_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        {
+          "record_id": "REPOINT-R3",
+          "source_id": "REPOINT-S1",
+          "data": {
+            "kind": "commit",
+            "repository_url": "https://github.com/example/repo",
+            "commit_id": "abc",
+            "tree_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        },
+        {
+          "record_id": "REPOINT-R4",
+          "source_id": "REPOINT-S1",
+          "data": {
+            "kind": "branch",
+            "repository_url": "https://github.com/example/repo",
+            "name": "main",
+            "protected": false
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "REPUTATIONINT",
+      "records": [
+        {
+          "record_id": "REPUTATIONINT-R1",
+          "source_id": "REPUTATIONINT-S1",
+          "data": {
+            "entity_id": "E",
+            "platform": "fixture",
+            "review_id": "REPUTATIONINT-R1",
+            "reviewer_id": "U1",
+            "rating": 5,
+            "scale_min": 1,
+            "scale_max": 5,
+            "text": "same submitted review"
+          }
+        },
+        {
+          "record_id": "REPUTATIONINT-R2",
+          "source_id": "REPUTATIONINT-S1",
+          "data": {
+            "entity_id": "E",
+            "platform": "fixture",
+            "review_id": "REPUTATIONINT-R2",
+            "reviewer_id": "U2",
+            "rating": 1,
+            "scale_min": 1,
+            "scale_max": 5,
+            "text": "SAME submitted review"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "RNDINT",
+      "records": [
+        {
+          "record_id": "RNDINT-R1",
+          "source_id": "RNDINT-S1",
+          "data": {
+            "project_id": "fixture-rnd-1",
+            "hypothesis": "Supplied treatment samples have a higher observed success rate.",
+            "experiments": [
+              {
+                "experiment_id": "experiment-a",
+                "control_n": 10,
+                "treatment_n": 10,
+                "control_successes": 4,
+                "treatment_successes": 8
+              },
+              {
+                "experiment_id": "experiment-b",
+                "control_n": 10,
+                "treatment_n": 10,
+                "control_successes": 3,
+                "treatment_successes": 5
+              }
+            ],
+            "minimum_effect": 0.1
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "ROUTEINT",
+      "records": [
+        {
+          "record_id": "ROUTEINT-R1",
+          "source_id": "ROUTEINT-S1",
+          "data": {
+            "destination": "192.0.2.77",
+            "routes": [
+              {
+                "prefix": "0.0.0.0/0",
+                "next_hop": "198.51.100.1",
+                "distance": 1,
+                "metric": 1
+              },
+              {
+                "prefix": "192.0.2.0/24",
+                "next_hop": "198.51.100.2",
+                "distance": 10,
+                "metric": 5
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SANCTIONSINT",
+      "records": [
+        {
+          "record_id": "SANCTIONSINT-R1",
+          "source_id": "SANCTIONSINT-S1",
+          "data": {
+            "record_type": "entry",
+            "list_entry_id": "fixture-list-entry-1",
+            "list_name": "Synthetic Example List",
+            "jurisdiction": "Example Jurisdiction",
+            "program": "Synthetic Program",
+            "subject_name": "Example Research Organization",
+            "aliases": [
+              "Example Research Org"
+            ],
+            "identifiers": {
+              "registration_id": "EXAMPLE-001"
+            },
+            "effective_from": "2025-01-01T00:00:00Z",
+            "effective_until": "2027-01-01T00:00:00Z",
+            "snapshot_at": "2026-10-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "SANCTIONSINT-R2",
+          "source_id": "SANCTIONSINT-S1",
+          "data": {
+            "record_type": "subject",
+            "subject_id": "fixture-subject-1",
+            "name": "Example Research Org",
+            "identifiers": {
+              "registration_id": "EXAMPLE-001"
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SBOMINT",
+      "records": [
+        {
+          "record_id": "SBOMINT-R1",
+          "source_id": "SBOMINT-S1",
+          "data": {
+            "kind": "sbom",
+            "document": {
+              "bomFormat": "CycloneDX",
+              "components": [
+                {
+                  "bom-ref": "A",
+                  "name": "alpha",
+                  "version": "1"
+                },
+                {
+                  "bom-ref": "B",
+                  "name": "beta",
+                  "version": "2"
+                }
+              ],
+              "dependencies": [
+                {
+                  "ref": "A",
+                  "dependsOn": [
+                    "B"
+                  ]
+                },
+                {
+                  "ref": "B",
+                  "dependsOn": [
+                    "A",
+                    "MISSING"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SCAMINT",
+      "records": [
+        {
+          "record_id": "SCAMINT-R1",
+          "source_id": "SCAMINT-S1",
+          "data": {
+            "text": "Guaranteed return: pay now and provide your seed phrase. Payment by gift card.",
+            "expected_domain": "brand.test",
+            "urls": [
+              "https://other.test/fixture"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SEARCHINT",
+      "records": [
+        {
+          "record_id": "SEARCHINT-R1",
+          "source_id": "SEARCHINT-S1",
+          "data": {
+            "query": "public report",
+            "engine": "alpha",
+            "results": [
+              {
+                "url": "https://example.org/report",
+                "rank": 1
+              }
+            ]
+          }
+        },
+        {
+          "record_id": "SEARCHINT-R2",
+          "source_id": "SEARCHINT-S1",
+          "data": {
+            "query": "public report",
+            "engine": "beta",
+            "results": [
+              {
+                "url": "https://example.org/report",
+                "rank": 2
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SENTIMENTINT",
+      "records": [
+        {
+          "record_id": "SENTIMENTINT-R1",
+          "source_id": "SENTIMENTINT-S1",
+          "data": {
+            "text": "not very good but excellent"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SIGINT",
+      "records": [
+        {
+          "record_id": "SIGINT-R1",
+          "source_id": "SIGINT-S1",
+          "data": {
+            "center_frequency_hz": 1000,
+            "bandwidth_hz": 100,
+            "sample_rate_hz": 150,
+            "samples": [
+              0,
+              2,
+              -2,
+              0
+            ],
+            "occupancy_threshold": 1
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SOCMINT",
+      "records": [
+        {
+          "record_id": "SOCMINT-R1",
+          "source_id": "SOCMINT-S1",
+          "data": {
+            "platform": "fixture",
+            "post_id": "P",
+            "author_id": "A",
+            "text": "Hello #News"
+          }
+        },
+        {
+          "record_id": "SOCMINT-R2",
+          "source_id": "SOCMINT-S1",
+          "data": {
+            "platform": "fixture",
+            "post_id": "P",
+            "author_id": "A",
+            "text": "Different #News"
+          }
+        },
+        {
+          "record_id": "SOCMINT-R3",
+          "source_id": "SOCMINT-S1",
+          "data": {
+            "platform": "fixture",
+            "post_id": "P2",
+            "author_id": "B",
+            "text": "HELLO #news"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SOURCEINT",
+      "records": [
+        {
+          "record_id": "SOURCEINT-r1",
+          "source_id": "SOURCEINT-s1",
+          "data": {}
+        },
+        {
+          "record_id": "SOURCEINT-r2",
+          "source_id": "SOURCEINT-s2",
+          "data": {}
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "STANDARDSINT",
+      "records": [
+        {
+          "record_id": "STANDARDSINT-R1",
+          "source_id": "STANDARDSINT-S1",
+          "data": {
+            "record_type": "requirement",
+            "standard_id": "FIXTURE-STANDARD",
+            "version": "1.0",
+            "requirement_id": "requirement-1",
+            "text": "Synthetic review requires an evidence capture record.",
+            "mandatory": true
+          }
+        },
+        {
+          "record_id": "STANDARDSINT-R2",
+          "source_id": "STANDARDSINT-S1",
+          "data": {
+            "record_type": "evidence",
+            "artifact_id": "fixture-evidence-1",
+            "description": "Synthetic audit-test metadata.",
+            "collected_at": "2026-10-01T00:00:00Z",
+            "valid_until": "2027-01-01T00:00:00Z"
+          }
+        },
+        {
+          "record_id": "STANDARDSINT-R3",
+          "source_id": "STANDARDSINT-S1",
+          "data": {
+            "record_type": "control",
+            "control_id": "fixture-control-1",
+            "standard_id": "FIXTURE-STANDARD",
+            "version": "1.0",
+            "requirement_ids": [
+              "requirement-1"
+            ],
+            "evidence_record_ids": [
+              "STANDARDSINT-R2"
+            ],
+            "implemented": true,
+            "test_result": "pass"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "SUPPLYCHAININT",
+      "records": [
+        {
+          "record_id": "SUPPLYCHAININT-r1",
+          "source_id": "SUPPLYCHAININT-s1",
+          "data": {
+            "nodes": [
+              {
+                "id": "product"
+              },
+              {
+                "id": "component"
+              },
+              {
+                "id": "raw"
+              },
+              {
+                "id": "vendor-a"
+              },
+              {
+                "id": "vendor-b"
+              }
+            ],
+            "root_ids": [
+              "product"
+            ],
+            "edges": [
+              {
+                "from": "product",
+                "to": "component",
+                "lead_time_days": 2
+              },
+              {
+                "from": "component",
+                "to": "raw",
+                "lead_time_days": 3
+              },
+              {
+                "from": "vendor-a",
+                "to": "component",
+                "relation": "supplies",
+                "lead_time_days": 1,
+                "share": 0.6
+              },
+              {
+                "from": "vendor-b",
+                "to": "component",
+                "relation": "supplies",
+                "lead_time_days": 1,
+                "share": 0.4
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TAXINT",
+      "records": [
+        {
+          "record_id": "TAXINT-R1",
+          "source_id": "TAXINT-S1",
+          "data": {
+            "statement_id": "s",
+            "currency": "INR",
+            "lines": [
+              {
+                "line_id": "1",
+                "base": "10.05",
+                "rate_fraction": "0.10",
+                "declared_tax": "1.01"
+              },
+              {
+                "line_id": "2",
+                "base": "10.15",
+                "rate_fraction": "0.10",
+                "declared_tax": "1.02"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TECHINT",
+      "records": [
+        {
+          "record_id": "TECHINT-R1",
+          "source_id": "TECHINT-S1",
+          "data": {
+            "kind": "specification",
+            "product_id": "P",
+            "property": "latency",
+            "value": 1000,
+            "unit": "ms"
+          }
+        },
+        {
+          "record_id": "TECHINT-R2",
+          "source_id": "TECHINT-S1",
+          "data": {
+            "kind": "specification",
+            "product_id": "P",
+            "property": "latency",
+            "value": 1,
+            "unit": "s"
+          }
+        },
+        {
+          "record_id": "TECHINT-R3",
+          "source_id": "TECHINT-S1",
+          "data": {
+            "kind": "specification",
+            "product_id": "P",
+            "property": "architecture",
+            "value": "arm"
+          }
+        },
+        {
+          "record_id": "TECHINT-R4",
+          "source_id": "TECHINT-S1",
+          "data": {
+            "kind": "specification",
+            "product_id": "P",
+            "property": "architecture",
+            "value": "x86"
+          }
+        },
+        {
+          "record_id": "TECHINT-R5",
+          "source_id": "TECHINT-S1",
+          "data": {
+            "kind": "requirement",
+            "product_id": "P",
+            "property": "latency",
+            "maximum": 0.5,
+            "unit": "s"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TEXTINT",
+      "records": [
+        {
+          "record_id": "TEXTINT-R1",
+          "source_id": "TEXTINT-S1",
+          "data": {
+            "text": "Not good. Not bad!"
+          }
+        },
+        {
+          "record_id": "TEXTINT-R2",
+          "source_id": "TEXTINT-S1",
+          "data": {
+            "text": " not good. NOT bad! "
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "THREATACTORINT",
+      "records": [
+        {
+          "record_id": "THREATACTORINT-R1",
+          "source_id": "THREATACTORINT-S1",
+          "data": {
+            "provider": "Fixture Provider A",
+            "actor_label": "Example Cluster A",
+            "aliases": [
+              "Example Alias A"
+            ],
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example[.]org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ]
+          }
+        },
+        {
+          "record_id": "THREATACTORINT-R2",
+          "source_id": "THREATACTORINT-S1",
+          "data": {
+            "provider": "Fixture Provider B",
+            "actor_label": "Example Cluster B",
+            "aliases": [],
+            "indicators": [
+              {
+                "type": "domain",
+                "value": "example.org"
+              }
+            ],
+            "techniques": [
+              "T1059.001"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TIMELINEINT",
+      "records": [
+        {
+          "record_id": "TIMELINEINT-R1",
+          "source_id": "TIMELINEINT-S1",
+          "data": {
+            "event_id": "a",
+            "time": "2026-10-14T01:00:00Z",
+            "before": [
+              "b"
+            ]
+          }
+        },
+        {
+          "record_id": "TIMELINEINT-R2",
+          "source_id": "TIMELINEINT-S1",
+          "data": {
+            "event_id": "b",
+            "time": "2026-10-14T02:00:00Z",
+            "before": [
+              "a"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TLSINT",
+      "records": [
+        {
+          "record_id": "TLSINT-R1",
+          "source_id": "TLSINT-S1",
+          "data": {
+            "version": "TLSv1.1",
+            "cipher": "ECDHE-RSA-RC4-SHA"
+          }
+        },
+        {
+          "record_id": "TLSINT-R2",
+          "source_id": "TLSINT-S1",
+          "data": {
+            "version": "TLS1.3",
+            "cipher": "TLS_AES_256_GCM_SHA384",
+            "server_name": "a.example.org",
+            "certificate_dns_names": [
+              "*.example.org"
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TRADEINT",
+      "records": [
+        {
+          "record_id": "TRADEINT-R1",
+          "source_id": "TRADEINT-S1",
+          "data": {
+            "flow_id": "f1",
+            "direction": "EXPORT",
+            "commodity": "widgets",
+            "origin": "IN",
+            "destination": "GB",
+            "currency": "INR",
+            "value": "0.10",
+            "quantity": "2",
+            "unit": "kg"
+          }
+        },
+        {
+          "record_id": "TRADEINT-R2",
+          "source_id": "TRADEINT-S1",
+          "data": {
+            "flow_id": "f2",
+            "direction": "EXPORT",
+            "commodity": "widgets",
+            "origin": "IN",
+            "destination": "GB",
+            "currency": "INR",
+            "value": "0.20",
+            "quantity": "3",
+            "unit": "kg"
+          }
+        },
+        {
+          "record_id": "TRADEINT-R3",
+          "source_id": "TRADEINT-S1",
+          "data": {
+            "flow_id": "f3",
+            "direction": "EXPORT",
+            "commodity": "widgets",
+            "origin": "IN",
+            "destination": "GB",
+            "currency": "USD",
+            "value": "1",
+            "quantity": "1",
+            "unit": "kg"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TRANSPORTINT",
+      "records": [
+        {
+          "record_id": "TRANSPORTINT-r1",
+          "source_id": "TRANSPORTINT-s1",
+          "data": {
+            "stops": [
+              {
+                "stop_id": "stop-a"
+              },
+              {
+                "stop_id": "stop-b"
+              },
+              {
+                "stop_id": "stop-c"
+              }
+            ],
+            "services": [
+              {
+                "service_id": "synthetic-train",
+                "from": "stop-a",
+                "to": "stop-b",
+                "departure": "2026-10-14T10:00:00Z",
+                "arrival": "2026-10-14T11:00:00Z"
+              },
+              {
+                "service_id": "synthetic-bus-early",
+                "from": "stop-b",
+                "to": "stop-c",
+                "departure": "2026-10-14T11:05:00Z",
+                "arrival": "2026-10-14T11:30:00Z"
+              },
+              {
+                "service_id": "synthetic-bus-late",
+                "from": "stop-b",
+                "to": "stop-c",
+                "departure": "2026-10-14T11:15:00Z",
+                "arrival": "2026-10-14T12:00:00Z"
+              }
+            ],
+            "journey": {
+              "origin": "stop-a",
+              "destination": "stop-c",
+              "earliest_departure": "2026-10-14T09:00:00Z",
+              "minimum_transfer_minutes": 10
+            }
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TRUSTINT",
+      "records": [
+        {
+          "record_id": "TRUSTINT-r1",
+          "source_id": "TRUSTINT-s1",
+          "data": {
+            "context": "synthetic-weather",
+            "assessments": [
+              {
+                "prediction_id": "prediction-a",
+                "prediction": 0.9,
+                "outcome": true
+              },
+              {
+                "prediction_id": "prediction-b",
+                "prediction": 0.1,
+                "outcome": false
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "TTPINT",
+      "records": [
+        {
+          "record_id": "TTPINT-R1",
+          "source_id": "TTPINT-S1",
+          "data": {
+            "technique_id": "T1059.001",
+            "procedure": "Synthetic report asserts a command interpreter invocation in a lab.",
+            "attack_version": "16.1"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "USERNAMEINT",
+      "records": [
+        {
+          "record_id": "USERNAMEINT-R1",
+          "source_id": "USERNAMEINT-S1",
+          "data": {
+            "platform": "github",
+            "username": "@Fixture"
+          }
+        },
+        {
+          "record_id": "USERNAMEINT-R2",
+          "source_id": "USERNAMEINT-S1",
+          "data": {
+            "platform": "twitter",
+            "username": "fixture"
+          }
+        },
+        {
+          "record_id": "USERNAMEINT-R3",
+          "source_id": "USERNAMEINT-S1",
+          "data": {
+            "platform": "other",
+            "username": "fіxture"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "VENDORINT",
+      "records": [
+        {
+          "record_id": "VENDORINT-r1",
+          "source_id": "VENDORINT-s1",
+          "data": {
+            "vendor_id": "synthetic-vendor",
+            "deliveries": [
+              {
+                "delivery_id": "delivery-a",
+                "ordered_quantity": 10,
+                "delivered_quantity": 10,
+                "unit": "pieces",
+                "promised_at": "2026-10-10T12:00:00Z",
+                "delivered_at": "2026-10-10T12:00:00Z"
+              },
+              {
+                "delivery_id": "delivery-b",
+                "ordered_quantity": 20,
+                "delivered_quantity": 15,
+                "unit": "pieces",
+                "promised_at": "2026-10-10T12:00:00Z",
+                "delivered_at": "2026-10-11T12:00:00Z"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "VERIFICATIONINT",
+      "records": [
+        {
+          "record_id": "VERIFICATIONINT-r1",
+          "source_id": "VERIFICATIONINT-s1",
+          "data": {
+            "claim": {
+              "subject": "synthetic-asset",
+              "predicate": "state",
+              "value": "active",
+              "cardinality": "one"
+            },
+            "support_record_ids": [
+              "VERIFICATIONINT-r2"
+            ],
+            "refute_record_ids": [
+              "VERIFICATIONINT-r3"
+            ]
+          }
+        },
+        {
+          "record_id": "VERIFICATIONINT-r2",
+          "source_id": "VERIFICATIONINT-s2",
+          "data": {
+            "claims": [
+              {
+                "subject": "synthetic-asset",
+                "predicate": "state",
+                "value": "active",
+                "cardinality": "one"
+              }
+            ]
+          }
+        },
+        {
+          "record_id": "VERIFICATIONINT-r3",
+          "source_id": "VERIFICATIONINT-s3",
+          "data": {
+            "claims": [
+              {
+                "subject": "synthetic-asset",
+                "predicate": "state",
+                "value": "closed",
+                "cardinality": "one"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "VIDINT",
+      "records": [
+        {
+          "record_id": "VIDINT-r1",
+          "source_id": "VIDINT-s1",
+          "data": {
+            "duration": 3,
+            "fps": 1,
+            "sampling": "complete",
+            "frames": [
+              {
+                "timestamp": 0,
+                "dhash": "0000000000000000"
+              },
+              {
+                "timestamp": 1,
+                "dhash": "0000000000000000"
+              },
+              {
+                "timestamp": 2,
+                "dhash": "ffffffffffffffff"
+              }
+            ]
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "VULNINT",
+      "records": [
+        {
+          "record_id": "VULNINT-R1",
+          "source_id": "VULNINT-S1",
+          "data": {
+            "asset_id": "fixture-host-1",
+            "product": "Fixture Widget",
+            "installed_version": "2.1",
+            "cve_id": "CVE-2026-99999999",
+            "affected_product": "Fixture Widget",
+            "affected_from": "2.0",
+            "fixed_version": "3.0"
+          }
+        }
+      ],
+      "parameters": {}
+    },
+    {
+      "discipline": "WEBINT",
+      "records": [
+        {
+          "record_id": "WEBINT-R1",
+          "source_id": "WEBINT-S1",
+          "data": {
+            "url": "https://example.org/report",
+            "html": "<head><title>Report</title></head><body><h1>Report</h1><script>ignore()</script><p>Public supplied text</p></body>"
+          }
+        }
+      ],
+      "parameters": {}
+    }
+  ]
+}

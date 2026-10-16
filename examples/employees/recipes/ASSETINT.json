@@ -1,0 +1,42 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-assetint",
+  "discipline": "ASSETINT",
+  "objective": "Analyze supplied synthetic ASSETINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ASSETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ASSETINT-R1",
+      "source_id": "ASSETINT-S1",
+      "data": {
+        "asset_id": "a",
+        "serial_id": "s",
+        "currency": "INR",
+        "cost": "100",
+        "salvage": "20",
+        "useful_life_years": "4",
+        "elapsed_years": "2"
+      }
+    },
+    {
+      "record_id": "ASSETINT-R2",
+      "source_id": "ASSETINT-S1",
+      "data": {
+        "asset_id": "b",
+        "serial_id": "s",
+        "currency": "INR",
+        "cost": "100",
+        "salvage": "20",
+        "useful_life_years": "4",
+        "elapsed_years": "8"
+      }
+    }
+  ],
+  "parameters": {}
+}

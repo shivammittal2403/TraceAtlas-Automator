@@ -1,0 +1,60 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cti",
+  "discipline": "CTI",
+  "objective": "Analyze supplied synthetic CTI evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CTI-S1",
+      "uri": "urn:traceatlas:synthetic:cti",
+      "original_source_id": "CTI-declared-original-report"
+    },
+    {
+      "source_id": "CTI-S2",
+      "uri": "urn:traceatlas:synthetic:cti:republication",
+      "original_source_id": "CTI-declared-original-report"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CTI-R1",
+      "source_id": "CTI-S1",
+      "data": {
+        "report_id": "report-1",
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example[.]org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ],
+        "published_at": "2026-09-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "verdict": "suspicious"
+      }
+    },
+    {
+      "record_id": "CTI-R2",
+      "source_id": "CTI-S2",
+      "data": {
+        "report_id": "report-2",
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example.org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ],
+        "published_at": "2026-09-02T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "verdict": "suspicious"
+      }
+    }
+  ],
+  "parameters": {}
+}

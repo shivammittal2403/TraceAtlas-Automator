@@ -1,0 +1,24 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-webint",
+  "discipline": "WEBINT",
+  "objective": "Analyze supplied synthetic WEBINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "WEBINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "WEBINT-R1",
+      "source_id": "WEBINT-S1",
+      "data": {
+        "url": "https://example.org/report",
+        "html": "<head><title>Report</title></head><body><h1>Report</h1><script>ignore()</script><p>Public supplied text</p></body>"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-certint",
+  "discipline": "CERTINT",
+  "objective": "Analyze supplied synthetic CERTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CERTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CERTINT-R1",
+      "source_id": "CERTINT-S1",
+      "data": {
+        "not_before": "2026-01-01T00:00:00Z",
+        "not_after": "2027-01-01T00:00:00Z",
+        "dns_names": [
+          "*.example.org"
+        ],
+        "sha256": "abababababababababababababababababababababababababababababababab",
+        "target": "a.example.org"
+      }
+    }
+  ],
+  "parameters": {}
+}

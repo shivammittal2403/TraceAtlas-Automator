@@ -1,0 +1,58 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-misinfoint",
+  "discipline": "MISINFOINT",
+  "objective": "Analyze supplied synthetic MISINFOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MISINFOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MISINFOINT-R1",
+      "source_id": "MISINFOINT-S1",
+      "data": {
+        "kind": "claim",
+        "claim_id": "C",
+        "statement": "Account A"
+      }
+    },
+    {
+      "record_id": "MISINFOINT-R2",
+      "source_id": "MISINFOINT-S1",
+      "data": {
+        "kind": "claim",
+        "claim_id": "C",
+        "statement": "Account B"
+      }
+    },
+    {
+      "record_id": "MISINFOINT-R3",
+      "source_id": "MISINFOINT-S1",
+      "data": {
+        "kind": "check",
+        "claim_id": "C",
+        "verdict": "TRUE",
+        "basis_record_ids": [
+          "MISINFOINT-R1"
+        ]
+      }
+    },
+    {
+      "record_id": "MISINFOINT-R4",
+      "source_id": "MISINFOINT-S1",
+      "data": {
+        "kind": "check",
+        "claim_id": "C",
+        "verdict": "FALSE",
+        "basis_record_ids": [
+          "MISINFOINT-R2"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

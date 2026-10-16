@@ -9,7 +9,7 @@ from pathlib import Path
 from ...osint_taxonomy import GROUP_TERMS
 from .common import ENGINE_VERSION, MAX_BYTES, _json, canonical, digest, make_context
 
-FAMILIES = ("network", "software", "discovery", "economic", "social", "cyber", "media", "evidence", "fraud", "research")
+FAMILIES = ("network", "software", "discovery", "economic", "social", "cyber", "media", "evidence", "fraud", "research", "supply")
 
 
 def registered_handlers():

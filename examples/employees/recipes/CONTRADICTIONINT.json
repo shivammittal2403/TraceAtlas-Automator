@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-contradictionint",
+  "discipline": "CONTRADICTIONINT",
+  "objective": "Analyze supplied synthetic CONTRADICTIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CONTRADICTIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "CONTRADICTIONINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CONTRADICTIONINT-r1",
+      "source_id": "CONTRADICTIONINT-s1",
+      "data": {
+        "subject": "synthetic-asset",
+        "predicate": "state",
+        "value": "active",
+        "cardinality": "one"
+      }
+    },
+    {
+      "record_id": "CONTRADICTIONINT-r2",
+      "source_id": "CONTRADICTIONINT-s2",
+      "data": {
+        "subject": "synthetic-asset",
+        "predicate": "state",
+        "value": "closed",
+        "cardinality": "one"
+      }
+    }
+  ],
+  "parameters": {}
+}

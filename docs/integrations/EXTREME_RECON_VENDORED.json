@@ -1,0 +1,215 @@
+{
+  "schema": "traceatlas.vendor_extreme_recon/source-provenance-v1",
+  "generated": "2026-10-16",
+  "note": "Four actual Git-tracked project source trees. Each file's Git blob SHA must match the pinned upstream source byte-for-byte. Code is not executed or auto-imported.",
+  "projects": [
+    {
+      "key": "assetfinder",
+      "repo": "tomnomnom/assetfinder",
+      "sha": "4e95d8701aae8cff1c27af2626eb22ba110ad583",
+      "files": [
+        {
+          "path": ".gitignore",
+          "sha": "ca42e4202bea9f2468e701956beeb9312beced73",
+          "size": 36
+        },
+        {
+          "path": "LICENSE",
+          "sha": "5e58e590d99de11a4043e646b43fb1c37eff8cfa",
+          "size": 1067
+        },
+        {
+          "path": "README.md",
+          "sha": "7bf4496576f3d80dee5d1ea418ee59de3a7444ce",
+          "size": 1450
+        },
+        {
+          "path": "bufferoverrun.go",
+          "sha": "fd0b75c4061fca528e263c23b0cb934950d2a887",
+          "size": 508
+        },
+        {
+          "path": "certspotter.go",
+          "sha": "b8348697d763de7b0539a3f974df61b666864044",
+          "size": 432
+        },
+        {
+          "path": "crtsh.go",
+          "sha": "091751163004a6631f8f94a38b61afd2e7819aa9",
+          "size": 624
+        },
+        {
+          "path": "facebook.go",
+          "sha": "de5916e6503fc814d8b07801b29f20dbab7706ca",
+          "size": 1893
+        },
+        {
+          "path": "findsubdomains.go",
+          "sha": "b992b9fc26f7b40d91bfbd1eb961f4098260feb2",
+          "size": 2455
+        },
+        {
+          "path": "hackertarget.go",
+          "sha": "3c2e6e3f95db6476c958603b40fa14a320d6dfbd",
+          "size": 489
+        },
+        {
+          "path": "main.go",
+          "sha": "5ce96d04c759353a02c4fa5f40577b4504c00bed",
+          "size": 2331
+        },
+        {
+          "path": "ratelimit.go",
+          "sha": "592508212cdd8b4955ee315bd4b4ad681b6d9055",
+          "size": 1106
+        },
+        {
+          "path": "script/release",
+          "sha": "18f8d4fdd9e5560ab20949ec86918b68c5120d72",
+          "size": 1591
+        },
+        {
+          "path": "threatcrowd.go",
+          "sha": "fa9a50f1a154fc5756cb08e125bad7c6c752b591",
+          "size": 427
+        },
+        {
+          "path": "urlscan.go",
+          "sha": "449650b7add84cf2620638a915e90ef207beb325",
+          "size": 956
+        },
+        {
+          "path": "virustotal.go",
+          "sha": "f34639565e17d1a77d636ad239caa84b3e31fd4b",
+          "size": 501
+        },
+        {
+          "path": "wayback.go",
+          "sha": "754128b3bd95b77462d4c5a80da30b8239c49cd8",
+          "size": 695
+        }
+      ]
+    },
+    {
+      "key": "hakrevdns",
+      "repo": "hakluke/hakrevdns",
+      "sha": "2a847d3a1edcfd1f9eb989ab69188087c5ddb995",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha": "97fa6cca9be7181184bffde3aa2b7ed8fd88836f",
+          "size": 1080
+        },
+        {
+          "path": "README.md",
+          "sha": "52eb5d2610d3f92c1b6c0b964d7586894d8ba317",
+          "size": 3471
+        },
+        {
+          "path": "main.go",
+          "sha": "12846cab645fceea578497deaa180ab38733f14b",
+          "size": 3274
+        }
+      ]
+    },
+    {
+      "key": "cero",
+      "repo": "glebarez/cero",
+      "sha": "b73125b0249b3efd73fccbcaea3a28037f0f13fb",
+      "files": [
+        {
+          "path": ".github/dependabot.yml",
+          "sha": "6622b4ade63ca29060c2bc7c2a486ae4245356b8",
+          "size": 681
+        },
+        {
+          "path": ".github/workflows/create-release.yaml",
+          "sha": "314dc0b300929f9860a499f426fc919a72f7dc61",
+          "size": 1795
+        },
+        {
+          "path": ".github/workflows/test.yaml",
+          "sha": "2296d96bd70f0660473b9295dd9cdee8f49d9740",
+          "size": 806
+        },
+        {
+          "path": ".gitignore",
+          "sha": "f88e86a646fe7c2116994e91b0989fe3993a13a8",
+          "size": 27
+        },
+        {
+          "path": "LICENSE",
+          "sha": "36fe72e8ba4dc8ea75dfc7448eb90aa311551780",
+          "size": 1065
+        },
+        {
+          "path": "Makefile",
+          "sha": "01ea3e8f8f17bd74633ebbbed55d7ed8367df8a1",
+          "size": 79
+        },
+        {
+          "path": "README.md",
+          "sha": "ac8afe2671efb492f37825868854e308dd45f4e5",
+          "size": 4166
+        },
+        {
+          "path": "cero.go",
+          "sha": "9811178aed360cfb7486d4108ffd947de90e4025",
+          "size": 5089
+        },
+        {
+          "path": "cero_test.go",
+          "sha": "b4aeac8da8763d39d086be36c6ea0943c78ea4be",
+          "size": 1777
+        },
+        {
+          "path": "go.mod",
+          "sha": "352f8f848baa033c3d0fcc1baa1af7b6798d50bf",
+          "size": 232
+        },
+        {
+          "path": "go.sum",
+          "sha": "57c201bc2922f8015cc60b57d71300cf16192ba9",
+          "size": 881
+        },
+        {
+          "path": "parse.go",
+          "sha": "408b87703bc68f32979704c540f7180fe3a1847e",
+          "size": 5035
+        },
+        {
+          "path": "parse_test.go",
+          "sha": "9591e08795cdb37f54c2e83b7c1ae63fc58cc21d",
+          "size": 4195
+        }
+      ]
+    },
+    {
+      "key": "ctfr",
+      "repo": "UnaPibaGeek/ctfr",
+      "sha": "6c7fecdc6346c4f5322049e38f415d5bddaa420d",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha": "94a9ed024d3859793618152ea559a168bbcbb5e2",
+          "size": 35147
+        },
+        {
+          "path": "README.md",
+          "sha": "bef8dba4ec5a981a17032272bf228528925fa93a",
+          "size": 1565
+        },
+        {
+          "path": "ctfr.py",
+          "sha": "36a2ea191516ca8912cd2794094551dc407f7575",
+          "size": 1832
+        },
+        {
+          "path": "requirements.txt",
+          "sha": "663bd1f6a2ae02f29df59fb4963c17934034f731",
+          "size": 8
+        }
+      ]
+    }
+  ]
+}

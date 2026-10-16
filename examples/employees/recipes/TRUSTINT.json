@@ -1,0 +1,35 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-trustint",
+  "discipline": "TRUSTINT",
+  "objective": "Analyze supplied synthetic TRUSTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TRUSTINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TRUSTINT-r1",
+      "source_id": "TRUSTINT-s1",
+      "data": {
+        "context": "synthetic-weather",
+        "assessments": [
+          {
+            "prediction_id": "prediction-a",
+            "prediction": 0.9,
+            "outcome": true
+          },
+          {
+            "prediction_id": "prediction-b",
+            "prediction": 0.1,
+            "outcome": false
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

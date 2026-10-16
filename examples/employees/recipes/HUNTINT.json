@@ -1,0 +1,55 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-huntint",
+  "discipline": "HUNTINT",
+  "objective": "Analyze supplied synthetic HUNTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "HUNTINT-S1",
+      "uri": "urn:traceatlas:synthetic:huntint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "HUNTINT-R1",
+      "source_id": "HUNTINT-S1",
+      "data": {
+        "record_type": "hypothesis",
+        "hypothesis_id": "fixture-hunt-1",
+        "description": "Review administrator events and declared nonadministrator counterexamples.",
+        "selector": {
+          "admin": true
+        },
+        "counter_selector": {
+          "admin": false
+        }
+      }
+    },
+    {
+      "record_id": "HUNTINT-R2",
+      "source_id": "HUNTINT-S1",
+      "data": {
+        "record_type": "event",
+        "event_id": "event-1",
+        "fields": {
+          "admin": true,
+          "action": "configuration-change"
+        }
+      }
+    },
+    {
+      "record_id": "HUNTINT-R3",
+      "source_id": "HUNTINT-S1",
+      "data": {
+        "record_type": "event",
+        "event_id": "event-2",
+        "fields": {
+          "admin": false,
+          "action": "read-only"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

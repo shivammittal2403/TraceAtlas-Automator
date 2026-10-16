@@ -1,0 +1,53 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-imint",
+  "discipline": "IMINT",
+  "objective": "Analyze supplied synthetic IMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IMINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "IMINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IMINT-r1",
+      "source_id": "IMINT-s1",
+      "data": {
+        "pixels": [
+          [
+            0,
+            255
+          ],
+          [
+            50,
+            100
+          ]
+        ],
+        "orientation": 6
+      }
+    },
+    {
+      "record_id": "IMINT-r2",
+      "source_id": "IMINT-s2",
+      "data": {
+        "pixels": [
+          [
+            50,
+            0
+          ],
+          [
+            100,
+            255
+          ]
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

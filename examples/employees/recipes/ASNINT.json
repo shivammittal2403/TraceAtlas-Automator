@@ -1,0 +1,27 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-asnint",
+  "discipline": "ASNINT",
+  "objective": "Analyze supplied synthetic ASNINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ASNINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ASNINT-R1",
+      "source_id": "ASNINT-S1",
+      "data": {
+        "asn": "AS64512",
+        "prefixes": [
+          "192.0.2.0/24"
+        ],
+        "organization_id": "org-example"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,44 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cryptoint",
+  "discipline": "CRYPTOINT",
+  "objective": "Analyze supplied synthetic CRYPTOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CRYPTOINT-S1",
+      "uri": "urn:synthetic:fraud:cryptoint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CRYPTOINT-R1",
+      "source_id": "CRYPTOINT-S1",
+      "data": {
+        "chain": "ethereum",
+        "transfer_id": "X1",
+        "asset": "ETH",
+        "from_address": "0x1111111111111111111111111111111111111111",
+        "to_address": "0x2222222222222222222222222222222222222222",
+        "amount": "1.25",
+        "status": "CONFIRMED",
+        "timestamp": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "CRYPTOINT-R2",
+      "source_id": "CRYPTOINT-S1",
+      "data": {
+        "chain": "ethereum",
+        "transfer_id": "X2",
+        "asset": "ETH",
+        "from_address": "0x2222222222222222222222222222222222222222",
+        "to_address": "0x1111111111111111111111111111111111111111",
+        "amount": "1.25",
+        "status": "CONFIRMED",
+        "timestamp": "2026-01-01T01:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

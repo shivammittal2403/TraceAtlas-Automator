@@ -1,0 +1,61 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-tradeint",
+  "discipline": "TRADEINT",
+  "objective": "Analyze supplied synthetic TRADEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TRADEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TRADEINT-R1",
+      "source_id": "TRADEINT-S1",
+      "data": {
+        "flow_id": "f1",
+        "direction": "EXPORT",
+        "commodity": "widgets",
+        "origin": "IN",
+        "destination": "GB",
+        "currency": "INR",
+        "value": "0.10",
+        "quantity": "2",
+        "unit": "kg"
+      }
+    },
+    {
+      "record_id": "TRADEINT-R2",
+      "source_id": "TRADEINT-S1",
+      "data": {
+        "flow_id": "f2",
+        "direction": "EXPORT",
+        "commodity": "widgets",
+        "origin": "IN",
+        "destination": "GB",
+        "currency": "INR",
+        "value": "0.20",
+        "quantity": "3",
+        "unit": "kg"
+      }
+    },
+    {
+      "record_id": "TRADEINT-R3",
+      "source_id": "TRADEINT-S1",
+      "data": {
+        "flow_id": "f3",
+        "direction": "EXPORT",
+        "commodity": "widgets",
+        "origin": "IN",
+        "destination": "GB",
+        "currency": "USD",
+        "value": "1",
+        "quantity": "1",
+        "unit": "kg"
+      }
+    }
+  ],
+  "parameters": {}
+}

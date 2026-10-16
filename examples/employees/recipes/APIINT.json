@@ -1,0 +1,58 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-apiint",
+  "discipline": "APIINT",
+  "objective": "Analyze supplied synthetic APIINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "APIINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "APIINT-R1",
+      "source_id": "APIINT-S1",
+      "data": {
+        "kind": "openapi",
+        "document": {
+          "openapi": "3.0.3",
+          "components": {
+            "securitySchemes": {
+              "bearer": {
+                "type": "http",
+                "scheme": "bearer"
+              }
+            }
+          },
+          "security": [
+            {
+              "bearer": []
+            }
+          ],
+          "paths": {
+            "/items/{id}": {
+              "get": {
+                "operationId": "duplicate",
+                "security": [],
+                "responses": {}
+              }
+            },
+            "/health": {
+              "get": {
+                "operationId": "duplicate",
+                "responses": {
+                  "200": {
+                    "description": "ok"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

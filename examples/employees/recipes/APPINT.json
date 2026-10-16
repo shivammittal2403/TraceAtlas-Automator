@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-appint",
+  "discipline": "APPINT",
+  "objective": "Analyze supplied synthetic APPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "APPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "APPINT-R1",
+      "source_id": "APPINT-S1",
+      "data": {
+        "kind": "application",
+        "application_id": "A",
+        "version": "1",
+        "public": true,
+        "authentication_required": false,
+        "support_until": "2025-12-31"
+      }
+    },
+    {
+      "record_id": "APPINT-R2",
+      "source_id": "APPINT-S1",
+      "data": {
+        "kind": "route",
+        "application_id": "A",
+        "path": "/public",
+        "method": "get",
+        "public": true,
+        "authentication_required": false
+      }
+    }
+  ],
+  "parameters": {}
+}

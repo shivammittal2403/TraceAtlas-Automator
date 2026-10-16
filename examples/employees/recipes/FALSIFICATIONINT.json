@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-falsificationint",
+  "discipline": "FALSIFICATIONINT",
+  "objective": "Analyze supplied synthetic FALSIFICATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "FALSIFICATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "FALSIFICATIONINT-r1",
+      "source_id": "FALSIFICATIONINT-s1",
+      "data": {
+        "hypothesis_id": "synthetic-temperature-bound",
+        "tests": [
+          {
+            "test_id": "necessary-bound",
+            "field": "temperature",
+            "operator": "lte",
+            "expected_value": 10,
+            "record_ids": [
+              "FALSIFICATIONINT-r2",
+              "FALSIFICATIONINT-r3"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "FALSIFICATIONINT-r2",
+      "source_id": "FALSIFICATIONINT-s1",
+      "data": {
+        "temperature": 9
+      }
+    },
+    {
+      "record_id": "FALSIFICATIONINT-r3",
+      "source_id": "FALSIFICATIONINT-s1",
+      "data": {
+        "temperature": 12
+      }
+    }
+  ],
+  "parameters": {}
+}

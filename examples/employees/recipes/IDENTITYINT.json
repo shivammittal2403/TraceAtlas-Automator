@@ -1,0 +1,36 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-identityint",
+  "discipline": "IDENTITYINT",
+  "objective": "Analyze supplied synthetic IDENTITYINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IDENTITYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IDENTITYINT-R1",
+      "source_id": "IDENTITYINT-S1",
+      "data": {
+        "entity_id": "E1",
+        "identifiers": {
+          "email": "same@Example.TEST"
+        }
+      }
+    },
+    {
+      "record_id": "IDENTITYINT-R2",
+      "source_id": "IDENTITYINT-S1",
+      "data": {
+        "entity_id": "E2",
+        "identifiers": {
+          "email": "same@example.test"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

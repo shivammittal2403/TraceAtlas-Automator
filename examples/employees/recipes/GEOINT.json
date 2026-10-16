@@ -1,0 +1,33 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-geoint",
+  "discipline": "GEOINT",
+  "objective": "Analyze supplied synthetic GEOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "GEOINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "GEOINT-r1",
+      "source_id": "GEOINT-s1",
+      "data": {
+        "crs": "EPSG:3857",
+        "x": 0,
+        "y": 0,
+        "uncertainty_m": 5,
+        "geofence": {
+          "center": {
+            "latitude": 0,
+            "longitude": 0
+          },
+          "radius_m": 10
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

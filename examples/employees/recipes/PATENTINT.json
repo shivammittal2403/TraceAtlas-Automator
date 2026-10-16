@@ -1,0 +1,59 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-patentint",
+  "discipline": "PATENTINT",
+  "objective": "Analyze supplied synthetic PATENTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PATENTINT-S1",
+      "uri": "urn:traceatlas:synthetic:patentint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PATENTINT-R1",
+      "source_id": "PATENTINT-S1",
+      "data": {
+        "publication_number": "FIXTURE-PUB-A",
+        "application_number": "FIXTURE-APP-A",
+        "family_id": "fixture-family-1",
+        "jurisdiction": "Example Jurisdiction",
+        "filing_date": "2024-02-01",
+        "priority_date": "2024-01-01",
+        "publication_date": "2025-02-01",
+        "claims": [
+          "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+        ],
+        "inventors": [
+          "Avery Example"
+        ],
+        "legal_status": "Unverified synthetic assertion"
+      }
+    },
+    {
+      "record_id": "PATENTINT-R2",
+      "source_id": "PATENTINT-S1",
+      "data": {
+        "publication_number": "FIXTURE-PUB-B",
+        "application_number": "FIXTURE-APP-B",
+        "family_id": "fixture-family-1",
+        "jurisdiction": "Example Jurisdiction",
+        "filing_date": "2024-02-02",
+        "priority_date": "2024-01-01",
+        "publication_date": "2025-02-02",
+        "claims": [
+          "A synthetic evidence review apparatus combines bounded record validation and explicit provenance references."
+        ],
+        "inventors": [
+          "Avery Example",
+          "Riley Example"
+        ],
+        "legal_status": "Unverified synthetic assertion"
+      }
+    }
+  ],
+  "parameters": {
+    "similarity_threshold": 0.5
+  }
+}

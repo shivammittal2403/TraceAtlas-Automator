@@ -1,0 +1,36 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-eventint",
+  "discipline": "EVENTINT",
+  "objective": "Analyze supplied synthetic EVENTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "EVENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "EVENTINT-R1",
+      "source_id": "EVENTINT-S1",
+      "data": {
+        "event_type": "meeting",
+        "start": "2026-10-14T01:00:00Z",
+        "end": "2026-10-14T02:00:00Z",
+        "place_id": "hall"
+      }
+    },
+    {
+      "record_id": "EVENTINT-R2",
+      "source_id": "EVENTINT-S1",
+      "data": {
+        "event_type": "meeting",
+        "start": "2026-10-14T01:30:00Z",
+        "end": "2026-10-14T02:30:00Z",
+        "place_id": "hall"
+      }
+    }
+  ],
+  "parameters": {}
+}

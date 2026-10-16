@@ -1,0 +1,34 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-newsint",
+  "discipline": "NEWSINT",
+  "objective": "Analyze supplied synthetic NEWSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "NEWSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "NEWSINT-R1",
+      "source_id": "NEWSINT-S1",
+      "data": {
+        "url": "https://one.example/a",
+        "title": "First",
+        "body": "A supplied article with the same complete body across published copies."
+      }
+    },
+    {
+      "record_id": "NEWSINT-R2",
+      "source_id": "NEWSINT-S1",
+      "data": {
+        "url": "https://two.example/b",
+        "title": "Second",
+        "body": "A supplied article with the same complete body across published copies."
+      }
+    }
+  ],
+  "parameters": {}
+}

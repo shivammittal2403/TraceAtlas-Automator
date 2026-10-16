@@ -1,0 +1,51 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-competitorint",
+  "discipline": "COMPETITORINT",
+  "objective": "Analyze supplied synthetic COMPETITORINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "COMPETITORINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "COMPETITORINT-R1",
+      "source_id": "COMPETITORINT-S1",
+      "data": {
+        "product_id": "a",
+        "cohort_id": "c",
+        "features": [
+          "one",
+          "two"
+        ]
+      }
+    },
+    {
+      "record_id": "COMPETITORINT-R2",
+      "source_id": "COMPETITORINT-S1",
+      "data": {
+        "product_id": "b",
+        "cohort_id": "c",
+        "features": [
+          "two",
+          "three"
+        ]
+      }
+    },
+    {
+      "record_id": "COMPETITORINT-R3",
+      "source_id": "COMPETITORINT-S1",
+      "data": {
+        "product_id": "x",
+        "cohort_id": "different",
+        "features": [
+          "one"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

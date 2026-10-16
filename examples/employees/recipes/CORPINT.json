@@ -1,0 +1,36 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-corpint",
+  "discipline": "CORPINT",
+  "objective": "Analyze supplied synthetic CORPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CORPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CORPINT-R1",
+      "source_id": "CORPINT-S1",
+      "data": {
+        "jurisdiction": "in",
+        "registry_id": "R",
+        "name": " Example   Ltd ",
+        "status": "active"
+      }
+    },
+    {
+      "record_id": "CORPINT-R2",
+      "source_id": "CORPINT-S1",
+      "data": {
+        "jurisdiction": "IN",
+        "registry_id": "R",
+        "name": "Example Ltd",
+        "status": "closed"
+      }
+    }
+  ],
+  "parameters": {}
+}

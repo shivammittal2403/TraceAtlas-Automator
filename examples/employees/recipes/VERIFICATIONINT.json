@@ -1,0 +1,70 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-verificationint",
+  "discipline": "VERIFICATIONINT",
+  "objective": "Analyze supplied synthetic VERIFICATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "VERIFICATIONINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    },
+    {
+      "source_id": "VERIFICATIONINT-s2",
+      "uri": "urn:synthetic:employee-example:s2"
+    },
+    {
+      "source_id": "VERIFICATIONINT-s3",
+      "uri": "urn:synthetic:employee-example:s3"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "VERIFICATIONINT-r1",
+      "source_id": "VERIFICATIONINT-s1",
+      "data": {
+        "claim": {
+          "subject": "synthetic-asset",
+          "predicate": "state",
+          "value": "active",
+          "cardinality": "one"
+        },
+        "support_record_ids": [
+          "VERIFICATIONINT-r2"
+        ],
+        "refute_record_ids": [
+          "VERIFICATIONINT-r3"
+        ]
+      }
+    },
+    {
+      "record_id": "VERIFICATIONINT-r2",
+      "source_id": "VERIFICATIONINT-s2",
+      "data": {
+        "claims": [
+          {
+            "subject": "synthetic-asset",
+            "predicate": "state",
+            "value": "active",
+            "cardinality": "one"
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "VERIFICATIONINT-r3",
+      "source_id": "VERIFICATIONINT-s3",
+      "data": {
+        "claims": [
+          {
+            "subject": "synthetic-asset",
+            "predicate": "state",
+            "value": "closed",
+            "cardinality": "one"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

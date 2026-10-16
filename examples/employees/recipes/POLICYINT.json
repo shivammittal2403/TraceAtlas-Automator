@@ -1,0 +1,58 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-policyint",
+  "discipline": "POLICYINT",
+  "objective": "Analyze supplied synthetic POLICYINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "POLICYINT-S1",
+      "uri": "urn:traceatlas:synthetic:policyint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "POLICYINT-R1",
+      "source_id": "POLICYINT-S1",
+      "data": {
+        "policy_id": "fixture-policy-1",
+        "deadline": "2027-01-01T00:00:00Z",
+        "objectives": [
+          {
+            "objective_id": "objective-a",
+            "text": "Reduce synthetic review delay."
+          },
+          {
+            "objective_id": "objective-b",
+            "text": "Improve synthetic evidence coverage."
+          }
+        ],
+        "measures": [
+          {
+            "measure_id": "measure-a",
+            "objective_ids": [
+              "objective-a"
+            ]
+          },
+          {
+            "measure_id": "measure-b",
+            "objective_ids": [
+              "objective-b"
+            ]
+          }
+        ],
+        "metrics": [
+          {
+            "metric_id": "delay",
+            "baseline": 100,
+            "target": 80,
+            "direction": "decrease",
+            "current": 90,
+            "observed_at": "2026-10-01T00:00:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

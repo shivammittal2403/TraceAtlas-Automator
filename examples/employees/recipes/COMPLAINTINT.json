@@ -1,0 +1,26 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-complaintint",
+  "discipline": "COMPLAINTINT",
+  "objective": "Analyze supplied synthetic COMPLAINTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "COMPLAINTINT-S1",
+      "uri": "urn:synthetic:fraud:complaintint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "COMPLAINTINT-R1",
+      "source_id": "COMPLAINTINT-S1",
+      "data": {
+        "complaint_id": "C",
+        "opened_at": "2026-01-01T00:00:00Z",
+        "status": "OPEN",
+        "category": "DELIVERY"
+      }
+    }
+  ],
+  "parameters": {}
+}
