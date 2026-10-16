@@ -27,6 +27,7 @@ TOOLS = {
     "skills.search": "Discover untrusted reference skills, not executable scripts.",
     "osint.sources": "Find approved-to-review OSINT repository catalogue entries.",
     "skills.inspect": "Read one hashed third-party SKILL.md as untrusted reference text.",
+    "case.reports": "Retrieve existing TraceAtlas case investigation summaries and preserved evidence IDs, without source calls.",
 }
 MAX_STEPS = 5
 MAX_DOC_BYTES = 32768
@@ -190,6 +191,53 @@ class AgentMemory:
                            "object": row["object"], "status": "analyst-linked-unverified"}
                           for row in rows], "retrieval": "evidence-linked-kag"}
 
+    def case_reports(self, case_id: str, query: str) -> dict:
+        """Read bounded native TraceAtlas investigation reports; no new collection."""
+        case_id = _case(case_id)
+        query = _text(query, 180)
+        path = self.path.parent / "traceatlas.db"
+        if not path.is_file():
+            return {"reports": [], "source": "traceatlas-case-reports"}
+        try:
+            with sqlite3.connect(path, timeout=5) as con:
+                rows = con.execute("""
+                    SELECT id,status,report_json FROM autonomous_investigations
+                    WHERE case_id=? AND report_json IS NOT NULL
+                    ORDER BY created_at DESC LIMIT 20
+                """, (case_id,)).fetchall()
+        except sqlite3.OperationalError:
+            return {"reports": [], "source": "traceatlas-case-reports"}
+        terms = _terms(query)
+        reports = []
+        for investigation_id, status, raw in rows:
+            if not isinstance(raw, str) or len(raw) > 2_000_000:
+                continue
+            try:
+                report = json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(report, dict):
+                continue
+            claims = report.get("claims", [])
+            evidence = report.get("evidence", [])
+            if not isinstance(claims, list) or not isinstance(evidence, list):
+                continue
+            summaries = [str(row.get("statement", ""))[:250] for row in claims[:30]
+                         if isinstance(row, dict)]
+            searchable = (" ".join(summaries) + " " + investigation_id).lower()
+            if terms and not any(term in searchable for term in terms):
+                continue
+            reports.append({
+                "citation": "traceatlas-report:" + investigation_id,
+                "status": status, "claims": summaries[:8],
+                "evidence_ids": [str(x.get("evidence_id"))[:100] for x in evidence[:12]
+                                 if isinstance(x, dict) and x.get("evidence_id")],
+                "report_sha256": sha256(raw.encode()).hexdigest(),
+                "verification": "read-only-case-report-requires-analyst-review",
+            })
+        return {"reports": reports[:5], "source": "traceatlas-case-reports",
+                "external_source_calls": 0}
+
     def list_documents(self, case_id: str) -> dict:
         case_id = _case(case_id)
         with self._connection() as con:
@@ -246,6 +294,8 @@ class ToolRegistry:
             return self.library.search(_text(arguments["query"], 120), kind="skill", limit=5)
         if name == "osint.sources":
             return self.library.search(_text(arguments["query"], 120), kind="repository", limit=5)
+        if name == "case.reports":
+            return self.memory.case_reports(case_id, _text(arguments["query"], 180))
         if name == "skills.inspect":
             reference = _text(arguments["ref"], 120)
             record = self.library.reference(reference)
