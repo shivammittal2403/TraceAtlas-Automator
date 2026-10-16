@@ -16,7 +16,7 @@ from unittest.mock import patch
 from traceatlas.db import CaseDB
 from traceatlas.workforce.contracts import AuthorizationContext
 from traceatlas.workforce.documents import DOCUMENT_SCHEMA, SourceDocument, StructuredFact
-from traceatlas.workforce.pipeline import InvestigationPipeline, WORKFLOW_VERSION, digest
+from traceatlas.workforce.pipeline import InvestigationPipeline, WORKFLOW_VERSION, canonical, digest
 from traceatlas.workforce.service import WorkforceService
 
 
@@ -159,7 +159,9 @@ def verify(workspace, receipt_path):
             replay = pipeline.replay(task_id)
         require(replay["verified"] and replay["requires_network"] is False, "Current runtime rejected offline legacy replay")
         require(replay["analysis_digest"] == receipt["analysis_digest"], "Legacy analysis digest changed")
-        require(replay["analysis"] == product["analysis"], "Recomputed legacy analysis changed")
+        # Raw graph snapshots contain tuples; persisted JSON contains arrays.
+        # Compare canonical wire semantics while retaining independent old digests/report bytes.
+        require(canonical(replay["analysis"]) == canonical(product["analysis"]), "Recomputed legacy analysis changed")
         require(digest(service.store.product(task_id)) == receipt["product_digest"], "Replay rewrote the legacy product")
         print(json.dumps({"mode": "verify", "workflow_version": LEGACY_VERSION, "verified": True}))
     finally:
