@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TraceAtlas | Local AI Employee</title>
+<link rel="stylesheet" href="agent.css">
+<script src="agent.js" defer></script>
+</head>
+<body>
+<header><a class="brand" href="./">TRACEATLAS</a><span>LOCAL AI EMPLOYEE / RAG + EVIDENCE GRAPH</span><a href="/">Investigation console ↗</a></header>
+<main>
+<aside>
+<section class="panel">
+<h2>1. Case and model</h2>
+<label>Case<select id="case" aria-label="Existing case"></select></label>
+<p class="dim">Create an authorized case in the <a href="/">investigation console</a> first. Every knowledge record and tool is scoped to the selected case.</p>
+<label>Ollama model<input id="model" value="qwen2.5:7b" maxlength="120" autocomplete="off"></label>
+<div id="model-status" class="dim">Checking localhost Ollama…</div>
+</section>
+<section class="panel">
+<h2>2. Tool permissions</h2>
+<p class="dim">The AI may choose only from the selected, pre-registered read-only tools. It cannot run arbitrary scripts or download programs.</p>
+<div id="tools"></div>
+<label>Maximum AI steps<input id="steps" type="number" min="1" max="5" value="3"></label>
+</section>
+<section class="panel">
+<h2>3. Analyst approval</h2>
+<label class="approval"><input type="checkbox" id="authorize"> I approve this case, the selected tool permissions, and local processing of this objective.</label>
+</section>
+</aside>
+<article>
+<section class="hero">
+<div class="eyebrow">EVIDENCE FIRST • LOCAL MODEL • BOUNDED AUTOMATION</div>
+<h1>AI Investigator Workspace</h1>
+<p>Bring your case notes, retrieve evidence through RAG, inspect linked entities through a knowledge graph, and let Ollama choose among allowed tools.</p>
+<div class="metrics"><div><strong id="doc-count">0</strong><small>CASE DOCUMENTS</small></div><div><strong id="edge-count">0</strong><small>GRAPH LINKS</small></div><div><strong id="tool-count">0</strong><small>ENABLED TOOLS</small></div></div>
+</section>
+<section class="panel">
+<h2>Run an AI task</h2>
+<label for="objective">Investigation objective</label>
+<textarea id="objective" rows="4" maxlength="750" placeholder="Compare our case evidence about this infrastructure asset, identify corroboration gaps and suggest sources to review."></textarea>
+<div class="toolbar"><button id="execute">Run bounded AI employee</button><span id="state" role="status">Ready</span></div>
+<div id="answer" class="answer"></div>
+<details open><summary>Tool steps, sources and audit trail</summary><div id="events"></div></details>
+</section>
+<div class="columns">
+<section class="panel">
+<h2>Local RAG knowledge</h2>
+<p class="dim">Paste analyst-provided case data. Documents are hashed and stored locally, never silently collected from third-party providers.</p>
+<label>Document title<input id="document-title" maxlength="160" placeholder="Authorized research notes"></label>
+<label>Document text<textarea id="document-text" rows="6" maxlength="32768" placeholder="Paste verified records, source URLs, relevant statements and context…"></textarea></label>
+<button id="add-document" class="secondary">Add case document</button>
+<div id="documents"></div>
+</section>
+<section class="panel">
+<h2>Knowledge graph</h2>
+<p class="dim">Link claims to a source document, not to model speculation. Example: Example Corp → operates → example.org</p>
+<label>Evidence document<select id="edge-doc"></select></label>
+<label>Subject<input id="subject" maxlength="160" placeholder="Example Corp"></label>
+<label>Relationship<input id="predicate" maxlength="100" placeholder="operates"></label>
+<label>Object<input id="object" maxlength="250" placeholder="example.org"></label>
+<button id="add-edge" class="secondary">Add sourced relationship</button>
+</section>
+</div>
+<p id="error" role="alert" class="error"></p>
+<footer>Third-party skills are untrusted references. Source-collection permissions are handled separately by TraceAtlas's existing case-authorized investigation engine. AI reasoning is advisory, not independently verified evidence.</footer>
+</article>
+</main>
+</body></html>

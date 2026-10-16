@@ -27,7 +27,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "traceatlas.skills" = ["procedures/*/SKILL.md"]
-"traceatlas.employee" = ["static/*.html", "static/*.js"]
+"traceatlas.employee" = ["static/*.html", "static/*.js", "static/*.css"]
 "traceatlas.research.data" = ["*.json", "*.jsonl.gz"]
 "traceatlas.benchmark_data" = ["*.json"]
 "traceatlas.employee.data" = ["*.json"]

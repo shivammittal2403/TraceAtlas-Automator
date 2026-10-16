@@ -18,6 +18,7 @@ from ..filesystem import path_component
 from ..workforce.service import workforce_enabled
 from .autonomous import AutonomousInvestigator
 from .vendor_library import shared_library, ollama_status
+from .agent_runtime import AgentMemory, LocalAIEmployee, ToolRegistry
 
 
 def make_server(workspace: Path, port=8765, *, enabled=None):
@@ -37,6 +38,7 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
     if gateway_token and gateway_origin != "http://127.0.0.1:8780":
         raise PolicyError("Gateway origin must name the dedicated local loopback gateway")
     jobs_lock = threading.Lock()
+    agent_lock = threading.Lock()
     active = set()
 
     class Handler(BaseHTTPRequestHandler):
@@ -81,6 +83,31 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                     return self.respond(200, raw, "text/html; charset=utf-8")
                 if url.path == "/api/session":
                     return self.respond(200, {"csrf_token": token})
+                if url.path in {"/agent", "/agent.js", "/agent.css"}:
+                    static = Path(__file__).parent / "static"
+                    name, kind = {
+                        "/agent": ("agent.html", "text/html; charset=utf-8"),
+                        "/agent.js": ("agent.js", "application/javascript; charset=utf-8"),
+                        "/agent.css": ("agent.css", "text/css; charset=utf-8"),
+                    }[url.path]
+                    return self.respond(200, (static / name).read_bytes(), kind)
+                if url.path == "/api/agent/tools":
+                    return self.respond(200, {
+                        "schema": "traceatlas.local-employee.tools.v1",
+                        "tools": ToolRegistry.manifest(),
+                        "source_collection": "separate-explicit-authorized-investigation",
+                        "max_steps": 5,
+                    })
+                if url.path in {"/api/agent/documents", "/api/agent/run"}:
+                    params = parse_qs(url.query)
+                    case = path_component(params.get("case", [""])[0])
+                    engine = Engine(workspace)
+                    if not engine.db.get_case(case):
+                        raise ValueError("Unknown case")
+                    memory = AgentMemory(workspace)
+                    if url.path == "/api/agent/documents":
+                        return self.respond(200, memory.list_documents(case))
+                    return self.respond(200, memory.get_run(case, params.get("id", [""])[0]))
                 if url.path == "/library.js":
                     raw = (Path(__file__).parent / "static" / "library.js").read_bytes()
                     return self.respond(200, raw, "application/javascript; charset=utf-8")
@@ -126,7 +153,8 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                 if self.headers.get('Transfer-Encoding') or len(lengths) != 1 or not re.fullmatch(r'[0-9]{1,5}', lengths[0]):
                     raise ValueError('Invalid request framing')
                 length = int(lengths[0])
-                if not 0 < length <= 16384:
+                limit = 49152 if self.path == "/api/agent/document" else 16384
+                if not 0 < length <= limit:
                     raise ValueError('Invalid body size')
                 raw_body = self.rfile.read(length)
                 if len(raw_body) != length:
@@ -147,6 +175,27 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                 engine = Engine(workspace)
                 service = AutonomousInvestigator(engine.db, workspace, enabled=enabled)
                 case = path_component(body.get("case_id", ""))
+                if self.path in {"/api/agent/document", "/api/agent/edge", "/api/agent/run"}:
+                    if not engine.db.get_case(case) or body.get("authorized") is not True:
+                        raise PolicyError("Existing case and explicit analyst authorization required")
+                    employee = LocalAIEmployee(workspace)
+                    if self.path == "/api/agent/document":
+                        result = employee.memory.add_document(case, body.get("title"), body.get("text"))
+                        return self.respond(201, result)
+                    if self.path == "/api/agent/edge":
+                        result = employee.memory.add_edge(case, body.get("document_id"),
+                            body.get("subject"), body.get("predicate"), body.get("object"))
+                        return self.respond(201, result)
+                    if not agent_lock.acquire(blocking=False):
+                        return self.respond(409, {"error": "Another local AI task is running"})
+                    try:
+                        result = employee.run(case, body.get("objective"),
+                            model=body.get("model") or "qwen2.5:7b",
+                            max_steps=body.get("max_steps", 3),
+                            allowed_tools=body.get("allowed_tools"))
+                    finally:
+                        agent_lock.release()
+                    return self.respond(200, result)
                 if self.path == "/api/cases":
                     if not isinstance(case, str) or not re.fullmatch(r"[A-Za-z0-9_-]{2,64}", case):
                         raise ValueError("Invalid case identifier")

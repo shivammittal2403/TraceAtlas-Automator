@@ -54,7 +54,7 @@ jobs:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -v
       - name: Validate launchers and JavaScript
-        run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js && node --check public/employee.js && node --check src/traceatlas/employee/static/library.js
+        run: bash -n setup.sh start.sh set.sh && node --check public/app.js && node --check public/legacy.js && node --check public/graph-model.js && node --check public/employee.js && node --check src/traceatlas/employee/static/library.js && node --check src/traceatlas/employee/static/agent.js
       - name: Verify graph model and Python export interoperability
         run: node --test tests/test_graph_model.cjs tests/test_target_validation.cjs
       - name: Install pinned local verification tools
@@ -129,6 +129,12 @@ jobs:
               names = wheel.namelist()
               assert "traceatlas/employee/static/library.js" in names
               assert "traceatlas/employee/vendor_library.py" in names
+              for expected in ("traceatlas/employee/agent_runtime.py",
+                               "traceatlas/employee/static/agent.html",
+                               "traceatlas/employee/static/agent.js",
+                               "traceatlas/employee/static/agent.css",
+                               "traceatlas/employee/data/agent_profile.json"):
+                  assert expected in names, expected
           print("Integrated local library present in distributable wheel")
           PY
       - run: python scripts/generate_sbom.py
