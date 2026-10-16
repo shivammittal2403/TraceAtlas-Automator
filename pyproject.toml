@@ -26,6 +26,7 @@ traceatlas-employees = "traceatlas.workforce.discipline_cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"traceatlas.skills" = ["procedures/*/SKILL.md"]
 "traceatlas.employee" = ["static/*.html"]
 "traceatlas.research.data" = ["*.json", "*.jsonl.gz"]
 "traceatlas.benchmark_data" = ["*.json"]
