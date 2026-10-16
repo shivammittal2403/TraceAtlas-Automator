@@ -42,6 +42,14 @@ http://127.0.0.1:8780 {
             }
         }
 
+        @hubRoot path /hub
+        redir @hubRoot /hub/ 308
+
+        handle_path /hub/* {
+            root * {$TRACEATLAS_GATEWAY_UI_DIR}
+            file_server
+        }
+
         handle /gateway/healthz {
             respond "gateway_alive_not_production_ready" 200
         }
