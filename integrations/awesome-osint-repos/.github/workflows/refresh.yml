@@ -1,0 +1,83 @@
+name: Refresh Awesome OSINT Repositories
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: catalogue-metadata-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refresh exact metadata and render views
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .catalog/scripts/refresh_metadata.py \
+            --write \
+            --snapshot \
+            --drop-unavailable \
+            --drop-archived \
+            --drop-stale-before 2020-01-01 \
+            --delay 0.1
+          python .catalog/scripts/render_catalog.py --write
+          python .catalog/scripts/validate_catalog.py
+
+      - name: Verify catalogue gates
+        run: |
+          set -euo pipefail
+          python -m py_compile .catalog/scripts/*.py
+          python .catalog/scripts/render_catalog.py --check
+          python .catalog/scripts/validate_catalog.py
+          git diff --check
+          python .catalog/scripts/check_changed_files.py \
+            --base HEAD \
+            --allow osint-repositories.csv \
+            --allow .catalog/README.md \
+            --allow .catalog/data/candidates.csv \
+            --allow .catalog/data/snapshots.csv \
+            --allow README.md \
+            --allow INPUTS.md \
+            --allow EMERGING.md \
+            --allow AGENTIC.md \
+            --allow TIMELINE.md
+
+      - name: Commit and publish refreshed metadata
+        run: |
+          set -euo pipefail
+          git config user.name "oryon"
+          git config user.email "70845183+oryon-osint@users.noreply.github.com"
+          git add osint-repositories.csv .catalog/README.md .catalog/data/candidates.csv .catalog/data/snapshots.csv README.md INPUTS.md EMERGING.md AGENTIC.md TIMELINE.md
+          if git diff --cached --quiet; then
+            echo "No metadata change." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git commit -m "Refresh catalogue metadata"
+          git fetch origin main
+          git rebase origin/main
+          python -m py_compile .catalog/scripts/*.py
+          python .catalog/scripts/render_catalog.py --check
+          python .catalog/scripts/validate_catalog.py
+          git diff --check origin/main...HEAD
+          git push origin HEAD:main
+          local_sha=$(git rev-parse HEAD)
+          remote_sha=$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')
+          test "$local_sha" = "$remote_sha"
+          echo "Commit: $local_sha" >> "$GITHUB_STEP_SUMMARY"
