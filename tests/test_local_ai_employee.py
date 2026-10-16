@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -63,6 +64,24 @@ class AgentMemoryTests(unittest.TestCase):
             self.memory.add_document("case-a","notes","x" * 32769)
         with self.assertRaises(ValueError):
             self.memory.add_edge("case-a","doc-"+"0"*32,"a","knows","b")
+
+    def test_native_traceatlas_case_reports_are_read_only_and_scoped(self):
+        path = Path(self.tmp.name) / "traceatlas.db"
+        report = json.dumps({
+            "claims": [{"statement": "Registrar shows example.org for organization"}],
+            "evidence": [{"evidence_id": "evi-authorized-001"}]
+        })
+        with sqlite3.connect(path) as con:
+            con.execute("CREATE TABLE autonomous_investigations "
+                        "(id TEXT PRIMARY KEY, case_id TEXT, status TEXT, report_json TEXT, created_at TEXT)")
+            con.execute("INSERT INTO autonomous_investigations VALUES (?,?,?,?,?)",
+                        ("inv-a","case-a","completed",report,"2026-10-16"))
+        a=self.memory.case_reports("case-a","registrar")
+        self.assertEqual(len(a["reports"]),1)
+        self.assertEqual(a["reports"][0]["evidence_ids"],["evi-authorized-001"])
+        self.assertEqual(len(a["reports"][0]["report_sha256"]),64)
+        self.assertEqual(self.memory.case_reports("case-b","registrar")["reports"],[])
+        self.assertEqual(self.memory.case_reports("case-a","unrelated")["reports"],[])
 
     def test_run_records_are_case_scoped(self):
         result=self.memory.save_run("case-a", "Research local evidence",
@@ -205,7 +224,7 @@ class ConsoleAgentTests(unittest.TestCase):
         self.assertGreater(len(session["csrf_token"]),20)
         status,manifest=self.request("GET","/api/agent/tools")
         self.assertEqual(status,200)
-        self.assertEqual(len(manifest["tools"]),5)
+        self.assertEqual(len(manifest["tools"]),6)
 
     def test_case_authorization_and_document_ingestion(self):
         status,session=self.request("GET","/api/session")
