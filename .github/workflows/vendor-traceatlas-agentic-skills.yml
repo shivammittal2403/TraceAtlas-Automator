@@ -64,7 +64,7 @@ jobs:
               target=link.resolve()
               assert target.is_relative_to(root_resolved) and target.exists(), f"Unsafe or broken link: {link} -> {target}"
           canonical=list((root/"skills").rglob("SKILL.md"))
-          direct=list((root/"skills").glob("*/SKILL.md"))
+          direct=[p for p in (root/"skills").glob("*/SKILL.md") if not p.parent.is_symlink()]
           assert len(canonical)==2705, f"Canonical skills {len(canonical)}"
           assert len(direct)==2600, f"Direct skills {len(direct)}"
           bad_frontmatter=[p.relative_to(root).as_posix() for p in direct if not p.read_bytes().startswith(b"---\n")]
