@@ -288,11 +288,9 @@ class AnalysisContext:
         metrics = deepcopy(metrics or {})
         # Budget metadata is owned by this context, never by a family result or
         # a caller replaying a prior output through the kernel's second pass.
-        metrics.pop("output_budget", None)
-        if self._issues_suppressed:
-            metrics["issue_reports_suppressed"] = self._issues_suppressed
-        if self._findings_suppressed:
-            metrics["finding_reports_suppressed"] = self._findings_suppressed
+        reserved_metrics = {"output_budget", "issue_reports_suppressed", "finding_reports_suppressed"}
+        for key in reserved_metrics:
+            metrics.pop(key, None)
         truncations = [0]
         artifacts = _bounded_output(deepcopy(artifacts or {}), truncations)
         metrics = _bounded_output(metrics, truncations)
@@ -313,20 +311,29 @@ class AnalysisContext:
             budget["issue_reports_omitted"] = self._issues_suppressed + self._issue_reports_pruned
 
         def attach_budget():
-            # Reserve a key before inserting metadata into a full metric map.
-            while "output_budget" not in metrics and len(metrics) >= MAX_RECORDS:
-                metrics.pop(max(metrics))
+            # Reserve keys for all trusted metadata before merging a full map.
+            # A newly suppressed marker may itself require a suppression key.
+            while True:
+                trusted = {"output_budget": budget}
+                if self._issues_suppressed:
+                    trusted["issue_reports_suppressed"] = self._issues_suppressed
+                if self._findings_suppressed:
+                    trusted["finding_reports_suppressed"] = self._findings_suppressed
+                if len(metrics) + len(set(trusted) - set(metrics)) <= MAX_RECORDS:
+                    metrics.update(trusted)
+                    sync_budget()
+                    return
+                key = max(key for key in metrics if key not in reserved_metrics)
+                metrics.pop(key)
                 budget["metric_fields_omitted"] += 1
                 self.issue(None, "metric_budget_exhausted", "Derived metric fields were omitted to preserve trusted output budget metadata.")
-            metrics["output_budget"] = budget
-            sync_budget()
 
         def size():
             sync_budget()
             return len(canonical(result).encode("utf-8"))
 
         sync_budget()
-        if any(budget.values()):
+        if any(budget.values()) or self._findings_suppressed:
             attach_budget()
         if size() > limit:
             self.issue(None, "output_budget_exhausted",
@@ -345,8 +352,8 @@ class AnalysisContext:
             while len(self.issues) > 1 and size() > limit:
                 self.issues.pop(-2)
                 self._issue_reports_pruned += 1
-            while len(metrics) > 1 and size() > limit:
-                key = max(key for key in metrics if key != "output_budget")
+            while any(key not in reserved_metrics for key in metrics) and size() > limit:
+                key = max(key for key in metrics if key not in reserved_metrics)
                 metrics.pop(key)
                 budget["metric_fields_omitted"] += 1
             while limits and size() > limit:

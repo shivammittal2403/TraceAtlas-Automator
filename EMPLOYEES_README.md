@@ -92,3 +92,8 @@ Every employee has a runnable [input recipe](EMPLOYEE_INPUTS.md). The complete
 synthetic acceptance pack is examples/employees/all140.json. Run it with the
 team command to exercise all140 production processors without external services.
 Downloadable source bundles include all processor code, recipes and semantic tests.
+
+The original launcher also exposes this complete workforce:
+`python "OSINT PYTHON.py" employees catalog` or
+`python "OSINT PYTHON.py" employees team --input examples/employees/all140.json`.
+The existing native OSINT commands retain their versioned contracts.

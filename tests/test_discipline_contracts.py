@@ -138,18 +138,21 @@ class DisciplineContractTests(unittest.TestCase):
     def test_budget_metadata_reserves_a_key_in_a_full_metric_map(self):
         outputs = []
         entries = [("key_" + str(index), index) for index in range(501)]
-        metric_entries = [("metric_" + str(index), index) for index in range(500)]
+        metric_entries = [("a_metric_" + str(index), index) for index in range(500)]
         for reverse in (False, True):
             context = make_context(fixture(), evidence_ids=("evidence-input",))
             context.finding("bound", "Retain canonical references.", ["r1"],
                             {"rows": dict(reversed(entries) if reverse else entries)})
+            for index in range(500):
+                context.finding("counted_" + str(index), "Exercise trusted suppression metadata.", ["r1"])
             result = context.output(
                 metrics=dict(reversed(metric_entries) if reverse else metric_entries),
                 artifacts={"rows": list(range(501))})
             self.assertEqual(len(result["metrics"]), 500)
             self.assertEqual(len(result["artifacts"]["rows"]), 500)
             self.assertEqual(len(result["findings"][0]["data"]["rows"]), 500)
-            self.assertEqual(result["metrics"]["output_budget"]["metric_fields_omitted"], 1)
+            self.assertEqual(result["metrics"]["output_budget"]["metric_fields_omitted"], 2)
+            self.assertEqual(result["metrics"]["finding_reports_suppressed"], 1)
             self.assertGreater(result["metrics"]["output_budget"]["structures_truncated"], 0)
             self.assertIn("metric_budget_exhausted", {item["code"] for item in result["issues"]})
             self.assertEqual(result["findings"][0]["record_ids"], ["r1"])

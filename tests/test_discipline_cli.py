@@ -15,6 +15,14 @@ class DisciplineCLITests(unittest.TestCase):
             code = main(args)
         return code, json.loads((output.getvalue() or error.getvalue()).strip())
 
+    def test_original_osint_entrypoint_exposes_all140_employee_catalog(self):
+        from traceatlas.osint_cli import main as osint_main
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = osint_main(["employees", "catalog"])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output.getvalue())["implemented"], 140)
+
     def test_catalog_has_truthful_inventory(self):
         code, result = self.call(["catalog"])
         self.assertEqual(code, 0)

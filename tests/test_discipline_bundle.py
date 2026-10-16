@@ -43,6 +43,8 @@ class DisciplineBundleTests(unittest.TestCase):
 
     def test_extracted_all140_team_preserves_assignment_evidence_and_output(self):
         catalog = self.python_json("EMPLOYEES PYTHON.py", "catalog")
+        original_entry = self.python_json("OSINT PYTHON.py", "employees", "catalog")
+        self.assertEqual(original_entry["implemented"], 140)
         self.assertEqual(catalog["requested"], 140)
         self.assertEqual(catalog["implemented"], 140)
         self.assertEqual(catalog["remaining"], 0)
