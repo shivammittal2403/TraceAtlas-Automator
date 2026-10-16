@@ -9,6 +9,9 @@ on:
       - 'src/traceatlas/workforce/**'
       - 'src/traceatlas/skills/procedures/**'
       - 'tests/test_workforce_result_integrity.py'
+      - 'tests/test_hypothesis_review.py'
+      - 'tests/test_investigation_pipeline.py'
+      - 'tests/fixtures/legacy14_replay_fixture.py'
       - 'src/traceatlas/osint_taxonomy.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
@@ -22,6 +25,9 @@ on:
       - 'src/traceatlas/workforce/**'
       - 'src/traceatlas/skills/procedures/**'
       - 'tests/test_workforce_result_integrity.py'
+      - 'tests/test_hypothesis_review.py'
+      - 'tests/test_investigation_pipeline.py'
+      - 'tests/fixtures/legacy14_replay_fixture.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
       - '.github/workflows/discipline-employees.yml'
@@ -66,6 +72,24 @@ jobs:
         run: python -m unittest discover -s tests -p test_ai_workforce.py -v
       - name: Canonical workforce result integrity
         run: python -m unittest discover -s tests -p test_workforce_result_integrity.py -v
+      - name: Canonical competing assertion review
+        run: python -m unittest discover -s tests -p test_hypothesis_review.py -v
+      - name: Investigation products and semantic replay
+        run: python -m unittest discover -s tests -p test_investigation_pipeline.py -v
+      - uses: actions/checkout@v7
+        with:
+          ref: b8fe5e3d94ab797c9fac3630447def09c1f74503
+          path: .legacy-runtime
+          submodules: false
+          persist-credentials: false
+      - name: Produce genuine legacy case using pinned runtime
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.legacy-runtime/src
+        run: python tests/fixtures/legacy14_replay_fixture.py create --workspace "${{ runner.temp }}/traceatlas-legacy14-case" --receipt "${{ runner.temp }}/traceatlas-legacy14-receipt.json"
+      - name: Verify legacy case with current runtime
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python tests/fixtures/legacy14_replay_fixture.py verify --workspace "${{ runner.temp }}/traceatlas-legacy14-case" --receipt "${{ runner.temp }}/traceatlas-legacy14-receipt.json"
 
       - name: Build the complete downloadable employee source bundle
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'

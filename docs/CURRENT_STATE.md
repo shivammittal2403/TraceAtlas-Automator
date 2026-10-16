@@ -1,3 +1,20 @@
+# Canonical hypothesis and falsification review — 2026-10-16
+
+CODED on draft branch: evidence-linked competing assertions and candidate-specific
+falsification criteria now flow through canonical investigation analysis, typed
+results and draft reports. Native HYPOTHESISINT/FALSIFICATIONINT reviews are
+recomputed from preserved inputs, with source-record provenance and explicit
+bounds; callback artifacts cannot establish canonical hypotheses. New approvals
+bind review/workflow versions. Offline replay compares semantic projections and
+preserves the prior 1.4.0 pipeline format through an explicit adapter.
+
+Windows/Linux Python 3.10/3.12 gates include a genuine old-runtime producer/new-
+runtime replay check. Local execution remains unavailable due sandbox startup.
+Hosted new-head CI/CodeQL is pending at commit creation; earlier head results do
+not certify these changes. See [COMPETING_HYPOTHESES.md](COMPETING_HYPOTHESES.md).
+Exact attached 139-catalog mapping, governed team coordination, live qualification,
+representative evaluation and security triage remain open.
+
 # 139-discipline audit and evidence-contract repair — 2026-10-16
 
 CODED on draft feature branch: repair all 140 existing procedure templates and

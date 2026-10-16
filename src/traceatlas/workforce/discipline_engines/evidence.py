@@ -447,7 +447,7 @@ def hypothesisint(ctx: AnalysisContext):
         except ValueError as exc:
             ctx.issue(record.record_id, "invalid_hypothesis_sensitivity", str(exc))
             continue
-        scores = {key: {"support": {}, "refute": {}, "unknown": 0} for key in ids}
+        scores = {key: {"support": {}, "refute": {}, "unknown": 0, "assessments": []} for key in ids}
         citations, seen = [], set()
         for assessment in evidence:
             if not isinstance(assessment, dict) or not isinstance(assessment.get("record_id"), str) or assessment["record_id"] not in known:
@@ -474,6 +474,9 @@ def hypothesisint(ctx: AnalysisContext):
                 if not isinstance(stance, str) or stance not in {"supports", "refutes", "neutral", "unknown"}:
                     ctx.issue(record.record_id, "invalid_hypothesis_stance", "Unsupported hypothesis stance.")
                     stance = "unknown"
+                scores[key]["assessments"].append({
+                    "record_id": ref, "source_id": known[ref].source_id,
+                    "asserted_origin_group": group, "stance": stance, "weight": weight})
                 if stance in {"supports", "refutes"}:
                     bucket = scores[key]["support" if stance == "supports" else "refute"]
                     bucket[group] = max(bucket.get(group, 0), weight)
@@ -488,7 +491,8 @@ def hypothesisint(ctx: AnalysisContext):
             ranking.append({"hypothesis_id": key, "support_weight": support, "refute_weight": refute,
                             "net_assessed_support": support - refute,
                             "sensitivity_interval": [lower, upper],
-                            "unknown_assessments": score["unknown"]})
+                            "unknown_assessments": score["unknown"],
+                            "assessments": score["assessments"]})
         ranking.sort(key=lambda row: (-row["net_assessed_support"], row["hypothesis_id"]))
         unstable = bool(len(ranking) > 1 and ranking[0]["sensitivity_interval"][0] <=
                         max(row["sensitivity_interval"][1] for row in ranking[1:]))

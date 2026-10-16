@@ -32,8 +32,12 @@ from .verification import VerificationEngine
 from .live_sources import SOURCE_TOOLS, SEARCH_SOURCES, select_sources, request_spec
 from .normalization import NORMALIZER_VERSION, recompute_document, live_facts as _live_facts
 from .colrf import COLRF_STAGES, build_colrf_review
+from .hypothesis_review import build_hypothesis_review, project_hypotheses
 
-WORKFLOW_VERSION = "evidence-investigation/1.4.0"
+from .workflow_versions import (
+    CURRENT_WORKFLOW_VERSION as WORKFLOW_VERSION, LEGACY_WORKFLOW_VERSION,
+    SUPPORTED_WORKFLOW_VERSIONS, WORKFLOW_CONSTRAINT_PREFIX,
+)
 PARSER_VERSION = NORMALIZER_VERSION
 POLICY_VERSION = "bounded-readonly/1"
 
@@ -78,6 +82,16 @@ def _grounded(document, fact):
     return False
 
 
+def _workflow_version(task):
+    versions = [value[len(WORKFLOW_CONSTRAINT_PREFIX):] for value in task.constraints
+                if value.startswith(WORKFLOW_CONSTRAINT_PREFIX)]
+    if not versions:
+        return LEGACY_WORKFLOW_VERSION
+    if len(versions) != 1 or versions[0] not in SUPPORTED_WORKFLOW_VERSIONS:
+        raise ValueError("task workflow version binding is not supported")
+    return versions[0]
+
+
 def plan_sources(task, *, live=False):
     kind, value = task.target_entities[0].split(":", 1)
     bound = tuple(row.split(":", 1)[1] for row in task.constraints if row.startswith("live-source:"))
@@ -87,7 +101,7 @@ def plan_sources(task, *, live=False):
         legacy.remove("internetdb")
     sources = list(select_sources(kind, value, bound)) if bound else [] if any(c.startswith("source-plan:") for c in task.constraints) else legacy
     search = next((source for source in sources if source in SEARCH_SOURCES), None)
-    return {"workflow_version": WORKFLOW_VERSION, "seed": task.target_entities[0],
+    return {"workflow_version": _workflow_version(task), "seed": task.target_entities[0],
             "mode": "live" if live else "approved-records", "sources": sources if live else [],
             "selection_basis": "typed seed and implemented fixed-host connector contracts",
             "maximum_documents": min(MAX_DOCUMENTS, task.budget.tool_calls),
@@ -122,6 +136,7 @@ class InvestigationPipeline:
                 raise ValueError("execution requires explicit enabled authorization")
             return self.store.product(task_id)
         task = row["envelope"]
+        workflow_version = _workflow_version(task)
         if any(f.subject not in task.target_entities for doc in supplied for f in doc.facts):
             raise ValueError("source document contains an out-of-scope subject")
         product = None
@@ -204,7 +219,7 @@ class InvestigationPipeline:
                     result_row['raw_evidence_id'] = item.evidence_id if item else None
                     if item and result_row['source_metadata']['state'] == 'captured':
                         source_state.cache(task, result_row['source_id'], PARSER_VERSION, evidence)
-            analysis = self.analyze(task, tuple(collected), evidence, outcomes)
+            analysis = self.analyze(task, tuple(collected), evidence, outcomes, workflow_version=workflow_version)
             if gateway_result:
                 for result_row in gateway_result['results']:
                     evidence_id = result_row['raw_evidence_id']
@@ -221,7 +236,8 @@ class InvestigationPipeline:
                 observations=tuple(Observation.from_dict(r) for r in analysis["observations"]),
                 evidence_ids=tuple(e.evidence_id for e in evidence), entities=tuple(r["node_id"] for r in analysis["graph"]["nodes"]),
                 relationships=tuple(r["edge_id"] for r in analysis["graph"]["edges"]),
-                claims=tuple(Claim.from_dict(r) for r in analysis["claims"]), hypotheses=(),
+                claims=tuple(Claim.from_dict(r) for r in analysis["claims"]),
+                hypotheses=project_hypotheses(analysis["hypothesis_review"]) if "hypothesis_review" in analysis else (),
                 contradictions=tuple(r["claim_id"] for r in analysis["verification"] if r["status"] == "DISPUTED"),
                 uncertainties=("structured_assertions_not_identity_or_causation",), confidence_basis=("deterministic-evidence-verification",),
                 source_independence=tuple(sorted({r["independence_group"] for r in analysis["source_lineage"]})),
@@ -234,7 +250,7 @@ class InvestigationPipeline:
                        "state": "PARTIAL" if failed or not analysis["claims"] else "HUMAN_REVIEW",
                        "phase_history": ["AUTHORIZED", "PLANNING", "COLLECTING", "NORMALIZING", "RESOLVING", "ANALYZING", "VERIFYING", "GAP_ANALYSIS", "HUMAN_REVIEW"],
                        "analysis": analysis, "result": result.to_dict(),
-                       "replay_manifest": {"schema": "traceatlas-replay/v1", "workflow_version": WORKFLOW_VERSION,
+                       "replay_manifest": {"schema": "traceatlas-replay/v1", "workflow_version": workflow_version,
                            "parser_version": PARSER_VERSION, "policy_version": POLICY_VERSION,
                            "worker_version": employee.version, "envelope_digest": row["envelope_digest"],
                            "connector_versions": {d.source_id: 2 if d.source_id == "rdap" else 1 for d in collected},
@@ -264,7 +280,9 @@ class InvestigationPipeline:
         self.service.execute(task_id, runner, authorized=authorized, product_factory=lambda: product)
         return product
 
-    def analyze(self, task, documents, evidence, outcomes):
+    def analyze(self, task, documents, evidence, outcomes, *, workflow_version=WORKFLOW_VERSION):
+        if workflow_version not in SUPPORTED_WORKFLOW_VERSIONS:
+            raise ValueError("analysis workflow version is not supported")
         if len(documents) != len(evidence) or any(e.case_id != task.case_id for e in evidence):
             raise ValueError("analysis input evidence case mismatch")
         observations, fact_rows, gaps = [], [], {"human-report-release-required"}
@@ -387,7 +405,19 @@ class InvestigationPipeline:
             gaps.add("no-source-observations")
         if kind in {"person", "company"}:
             gaps.add("identity-resolution-needs-human-review")
+        hypothesis_review = None
+        if workflow_version == WORKFLOW_VERSION:
+            eligible_rows = [(fact, observation, doc) for fact, observation, doc in fact_rows
+                             if doc.source_id not in injection_sources and _grounded(doc, fact)]
+            hypothesis_review = build_hypothesis_review(
+                task.case_id, task.task_id, eligible_rows, lineage_index)
+            if hypothesis_review["comparisons_omitted"]:
+                gaps.add("hypothesis-review-budget-exhausted")
         next_actions = []
+        if hypothesis_review and hypothesis_review["hypotheses"]:
+            next_actions.append({"action_id": "review-competing-hypotheses", "priority": 1,
+                "basis": "captured incompatible assertions with exact overlapping validity intervals",
+                "automatic_execution": False})
         if conflicts:
             next_actions.append({"action_id": "review-contradictions", "priority": 1, "basis": "overlapping conflicting single-valued records", "automatic_execution": False})
         if any(r["status"] != "SUPPORTED" for r in decisions):
@@ -413,7 +443,7 @@ class InvestigationPipeline:
         identity_candidates = ([{"seed_id": seed_node, "state": "POSSIBLE_MATCH", "canonical_merge": False,
             "reason": "case-local seed association does not establish identity"}] if kind in {"person", "company"} else [])
         knowledge = knowledge_state(claims, decisions, [o.to_dict() for o in observations], gaps=gaps, identity_candidates=identity_candidates)
-        return {"observations": [o.to_dict() for o in observations], "claims": claims, "verification": decisions,
+        analysis = {"observations": [o.to_dict() for o in observations], "claims": claims, "verification": decisions,
                 "source_lineage": [r.to_dict() for r in lineage], "contradictions": conflicts,
                 "timeline": sorted(timeline, key=lambda r:(r["observed_at"], r["observation_id"])),
                 "graph": snapshot, "information_gaps": sorted(gaps), "next_actions": next_actions,
@@ -427,11 +457,24 @@ class InvestigationPipeline:
                 "limitations": ["Verification corroborates structured source assertions, not authorship, intent, identity or causation.",
                     "Source ownership and declared lineage may be incomplete; distinct groups do not prove independence.",
                     "Next-action priorities are rules, not a calibrated information-gain score."]}
+        if hypothesis_review is not None:
+            analysis["hypothesis_review"] = hypothesis_review
+        return analysis
 
     @staticmethod
     def render_report(product):
         analysis = product["analysis"]
         esc = html.escape
+
+        def quoted(value):
+            literal = html.escape(value).replace("\r", "\\r").replace("\n", "\\n")
+            fence = "`"
+            while fence in literal:
+                fence += "`"
+            return fence + " " + literal + " " + fence
+
+        if product["replay_manifest"]["workflow_version"] == WORKFLOW_VERSION:
+            esc = quoted
         lines = ["# TraceAtlas investigation draft", "", "Status: DRAFT â€” human release required", "",
                  "## Objective", esc(product["objective"]), "", "## Scope and authorization",
                  esc(product["plan"]["seed"]), "Purpose: " + esc(product["authorization"]["lawful_purpose"]), "",
@@ -441,10 +484,39 @@ class InvestigationPipeline:
         for d in analysis["verification"]:
             claim = index[d["claim_id"]]
             lines.append(f"- {d['status']}: {esc(claim['statement'])}; observations: {', '.join(claim['observation_ids'])}")
+        if product["replay_manifest"]["workflow_version"] == WORKFLOW_VERSION:
+            review = analysis["hypothesis_review"]
+            lines += ["", "## Competing hypotheses",
+                      "Unverified source-assertion alternatives; no probability or verified source independence is claimed."]
+            if not review["hypotheses"]:
+                lines.append("No evidence-backed conflicting alternatives were generated from eligible captured assertions.")
+            groups = {row["comparison_id"]: row for row in review["comparison_groups"]}
+            for candidate in review["hypotheses"]:
+                group = groups[candidate["comparison_id"]]
+                lines += ["- " + candidate["hypothesis_id"] + ": " + quoted(candidate["statement"]),
+                          "  Scope: " + esc(group["valid_from"]) + " to " + esc(group["valid_to"] or "open") + "; endpoints inclusive.",
+                          "  Supporting observations: " + ", ".join(candidate["supporting_observation_ids"])
+                          + "; evidence: " + ", ".join(candidate["supporting_evidence_ids"]),
+                          "  Contrary observations: " + ", ".join(candidate["contrary_observation_ids"])
+                          + "; evidence: " + ", ".join(candidate["contrary_evidence_ids"])]
+                for check in candidate["next_checks"]:
+                    detail = check["description"]
+                    if "expected_value" in check:
+                        detail += " Expected candidate value: " + canonical(check["expected_value"]) + "."
+                    lines.append("  Pending check " + check["check_id"] + ": " + quoted(detail))
+            if review["comparisons_omitted"]:
+                lines.append("Review bound: " + str(review["comparisons_omitted"]) + " comparison pairs and "
+                             + str(review["hypotheses_omitted"]) + " candidate entries omitted; split the investigation.")
+            lines += ["- " + esc(item) for item in review["limitations"]]
         lines += ["", "## Source collection"]
         for outcome in product["replay_manifest"]["source_outcomes"]:
-            lines.append(f"- {outcome['source_id']}: {outcome['status']}; attempts {outcome['attempts']}"
-                         + ("; " + outcome["reason"] if "reason" in outcome else ""))
+            if product["replay_manifest"]["workflow_version"] == WORKFLOW_VERSION:
+                lines.append("- " + esc(outcome["source_id"]) + ": " + esc(outcome["status"])
+                             + "; attempts " + esc(str(outcome["attempts"]))
+                             + ("; " + esc(outcome["reason"]) if "reason" in outcome else ""))
+            else:
+                lines.append(f"- {outcome['source_id']}: {outcome['status']}; attempts {outcome['attempts']}"
+                             + ("; " + outcome["reason"] if "reason" in outcome else ""))
         lines += ["", "## Provider costs", esc(product["source_costs"]["limitation"])]
         lines += ["", "## Evidence"]
         for e in product["replay_manifest"]["evidence"]:
@@ -470,7 +542,7 @@ class InvestigationPipeline:
                       for row in colrf["claim_reviews"]]
             lines += ["", "### COLRF limitations"]
             lines += ["- " + esc(limitation) for limitation in colrf["limitations"]]
-        lines += ["", "## Technical appendix and replay", "Workflow: " + WORKFLOW_VERSION,
+        lines += ["", "## Technical appendix and replay", "Workflow: " + product["replay_manifest"]["workflow_version"],
                   "Analysis SHA-256: " + product["replay_manifest"]["analysis_digest"],
                   "Model: deterministic-no-model; no prompt or model chain-of-thought exists.", "",
                   "## Limitations", *analysis["limitations"]]
@@ -479,9 +551,11 @@ class InvestigationPipeline:
     def replay(self, task_id):
         product = self.store.product(task_id)
         manifest = product["replay_manifest"]
-        if manifest["workflow_version"] != WORKFLOW_VERSION or manifest["parser_version"] != PARSER_VERSION or manifest["policy_version"] != POLICY_VERSION:
+        if manifest["workflow_version"] not in SUPPORTED_WORKFLOW_VERSIONS or manifest["parser_version"] != PARSER_VERSION or manifest["policy_version"] != POLICY_VERSION:
             raise ValueError("replay version is not supported by this runtime")
         task = self.store.task(task_id)
+        if manifest["workflow_version"] != _workflow_version(task["envelope"]):
+            raise ValueError("replay workflow version differs from its approved task binding")
         if manifest["envelope_digest"] != task["envelope_digest"]:
             raise ValueError("replay task binding mismatch")
         valid, _ = EvidenceStore(self.workspace, self.store.db, task["envelope"].case_id).verify_ledger()
@@ -521,9 +595,35 @@ class InvestigationPipeline:
                                  'input_facts_digest': digest([f.to_dict() for f in doc.facts])}:
                 raise ValueError('replay semantic normalization mismatch')
             documents.append(regenerated)
-        analysis = self.analyze(task["envelope"], tuple(documents), evidence, manifest["source_outcomes"])
+        analysis = self.analyze(task["envelope"], tuple(documents), evidence, manifest["source_outcomes"],
+                                workflow_version=manifest["workflow_version"])
         if digest(analysis) != manifest["analysis_digest"] or digest(analysis) != digest(product['analysis']):
             raise ValueError("replay analysis digest mismatch")
+        if manifest["workflow_version"] == WORKFLOW_VERSION:
+            if (product.get("objective") != task["envelope"].objective
+                    or product.get("authorization") != self.store.authorization(
+                        task["envelope"].authorization_context_id).to_dict()
+                    or product.get("plan", {}).get("seed") != task["envelope"].target_entities[0]
+                    or product.get("plan", {}).get("workflow_version") != manifest["workflow_version"]):
+                raise ValueError("replay report scope or authorization binding mismatch")
+            expected_result = {
+                "observations": analysis["observations"],
+                "evidence_ids": [item.evidence_id for item in evidence],
+                "entities": [row["node_id"] for row in analysis["graph"]["nodes"]],
+                "relationships": [row["edge_id"] for row in analysis["graph"]["edges"]],
+                "claims": analysis["claims"],
+                "hypotheses": [row.to_dict() for row in project_hypotheses(analysis["hypothesis_review"])],
+                "contradictions": [row["claim_id"] for row in analysis["verification"] if row["status"] == "DISPUTED"],
+                "source_independence": sorted({row["independence_group"] for row in analysis["source_lineage"]}),
+                "information_gaps": analysis["information_gaps"],
+                "recommended_next_actions": [row["action_id"] for row in analysis["next_actions"]],
+            }
+            stored_result = task["result"].to_dict() if task["result"] else {}
+            product_result = product.get("result")
+            if not isinstance(product_result, dict) or any(
+                    stored_result.get(key) != value or product_result.get(key) != value
+                    for key, value in expected_result.items()):
+                raise ValueError("replay canonical result derivation mismatch")
         if "colrf_review" in product:
             replay_colrf = build_colrf_review(task["envelope"], analysis, tuple(documents), evidence,
                                               manifest["source_outcomes"])

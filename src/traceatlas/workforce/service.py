@@ -15,6 +15,7 @@ from .contracts import (
 )
 from .registry import EmployeeRegistry
 from .store import WorkforceStore
+from .workflow_versions import CURRENT_WORKFLOW_VERSION, WORKFLOW_CONSTRAINT_PREFIX
 
 
 Runner = Callable[[TaskEnvelope, object], ResultEnvelope]
@@ -113,6 +114,7 @@ class WorkforceService:
             policy_digest=context.policy_digest, target_entities=(seed,),
             required_capabilities=(target_type, "webint"), evidence_context_ids=(),
             constraints=("passive_only", "no_contact", "no_identity_merge", "human_release_required",
+                         WORKFLOW_CONSTRAINT_PREFIX + CURRENT_WORKFLOW_VERSION,
                          'source-plan:' + stable_digest(source_plan), *("live-source:" + source for source in selected)),
             budget=Budget("USD", 1.0, 120, 8, 2),
             deadline=(now + timedelta(minutes=15)).isoformat(),

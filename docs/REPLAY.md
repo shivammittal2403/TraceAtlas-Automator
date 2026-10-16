@@ -22,8 +22,9 @@ report or manifest without original captured bytes cannot reproduce analysis.
 
 ## Current semantic contracts
 
-Canonical workflow `evidence-investigation/1.4.0` uses normalizer
-`structured-fact/5`. Submitted documents stay unchanged. Input and regenerated
+New canonical workflow `evidence-investigation/1.5.0` and its explicit legacy
+`1.4.0` adapter use normalizer `structured-fact/5`. New task approvals bind the
+workflow version; unbound historical tasks retain 1.4.0 semantics. Submitted documents stay unchanged. Input and regenerated
 fact digests are separate. Replay re-extracts all provider/structured JSON facts
 and compares substantive analysis and rendered draft. Connector, extractor,
 source timestamp, case/task/trace and acquisition bindings fail closed.
@@ -45,3 +46,17 @@ unverified; privacy policy may withhold raw responses. Legacy v1 bundles receive
 integrity verification with `semantic_analysis_verified=false`. Exporting an
 unsupported historical report fails closed. Preserve custody backups and a
 trusted external manifest hash when transporting bundles.
+
+## Competing-hypothesis review
+
+Workflow 1.5.0 recomputes the versioned hypothesis review and canonical semantic
+result fields, verifies both stored result copies, and binds report scope and
+authority to the task. Removing a review or downgrading a manifest cannot bypass
+the approved version constraint. Genuine 1.4.0 compatibility is checked using a
+case/report produced by pinned old code, then replayed by the current runtime.
+See [COMPETING_HYPOTHESES.md](COMPETING_HYPOTHESES.md).
+
+Discipline `traceatlas-employees replay --task TASK` verifies preserved native
+review semantics for v2 HYPOTHESISINT/FALSIFICATIONINT products. Its verification
+scope is the canonical review, not arbitrary callback prose. Older v1 discipline
+products return explicit integrity-only verification without semantic claims.
