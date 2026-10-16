@@ -172,7 +172,8 @@ class VendorLibrary:
              use_ollama: bool = False, requester: Callable | None = None) -> dict:
         if not isinstance(objective, str) or not 10 <= len(objective.strip()) <= 500:
             raise ValueError("Objective must be 10-500 characters")
-        if not isinstance(model, str) or not MODEL_ID.fullmatch(model):
+        if (not isinstance(model, str) or not MODEL_ID.fullmatch(model)
+                or "://" in model or model.startswith(("/", ".", "-"))):
             raise ValueError("Invalid local model")
         suggested = self.search(objective, limit=MAX_PLAN)["results"]
         allowed = {item["ref"]: item for item in suggested}
