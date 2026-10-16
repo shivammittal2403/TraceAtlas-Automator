@@ -7,7 +7,7 @@ from pathlib import Path
 from traceatlas.db import CaseDB
 from traceatlas.workforce.contracts import AuthorizationContext
 from traceatlas.workforce.discipline_engines import invoke_employee, registered_handlers, engine_identity
-from traceatlas.workforce.discipline_engines.common import make_context
+from traceatlas.workforce.discipline_engines.common import make_context, text
 from traceatlas.workforce.discipline_registry import employee_catalog, build_employee_definitions
 from traceatlas.workforce.discipline_runtime import create_runtime
 from traceatlas.workforce.registry import EmployeeRegistry
@@ -96,6 +96,22 @@ class DisciplineContractTests(unittest.TestCase):
         for _ in range(2):
             context.finding("test", "One assertion.", ["r1"], {"valid": True})
         self.assertEqual(len(context.findings), 1)
+
+    def test_text_helper_rejects_decoded_unpaired_surrogate(self):
+        with self.assertRaises(ValueError):
+            text("\ud800", "parsed value")
+
+    def test_issue_and_finding_budgets_return_explicit_partial_output(self):
+        context = make_context(fixture())
+        for index in range(600):
+            context.issue("r1", "issue_" + str(index), "Synthetic bounded issue")
+            context.finding("finding_" + str(index), "Synthetic bounded finding", ["r1"])
+        output = context.output()
+        self.assertEqual(len(output["issues"]), 500)
+        self.assertEqual(output["issues"][-1]["code"], "issues_truncated")
+        self.assertEqual(len(output["findings"]), 500)
+        self.assertEqual(output["metrics"]["finding_reports_suppressed"], 100)
+        self.assertGreater(output["metrics"]["issue_reports_suppressed"], 0)
 
     def test_actual_dns_engine_completes_canonical_case_lifecycle(self):
         with tempfile.TemporaryDirectory() as directory:

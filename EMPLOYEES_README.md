@@ -62,3 +62,13 @@ Local execution is not a claimed validation when the attached process runner is 
 Radio, person, credentials, malware and industrial handlers analyze supplied
 records statically. No interception, subject contact, code execution, credential
 use or industrial control operation is part of these analyzers.
+
+## Optional AI review
+
+After standalone analysis, a configured local Ollama model can draft interpretations
+and review questions: `traceatlas-employees reason --input dns-review.json --model YOUR_LOCAL_MODEL --authorized`.
+This uses the existing provider router, limits context to100 supplied finding summaries,
+validates cited finding IDs and keeps model prose separate from deterministic evidence.
+Unavailable models return MODEL_UNAVAILABLE and preserve the deterministic draft.
+Attempt counts include failed requests. Fixture transport tests do not establish that
+a local model is installed or that live generation has been verified on this machine.

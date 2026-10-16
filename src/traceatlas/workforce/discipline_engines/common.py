@@ -66,6 +66,10 @@ def _json(value: Any, depth: int = 0) -> None:
 def text(value: Any, name: str, *, maximum: int = 2000) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > maximum:
         raise ValueError(name + " must be nonempty bounded text")
+    try:
+        value.encode("utf-8")
+    except UnicodeError as exc:
+        raise ValueError(name + " must contain valid Unicode") from exc
     if any(ord(character) < 32 and character not in "\n\t" for character in value):
         raise ValueError(name + " contains control characters")
     return value
@@ -188,6 +192,8 @@ class AnalysisContext:
         self.findings: list[dict] = []
         self.issues: list[dict] = []
         self._finding_ids: set[str] = set()
+        self._findings_suppressed = 0
+        self._issues_suppressed = 0
 
     def finding(self, kind: str, summary: str, record_ids: Iterable[str],
                 data: dict | None = None) -> dict:
@@ -209,7 +215,9 @@ class AnalysisContext:
                     "discipline": self.discipline, **item}
         item["finding_id"] = "finding-" + digest(identity)[:32]
         if item["finding_id"] not in self._finding_ids and len(self.findings) >= 500:
-            raise ValueError("Employee finding budget exhausted")
+            self._findings_suppressed += 1
+            self.issue(None, "finding_budget_exhausted", "Additional findings were omitted after the 500-finding budget.")
+            return deepcopy(item)
         if item["finding_id"] not in self._finding_ids:
             self._finding_ids.add(item["finding_id"])
             self.findings.append(item)
@@ -222,9 +230,14 @@ class AnalysisContext:
         item = {"record_id": record_id, "code": identifier(code, "issue code"),
                 "message": text(message, "issue message", maximum=4000)}
         if item not in self.issues:
-            if len(self.issues) >= 500:
-                raise ValueError("Employee issue budget exhausted")
-            self.issues.append(item)
+            if len(self.issues) < 499:
+                self.issues.append(item)
+            else:
+                self._issues_suppressed += 1
+                marker = {"record_id": None, "code": "issues_truncated",
+                          "message": "Additional issue reports were omitted after the bounded issue budget."}
+                if len(self.issues) == 499:
+                    self.issues.append(marker)
         return deepcopy(item)
 
     def output(self, metrics: dict | None = None, artifacts: dict | None = None,
@@ -236,8 +249,13 @@ class AnalysisContext:
         limits = list(limitations)
         for limit in limits:
             text(limit, "limitation", maximum=4000)
+        metrics = deepcopy(metrics or {})
+        if self._issues_suppressed:
+            metrics["issue_reports_suppressed"] = self._issues_suppressed
+        if self._findings_suppressed:
+            metrics["finding_reports_suppressed"] = self._findings_suppressed
         result = {"findings": deepcopy(self.findings), "issues": deepcopy(self.issues),
-                  "metrics": deepcopy(metrics or {}), "artifacts": deepcopy(artifacts or {}),
+                  "metrics": metrics, "artifacts": deepcopy(artifacts or {}),
                   "limitations": limits}
         _json(result)
         if len(canonical(result).encode("utf-8")) > MAX_BYTES:

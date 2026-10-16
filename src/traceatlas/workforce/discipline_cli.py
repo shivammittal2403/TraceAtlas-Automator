@@ -24,6 +24,12 @@ def _parser():
     analyze.add_argument("discipline")
     analyze.add_argument("--input", type=Path, required=True)
     analyze.add_argument("--output", type=Path)
+    reason = commands.add_parser("reason", help="Ask a configured local model to review an existing analysis draft")
+    reason.add_argument("--input", type=Path, required=True)
+    reason.add_argument("--model", default="qwen2.5:7b")
+    reason.add_argument("--base-url", default="http://127.0.0.1:11434")
+    reason.add_argument("--jurisdiction", default="ANY")
+    reason.add_argument("--authorized", action="store_true")
     create = commands.add_parser("case", help="Create a canonical local case")
     for key in ("case", "title", "purpose"):
         create.add_argument("--" + key, required=True)
@@ -73,6 +79,13 @@ def execute(args):
             with args.output.open("x", encoding="utf-8", newline="\n") as output:
                 output.write(_json_text(result))
         return result
+    if args.command == "reason":
+        if not args.authorized:
+            raise ValueError("Local-model reasoning requires explicit --authorized")
+        from .discipline_reasoning import LocalEmployeeReasoner
+        from .model_fabric import ModelRouter, default_registry
+        router = ModelRouter(default_registry(ollama_model=args.model, base_url=args.base_url))
+        return LocalEmployeeReasoner(router).reason(load_input(args.input), jurisdiction=args.jurisdiction)
     engine = Engine(args.workspace)
     try:
         runtime = create_runtime(engine.db, engine.workspace)
