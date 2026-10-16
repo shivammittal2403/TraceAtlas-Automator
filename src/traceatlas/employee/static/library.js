@@ -52,7 +52,7 @@
           } catch (err) { detail.textContent = err.message; }
         };
         div.append(button);
-      } else if (item.url && /^https:\/\/github\.com\/[a-z0-9_.-]+\/[a-z0-9_.-]+\/?$/i.test(item.url)) {
+      } else if (item.url && /^https:\/\/(?:github\.com|gitlab\.com|codeberg\.org)\/[a-z0-9_.-]+(?:\/[a-z0-9_.-]+){1,6}\/?$/i.test(item.url)) {
         const a = document.createElement("a");
         a.href = item.url;
         a.target = "_blank";
