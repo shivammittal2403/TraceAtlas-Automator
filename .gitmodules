@@ -19,3 +19,135 @@
 [submodule "third_party/Mr.Holmes"]
 	path = third_party/Mr.Holmes
 	url = https://github.com/Lucksi/Mr.Holmes.git
+
+[submodule "third_party/extreme-recon/amass"]
+	path = third_party/extreme-recon/amass
+	url = https://github.com/owasp-amass/amass.git
+
+[submodule "third_party/extreme-recon/subfinder"]
+	path = third_party/extreme-recon/subfinder
+	url = https://github.com/projectdiscovery/subfinder.git
+
+[submodule "third_party/extreme-recon/sublist3r"]
+	path = third_party/extreme-recon/sublist3r
+	url = https://github.com/aboul3la/Sublist3r.git
+
+[submodule "third_party/extreme-recon/dnstwist"]
+	path = third_party/extreme-recon/dnstwist
+	url = https://github.com/elceef/dnstwist.git
+
+[submodule "third_party/extreme-recon/knockpy"]
+	path = third_party/extreme-recon/knockpy
+	url = https://github.com/guelfoweb/knockpy.git
+
+[submodule "third_party/extreme-recon/assetfinder"]
+	path = third_party/extreme-recon/assetfinder
+	url = https://github.com/tomnomnom/assetfinder.git
+
+[submodule "third_party/extreme-recon/dnsx"]
+	path = third_party/extreme-recon/dnsx
+	url = https://github.com/projectdiscovery/dnsx.git
+
+[submodule "third_party/extreme-recon/shuffledns"]
+	path = third_party/extreme-recon/shuffledns
+	url = https://github.com/projectdiscovery/shuffledns.git
+
+[submodule "third_party/extreme-recon/massdns"]
+	path = third_party/extreme-recon/massdns
+	url = https://github.com/blechschmidt/massdns.git
+
+[submodule "third_party/extreme-recon/puredns"]
+	path = third_party/extreme-recon/puredns
+	url = https://github.com/d3mondev/puredns.git
+
+[submodule "third_party/extreme-recon/findomain"]
+	path = third_party/extreme-recon/findomain
+	url = https://github.com/Findomain/Findomain.git
+
+[submodule "third_party/extreme-recon/chaos-client"]
+	path = third_party/extreme-recon/chaos-client
+	url = https://github.com/projectdiscovery/chaos-client.git
+
+[submodule "third_party/extreme-recon/asnmap"]
+	path = third_party/extreme-recon/asnmap
+	url = https://github.com/projectdiscovery/asnmap.git
+
+[submodule "third_party/extreme-recon/mapcidr"]
+	path = third_party/extreme-recon/mapcidr
+	url = https://github.com/projectdiscovery/mapcidr.git
+
+[submodule "third_party/extreme-recon/cero"]
+	path = third_party/extreme-recon/cero
+	url = https://github.com/glebarez/cero.git
+
+[submodule "third_party/extreme-recon/ctfr"]
+	path = third_party/extreme-recon/ctfr
+	url = https://github.com/UnaPibaGeek/ctfr.git
+
+[submodule "third_party/extreme-recon/hakrevdns"]
+	path = third_party/extreme-recon/hakrevdns
+	url = https://github.com/hakluke/hakrevdns.git
+
+[submodule "third_party/extreme-recon/dnsgen"]
+	path = third_party/extreme-recon/dnsgen
+	url = https://github.com/AlephNullSK/dnsgen.git
+
+[submodule "third_party/extreme-recon/dnsrecon"]
+	path = third_party/extreme-recon/dnsrecon
+	url = https://github.com/darkoperator/dnsrecon.git
+
+[submodule "third_party/extreme-recon/fierce"]
+	path = third_party/extreme-recon/fierce
+	url = https://github.com/mschwager/fierce.git
+
+[submodule "third_party/extreme-recon/gobuster"]
+	path = third_party/extreme-recon/gobuster
+	url = https://github.com/OJ/gobuster.git
+
+[submodule "third_party/extreme-recon/alterx"]
+	path = third_party/extreme-recon/alterx
+	url = https://github.com/projectdiscovery/alterx.git
+
+[submodule "third_party/extreme-recon/nuclei"]
+	path = third_party/extreme-recon/nuclei
+	url = https://github.com/projectdiscovery/nuclei.git
+
+[submodule "third_party/extreme-recon/masscan"]
+	path = third_party/extreme-recon/masscan
+	url = https://github.com/robertdavidgraham/masscan.git
+
+[submodule "third_party/extreme-recon/rustscan"]
+	path = third_party/extreme-recon/rustscan
+	url = https://github.com/bee-san/RustScan.git
+
+[submodule "third_party/extreme-recon/naabu"]
+	path = third_party/extreme-recon/naabu
+	url = https://github.com/projectdiscovery/naabu.git
+
+[submodule "third_party/extreme-recon/httpx"]
+	path = third_party/extreme-recon/httpx
+	url = https://github.com/projectdiscovery/httpx.git
+
+[submodule "third_party/extreme-recon/zmap"]
+	path = third_party/extreme-recon/zmap
+	url = https://github.com/zmap/zmap.git
+
+[submodule "third_party/extreme-recon/uncover"]
+	path = third_party/extreme-recon/uncover
+	url = https://github.com/projectdiscovery/uncover.git
+
+[submodule "third_party/extreme-recon/smap"]
+	path = third_party/extreme-recon/smap
+	url = https://github.com/s0md3v/Smap.git
+
+[submodule "third_party/extreme-recon/ivre"]
+	path = third_party/extreme-recon/ivre
+	url = https://github.com/ivre/ivre.git
+
+[submodule "third_party/extreme-recon/reconftw"]
+	path = third_party/extreme-recon/reconftw
+	url = https://github.com/six2dez/reconftw.git
+
+[submodule "third_party/extreme-recon/sn1per"]
+	path = third_party/extreme-recon/sn1per
+	url = https://github.com/1N3/Sn1per.git
