@@ -88,6 +88,27 @@ valid safe file paths. Counted skill references do not imply independent
 execution, working provider keys, or production-qualified adapters. The OSINT
 CSV has 497 linked projects, not 497 installed collectors.
 
+
+## Every vendor file accounted for
+
+The independent `vendor-file-inventory` CI job enumerates all **26,731**
+agentic skill library files and **39** OSINT vendor files tracked by Git. It
+calculates SHA-256 for each original file, validates symlink confinement and
+classifies its current role (canonical `SKILL.md`, skill attachment,
+unqualified helper, plug-in mirror, upstream development tooling, OSINT metadata,
+documentation or other preserved reference).
+
+The downloadable `traceatlas-vendor-file-ledger` workflow artifact records a
+per-file path, role, length and digest and explicitly reports any count,
+missing-file or escaping-symlink errors. A ledger role is an **audit statement**,
+not a promise the file is useful or safe to execute. Modules without a
+qualified TraceAtlas adapter are deliberately marked unqualified, not silently
+registered as employees.
+
+```bash
+python scripts/audit_integrated_vendor_files.py --output artifacts/vendor-file-ledger.json
+```
+
 ## Ongoing per-component integration gate
 
 For each source that needs actual execution: verify license, version and
