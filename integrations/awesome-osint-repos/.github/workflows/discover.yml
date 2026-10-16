@@ -1,0 +1,98 @@
+name: Discover and publish Awesome OSINT Repositories candidates
+
+on:
+  schedule:
+    - cron: "0 1 * * 4"
+  workflow_dispatch:
+
+concurrency:
+  group: catalogue-candidate-discovery
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch current main
+        run: |
+          git fetch origin main
+          git checkout --detach origin/main
+
+      - name: Preserve legacy candidate queue
+        run: |
+          branch="automation/catalog-candidates"
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            git fetch origin "+refs/heads/$branch:refs/remotes/origin/$branch"
+            git show "refs/remotes/origin/$branch:.catalog/data/candidates.csv" > "$RUNNER_TEMP/previous-candidates.csv"
+          fi
+
+      - name: Scan configured public sources
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          seed=()
+          if [ -s "$RUNNER_TEMP/previous-candidates.csv" ]; then
+            seed=(
+              --seed-candidates "$RUNNER_TEMP/previous-candidates.csv"
+              --seed-review-only
+            )
+          fi
+          python .catalog/scripts/discover_candidates.py \
+            --write \
+            --fail-on-source-error \
+            --lookback-days 14 \
+            --max-per-source 100 \
+            --delay 2.1 \
+            "${seed[@]}" \
+            --report "$RUNNER_TEMP/discovery-report.md"
+          python -m py_compile .catalog/scripts/*.py
+          python .catalog/scripts/render_catalog.py --check
+          python .catalog/scripts/validate_catalog.py
+          git diff --check
+          python .catalog/scripts/check_changed_files.py \
+            --base HEAD \
+            --allow .catalog/data/candidates.csv
+
+      - name: Commit and publish candidate queue
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .catalog/data/candidates.csv; then
+            echo "No candidate queue change." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "oryon"
+          git config user.email "70845183+oryon-osint@users.noreply.github.com"
+          git add .catalog/data/candidates.csv
+          git diff --cached --quiet && exit 0
+          git commit -m "Add newly discovered candidates"
+          git fetch origin main
+          git rebase origin/main
+          python -m py_compile .catalog/scripts/*.py
+          python .catalog/scripts/render_catalog.py --check
+          python .catalog/scripts/validate_catalog.py
+          git diff --check origin/main...HEAD
+          git push origin HEAD:main
+          local_sha=$(git rev-parse HEAD)
+          remote_sha=$(git ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')
+          test "$local_sha" = "$remote_sha"
+          {
+            echo "## Nightly candidate discovery"
+            echo
+            echo "Commit: $local_sha"
+            echo
+            cat "$RUNNER_TEMP/discovery-report.md"
+          } >> "$GITHUB_STEP_SUMMARY"

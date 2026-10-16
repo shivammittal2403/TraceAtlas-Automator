@@ -1,0 +1,18 @@
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+__pycache__/
+*.py[cod]
+.catalog/gui/dist/
+.coverage
+.env
+.env.*
+!.env.example
+*.log
+
+# Local automation reports
+discovery-report.md
+market-watch.md
