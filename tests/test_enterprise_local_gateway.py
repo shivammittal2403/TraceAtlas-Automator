@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -87,6 +89,14 @@ class EnterpriseGatewayTests(unittest.TestCase):
                                      "TRACEATLAS_CONSOLE_GATEWAY_ORIGIN": "http://0.0.0.0:8780"}):
             with self.assertRaises(PolicyError):
                 make_server(Path(self.temp.name), port=0, enabled=True)
+
+    def test_gateway_launcher_has_valid_shell_syntax(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash is not available on this test platform")
+        process = subprocess.run(
+            ["bash", "-n", str(ROOT / "deploy/gateway/start-local.sh")],
+            capture_output=True, text=True, timeout=10, check=False)
+        self.assertEqual(process.returncode, 0, process.stderr)
 
     def test_reverse_proxy_configuration_does_not_publish_private_services(self):
         config = (ROOT / "deploy/gateway/Caddyfile").read_text(encoding="utf-8")
