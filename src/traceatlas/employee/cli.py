@@ -26,6 +26,8 @@ def add_employee_parser(sub):
     investigate.add_argument("--runtime-seconds", type=int, default=120)
     investigate.add_argument("--hours", type=int, default=24)
     investigate.add_argument("--model", help="Optional local Ollama model; absence uses deterministic analysis")
+    investigate.add_argument("--agentic-ollama", action="store_true",
+                             help="Prioritize only preauthorized actions with Ollama; deterministic fallback")
     investigate.add_argument("--source-fabric", action="store_true", help="Route by capability with parallel bounded research waves")
     investigate.add_argument("--plan-only", action="store_true")
     investigate.add_argument("--authorized", action="store_true")
@@ -121,7 +123,7 @@ def run_employee(args, engine) -> dict:
                 attestations={key: getattr(args, key) for key in ATTESTATIONS}, authorized=args.authorized,
                 subject_type=args.subject_type, subject_label=args.subject_label,
                 max_actions=args.max_actions, runtime_seconds=args.runtime_seconds, hours=args.hours, model=args.model,
-                source_fabric=args.source_fabric)
+                source_fabric=args.source_fabric, agentic_ollama=args.agentic_ollama)
             if args.plan_only:
                 return current
             # Emit the ID before collection so another local process can inspect/cancel it.

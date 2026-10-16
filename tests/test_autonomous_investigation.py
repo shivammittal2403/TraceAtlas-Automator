@@ -167,6 +167,40 @@ class InvestigationTests(unittest.TestCase):
             self.service.get("another-case", current["id"])
         self.assertEqual(self.requests, [])
 
+    def test_ollama_priority_runs_only_existing_authorized_action(self):
+        self.service.model_requester = lambda *args: (503, b"{}")
+        calls = []
+        def planner(manifest, **kwargs):
+            calls.append(manifest["case_id"])
+            return {"status": "model-advisory", "may_execute": False,
+                    "order": [row["action_id"] for row in reversed(manifest["actions"])]}
+        self.service.priority_planner = planner
+        item = self.create(max_actions=1, model="qwen2.5:7b", agentic_ollama=True)
+        expected = item["manifest"]["actions"][-1]["action_id"]
+        result = self.run_task(item)
+        self.assertEqual(calls, ["case-a"])
+        self.assertEqual(result["actions"][0]["action_id"], expected)
+        self.assertTrue(any(e["kind"] == "ollama_priority_planned" for e in result["events"]))
+        self.assertTrue(all(a["action_id"] in {m["action_id"] for m in item["manifest"]["actions"]}
+                            for a in result["actions"]))
+
+    def test_ollama_priority_cannot_insert_foreign_action(self):
+        self.service.model_requester = lambda *args: (503, b"{}")
+        self.service.priority_planner = lambda *args, **kwargs: {
+            "status": "model-advisory", "order": ["action-foreign"], "may_execute": False}
+        item = self.create(max_actions=1, model="qwen2.5:7b", agentic_ollama=True)
+        original_first = sorted(item["manifest"]["actions"],
+                                key=lambda a: self.service._rank(a, item["manifest"]["objective"], []))[0]["action_id"]
+        result = self.run_task(item)
+        self.assertEqual(result["actions"][0]["action_id"], original_first)
+
+    def test_ollama_requires_explicit_model_and_compatible_collector(self):
+        for kwargs in ({"agentic_ollama": True},
+                       {"agentic_ollama": True, "model": "qwen2.5:7b", "source_fabric": True}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(PolicyError):
+                self.create(**kwargs)
+        self.assertEqual(self.requests, [])
+
     def test_action_budget_and_unavailable_metered_source_are_explicit(self):
         current = self.run_task(self.create(max_actions=1))
         self.assertEqual(len(self.requests), 1)

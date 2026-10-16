@@ -67,11 +67,12 @@ def skill_contract_digest(source_fabric=False):
 
 
 class AutonomousInvestigator:
-    def __init__(self, db, workspace: Path, *, hub=None, enabled=None, model_requester=None):
+    def __init__(self, db, workspace: Path, *, hub=None, enabled=None, model_requester=None, priority_planner=None):
         self.db, self.workspace = db, workspace
         self.hub = hub or IntelligenceHub(db, workspace)
         self.enabled = workforce_enabled() if enabled is None else enabled
         self.model_requester = model_requester
+        self.priority_planner = priority_planner
         self.fabric_requester = hub.requester if hub is not None else None
         db.conn.executescript(SCHEMA)
         db.conn.commit()
@@ -87,7 +88,7 @@ class AutonomousInvestigator:
 
     def create(self, case_id, objective, seeds, *, actor, attestations, authorized=False,
                subject_type="asset", subject_label="", max_actions=8, runtime_seconds=120,
-               hours=24, model=None, source_fabric=False):
+               hours=24, model=None, source_fabric=False, agentic_ollama=False):
         self._enabled()
         if not authorized or not self.db.get_case(case_id):
             raise PolicyError("An existing case and explicit authorization are required")
@@ -112,6 +113,10 @@ class AutonomousInvestigator:
             raise PolicyError("Supply 1-10 explicit typed seeds; a name alone cannot authorize identity discovery")
         if model is not None and (not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9_.:/-]{1,120}", model)):
             raise PolicyError("Invalid local model name")
+        if type(agentic_ollama) is not bool or (agentic_ollama and not model):
+            raise PolicyError("Guided collection requires an explicit local Ollama model")
+        if agentic_ollama and source_fabric:
+            raise PolicyError("Ollama ranking does not control Source Fabric parallel waves")
         normalized, actions, routing_plans = [], [], []
         for seed in seeds:
             if not isinstance(seed, dict) or set(seed) != {"type", "value"}:
@@ -152,7 +157,8 @@ class AutonomousInvestigator:
                     "max_actions": max_actions, "runtime_seconds": runtime_seconds,
                     "expires_at": (now() + timedelta(hours=hours)).isoformat(), "model": model,
                     "skills_digest": skill_contract_digest(source_fabric), "external_actions": False,
-                    "scope_expansion": False, "human_release_required": True}
+                    "scope_expansion": False, "human_release_required": True,
+                    "agentic_ollama": agentic_ollama}
         manifest["source_fabric"] = bool(source_fabric)
         manifest["routing_plans"] = routing_plans
         identifier = "investigation-" + uuid4().hex
@@ -232,6 +238,45 @@ class AutonomousInvestigator:
             return execute(self, case_id, investigation_id)
         stop = "sources_exhausted"
         try:
+            # Ollama may only reorder the immutable, preapproved action set.
+            # A persisted choice is replayed on resume, without another model call.
+            priority_map = {}
+            if manifest.get("agentic_ollama"):
+                from .agentic_planner import prioritize_actions
+                previous = next((e["detail"] for e in current["events"]
+                                 if e["kind"] == "ollama_priority_planned"), None)
+                if previous is None:
+                    remaining = min(
+                        manifest["runtime_seconds"] - current["elapsed"],
+                        (datetime.fromisoformat(manifest["expires_at"]) - now()).total_seconds(),
+                    )
+                    timeout = min(15.0, remaining)
+                    if timeout < 1:
+                        decision = {"status": "budget-unavailable", "order": [], "may_execute": False}
+                    else:
+                        with self.db.conn:
+                            self.db.conn.execute(
+                                "UPDATE autonomous_investigations SET elapsed=elapsed+? WHERE id=?",
+                                (timeout, investigation_id))
+                        started = time.monotonic()
+                        try:
+                            planner = self.priority_planner or prioritize_actions
+                            decision = planner(manifest, requester=self.model_requester, timeout=timeout)
+                        except Exception:
+                            decision = {"status": "model-error", "order": [], "may_execute": False}
+                        finally:
+                            with self.db.conn:
+                                self.db.conn.execute(
+                                    "UPDATE autonomous_investigations SET elapsed=max(0,elapsed+?) WHERE id=?",
+                                    (time.monotonic() - started - timeout, investigation_id))
+                    self._event(investigation_id, "ollama_priority_planned", decision)
+                    previous = decision
+                approved_ids = {a["action_id"] for a in manifest["actions"]}
+                proposed = previous.get("order", []) if isinstance(previous, dict) else []
+                if (isinstance(proposed, list) and len(proposed) == len(approved_ids)
+                        and all(isinstance(item, str) for item in proposed)
+                        and set(proposed) == approved_ids):
+                    priority_map = {action_id: i for i, action_id in enumerate(proposed)}
             while True:
                 self._enabled()
                 current = self.get(case_id, investigation_id)
@@ -250,7 +295,8 @@ class AutonomousInvestigator:
                 if spent >= manifest["max_actions"] or remaining < 1:
                     stop = "action_budget_reached" if spent >= manifest["max_actions"] else "runtime_budget_reached"
                     break
-                action = sorted(pending, key=lambda a: self._rank(a, manifest["objective"], actions))[0]
+                action = sorted(pending, key=lambda a: (priority_map.get(a["action_id"], len(priority_map)),
+                                                        self._rank(a, manifest["objective"], actions)))[0]
                 contract = source_contract(action["source"])
                 health = next((r for r in self.db.connector_health() if r["source"] == action["source"]), {})
                 reason = "circuit_open" if health.get("consecutive_failures", 0) >= 3 else None
