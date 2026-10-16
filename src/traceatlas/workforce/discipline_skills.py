@@ -37,6 +37,8 @@ def parse_guide(markdown: str, discipline: str) -> dict:
         metadata["live_verified"] != "false"
     ):
         raise ValueError("Procedure cannot change its identity or tool authority")
+    if re.search(r"\$\{[^}\n]+\}", body):
+        raise ValueError("Procedure contains unresolved template placeholders")
     if any(body.count(heading) != 1 for heading in _HEADINGS):
         raise ValueError("Procedure lacks required operational sections")
     return metadata

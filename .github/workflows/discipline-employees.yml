@@ -7,6 +7,8 @@ on:
       - 'scripts/build_employee_bundle.py'
       - 'EMPLOYEE_INPUTS.md'
       - 'src/traceatlas/workforce/**'
+      - 'src/traceatlas/skills/procedures/**'
+      - 'tests/test_workforce_result_integrity.py'
       - 'src/traceatlas/osint_taxonomy.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
@@ -18,6 +20,8 @@ on:
     branches: [main]
     paths:
       - 'src/traceatlas/workforce/**'
+      - 'src/traceatlas/skills/procedures/**'
+      - 'tests/test_workforce_result_integrity.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
       - '.github/workflows/discipline-employees.yml'
@@ -48,17 +52,20 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install .
-      - name: Employee semantics, contracts and case lifecycle
-        run: |
-          python -m unittest discover -s tests -p 'test_discipline*.py' -v
-          python -m unittest discover -s tests -p 'test_*employees.py' -v
+      - name: Employee discipline semantics, contracts and case lifecycle
+        run: python -m unittest discover -s tests -p 'test_discipline*.py' -v
+      - name: Existing specialist employee regressions
+        run: python -m unittest discover -s tests -p 'test_*employees.py' -v
+      - name: CLI employee catalog
+        run: traceatlas-employees catalog
       - name: CLI with real supplied records
-        run: |
-          traceatlas-employees catalog
-          traceatlas-employees analyze DNSINT --input examples/employees/dns.json --output employee-dns.json
-          python -c "import json; r=json.load(open('employee-dns.json')); assert r['metrics']['cname_cycles']==1; assert r['model_calls']==0"
+        run: traceatlas-employees analyze DNSINT --input examples/employees/dns.json --output employee-dns.json
+      - name: Verify supplied-record CLI analysis
+        run: python -c "import json; r=json.load(open('employee-dns.json')); assert r['metrics']['cname_cycles']==1; assert r['model_calls']==0"
       - name: Existing workforce regression
         run: python -m unittest discover -s tests -p test_ai_workforce.py -v
+      - name: Canonical workforce result integrity
+        run: python -m unittest discover -s tests -p test_workforce_result_integrity.py -v
 
       - name: Build the complete downloadable employee source bundle
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'

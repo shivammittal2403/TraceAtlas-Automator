@@ -18,11 +18,21 @@ class MarkdownDisciplineTests(unittest.TestCase):
                 self.assertEqual(guide["employee"], "discipline-" + label.lower())
                 self.assertFalse(guide["live_verified"])
                 self.assertIn("## Hypothesis and Falsification", guide["markdown"])
+                self.assertNotIn("legacy field hints", guide["markdown"])
+                self.assertIn("examples/employees/recipes/" + label + ".json", guide["markdown"])
 
     def test_specificity_and_distinct_network_semantics(self):
         self.assertIn("CNAME", get_skill_guide("DNSINT")["markdown"])
+        self.assertIn("`name`, `type`, `value` and optional `ttl`", get_skill_guide("DNSINT")["markdown"])
+        self.assertNotIn("`record_type`", get_skill_guide("DNSINT")["markdown"])
         self.assertIn("not IP network infrastructure", get_skill_guide("NETWORKINT")["markdown"])
         self.assertIn("not relationships among people", get_skill_guide("NETINT")["markdown"])
+
+    def test_unresolved_procedure_templates_are_rejected(self):
+        markdown = get_skill_guide("DNSINT")["markdown"]
+        for placeholder in ("${id}", "${case_id}", "${native_fields}"):
+            with self.subTest(placeholder=placeholder), self.assertRaisesRegex(ValueError, "unresolved template"):
+                parse_guide(markdown.replace("An approved case", "An approved " + placeholder + " case"), "DNSINT")
 
     def test_metadata_tampering_and_traversal(self):
         markdown = get_skill_guide("DNSINT")["markdown"]

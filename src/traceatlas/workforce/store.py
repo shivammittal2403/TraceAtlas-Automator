@@ -185,6 +185,33 @@ class WorkforceStore:
                     raise ValueError('conflicting duplicate completion')
                 return
             self.runtime.assert_current(self.db.conn, task_id, token)
+            evidence_index = {}
+            for evidence_id in result.evidence_ids:
+                row = self.db.conn.execute(
+                    'SELECT object_json FROM evidence_objects_v2 WHERE case_id=? AND evidence_id=? '
+                    'ORDER BY version DESC LIMIT 1', (current['case_id'], evidence_id),
+                ).fetchone()
+                if not row:
+                    raise ValueError('result references evidence outside its case')
+                item = EvidenceObject.from_dict(json.loads(row[0]))
+                if (item.case_id != current['case_id'] or item.evidence_id != evidence_id
+                        or not self.verify_evidence(item)):
+                    raise ValueError('result evidence failed integrity validation')
+                acquisition = self.db.conn.execute(
+                    'SELECT source_id,method,retrieved_at FROM acquisitions_v2 '
+                    'WHERE case_id=? AND acquisition_id=?',
+                    (current['case_id'], item.acquisition_id),
+                ).fetchone()
+                if (not acquisition or acquisition['source_id'] != item.source_id
+                        or acquisition['method'] != item.acquisition_method
+                        or acquisition['retrieved_at'] != item.retrieved_at):
+                    raise ValueError('result evidence acquisition metadata mismatch')
+                evidence_index[evidence_id] = item
+            if any(evidence_index[o.evidence_id].acquisition_id != o.acquisition_id
+                   for o in result.observations):
+                raise ValueError('result observation acquisition mismatch')
+            if any(span.trace_id != current['envelope'].trace_id for span in result.execution_trace):
+                raise ValueError('result execution trace belongs to another task')
             if product is not None:
                 if product.get('task_id') != task_id or product.get('case_id') != current['case_id']:
                     raise ValueError('product does not belong to task and case')
