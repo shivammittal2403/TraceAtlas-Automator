@@ -43,11 +43,13 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.54.0",
     "sse-starlette>=1.8.0",
-    "httpx>=0.27.0",
+    "httpx>=0.28.1",
     "asyncpg>=0.29.0",
     "cryptography>=50.0.1",
     "pyyaml>=6.0",
     "reportlab>=5.0.1",
+    "pyyaml>=6.0.3",
+    "reportlab>=4.0",
     "authlib>=1.8.0",
     "itsdangerous>=2.2.0",
 ]
@@ -73,7 +75,7 @@ shodan = [
     "shodan>=1.31.0",
 ]
 ollama = [
-    "ollama>=0.3.0",
+    "ollama>=0.6.3",
 ]
 openai = [
     "openai>=1.40.0",
@@ -104,7 +106,7 @@ web = [
 ]
 all = [
     "shodan>=1.31.0",
-    "ollama>=0.3.0",
+    "ollama>=0.6.3",
     "openai>=1.40.0",
     "reportlab>=5.0.1",
     "censys>=2.3.0",
