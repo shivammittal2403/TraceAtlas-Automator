@@ -47,7 +47,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     "cryptography>=50.0.1",
     "pyyaml>=6.0",
-    "reportlab>=4.0",
+    "reportlab>=5.0.1",
     "authlib>=1.8.0",
     "itsdangerous>=2.2.0",
 ]
@@ -79,7 +79,7 @@ openai = [
     "openai>=1.40.0",
 ]
 pdf = [
-    "reportlab>=4.0.0",
+    "reportlab>=5.0.1",
 ]
 censys = [
     "censys>=2.3.0",
@@ -106,7 +106,7 @@ all = [
     "shodan>=1.31.0",
     "ollama>=0.3.0",
     "openai>=1.40.0",
-    "reportlab>=4.0.0",
+    "reportlab>=5.0.1",
     "censys>=2.3.0",
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.54.0",
