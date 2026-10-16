@@ -6,13 +6,14 @@ are not automatically granted execution permissions.
 
 ## Architecture
 
-- Python local employee selects among five validated read-only tools through Ollama.
+- Python local employee selects among six validated read-only tools through Ollama.
 - SQLite memory stores analyst-provided documents, SHA-256 chunk citations, sourced
   relationships and persistent run receipts, partitioned by case id.
 - Lexical RAG retrieves exact evidence spans. Ollama may summarize cited data,
   with validation that citations originate from returned tool evidence.
 - The knowledge graph uses subject / predicate / object edges, each tied to an
   existing original document in the same case.
+- A case.reports tool reads bounded summaries and evidence identifiers from existing TraceAtlas autonomous investigations within the same case. It never runs a collector.
 - The model can choose a bounded number of read-only tools, never arbitrary
   shell commands, third-party scripts, arbitrary URLs or new provider permissions.
 - The existing authorized AutonomousInvestigator remains responsible for any
