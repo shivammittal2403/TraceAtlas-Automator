@@ -9,6 +9,7 @@ The one-IP Caddy ingress binds only to 127.0.0.1:8780. It is protected by gatewa
 | Gateway path | Feature | Qualification |
 | --- | --- | --- |
 | / | Existing static frontend | UI only; hosted features require separate control plane |
+| /hub/ | Authenticated service directory | Links to available local routes and explains their limits |
 | /employee/ | Authenticated existing local Employee console | Local single-user case/evidence/OSINT |
 | /directory/ | Existing static source catalogue | Catalogue, not activated connectors |
 | /academy/ | Existing static academy | Educational pages |
@@ -28,6 +29,7 @@ On Linux/macOS install Python 3.10+, Caddy 2.8+, TraceAtlas and optionally Ollam
 
 The start script generates a random internal console token unless one was supplied, validates Caddy configuration, starts the console on localhost, and keeps Caddy in the foreground. All of these must run on the same host network namespace. It sets the browser gateway origin to exactly http://127.0.0.1:8780.
 
+Service hub: http://127.0.0.1:8780/hub/
 Browser address: http://127.0.0.1:8780/employee/
 Gateway Basic-auth username: analyst. Supply the plaintext password you chose when generating the bcrypt hash, not the hash.
 
