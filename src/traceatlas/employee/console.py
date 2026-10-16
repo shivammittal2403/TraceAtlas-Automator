@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import re
 import secrets
 import threading
@@ -23,6 +24,17 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
     if not enabled:
         raise PolicyError("Set TRACEATLAS_WORKFORCE_ENABLED=1 before starting the console")
     token = secrets.token_urlsafe(32)
+    # The reverse proxy proves its internal origin with a per-deployment secret.
+    # Without it the original direct loopback-only single-user mode remains.
+    gateway_token = os.environ.get("TRACEATLAS_CONSOLE_GATEWAY_TOKEN", "")
+    gateway_origin = os.environ.get("TRACEATLAS_CONSOLE_GATEWAY_ORIGIN", "")
+    if gateway_token and (len(gateway_token) < 32 or len(gateway_token) > 256
+                          or any(c.isspace() for c in gateway_token)):
+        raise PolicyError("Gateway token must be 32-256 non-whitespace characters")
+    if gateway_origin and not gateway_token:
+        raise PolicyError("Gateway origin requires a configured internal token")
+    if gateway_token and not re.fullmatch(r"http://127\.0\.0\.1:[1-9][0-9]{1,4}", gateway_origin):
+        raise PolicyError("Gateway origin must name the dedicated local loopback gateway")
     jobs_lock = threading.Lock()
     active = set()
 
@@ -37,6 +49,8 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
             self.send_header("Content-Length", str(len(raw)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("X-Frame-Options", "DENY")
             self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
             self.end_headers()
             self.wfile.write(raw)
@@ -45,8 +59,15 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
             expected = f"127.0.0.1:{self.server.server_port}"
             if self.headers.get("Host") != expected:
                 raise PolicyError("Use the displayed 127.0.0.1 console URL")
+            if gateway_token:
+                supplied = self.headers.get("X-TraceAtlas-Internal-Token", "")
+                if not secrets.compare_digest(supplied, gateway_token):
+                    raise PolicyError("Missing gateway authentication")
             origin = self.headers.get("Origin")
-            if origin and origin != "http://" + expected:
+            allowed_origins = {"http://" + expected}
+            if gateway_token:
+                allowed_origins.add(gateway_origin)
+            if origin and origin not in allowed_origins:
                 raise PolicyError("Cross-origin access rejected")
 
         def do_GET(self):
@@ -133,7 +154,8 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                                 attestations=body.get("attestations"), subject_type=body.get("subject_type", "asset"),
                                 subject_label=body.get("subject_label", ""), max_actions=body.get("max_actions", 8),
                                 runtime_seconds=body.get("runtime_seconds", 120), model=body.get("model") or None,
-                                source_fabric=body.get("source_fabric") is True)
+                                source_fabric=body.get("source_fabric") is True,
+                                agentic_ollama=body.get("agentic_ollama") is True)
                         else:
                             current = service.get(case, body.get("investigation_id", ""))
                             if not body.get("authorized") is True or body.get("actor") != current["manifest"]["actor"]:
