@@ -14,7 +14,7 @@ _MAX_RECORDS = 2000
 _MAX_VALUE = 4096
 
 def _serialize(obj):
-    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str, allow_nan=False)
 
 def _hash(obj):
     return hashlib.sha256(_serialize(obj).encode("utf-8")).hexdigest()
@@ -133,6 +133,37 @@ def analyze(code, payload, *, authorized=False, case_id="local"):
                 "competing_values": [next(iter(v.values()))[0]["value"] for v in by_value.values()],
                 "evidence_ids": [x["evidence_id"] for x in group],
                 "note": "Disagreement is not automatic evidence of deception."})
+            # Evidence-bound alternatives, not inferred facts or attribution.
+            # A disagreement may reflect different dates/scopes, not a false claim.
+            for value_key, origins in sorted(by_value.items()):
+                if len(result["hypotheses"]) >= 100:
+                    if not any(gap.get("reason") == "hypothesis_budget_exhausted"
+                               for gap in result["information_gaps"]):
+                        result["information_gaps"].append({"reason": "hypothesis_budget_exhausted",
+                                                           "max_hypotheses": 100})
+                    break
+                supported = [item for records in origins.values() for item in records]
+                contrary = [item for other_key, other in by_value.items()
+                            if other_key != value_key
+                            for records in other.values() for item in records]
+                result["hypotheses"].append({
+                    "hypothesis_id": _hash([definition["code"], subject, pred, value_key])[:24],
+                    "subject": subject, "predicate": pred, "candidate_value": supported[0]["value"],
+                    "status": "UNVERIFIED_COMPETING_ASSERTION",
+                    "supporting_evidence_ids": sorted({item["evidence_id"] for item in supported}),
+                    "contrary_evidence_ids": sorted({item["evidence_id"] for item in contrary}),
+                    "source_groups_reported": sorted({item["source_group"] for item in supported}),
+                    "assumptions": ["Compared assertions refer to the same meaning, scope and time.",
+                                    "Reported source groups may not be independent."],
+                    "alternative_explanations": [
+                        "One or more submitted assertions are inaccurate or stale.",
+                        "The different values refer to different time windows or scopes.",
+                        "Multiple reported origins share one upstream source."],
+                    "falsification_tests": [
+                        "Check original dated primary records for both assertions.",
+                        "Verify scope and definition before calling the values incompatible.",
+                        "Seek lawfully available independent evidence that contradicts this candidate."],
+                    "requires_human_review": True})
     if not result["evidence"]:
         result["information_gaps"].append({"reason": "no_usable_authorized_evidence"})
     elif result["observations"] and not any_missing:
