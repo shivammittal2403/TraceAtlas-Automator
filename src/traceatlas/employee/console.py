@@ -17,6 +17,7 @@ from ..policy import PolicyError
 from ..filesystem import path_component
 from ..workforce.service import workforce_enabled
 from .autonomous import AutonomousInvestigator
+from .vendor_library import shared_library, ollama_status
 
 
 def make_server(workspace: Path, port=8765, *, enabled=None):
@@ -80,6 +81,22 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                     return self.respond(200, raw, "text/html; charset=utf-8")
                 if url.path == "/api/session":
                     return self.respond(200, {"csrf_token": token})
+                if url.path == "/library.js":
+                    raw = (Path(__file__).parent / "static" / "library.js").read_bytes()
+                    return self.respond(200, raw, "application/javascript; charset=utf-8")
+                if url.path == "/api/library/status":
+                    return self.respond(200, shared_library().status())
+                if url.path == "/api/ollama/status":
+                    return self.respond(200, ollama_status())
+                if url.path == "/api/library/search":
+                    params = parse_qs(url.query)
+                    query = params.get("q", [""])[0]
+                    kind = params.get("kind", ["all"])[0]
+                    limit = int(params.get("limit", ["12"])[0])
+                    return self.respond(200, shared_library().search(query, kind=kind, limit=limit))
+                if url.path == "/api/library/reference":
+                    params = parse_qs(url.query)
+                    return self.respond(200, shared_library().reference(params.get("ref", [""])[0]))
                 if url.path not in {"/api/cases", "/api/investigation"}:
                     return self.respond(404, {"error": "Not found"})
                 engine = Engine(workspace)
@@ -122,6 +139,11 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
                 body = json.loads(raw_body)
                 if not isinstance(body, dict):
                     raise ValueError("Object required")
+                if self.path == "/api/library/plan":
+                    result = shared_library().plan(
+                        body.get("objective"), model=body.get("model") or "qwen2.5:7b",
+                        use_ollama=body.get("use_ollama") is True)
+                    return self.respond(200, result)
                 engine = Engine(workspace)
                 service = AutonomousInvestigator(engine.db, workspace, enabled=enabled)
                 case = path_component(body.get("case_id", ""))
