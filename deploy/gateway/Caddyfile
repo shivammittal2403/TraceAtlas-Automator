@@ -32,6 +32,8 @@ http://127.0.0.1:8780 {
         handle_path /employee/* {
             reverse_proxy 127.0.0.1:8765 {
                 header_up Host 127.0.0.1:8765
+                # Do not pass the user's gateway Basic credentials to the app.
+                header_up -Authorization
                 header_up X-TraceAtlas-Internal-Token {$TRACEATLAS_CONSOLE_GATEWAY_TOKEN}
                 transport http {
                     dial_timeout 3s
