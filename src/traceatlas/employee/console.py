@@ -33,7 +33,7 @@ def make_server(workspace: Path, port=8765, *, enabled=None):
         raise PolicyError("Gateway token must be 32-256 non-whitespace characters")
     if gateway_origin and not gateway_token:
         raise PolicyError("Gateway origin requires a configured internal token")
-    if gateway_token and not re.fullmatch(r"http://127\.0\.0\.1:[1-9][0-9]{1,4}", gateway_origin):
+    if gateway_token and gateway_origin != "http://127.0.0.1:8780":
         raise PolicyError("Gateway origin must name the dedicated local loopback gateway")
     jobs_lock = threading.Lock()
     active = set()
