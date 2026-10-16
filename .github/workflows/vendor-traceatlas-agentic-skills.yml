@@ -1,0 +1,108 @@
+name: Import complete pinned TraceAtlas Agentic Skills Library
+
+on:
+  push:
+    branches: [integrate/traceatlas-agentic-skills-20261016]
+    paths:
+      - .github/workflows/vendor-traceatlas-agentic-skills.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-traceatlas-agentic-skills
+  cancel-in-progress: false
+
+jobs:
+  import-and-audit:
+    name: Verify 26,731 files and import full archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout existing TraceAtlas architecture
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+          submodules: false
+
+      - name: Fetch only the exact uploaded source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin_sha=7226f92e6a9856ec8fbf1a36c5ced82d83d079aa
+          origin_tree=6e20651981402fd927784adfc834c02ca3bd51be
+          temp="$(mktemp -d)"
+          git -C "$temp" init -q
+          git -C "$temp" remote add origin https://github.com/sickn33/agentic-awesome-skills.git
+          git -C "$temp" fetch --depth=1 origin "$origin_sha"
+          git -C "$temp" checkout -q --detach "$origin_sha"
+          test "$(git -C "$temp" rev-parse HEAD)" = "$origin_sha"
+          test "$(git -C "$temp" rev-parse 'HEAD^{tree}')" = "$origin_tree"
+          dest=integrations/traceatlas-agentic-skills-library
+          test ! -e "$dest"
+          mkdir -p "$dest"
+          git -C "$temp" archive HEAD | tar -x -C "$dest"
+          echo "SOURCE_COMMIT=$origin_sha" >> "$GITHUB_ENV"
+          echo "SOURCE_TREE=$origin_tree" >> "$GITHUB_ENV"
+          echo "DEST=$dest" >> "$GITHUB_ENV"
+
+      - name: Deep static audit of original source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast, collections, json, os, pathlib, re, stat
+          root=pathlib.Path("integrations/traceatlas-agentic-skills-library")
+          root_resolved=root.resolve()
+          files=[p for p in root.rglob("*") if p.is_file() or p.is_symlink()]
+          assert len(files)==26731, f"Wrong file count: {len(files)}"
+          total=sum(p.lstat().st_size for p in files)
+          assert total==328931068, f"Wrong bytes: {total}"
+          symlinks=[p for p in files if p.is_symlink()]
+          assert len(symlinks)==7, f"Unexpected symlink count {len(symlinks)}"
+          for link in symlinks:
+              target=link.resolve()
+              assert target.is_relative_to(root_resolved) and target.exists(), f"Unsafe or broken link: {link} -> {target}"
+          canonical=list((root/"skills").rglob("SKILL.md"))
+          direct=list((root/"skills").glob("*/SKILL.md"))
+          assert len(canonical)==2705, f"Canonical skills {len(canonical)}"
+          assert len(direct)==2600, f"Direct skills {len(direct)}"
+          bad_frontmatter=[p.relative_to(root).as_posix() for p in direct if not p.read_bytes().startswith(b"---\n")]
+          assert bad_frontmatter==["skills/video-content-extractor/SKILL.md"], bad_frontmatter
+          python_files=[p for p in files if p.suffix==".py"]
+          assert len(python_files)==2266, len(python_files)
+          parse_failures=[]
+          for p in python_files:
+              try:
+                  ast.parse(p.read_text(encoding="utf-8",errors="replace"),filename=str(p))
+              except (SyntaxError,ValueError):
+                  parse_failures.append(p.relative_to(root).as_posix())
+          assert len(parse_failures)==3 and all(x.endswith("fastapi-router-py/assets/template.py") for x in parse_failures), parse_failures
+          for name in [".agents/plugins/marketplace.json",".claude-plugin/plugin.json","package.json","skills_index.json","data/catalog.json"]:
+              p=root/name
+              if p.exists():
+                  json.loads(p.read_text(encoding="utf-8"))
+          print(json.dumps({"file_count":len(files),"bytes":total,"symlinks":len(symlinks),
+             "canonical_skill_playbooks":len(canonical),"direct_skill_playbooks":len(direct),
+             "python_files_checked":len(python_files),"known_unrunnable_templates":parse_failures,
+             "known_missing_frontmatter":bad_frontmatter},indent=2))
+          PY
+          node --check "$DEST/tools/bin/aas.js"
+          node --check "$DEST/tools/scripts/generated_files.js"
+          node --check "$DEST/tools/scripts/run-python.js"
+          test -f "$DEST/LICENSE"
+          test -f "$DEST/README.md"
+          test -f "integrations/awesome-osint-repos/LICENSE"
+          python scripts/check_python_structure.py
+
+      - name: Commit all original files under TraceAtlas name
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add --force --all "$DEST"
+          imported="$(git diff --cached --name-only -- "$DEST" | wc -l | tr -d ' ')"
+          test "$imported" = 26731
+          git rm -f .github/workflows/vendor-traceatlas-agentic-skills.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'vendor: import all 26731 pinned agentic skill library files under TraceAtlas name'
+          git push origin HEAD:integrate/traceatlas-agentic-skills-20261016
+          echo "Pushed all 26731 imported files to integration branch."
