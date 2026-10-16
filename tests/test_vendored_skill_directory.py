@@ -11,6 +11,21 @@ SKILL = "---\nname: parsing-public-dns\ndomain: cybersecurity\nsubdomain: threat
 
 
 class VendoredSkillTests(unittest.TestCase):
+    def test_all_committed_skills_are_discoverable(self):
+        from traceatlas.skills.external_skills import VENDORED_SKILLS_DIR
+        self.assertTrue(VENDORED_SKILLS_DIR.is_dir(), "Full vendored source not present")
+        directory = ExternalSkillDirectory()
+        catalog = directory.catalog(limit=1000)
+        self.assertEqual(catalog["registered_external_skills"], 818)
+        self.assertEqual(catalog["matched"], 818)
+        self.assertEqual(catalog["returned"], 818)
+        self.assertEqual(catalog["missing_primary_skill_files"], [])
+        self.assertFalse(catalog["execution_enabled"])
+        self.assertEqual(len(list(VENDORED_SKILLS_DIR.rglob("*.py"))), 1096)
+        reference = directory.reference("detecting-fileless-malware-techniques")
+        self.assertFalse(reference["executable"])
+        self.assertIn("# Detecting Fileless Malware Techniques", reference["markdown"])
+
     def test_directory_catalog_and_read_only_reference(self):
         with tempfile.TemporaryDirectory() as dirname:
             root = Path(dirname)
