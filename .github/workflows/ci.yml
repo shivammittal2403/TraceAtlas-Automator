@@ -210,3 +210,20 @@ jobs:
         env:
           PYTHONPATH: src
         run: xvfb-run -a /usr/bin/python3 -m unittest discover -s tests/intelligence -v
+
+  vendor-file-inventory:
+    name: All 26,770 vendored files - SHA-256 and purpose ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+      - name: Classify and hash every preserved vendor file
+        run: python scripts/audit_integrated_vendor_files.py --output artifacts/vendor-file-ledger.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: traceatlas-vendor-file-ledger
+          path: artifacts/vendor-file-ledger.json
+          if-no-files-found: error
+          retention-days: 14
