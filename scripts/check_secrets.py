@@ -65,9 +65,14 @@ def main() -> int:
             continue
         if b"\x00" in data[:4096] or len(data) > 5 * 1024 * 1024:
             continue
-        pinned_hash = KNOWN_VENDOR_SAMPLES.get(path.relative_to(ROOT).as_posix())
-        if pinned_hash and hashlib.sha256(data).hexdigest() == pinned_hash:
-            continue  # byte-identical, reviewed upstream sample, not an unknown new key
+        relative = path.relative_to(ROOT).as_posix()
+        pinned_hash = KNOWN_VENDOR_SAMPLES.get(relative)
+        if pinned_hash:
+            observed_hash = hashlib.sha256(data).hexdigest()
+            if observed_hash == pinned_hash:
+                continue  # exact reviewed public example, no blind source exclusions
+            findings.append(f"{relative}: pinned source bytes differ: expected={pinned_hash} observed={observed_hash}")
+            continue
         for name, pattern in PATTERNS.items():
             if pattern.search(data):
                 findings.append(f"{path.relative_to(ROOT)}: possible {name}")
