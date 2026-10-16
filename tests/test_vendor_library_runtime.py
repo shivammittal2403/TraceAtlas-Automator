@@ -26,8 +26,8 @@ def fixture(root: Path) -> VendorLibrary:
     csv_path.write_text(
         "Project,Repository,Description,Categories,License,Target Input\n"
         "DNS Research,https://github.com/example/dns,Review public DNS history,Infrastructure,MIT,Domain\n"
-        "Media Archive,https://codeberg.org/example/archive,Review public media archives,Media,MIT,URL\n"
-        "Open Public Docs,https://gitlab.com/example/public/docs,Read public project documents,Web,MIT,URL\n",
+        "Media Archive,https://codeberg.org/example/archive,Review media archives,Media,MIT,URL\n"
+        "Open Docs,https://gitlab.com/example/public/docs,Read project documents,Web,MIT,URL\n",
         encoding="utf-8")
     return VendorLibrary(skills, csv_path)
 
