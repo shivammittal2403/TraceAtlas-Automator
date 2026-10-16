@@ -29,6 +29,7 @@ fi
 export TRACEATLAS_CONSOLE_GATEWAY_TOKEN
 export TRACEATLAS_CONSOLE_GATEWAY_ORIGIN="http://127.0.0.1:8780"
 export TRACEATLAS_PUBLIC_DIR="$ROOT/public"
+export TRACEATLAS_GATEWAY_UI_DIR="$ROOT/deploy/gateway/ui"
 export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONDONTWRITEBYTECODE=1
 
@@ -48,6 +49,7 @@ trap cleanup EXIT INT TERM
 python3 -m traceatlas.cli --workspace "$WORKSPACE" employee serve --port 8765 &
 CONSOLE_PID="$!"
 printf '[traceatlas-gateway] Local entrypoint: http://127.0.0.1:8780/\n'
+printf '[traceatlas-gateway] Service hub: http://127.0.0.1:8780/hub/\n'
 printf '[traceatlas-gateway] Employee: http://127.0.0.1:8780/employee/\n'
 printf '[traceatlas-gateway] Hosted /api endpoints are NOT mounted locally.\n'
 caddy run --config "$CADDYFILE" --adapter caddyfile
