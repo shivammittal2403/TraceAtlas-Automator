@@ -27,6 +27,15 @@ $env:TRACEATLAS_WORKFORCE_ENABLED = "1"
 traceatlas --workspace ./cases employee serve
 ```
 
+Run from the repository checkout so the canonical vendored data directories
+can be resolved. When launching a wheel-installed `traceatlas` command from a
+different working directory, explicitly set `TRACEATLAS_VENDOR_ROOT` to your
+local TraceAtlas repository path:
+
+```powershell
+$env:TRACEATLAS_VENDOR_ROOT = "C:\\path\\to\\TraceAtlas-Automator"
+```
+
 Visit `http://127.0.0.1:8765`. Search the **Integrated skill and OSINT source
 library** panel. The panel and existing investigation actions share the same
 session and origin.
