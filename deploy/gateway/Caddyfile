@@ -2,6 +2,11 @@
 # Binds exclusively to 127.0.0.1. For access from a remote workstation,
 # use an authenticated SSH tunnel or private VPN, NOT a public port forward.
 # Run via deploy/gateway/start-local.sh; do not serve this file over the web.
+{
+    # No extra Caddy admin HTTP API on port 2019.
+    admin off
+}
+
 http://127.0.0.1:8780 {
     bind 127.0.0.1
     encode gzip
@@ -40,6 +45,14 @@ http://127.0.0.1:8780 {
                     response_header_timeout 35s
                 }
             }
+        }
+
+        @hubRoot path /hub
+        redir @hubRoot /hub/ 308
+
+        handle_path /hub/* {
+            root * {$TRACEATLAS_GATEWAY_UI_DIR}
+            file_server
         }
 
         handle /gateway/healthz {
