@@ -1,4 +1,5 @@
 "use strict";
+const API_BASE = location.pathname.startsWith("/employee/") ? "/employee" : "";
 const $ = name => document.getElementById(name);
 let csrf = "";
 let docs = [];
@@ -8,7 +9,7 @@ function say(node, value, tag="p") { const e=document.createElement(tag);e.textC
 function fail(error) { $("error").textContent=error.message||String(error); }
 async function api(path, value) {
   const opts = value === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-TraceAtlas-CSRF":csrf},body:JSON.stringify(value)};
-  const resp = await fetch(path,opts);
+  const resp = await fetch(API_BASE+path,opts);
   const data = await resp.json();
   if (!resp.ok) throw Error(data.error||("HTTP "+resp.status));
   return data;
