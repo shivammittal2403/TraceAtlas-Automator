@@ -119,6 +119,18 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip wheel --no-deps . -w dist
+      - name: Verify wheel contains native local console library
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          wheels = glob.glob("dist/traceatlas_automator*.whl")
+          assert len(wheels) == 1, wheels
+          with zipfile.ZipFile(wheels[0]) as wheel:
+              names = wheel.namelist()
+              assert "traceatlas/employee/static/library.js" in names
+              assert "traceatlas/employee/vendor_library.py" in names
+          print("Integrated local library present in distributable wheel")
+          PY
       - run: python scripts/generate_sbom.py
       - run: sha256sum dist/* artifacts/sbom.cdx.json > artifacts/SHA256SUMS
       - uses: actions/upload-artifact@v7
