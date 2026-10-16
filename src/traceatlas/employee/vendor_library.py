@@ -16,6 +16,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Callable
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 
 from ..workforce.model_fabric import ModelRequest, ModelRouter, default_registry
 
@@ -124,7 +125,11 @@ class VendorLibrary:
                         raise ValueError("OSINT catalogue exceeds limit")
                     name = (row.get("Project") or "").strip()[:160]
                     url = (row.get("Repository") or "").strip()[:400]
-                    if not name or not url.startswith("https://github.com/"):
+                    parsed = urlsplit(url)
+                    if (not name or parsed.scheme != "https"
+                            or parsed.hostname not in {"github.com", "gitlab.com", "codeberg.org"}
+                            or parsed.username or parsed.password or parsed.port
+                            or not parsed.path.strip("/")):
                         continue
                     ref = "repo:" + str(index)
                     description = (row.get("Description") or "").strip()[:600]
