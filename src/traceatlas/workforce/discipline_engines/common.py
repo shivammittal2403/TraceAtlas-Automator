@@ -63,6 +63,31 @@ def _json(value: Any, depth: int = 0) -> None:
     raise ValueError("Employee input must contain JSON values only")
 
 
+
+def _bounded_output(value, truncations, depth=0):
+    """Clip derived data structures without changing canonical finding references."""
+    if depth > MAX_DEPTH - 5:
+        truncations[0] += 1
+        return None
+    if isinstance(value, dict):
+        if any(type(key) is not str for key in value):
+            raise ValueError("Output objects require string keys")
+        items = sorted(value.items())
+        if len(items) > MAX_RECORDS:
+            truncations[0] += 1
+        return {key: _bounded_output(item, truncations, depth + 1)
+                for key, item in items[:MAX_RECORDS]}
+    if isinstance(value, list):
+        if len(value) > MAX_RECORDS:
+            truncations[0] += 1
+        return [_bounded_output(item, truncations, depth + 1) for item in value[:MAX_RECORDS]]
+    if isinstance(value, str) and len(value) > MAX_TEXT:
+        truncations[0] += 1
+        return value[:MAX_TEXT]
+    _json(value)
+    return value
+
+
 def text(value: Any, name: str, *, maximum: int = 2000) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > maximum:
         raise ValueError(name + " must be nonempty bounded text")
@@ -194,6 +219,13 @@ class AnalysisContext:
         self._finding_ids: set[str] = set()
         self._findings_suppressed = 0
         self._issues_suppressed = 0
+        self._structures_truncated = 0
+        self._issue_reports_pruned = 0
+        self._output_budget = {
+            "structures_truncated": 0, "artifact_fields_omitted": 0,
+            "findings_omitted": 0, "issue_reports_omitted": 0,
+            "metric_fields_omitted": 0, "limitation_reports_omitted": 0,
+        }
 
     def finding(self, kind: str, summary: str, record_ids: Iterable[str],
                 data: dict | None = None) -> dict:
@@ -207,7 +239,11 @@ class AnalysisContext:
         data = {} if data is None else data
         if not isinstance(data, dict):
             raise ValueError("Finding data must be an object")
-        _json(data)
+        truncations = [0]
+        data = _bounded_output(data, truncations)
+        if truncations[0]:
+            self._structures_truncated += truncations[0]
+            self.issue(None, "derived_data_truncated", "Derived data structures exceeded the bounded output contract.")
         item = {"kind": kind, "summary": summary, "record_ids": refs,
                 "source_ids": sorted(set(self._records[ref].source_id for ref in refs)),
                 "canonical_evidence_ids": list(self.evidence_ids), "data": deepcopy(data)}
@@ -250,17 +286,84 @@ class AnalysisContext:
         for limit in limits:
             text(limit, "limitation", maximum=4000)
         metrics = deepcopy(metrics or {})
-        if self._issues_suppressed:
-            metrics["issue_reports_suppressed"] = self._issues_suppressed
-        if self._findings_suppressed:
-            metrics["finding_reports_suppressed"] = self._findings_suppressed
-        result = {"findings": deepcopy(self.findings), "issues": deepcopy(self.issues),
-                  "metrics": metrics, "artifacts": deepcopy(artifacts or {}),
-                  "limitations": limits}
+        # Budget metadata is owned by this context, never by a family result or
+        # a caller replaying a prior output through the kernel's second pass.
+        reserved_metrics = {"output_budget", "issue_reports_suppressed", "finding_reports_suppressed"}
+        for key in reserved_metrics:
+            metrics.pop(key, None)
+        truncations = [0]
+        artifacts = _bounded_output(deepcopy(artifacts or {}), truncations)
+        metrics = _bounded_output(metrics, truncations)
+        if truncations[0]:
+            self._structures_truncated += truncations[0]
+            self.issue(None, "derived_data_truncated", "Derived data structures exceeded the bounded output contract.")
+        budget = self._output_budget
+        if len(limits) > MAX_RECORDS:
+            budget["limitation_reports_omitted"] += len(limits) - MAX_RECORDS
+            limits = limits[:MAX_RECORDS]
+            self.issue(None, "limitations_truncated", "Additional limitation reports exceeded the bounded output contract.")
+        result = {"findings": self.findings, "issues": self.issues,
+                  "metrics": metrics, "artifacts": artifacts, "limitations": limits}
+        limit = MAX_BYTES - 16384
+
+        def sync_budget():
+            budget["structures_truncated"] = self._structures_truncated
+            budget["issue_reports_omitted"] = self._issues_suppressed + self._issue_reports_pruned
+
+        def attach_budget():
+            # Reserve keys for all trusted metadata before merging a full map.
+            # A newly suppressed marker may itself require a suppression key.
+            while True:
+                trusted = {"output_budget": budget}
+                if self._issues_suppressed:
+                    trusted["issue_reports_suppressed"] = self._issues_suppressed
+                if self._findings_suppressed:
+                    trusted["finding_reports_suppressed"] = self._findings_suppressed
+                if len(metrics) + len(set(trusted) - set(metrics)) <= MAX_RECORDS:
+                    metrics.update(trusted)
+                    sync_budget()
+                    return
+                key = max(key for key in metrics if key not in reserved_metrics)
+                metrics.pop(key)
+                budget["metric_fields_omitted"] += 1
+                self.issue(None, "metric_budget_exhausted", "Derived metric fields were omitted to preserve trusted output budget metadata.")
+
+        def size():
+            sync_budget()
+            return len(canonical(result).encode("utf-8"))
+
+        sync_budget()
+        if any(budget.values()) or self._findings_suppressed:
+            attach_budget()
+        if size() > limit:
+            self.issue(None, "output_budget_exhausted",
+                       "Derived output was omitted to retain a bounded partial result; preserved input references remain available.")
+            attach_budget()
+            while artifacts and size() > limit:
+                artifacts.pop(max(artifacts))
+                budget["artifact_fields_omitted"] += 1
+            while self.findings and size() > limit:
+                # Remove a bounded block proportional to excess, avoiding one
+                # full serialization for every individual finding.
+                current_size = size()
+                remove = max(1, math.ceil(len(self.findings) * (current_size - limit) / current_size))
+                del self.findings[-remove:]
+                budget["findings_omitted"] += remove
+            while len(self.issues) > 1 and size() > limit:
+                self.issues.pop(-2)
+                self._issue_reports_pruned += 1
+            while any(key not in reserved_metrics for key in metrics) and size() > limit:
+                key = max(key for key in metrics if key not in reserved_metrics)
+                metrics.pop(key)
+                budget["metric_fields_omitted"] += 1
+            while limits and size() > limit:
+                limits.pop()
+                budget["limitation_reports_omitted"] += 1
+        sync_budget()
         _json(result)
-        if len(canonical(result).encode("utf-8")) > MAX_BYTES:
-            raise ValueError("Employee output exceeds 2 MiB")
-        return result
+        if size() > limit:
+            raise ValueError("Employee output cannot fit its bounded result envelope")
+        return deepcopy(result)
 
 
 def make_context(payload: dict, *, evidence_ids: Iterable[str] = ()) -> AnalysisContext:

@@ -1,0 +1,30 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-ipint",
+  "discipline": "IPINT",
+  "objective": "Analyze supplied synthetic IPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IPINT-R1",
+      "source_id": "IPINT-S1",
+      "data": {
+        "ip": "2001:db8::1",
+        "prefixes": [
+          "2001:db8::/32",
+          "192.0.2.0/24"
+        ],
+        "ports": [
+          443
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

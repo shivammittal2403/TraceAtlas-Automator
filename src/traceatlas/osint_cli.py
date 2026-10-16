@@ -51,6 +51,8 @@ def _parser():
     running.add_argument("--input", type=Path, required=True)
     running.add_argument("--output", type=Path)
     running.add_argument("--timeout", type=_timeout, default=20)
+    employees = commands.add_parser("employees", help="Run the140 dedicated employee analyzers and case team")
+    employees.add_argument("employee_args", nargs=argparse.REMAINDER)
     commands.add_parser("check", help="Verify requested routes, native module hashes, and support-file hashes")
     return parser
 
@@ -213,8 +215,12 @@ def _check():
 
 
 def main(argv=None):
+    effective_argv = list(sys.argv[1:] if argv is None else argv)
+    if effective_argv and effective_argv[0] == "employees":
+        from .workforce.discipline_cli import main as employee_main
+        return employee_main(effective_argv[1:])
     try:
-        args = _parser().parse_args(argv)
+        args = _parser().parse_args(effective_argv)
         if args.command == "list":
             _list(args)
         elif args.command == "plan":

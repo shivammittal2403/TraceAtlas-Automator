@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-usernameint",
+  "discipline": "USERNAMEINT",
+  "objective": "Analyze supplied synthetic USERNAMEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "USERNAMEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "USERNAMEINT-R1",
+      "source_id": "USERNAMEINT-S1",
+      "data": {
+        "platform": "github",
+        "username": "@Fixture"
+      }
+    },
+    {
+      "record_id": "USERNAMEINT-R2",
+      "source_id": "USERNAMEINT-S1",
+      "data": {
+        "platform": "twitter",
+        "username": "fixture"
+      }
+    },
+    {
+      "record_id": "USERNAMEINT-R3",
+      "source_id": "USERNAMEINT-S1",
+      "data": {
+        "platform": "other",
+        "username": "fіxture"
+      }
+    }
+  ],
+  "parameters": {}
+}

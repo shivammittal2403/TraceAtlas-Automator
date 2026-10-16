@@ -1,0 +1,44 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-procurementint",
+  "discipline": "PROCUREMENTINT",
+  "objective": "Analyze supplied synthetic PROCUREMENTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PROCUREMENTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PROCUREMENTINT-R1",
+      "source_id": "PROCUREMENTINT-S1",
+      "data": {
+        "tender_id": "t",
+        "bid_id": "a",
+        "vendor_id": "v1",
+        "currency": "INR",
+        "amount": "100",
+        "deadline": "2026-10-14T12:00:00Z",
+        "submitted_at": "2026-10-14T11:00:00Z",
+        "awarded": false
+      }
+    },
+    {
+      "record_id": "PROCUREMENTINT-R2",
+      "source_id": "PROCUREMENTINT-S1",
+      "data": {
+        "tender_id": "t",
+        "bid_id": "b",
+        "vendor_id": "v2",
+        "currency": "INR",
+        "amount": "125",
+        "deadline": "2026-10-14T12:00:00Z",
+        "submitted_at": "2026-10-14T13:00:00Z",
+        "awarded": true
+      }
+    }
+  ],
+  "parameters": {}
+}

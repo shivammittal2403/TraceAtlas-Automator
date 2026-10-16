@@ -1,0 +1,36 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-credint",
+  "discipline": "CREDINT",
+  "objective": "Analyze supplied synthetic CREDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CREDINT-S1",
+      "uri": "urn:synthetic:fraud:credint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CREDINT-R1",
+      "source_id": "CREDINT-S1",
+      "data": {
+        "credential_id": "C1",
+        "account_id": "A1",
+        "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "last_rotated_at": "2025-01-01T00:00:00Z",
+        "expires_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "CREDINT-R2",
+      "source_id": "CREDINT-S1",
+      "data": {
+        "credential_id": "C2",
+        "account_id": "A2",
+        "credential_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
+  "parameters": {}
+}

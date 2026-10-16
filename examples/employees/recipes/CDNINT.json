@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cdnint",
+  "discipline": "CDNINT",
+  "objective": "Analyze supplied synthetic CDNINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CDNINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CDNINT-R1",
+      "source_id": "CDNINT-S1",
+      "data": {
+        "url": "https://example.org/a",
+        "headers": {
+          "Cache-Control": "public, max-age=30, s-maxage=60",
+          "Age": "40",
+          "Vary": "Accept-Encoding",
+          "Set-Cookie": "fixture=1"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

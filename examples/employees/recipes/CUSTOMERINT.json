@@ -1,0 +1,61 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-customerint",
+  "discipline": "CUSTOMERINT",
+  "objective": "Analyze supplied synthetic CUSTOMERINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CUSTOMERINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CUSTOMERINT-R1",
+      "source_id": "CUSTOMERINT-S1",
+      "data": {
+        "customer_id": "a",
+        "period": "p1",
+        "currency": "INR",
+        "revenue": "10"
+      }
+    },
+    {
+      "record_id": "CUSTOMERINT-R2",
+      "source_id": "CUSTOMERINT-S1",
+      "data": {
+        "customer_id": "b",
+        "period": "p1",
+        "currency": "INR",
+        "revenue": "10"
+      }
+    },
+    {
+      "record_id": "CUSTOMERINT-R3",
+      "source_id": "CUSTOMERINT-S1",
+      "data": {
+        "customer_id": "a",
+        "period": "p2",
+        "currency": "INR",
+        "revenue": "30"
+      }
+    },
+    {
+      "record_id": "CUSTOMERINT-R4",
+      "source_id": "CUSTOMERINT-S1",
+      "data": {
+        "customer_id": "c",
+        "period": "p2",
+        "currency": "INR",
+        "revenue": "5"
+      }
+    }
+  ],
+  "parameters": {
+    "ordered_periods": [
+      "p1",
+      "p2"
+    ]
+  }
+}

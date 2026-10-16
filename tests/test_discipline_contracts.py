@@ -113,6 +113,90 @@ class DisciplineContractTests(unittest.TestCase):
         self.assertEqual(output["metrics"]["finding_reports_suppressed"], 100)
         self.assertGreater(output["metrics"]["issue_reports_suppressed"], 0)
 
+    def test_amplified_output_retains_bounded_evidence_linked_partial_result(self):
+        context = make_context(fixture(), evidence_ids=("evidence-input",))
+        for index in range(30):
+            context.finding("large_" + str(index), "Large submitted derived field.", ["r1"],
+                            {"text": "x" * 100000})
+        result = context.output(artifacts={"large": ["y" * 100000 for _ in range(30)]})
+        self.assertLess(len(__import__("json").dumps(result).encode()), 2 * 1024 * 1024)
+        self.assertTrue(result["metrics"]["output_budget"]["artifact_fields_omitted"])
+        self.assertGreater(result["metrics"]["output_budget"]["findings_omitted"], 0)
+        self.assertIn("output_budget_exhausted", {issue["code"] for issue in result["issues"]})
+        for finding in result["findings"]:
+            self.assertEqual(finding["canonical_evidence_ids"], ["evidence-input"])
+            self.assertEqual(finding["record_ids"], ["r1"])
+
+    def test_derived_arrays_are_clipped_with_explicit_budget_metadata(self):
+        context = make_context(fixture())
+        context.finding("large_array", "Large derived row set.", ["r1"], {"rows": list(range(750))})
+        result = context.output()
+        self.assertEqual(len(result["findings"][0]["data"]["rows"]), 500)
+        self.assertGreater(result["metrics"]["output_budget"]["structures_truncated"], 0)
+        self.assertIn("derived_data_truncated", {issue["code"] for issue in result["issues"]})
+
+    def test_budget_metadata_reserves_a_key_in_a_full_metric_map(self):
+        outputs = []
+        entries = [("key_" + str(index), index) for index in range(501)]
+        metric_entries = [("a_metric_" + str(index), index) for index in range(500)]
+        for reverse in (False, True):
+            context = make_context(fixture(), evidence_ids=("evidence-input",))
+            context.finding("bound", "Retain canonical references.", ["r1"],
+                            {"rows": dict(reversed(entries) if reverse else entries)})
+            for index in range(500):
+                context.finding("counted_" + str(index), "Exercise trusted suppression metadata.", ["r1"])
+            result = context.output(
+                metrics=dict(reversed(metric_entries) if reverse else metric_entries),
+                artifacts={"rows": list(range(501))})
+            self.assertEqual(len(result["metrics"]), 500)
+            self.assertEqual(len(result["artifacts"]["rows"]), 500)
+            self.assertEqual(len(result["findings"][0]["data"]["rows"]), 500)
+            self.assertEqual(result["metrics"]["output_budget"]["metric_fields_omitted"], 2)
+            self.assertEqual(result["metrics"]["finding_reports_suppressed"], 1)
+            self.assertGreater(result["metrics"]["output_budget"]["structures_truncated"], 0)
+            self.assertIn("metric_budget_exhausted", {item["code"] for item in result["issues"]})
+            self.assertEqual(result["findings"][0]["record_ids"], ["r1"])
+            self.assertEqual(result["findings"][0]["canonical_evidence_ids"], ["evidence-input"])
+            outputs.append(result)
+        self.assertEqual(outputs[0], outputs[1])
+
+    def test_two_pass_output_retains_context_owned_cumulative_omissions(self):
+        context = make_context(fixture(), evidence_ids=("evidence-input",))
+        for index in range(30):
+            context.finding("large_" + str(index), "Bounded derived field.", ["r1"],
+                            {"text": "x" * 100000})
+        first = context.output(artifacts={
+            "rows": list(range(501)),
+            "large": ["y" * 100000 for _ in range(30)],
+        })
+        budget = copy.deepcopy(first["metrics"]["output_budget"])
+        self.assertGreater(budget["structures_truncated"], 0)
+        self.assertGreater(budget["artifact_fields_omitted"], 0)
+        self.assertGreater(budget["findings_omitted"], 0)
+        supplied_metrics = copy.deepcopy(first["metrics"])
+        supplied_metrics["output_budget"]["artifact_fields_omitted"] = 999999
+        second = context.output(metrics=supplied_metrics, artifacts=first["artifacts"],
+                                limitations=first["limitations"])
+        self.assertEqual(second["metrics"]["output_budget"], budget)
+        self.assertEqual(second["findings"], first["findings"])
+        self.assertLess(len(__import__("json").dumps(second).encode()), 2 * 1024 * 1024)
+        for finding in second["findings"]:
+            self.assertEqual(finding["record_ids"], ["r1"])
+            self.assertEqual(finding["source_ids"], ["s1"])
+            self.assertEqual(finding["canonical_evidence_ids"], ["evidence-input"])
+
+    def test_limitation_clipping_is_explicit_and_survives_second_pass(self):
+        context = make_context(fixture())
+        context.finding("bound", "Retain one supplied assertion.", ["r1"])
+        first = context.output(limitations=["Limitation " + str(index) for index in range(501)])
+        self.assertEqual(len(first["limitations"]), 500)
+        self.assertEqual(first["metrics"]["output_budget"]["limitation_reports_omitted"], 1)
+        self.assertIn("limitations_truncated", {item["code"] for item in first["issues"]})
+        second = context.output(metrics=first["metrics"], artifacts=first["artifacts"],
+                                limitations=first["limitations"])
+        self.assertEqual(second["metrics"]["output_budget"]["limitation_reports_omitted"], 1)
+        self.assertEqual(second["findings"], first["findings"])
+
     def test_actual_dns_engine_completes_canonical_case_lifecycle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

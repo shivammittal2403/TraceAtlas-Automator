@@ -1,8 +1,8 @@
 # Dedicated discipline employees
 
 The new employee runtime executes discipline-specific Python analyzers over
-supplied records. The catalog separately reports the requested 140 labels and
-the implemented count. An unimplemented label cannot execute or acquire an
+supplied records. All 140 requested labels have distinct implemented processors. The catalog
+reports the requested and implemented counts from executable handlers. An unimplemented label cannot execute or acquire an
 employee definition. This is separate from the older native-module route catalog.
 
 Install Python 3.10 or newer, then run:
@@ -72,3 +72,28 @@ validates cited finding IDs and keeps model prose separate from deterministic ev
 Unavailable models return MODEL_UNAVAILABLE and preserve the deterministic draft.
 Attempt counts include failed requests. Fixture transport tests do not establish that
 a local model is installed or that live generation has been verified on this machine.
+
+## Team coordinator
+
+`traceatlas-employees team --input examples/employees/team.json --output team-review.json`
+runs explicit discipline assignments under one case. Each assignment supplies its own
+records and optional parameters. Child task IDs are deterministic, evidence IDs
+cannot change meaning between disciplines, and empty/invalid work remains visible
+as a gap. Team agreement is not independent corroboration. Persistent employee
+tasks continue through the approved canonical runtime described above.
+
+Derived output is bounded as well as input: large data arrays, artifact fields
+or findings can be omitted with explicit output_budget counts and PARTIAL status.
+Every retained finding keeps its complete canonical record/source references.
+Source identity binds the full processor set and Python version, including shared
+measurement, temporal and graph dependencies.
+
+Every employee has a runnable [input recipe](EMPLOYEE_INPUTS.md). The complete
+synthetic acceptance pack is examples/employees/all140.json. Run it with the
+team command to exercise all140 production processors without external services.
+Downloadable source bundles include all processor code, recipes and semantic tests.
+
+The original launcher also exposes this complete workforce:
+`python "OSINT PYTHON.py" employees catalog` or
+`python "OSINT PYTHON.py" employees team --input examples/employees/all140.json`.
+The existing native OSINT commands retain their versioned contracts.

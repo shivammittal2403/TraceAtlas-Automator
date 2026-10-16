@@ -1,0 +1,41 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-vendorint",
+  "discipline": "VENDORINT",
+  "objective": "Analyze supplied synthetic VENDORINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "VENDORINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "VENDORINT-r1",
+      "source_id": "VENDORINT-s1",
+      "data": {
+        "vendor_id": "synthetic-vendor",
+        "deliveries": [
+          {
+            "delivery_id": "delivery-a",
+            "ordered_quantity": 10,
+            "delivered_quantity": 10,
+            "unit": "pieces",
+            "promised_at": "2026-10-10T12:00:00Z",
+            "delivered_at": "2026-10-10T12:00:00Z"
+          },
+          {
+            "delivery_id": "delivery-b",
+            "ordered_quantity": 20,
+            "delivered_quantity": 15,
+            "unit": "pieces",
+            "promised_at": "2026-10-10T12:00:00Z",
+            "delivered_at": "2026-10-11T12:00:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

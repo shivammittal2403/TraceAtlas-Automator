@@ -24,6 +24,9 @@ def _parser():
     analyze.add_argument("discipline")
     analyze.add_argument("--input", type=Path, required=True)
     analyze.add_argument("--output", type=Path)
+    team = commands.add_parser("team", help="Coordinate explicit supplied-record employee assignments")
+    team.add_argument("--input", type=Path, required=True)
+    team.add_argument("--output", type=Path)
     reason = commands.add_parser("reason", help="Ask a configured local model to review an existing analysis draft")
     reason.add_argument("--input", type=Path, required=True)
     reason.add_argument("--model", default="qwen2.5:7b")
@@ -75,6 +78,13 @@ def execute(args):
             raise ValueError("Input discipline differs from requested employee")
         data["discipline"] = label
         result = invoke_employee(data)
+        if args.output is not None:
+            with args.output.open("x", encoding="utf-8", newline="\n") as output:
+                output.write(_json_text(result))
+        return result
+    if args.command == "team":
+        from .discipline_team import run_team
+        result = run_team(load_input(args.input))
         if args.output is not None:
             with args.output.open("x", encoding="utf-8", newline="\n") as output:
                 output.write(_json_text(result))

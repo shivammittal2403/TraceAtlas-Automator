@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-diploint",
+  "discipline": "DIPLOINT",
+  "objective": "Analyze supplied synthetic DIPLOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DIPLOINT-S1",
+      "uri": "urn:traceatlas:synthetic:diploint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DIPLOINT-R1",
+      "source_id": "DIPLOINT-S1",
+      "data": {
+        "event_id": "fixture-meeting",
+        "timestamp": "2026-09-01T00:00:00Z",
+        "actor": "Example State A",
+        "counterparty": "Example State B",
+        "relation": "meeting"
+      }
+    },
+    {
+      "record_id": "DIPLOINT-R2",
+      "source_id": "DIPLOINT-S1",
+      "data": {
+        "event_id": "fixture-agreement",
+        "timestamp": "2026-09-10T00:00:00Z",
+        "actor": "Example State B",
+        "counterparty": "Example State A",
+        "relation": "agreement"
+      }
+    }
+  ],
+  "parameters": {}
+}

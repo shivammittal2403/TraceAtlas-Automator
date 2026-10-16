@@ -1,0 +1,32 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cybint",
+  "discipline": "CYBINT",
+  "objective": "Analyze supplied synthetic CYBINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CYBINT-S1",
+      "uri": "urn:traceatlas:synthetic:cybint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CYBINT-R1",
+      "source_id": "CYBINT-S1",
+      "data": {
+        "asset_id": "fixture-web-1",
+        "internet_exposed": true,
+        "criticality": "high",
+        "controls": {
+          "mfa": false,
+          "logging": true,
+          "backups": true,
+          "patching": false,
+          "endpoint_protection": true
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

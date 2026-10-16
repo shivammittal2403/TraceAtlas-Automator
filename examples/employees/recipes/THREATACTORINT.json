@@ -1,0 +1,54 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-threatactorint",
+  "discipline": "THREATACTORINT",
+  "objective": "Analyze supplied synthetic THREATACTORINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "THREATACTORINT-S1",
+      "uri": "urn:traceatlas:synthetic:threatactorint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "THREATACTORINT-R1",
+      "source_id": "THREATACTORINT-S1",
+      "data": {
+        "provider": "Fixture Provider A",
+        "actor_label": "Example Cluster A",
+        "aliases": [
+          "Example Alias A"
+        ],
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example[.]org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ]
+      }
+    },
+    {
+      "record_id": "THREATACTORINT-R2",
+      "source_id": "THREATACTORINT-S1",
+      "data": {
+        "provider": "Fixture Provider B",
+        "actor_label": "Example Cluster B",
+        "aliases": [],
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example.org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

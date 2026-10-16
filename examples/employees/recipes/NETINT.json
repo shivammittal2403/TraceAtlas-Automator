@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-netint",
+  "discipline": "NETINT",
+  "objective": "Analyze supplied synthetic NETINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "NETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "NETINT-R1",
+      "source_id": "NETINT-S1",
+      "data": {
+        "nodes": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "links": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "c"
+          ]
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

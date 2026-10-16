@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-messengerint",
+  "discipline": "MESSENGERINT",
+  "objective": "Analyze supplied synthetic MESSENGERINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MESSENGERINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MESSENGERINT-R1",
+      "source_id": "MESSENGERINT-S1",
+      "data": {
+        "conversation_id": "C",
+        "message_id": "M1",
+        "sender_id": "A",
+        "sent_at": "2026-01-02T00:00:00Z",
+        "edited_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "MESSENGERINT-R2",
+      "source_id": "MESSENGERINT-S1",
+      "data": {
+        "conversation_id": "C",
+        "message_id": "M2",
+        "sender_id": "B",
+        "sent_at": "2026-01-01T00:00:00Z",
+        "reply_to": "M1"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,44 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-searchint",
+  "discipline": "SEARCHINT",
+  "objective": "Analyze supplied synthetic SEARCHINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SEARCHINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SEARCHINT-R1",
+      "source_id": "SEARCHINT-S1",
+      "data": {
+        "query": "public report",
+        "engine": "alpha",
+        "results": [
+          {
+            "url": "https://example.org/report",
+            "rank": 1
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "SEARCHINT-R2",
+      "source_id": "SEARCHINT-S1",
+      "data": {
+        "query": "public report",
+        "engine": "beta",
+        "results": [
+          {
+            "url": "https://example.org/report",
+            "rank": 2
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

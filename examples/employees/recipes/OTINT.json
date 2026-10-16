@@ -1,0 +1,81 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-otint",
+  "discipline": "OTINT",
+  "objective": "Analyze supplied synthetic OTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "OTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "OTINT-R1",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "zone",
+        "zone_id": "Z1"
+      }
+    },
+    {
+      "record_id": "OTINT-R2",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "zone",
+        "zone_id": "Z2"
+      }
+    },
+    {
+      "record_id": "OTINT-R3",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "asset",
+        "asset_id": "A",
+        "zone_id": "Z1"
+      }
+    },
+    {
+      "record_id": "OTINT-R4",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "asset",
+        "asset_id": "B",
+        "zone_id": "Z2"
+      }
+    },
+    {
+      "record_id": "OTINT-R5",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "conduit",
+        "from_zone": "Z1",
+        "to_zone": "Z2",
+        "allowed_protocols": [
+          "modbus"
+        ]
+      }
+    },
+    {
+      "record_id": "OTINT-R6",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "communication",
+        "from_asset": "A",
+        "to_asset": "B",
+        "protocol": "s7"
+      }
+    },
+    {
+      "record_id": "OTINT-R7",
+      "source_id": "OTINT-S1",
+      "data": {
+        "kind": "change",
+        "asset_id": "A",
+        "approved": false
+      }
+    }
+  ],
+  "parameters": {}
+}

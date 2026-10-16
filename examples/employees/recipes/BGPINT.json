@@ -1,0 +1,35 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-bgpint",
+  "discipline": "BGPINT",
+  "objective": "Analyze supplied synthetic BGPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "BGPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "BGPINT-R1",
+      "source_id": "BGPINT-S1",
+      "data": {
+        "prefix": "192.0.2.0/24",
+        "origin_asn": 64496,
+        "as_path": [
+          64497,
+          64496
+        ],
+        "roas": [
+          {
+            "prefix": "192.0.0.0/16",
+            "asn": 64496,
+            "max_length": 24
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

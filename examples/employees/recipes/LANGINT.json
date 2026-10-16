@@ -1,0 +1,34 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-langint",
+  "discipline": "LANGINT",
+  "objective": "Analyze supplied synthetic LANGINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "LANGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "LANGINT-R1",
+      "source_id": "LANGINT-S1",
+      "data": {
+        "kind": "document",
+        "text": "hello",
+        "language": "hi"
+      }
+    },
+    {
+      "record_id": "LANGINT-R2",
+      "source_id": "LANGINT-S1",
+      "data": {
+        "kind": "translation",
+        "original_text": "value 10",
+        "translated_text": "value 11"
+      }
+    }
+  ],
+  "parameters": {}
+}

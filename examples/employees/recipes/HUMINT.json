@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-humint",
+  "discipline": "HUMINT",
+  "objective": "Analyze supplied synthetic HUMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "HUMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "HUMINT-R1",
+      "source_id": "HUMINT-S1",
+      "data": {
+        "witness_id": "W",
+        "claim_id": "C",
+        "statement": "Submitted account A",
+        "stance": "SUPPORTS",
+        "directness": "FIRSTHAND"
+      }
+    },
+    {
+      "record_id": "HUMINT-R2",
+      "source_id": "HUMINT-S1",
+      "data": {
+        "witness_id": "W",
+        "claim_id": "C",
+        "statement": "Submitted account B",
+        "stance": "REFUTES",
+        "directness": "SECONDHAND"
+      }
+    }
+  ],
+  "parameters": {}
+}

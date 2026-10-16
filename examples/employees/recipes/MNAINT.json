@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-mnaint",
+  "discipline": "MNAINT",
+  "objective": "Analyze supplied synthetic MNAINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MNAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MNAINT-R1",
+      "source_id": "MNAINT-S1",
+      "data": {
+        "deal_id": "d",
+        "acquirer_id": "a",
+        "target_id": "b",
+        "stage": "CLOSED",
+        "at": "2026-01-01",
+        "stake_percent": "60"
+      }
+    },
+    {
+      "record_id": "MNAINT-R2",
+      "source_id": "MNAINT-S1",
+      "data": {
+        "deal_id": "d",
+        "acquirer_id": "a",
+        "target_id": "b",
+        "stage": "ANNOUNCED",
+        "at": "2026-02-01",
+        "stake_percent": "60"
+      }
+    }
+  ],
+  "parameters": {}
+}

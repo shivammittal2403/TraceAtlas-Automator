@@ -1,0 +1,45 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-iocint",
+  "discipline": "IOCINT",
+  "objective": "Analyze supplied synthetic IOCINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IOCINT-S1",
+      "uri": "urn:traceatlas:synthetic:iocint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IOCINT-R1",
+      "source_id": "IOCINT-S1",
+      "data": {
+        "indicator_type": "domain",
+        "value": "Example[.]ORG",
+        "verdict": "malicious",
+        "expires_at": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "IOCINT-R2",
+      "source_id": "IOCINT-S1",
+      "data": {
+        "indicator_type": "domain",
+        "value": "example.org",
+        "verdict": "benign",
+        "expires_at": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "IOCINT-R3",
+      "source_id": "IOCINT-S1",
+      "data": {
+        "indicator_type": "url",
+        "value": "hxxps://example[.]org/fixture",
+        "verdict": "unknown"
+      }
+    }
+  ],
+  "parameters": {}
+}

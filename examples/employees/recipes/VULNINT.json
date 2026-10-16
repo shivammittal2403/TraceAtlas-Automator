@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-vulnint",
+  "discipline": "VULNINT",
+  "objective": "Analyze supplied synthetic VULNINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "VULNINT-S1",
+      "uri": "urn:traceatlas:synthetic:vulnint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "VULNINT-R1",
+      "source_id": "VULNINT-S1",
+      "data": {
+        "asset_id": "fixture-host-1",
+        "product": "Fixture Widget",
+        "installed_version": "2.1",
+        "cve_id": "CVE-2026-99999999",
+        "affected_product": "Fixture Widget",
+        "affected_from": "2.0",
+        "fixed_version": "3.0"
+      }
+    }
+  ],
+  "parameters": {}
+}

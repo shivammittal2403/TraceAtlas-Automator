@@ -1,0 +1,69 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-techint",
+  "discipline": "TECHINT",
+  "objective": "Analyze supplied synthetic TECHINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TECHINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TECHINT-R1",
+      "source_id": "TECHINT-S1",
+      "data": {
+        "kind": "specification",
+        "product_id": "P",
+        "property": "latency",
+        "value": 1000,
+        "unit": "ms"
+      }
+    },
+    {
+      "record_id": "TECHINT-R2",
+      "source_id": "TECHINT-S1",
+      "data": {
+        "kind": "specification",
+        "product_id": "P",
+        "property": "latency",
+        "value": 1,
+        "unit": "s"
+      }
+    },
+    {
+      "record_id": "TECHINT-R3",
+      "source_id": "TECHINT-S1",
+      "data": {
+        "kind": "specification",
+        "product_id": "P",
+        "property": "architecture",
+        "value": "arm"
+      }
+    },
+    {
+      "record_id": "TECHINT-R4",
+      "source_id": "TECHINT-S1",
+      "data": {
+        "kind": "specification",
+        "product_id": "P",
+        "property": "architecture",
+        "value": "x86"
+      }
+    },
+    {
+      "record_id": "TECHINT-R5",
+      "source_id": "TECHINT-S1",
+      "data": {
+        "kind": "requirement",
+        "product_id": "P",
+        "property": "latency",
+        "maximum": 0.5,
+        "unit": "s"
+      }
+    }
+  ],
+  "parameters": {}
+}

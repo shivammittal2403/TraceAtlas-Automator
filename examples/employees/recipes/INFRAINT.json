@@ -1,0 +1,48 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-infraint",
+  "discipline": "INFRAINT",
+  "objective": "Analyze supplied synthetic INFRAINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "INFRAINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "INFRAINT-R1",
+      "source_id": "INFRAINT-S1",
+      "data": {
+        "asset_id": "one",
+        "ips": [
+          "192.0.2.1"
+        ],
+        "domains": [
+          "one.example"
+        ],
+        "services": [
+          "web"
+        ]
+      }
+    },
+    {
+      "record_id": "INFRAINT-R2",
+      "source_id": "INFRAINT-S1",
+      "data": {
+        "asset_id": "two",
+        "ips": [
+          "192.0.2.1"
+        ],
+        "domains": [
+          "two.example"
+        ],
+        "services": [
+          "web"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

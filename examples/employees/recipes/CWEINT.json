@@ -1,0 +1,60 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-cweint",
+  "discipline": "CWEINT",
+  "objective": "Analyze supplied synthetic CWEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CWEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CWEINT-R1",
+      "source_id": "CWEINT-S1",
+      "data": {
+        "kind": "cwe",
+        "cwe_id": "CWE-79",
+        "parents": [
+          "CWE-89"
+        ]
+      }
+    },
+    {
+      "record_id": "CWEINT-R2",
+      "source_id": "CWEINT-S1",
+      "data": {
+        "kind": "cwe",
+        "cwe_id": "CWE-89",
+        "parents": [
+          "CWE-79"
+        ]
+      }
+    },
+    {
+      "record_id": "CWEINT-R3",
+      "source_id": "CWEINT-S1",
+      "data": {
+        "kind": "finding_mapping",
+        "finding_id": "F1",
+        "cwe_ids": [
+          "CWE-79"
+        ]
+      }
+    },
+    {
+      "record_id": "CWEINT-R4",
+      "source_id": "CWEINT-S1",
+      "data": {
+        "kind": "finding_mapping",
+        "finding_id": "F2",
+        "cwe_ids": [
+          "CWE-79"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

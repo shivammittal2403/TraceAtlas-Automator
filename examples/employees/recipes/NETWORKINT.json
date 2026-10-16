@@ -1,0 +1,32 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-networkint",
+  "discipline": "NETWORKINT",
+  "objective": "Analyze supplied synthetic NETWORKINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "NETWORKINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "NETWORKINT-R1",
+      "source_id": "NETWORKINT-S1",
+      "data": {
+        "from": "A",
+        "to": "B"
+      }
+    },
+    {
+      "record_id": "NETWORKINT-R2",
+      "source_id": "NETWORKINT-S1",
+      "data": {
+        "from": "B",
+        "to": "C"
+      }
+    }
+  ],
+  "parameters": {}
+}

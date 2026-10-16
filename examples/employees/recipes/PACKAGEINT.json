@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-packageint",
+  "discipline": "PACKAGEINT",
+  "objective": "Analyze supplied synthetic PACKAGEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PACKAGEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PACKAGEINT-R1",
+      "source_id": "PACKAGEINT-S1",
+      "data": {
+        "kind": "package",
+        "ecosystem": "pypi",
+        "name": "My_Pkg",
+        "version": "1.5.0",
+        "registry": "pypi.org"
+      }
+    },
+    {
+      "record_id": "PACKAGEINT-R2",
+      "source_id": "PACKAGEINT-S1",
+      "data": {
+        "kind": "package",
+        "ecosystem": "pypi",
+        "name": "my-pkg",
+        "version": "2.5.0",
+        "registry": "pypi.org"
+      }
+    },
+    {
+      "record_id": "PACKAGEINT-R3",
+      "source_id": "PACKAGEINT-S1",
+      "data": {
+        "kind": "advisory",
+        "ecosystem": "pypi",
+        "name": "my.pkg",
+        "affected_versions": ">=1.0.0,<2.0.0",
+        "advisory_id": "SYNTHETIC-ADVISORY"
+      }
+    }
+  ],
+  "parameters": {}
+}

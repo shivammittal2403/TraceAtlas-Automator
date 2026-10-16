@@ -1,0 +1,30 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-masint",
+  "discipline": "MASINT",
+  "objective": "Analyze supplied synthetic MASINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MASINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MASINT-r1",
+      "source_id": "MASINT-s1",
+      "data": {
+        "value": 200,
+        "unit": "cm",
+        "uncertainty": 1,
+        "reference": {
+          "value": 2,
+          "unit": "m",
+          "uncertainty": 0.02
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

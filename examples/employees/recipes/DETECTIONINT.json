@@ -1,0 +1,60 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-detectionint",
+  "discipline": "DETECTIONINT",
+  "objective": "Analyze supplied synthetic DETECTIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DETECTIONINT-S1",
+      "uri": "urn:traceatlas:synthetic:detectionint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DETECTIONINT-R1",
+      "source_id": "DETECTIONINT-S1",
+      "data": {
+        "record_type": "rule",
+        "rule_id": "fixture-rule-1",
+        "selector": {
+          "event": "login",
+          "success": false
+        },
+        "enabled": true,
+        "techniques": [
+          "T1110"
+        ]
+      }
+    },
+    {
+      "record_id": "DETECTIONINT-R2",
+      "source_id": "DETECTIONINT-S1",
+      "data": {
+        "record_type": "test_event",
+        "event_id": "event-1",
+        "fields": {
+          "event": "login",
+          "success": false
+        },
+        "expected_rule_ids": [
+          "fixture-rule-1"
+        ]
+      }
+    },
+    {
+      "record_id": "DETECTIONINT-R3",
+      "source_id": "DETECTIONINT-S1",
+      "data": {
+        "record_type": "test_event",
+        "event_id": "event-2",
+        "fields": {
+          "event": "login",
+          "success": true
+        },
+        "expected_rule_ids": []
+      }
+    }
+  ],
+  "parameters": {}
+}

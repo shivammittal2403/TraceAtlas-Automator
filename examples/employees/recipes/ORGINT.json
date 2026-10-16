@@ -1,0 +1,43 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-orgint",
+  "discipline": "ORGINT",
+  "objective": "Analyze supplied synthetic ORGINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ORGINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ORGINT-R1",
+      "source_id": "ORGINT-S1",
+      "data": {
+        "organization_id": "o",
+        "unit_id": "a",
+        "parent_unit_id": "b"
+      }
+    },
+    {
+      "record_id": "ORGINT-R2",
+      "source_id": "ORGINT-S1",
+      "data": {
+        "organization_id": "o",
+        "unit_id": "b",
+        "parent_unit_id": "a"
+      }
+    },
+    {
+      "record_id": "ORGINT-R3",
+      "source_id": "ORGINT-S1",
+      "data": {
+        "organization_id": "o",
+        "unit_id": "c",
+        "parent_unit_id": "b"
+      }
+    }
+  ],
+  "parameters": {}
+}

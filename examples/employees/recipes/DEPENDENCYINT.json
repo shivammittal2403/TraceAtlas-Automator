@@ -1,0 +1,72 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-dependencyint",
+  "discipline": "DEPENDENCYINT",
+  "objective": "Analyze supplied synthetic DEPENDENCYINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DEPENDENCYINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DEPENDENCYINT-R1",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "component",
+        "component_id": "A",
+        "version": "1",
+        "root": true
+      }
+    },
+    {
+      "record_id": "DEPENDENCYINT-R2",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "component",
+        "component_id": "B",
+        "version": "2"
+      }
+    },
+    {
+      "record_id": "DEPENDENCYINT-R3",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "component",
+        "component_id": "C",
+        "version": "3"
+      }
+    },
+    {
+      "record_id": "DEPENDENCYINT-R4",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "dependency",
+        "from": "A",
+        "to": "B",
+        "constraint": ">=3"
+      }
+    },
+    {
+      "record_id": "DEPENDENCYINT-R5",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "dependency",
+        "from": "B",
+        "to": "C"
+      }
+    },
+    {
+      "record_id": "DEPENDENCYINT-R6",
+      "source_id": "DEPENDENCYINT-S1",
+      "data": {
+        "kind": "dependency",
+        "from": "C",
+        "to": "B"
+      }
+    }
+  ],
+  "parameters": {}
+}

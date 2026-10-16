@@ -1,0 +1,888 @@
+{
+  "MASINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "value": 200,
+          "unit": "cm",
+          "uncertainty": 1,
+          "reference": {
+            "value": 2,
+            "unit": "m",
+            "uncertainty": 0.02
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "GEOINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "crs": "EPSG:3857",
+          "x": 0,
+          "y": 0,
+          "uncertainty_m": 5,
+          "geofence": {
+            "center": {
+              "latitude": 0,
+              "longitude": 0
+            },
+            "radius_m": 10
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "IMINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:employee-example:s2"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "pixels": [
+            [
+              0,
+              255
+            ],
+            [
+              50,
+              100
+            ]
+          ],
+          "orientation": 6
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {
+          "pixels": [
+            [
+              50,
+              0
+            ],
+            [
+              100,
+              255
+            ]
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "VIDINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "duration": 3,
+          "fps": 1,
+          "sampling": "complete",
+          "frames": [
+            {
+              "timestamp": 0,
+              "dhash": "0000000000000000"
+            },
+            {
+              "timestamp": 1,
+              "dhash": "0000000000000000"
+            },
+            {
+              "timestamp": 2,
+              "dhash": "ffffffffffffffff"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "AUDINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "samples": [
+            0,
+            1,
+            -1,
+            0
+          ],
+          "sample_rate": 4
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "DOCINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "pages": [
+            {
+              "page_number": 1,
+              "text": "Synthetic study 10.1234/example",
+              "tables": [
+                {
+                  "headers": [
+                    "sample",
+                    "value"
+                  ],
+                  "rows": [
+                    [
+                      "a",
+                      2
+                    ],
+                    [
+                      "b",
+                      3
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "page_number": 2,
+              "text": "The supplied table has two synthetic observations."
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "METADATAINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "metadata": {
+            "CreationDate": "2026-10-13T12:00:00Z",
+            "ModifyDate": "2026-10-14T12:00:00Z",
+            "Creator": "Synthetic Fixture"
+          },
+          "content_text": "abc",
+          "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "SOURCEINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:s1",
+        "original_source_id": "synthetic-wire",
+        "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:s2",
+        "original_source_id": "synthetic-wire",
+        "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {}
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {}
+      }
+    ],
+    "parameters": {}
+  },
+  "PROVENANCEINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "artifact_id": "artifact-a",
+          "content_text": "abc",
+          "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s1",
+        "data": {
+          "artifact_id": "artifact-b",
+          "content_text": "derived synthetic text",
+          "transformation": "declared-render",
+          "parents": [
+            {
+              "artifact_id": "artifact-a",
+              "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CORROBORATIONINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:s1",
+        "original_source_id": "synthetic-origin-a"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:s2",
+        "original_source_id": "synthetic-origin-b"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "claim_id": "synthetic-claim",
+          "stance": "support"
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {
+          "claim_id": "synthetic-claim",
+          "stance": "support"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "CONTRADICTIONINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:employee-example:s2"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "subject": "synthetic-asset",
+          "predicate": "state",
+          "value": "active",
+          "cardinality": "one"
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {
+          "subject": "synthetic-asset",
+          "predicate": "state",
+          "value": "closed",
+          "cardinality": "one"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "VERIFICATIONINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:employee-example:s2"
+      },
+      {
+        "source_id": "s3",
+        "uri": "urn:synthetic:employee-example:s3"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "claim": {
+            "subject": "synthetic-asset",
+            "predicate": "state",
+            "value": "active",
+            "cardinality": "one"
+          },
+          "support_record_ids": [
+            "r2"
+          ],
+          "refute_record_ids": [
+            "r3"
+          ]
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {
+          "claims": [
+            {
+              "subject": "synthetic-asset",
+              "predicate": "state",
+              "value": "active",
+              "cardinality": "one"
+            }
+          ]
+        }
+      },
+      {
+        "record_id": "r3",
+        "source_id": "s3",
+        "data": {
+          "claims": [
+            {
+              "subject": "synthetic-asset",
+              "predicate": "state",
+              "value": "closed",
+              "cardinality": "one"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "HYPOTHESISINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:s1"
+      },
+      {
+        "source_id": "s2",
+        "uri": "urn:synthetic:s2",
+        "original_source_id": "synthetic-origin-a"
+      },
+      {
+        "source_id": "s3",
+        "uri": "urn:synthetic:s3",
+        "original_source_id": "synthetic-origin-b"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "hypotheses": [
+            {
+              "id": "hypothesis-a",
+              "statement": "First synthetic explanation"
+            },
+            {
+              "id": "hypothesis-b",
+              "statement": "Second synthetic explanation"
+            }
+          ],
+          "evidence": [
+            {
+              "record_id": "r2",
+              "weight": 0.7,
+              "assessments": {
+                "hypothesis-a": "supports",
+                "hypothesis-b": "refutes"
+              }
+            },
+            {
+              "record_id": "r3",
+              "weight": 0.4,
+              "assessments": {
+                "hypothesis-a": "unknown",
+                "hypothesis-b": "supports"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s2",
+        "data": {
+          "observation": "Synthetic first observation"
+        }
+      },
+      {
+        "record_id": "r3",
+        "source_id": "s3",
+        "data": {
+          "observation": "Synthetic second observation"
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "FALSIFICATIONINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "hypothesis_id": "synthetic-temperature-bound",
+          "tests": [
+            {
+              "test_id": "necessary-bound",
+              "field": "temperature",
+              "operator": "lte",
+              "expected_value": 10,
+              "record_ids": [
+                "r2",
+                "r3"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "record_id": "r2",
+        "source_id": "s1",
+        "data": {
+          "temperature": 9
+        }
+      },
+      {
+        "record_id": "r3",
+        "source_id": "s1",
+        "data": {
+          "temperature": 12
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "TRUSTINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "context": "synthetic-weather",
+          "assessments": [
+            {
+              "prediction_id": "prediction-a",
+              "prediction": 0.9,
+              "outcome": true
+            },
+            {
+              "prediction_id": "prediction-b",
+              "prediction": 0.1,
+              "outcome": false
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "SUPPLYCHAININT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "nodes": [
+            {
+              "id": "product"
+            },
+            {
+              "id": "component"
+            },
+            {
+              "id": "raw"
+            },
+            {
+              "id": "vendor-a"
+            },
+            {
+              "id": "vendor-b"
+            }
+          ],
+          "root_ids": [
+            "product"
+          ],
+          "edges": [
+            {
+              "from": "product",
+              "to": "component",
+              "lead_time_days": 2
+            },
+            {
+              "from": "component",
+              "to": "raw",
+              "lead_time_days": 3
+            },
+            {
+              "from": "vendor-a",
+              "to": "component",
+              "relation": "supplies",
+              "lead_time_days": 1,
+              "share": 0.6
+            },
+            {
+              "from": "vendor-b",
+              "to": "component",
+              "relation": "supplies",
+              "lead_time_days": 1,
+              "share": 0.4
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "VENDORINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "vendor_id": "synthetic-vendor",
+          "deliveries": [
+            {
+              "delivery_id": "delivery-a",
+              "ordered_quantity": 10,
+              "delivered_quantity": 10,
+              "unit": "pieces",
+              "promised_at": "2026-10-10T12:00:00Z",
+              "delivered_at": "2026-10-10T12:00:00Z"
+            },
+            {
+              "delivery_id": "delivery-b",
+              "ordered_quantity": 20,
+              "delivered_quantity": 15,
+              "unit": "pieces",
+              "promised_at": "2026-10-10T12:00:00Z",
+              "delivered_at": "2026-10-11T12:00:00Z"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "LOGISTICSINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "shipment_id": "synthetic-shipment",
+          "events": [
+            {
+              "event_id": "event-a",
+              "status": "CREATED",
+              "time": "2026-10-14T00:00:00Z"
+            },
+            {
+              "event_id": "event-b",
+              "status": "PICKED_UP",
+              "time": "2026-10-14T00:10:00Z"
+            },
+            {
+              "event_id": "event-c",
+              "status": "IN_TRANSIT",
+              "time": "2026-10-14T00:20:00Z"
+            },
+            {
+              "event_id": "event-d",
+              "status": "DELIVERED",
+              "time": "2026-10-14T03:00:00Z"
+            }
+          ],
+          "legs": [
+            {
+              "origin": "depot-a",
+              "destination": "hub-b",
+              "departed_at": "2026-10-14T00:00:00Z",
+              "arrived_at": "2026-10-14T01:00:00Z"
+            },
+            {
+              "origin": "hub-b",
+              "destination": "depot-c",
+              "departed_at": "2026-10-14T02:00:00Z",
+              "arrived_at": "2026-10-14T03:00:00Z"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "TRANSPORTINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "stops": [
+            {
+              "stop_id": "stop-a"
+            },
+            {
+              "stop_id": "stop-b"
+            },
+            {
+              "stop_id": "stop-c"
+            }
+          ],
+          "services": [
+            {
+              "service_id": "synthetic-train",
+              "from": "stop-a",
+              "to": "stop-b",
+              "departure": "2026-10-14T10:00:00Z",
+              "arrival": "2026-10-14T11:00:00Z"
+            },
+            {
+              "service_id": "synthetic-bus-early",
+              "from": "stop-b",
+              "to": "stop-c",
+              "departure": "2026-10-14T11:05:00Z",
+              "arrival": "2026-10-14T11:30:00Z"
+            },
+            {
+              "service_id": "synthetic-bus-late",
+              "from": "stop-b",
+              "to": "stop-c",
+              "departure": "2026-10-14T11:15:00Z",
+              "arrival": "2026-10-14T12:00:00Z"
+            }
+          ],
+          "journey": {
+            "origin": "stop-a",
+            "destination": "stop-c",
+            "earliest_departure": "2026-10-14T09:00:00Z",
+            "minimum_transfer_minutes": 10
+          }
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "MARITIMEINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "vessel": {
+            "imo": "9074729",
+            "mmsi": "234567890"
+          },
+          "positions": [
+            {
+              "timestamp": "2026-10-14T00:00:00Z",
+              "latitude": 0,
+              "longitude": 179.9,
+              "raw_sog": 1023
+            },
+            {
+              "timestamp": "2026-10-14T01:00:00Z",
+              "latitude": 0,
+              "longitude": -179.9,
+              "raw_sog": 120
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "AVIATIONINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "aircraft": {
+            "icao24": "abc123",
+            "registration": "VT-ABC"
+          },
+          "flights": [
+            {
+              "flight_id": "synthetic-flight",
+              "off_block": "2026-10-14T09:00:00Z",
+              "takeoff": "2026-10-14T09:10:00Z",
+              "landing": "2026-10-14T11:50:00Z",
+              "on_block": "2026-10-14T12:00:00Z",
+              "scheduled_departure": "2026-10-14T08:55:00Z",
+              "scheduled_arrival": "2026-10-14T11:55:00Z"
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  },
+  "RAILINT": {
+    "sources": [
+      {
+        "source_id": "s1",
+        "uri": "urn:synthetic:employee-example:s1"
+      }
+    ],
+    "records": [
+      {
+        "record_id": "r1",
+        "source_id": "s1",
+        "data": {
+          "trip_id": "synthetic-rail",
+          "service_date": "2026-10-13",
+          "timezone_offset": "+05:30",
+          "stops": [
+            {
+              "stop_id": "station-a",
+              "sequence": 1,
+              "departure": "23:50:00",
+              "distance_km": 0
+            },
+            {
+              "stop_id": "station-b",
+              "sequence": 2,
+              "arrival": "24:10:00",
+              "departure": "24:15:00",
+              "distance_km": 20
+            },
+            {
+              "stop_id": "station-c",
+              "sequence": 3,
+              "arrival": "25:00:00",
+              "distance_km": 50
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {}
+  }
+}

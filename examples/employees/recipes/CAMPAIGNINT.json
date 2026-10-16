@@ -1,0 +1,52 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-campaignint",
+  "discipline": "CAMPAIGNINT",
+  "objective": "Analyze supplied synthetic CAMPAIGNINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CAMPAIGNINT-S1",
+      "uri": "urn:traceatlas:synthetic:campaignint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CAMPAIGNINT-R1",
+      "source_id": "CAMPAIGNINT-S1",
+      "data": {
+        "campaign_id": "fixture-campaign-a",
+        "start_at": "2026-09-01T00:00:00Z",
+        "end_at": "2026-09-20T00:00:00Z",
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example[.]org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ]
+      }
+    },
+    {
+      "record_id": "CAMPAIGNINT-R2",
+      "source_id": "CAMPAIGNINT-S1",
+      "data": {
+        "campaign_id": "fixture-campaign-b",
+        "start_at": "2026-09-10T00:00:00Z",
+        "end_at": "2026-09-30T00:00:00Z",
+        "indicators": [
+          {
+            "type": "domain",
+            "value": "example.org"
+          }
+        ],
+        "techniques": [
+          "T1059.001"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

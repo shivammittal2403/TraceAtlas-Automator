@@ -1,0 +1,30 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-elint",
+  "discipline": "ELINT",
+  "objective": "Analyze supplied synthetic ELINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ELINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ELINT-R1",
+      "source_id": "ELINT-S1",
+      "data": {
+        "frequency_hz": 1000000000,
+        "pulse_width_us": 10,
+        "pulse_arrivals_us": [
+          0,
+          100,
+          200,
+          300
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

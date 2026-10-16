@@ -1,0 +1,30 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-textint",
+  "discipline": "TEXTINT",
+  "objective": "Analyze supplied synthetic TEXTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "TEXTINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "TEXTINT-R1",
+      "source_id": "TEXTINT-S1",
+      "data": {
+        "text": "Not good. Not bad!"
+      }
+    },
+    {
+      "record_id": "TEXTINT-R2",
+      "source_id": "TEXTINT-S1",
+      "data": {
+        "text": " not good. NOT bad! "
+      }
+    }
+  ],
+  "parameters": {}
+}

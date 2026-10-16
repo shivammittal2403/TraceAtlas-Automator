@@ -1,0 +1,50 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-docint",
+  "discipline": "DOCINT",
+  "objective": "Analyze supplied synthetic DOCINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DOCINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DOCINT-r1",
+      "source_id": "DOCINT-s1",
+      "data": {
+        "pages": [
+          {
+            "page_number": 1,
+            "text": "Synthetic study 10.1234/example",
+            "tables": [
+              {
+                "headers": [
+                  "sample",
+                  "value"
+                ],
+                "rows": [
+                  [
+                    "a",
+                    2
+                  ],
+                  [
+                    "b",
+                    3
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "page_number": 2,
+            "text": "The supplied table has two synthetic observations."
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

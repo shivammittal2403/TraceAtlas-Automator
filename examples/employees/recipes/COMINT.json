@@ -1,0 +1,57 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-comint",
+  "discipline": "COMINT",
+  "objective": "Analyze supplied synthetic COMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "COMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "COMINT-R1",
+      "source_id": "COMINT-S1",
+      "data": {
+        "channel": "fixture",
+        "message_id": "M1",
+        "sender_id": "A",
+        "recipient_ids": [
+          "B"
+        ],
+        "sent_at": "2026-01-01T00:00:01Z"
+      }
+    },
+    {
+      "record_id": "COMINT-R2",
+      "source_id": "COMINT-S1",
+      "data": {
+        "channel": "fixture",
+        "message_id": "M2",
+        "sender_id": "A",
+        "recipient_ids": [
+          "B"
+        ],
+        "sent_at": "2026-01-01T00:00:02Z"
+      }
+    },
+    {
+      "record_id": "COMINT-R3",
+      "source_id": "COMINT-S1",
+      "data": {
+        "channel": "fixture",
+        "message_id": "M1",
+        "sender_id": "C",
+        "recipient_ids": [
+          "B"
+        ],
+        "sent_at": "2026-01-01T00:00:03Z"
+      }
+    }
+  ],
+  "parameters": {
+    "burst_messages_per_minute": 1
+  }
+}

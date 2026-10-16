@@ -1,0 +1,42 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-datasetint",
+  "discipline": "DATASETINT",
+  "objective": "Analyze supplied synthetic DATASETINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DATASETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DATASETINT-R1",
+      "source_id": "DATASETINT-S1",
+      "data": {
+        "rows": [
+          {
+            "id": 1,
+            "value": 0
+          },
+          {
+            "id": 1,
+            "value": null
+          },
+          {
+            "id": 2
+          }
+        ],
+        "schema": {
+          "id": "integer",
+          "value": "number"
+        },
+        "key_fields": [
+          "id"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

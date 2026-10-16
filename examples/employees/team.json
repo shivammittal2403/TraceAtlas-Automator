@@ -1,0 +1,41 @@
+{
+  "case_id": "case-team",
+  "task_id": "team-offline",
+  "objective": "Review supplied infrastructure and source files",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "fixture",
+      "uri": "urn:traceatlas:synthetic-team"
+    }
+  ],
+  "assignments": [
+    {
+      "discipline": "DNSINT",
+      "records": [
+        {
+          "record_id": "dns-r",
+          "source_id": "fixture",
+          "data": {
+            "name": "example.org",
+            "type": "A",
+            "value": "192.0.2.1"
+          }
+        }
+      ]
+    },
+    {
+      "discipline": "CODEINT",
+      "records": [
+        {
+          "record_id": "code-r",
+          "source_id": "fixture",
+          "data": {
+            "path": "fixture.py",
+            "content": "answer = 42\n"
+          }
+        }
+      ]
+    }
+  ]
+}

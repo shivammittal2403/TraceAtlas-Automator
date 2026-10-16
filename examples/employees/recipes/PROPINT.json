@@ -1,0 +1,23 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-propint",
+  "discipline": "PROPINT",
+  "objective": "Analyze supplied synthetic PROPINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PROPINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PROPINT-R1",
+      "source_id": "PROPINT-S1",
+      "data": {
+        "text": "Everyone knows the imminent threat. Share this."
+      }
+    }
+  ],
+  "parameters": {}
+}

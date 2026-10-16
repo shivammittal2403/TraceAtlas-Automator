@@ -1,0 +1,53 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-sbomint",
+  "discipline": "SBOMINT",
+  "objective": "Analyze supplied synthetic SBOMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SBOMINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SBOMINT-R1",
+      "source_id": "SBOMINT-S1",
+      "data": {
+        "kind": "sbom",
+        "document": {
+          "bomFormat": "CycloneDX",
+          "components": [
+            {
+              "bom-ref": "A",
+              "name": "alpha",
+              "version": "1"
+            },
+            {
+              "bom-ref": "B",
+              "name": "beta",
+              "version": "2"
+            }
+          ],
+          "dependencies": [
+            {
+              "ref": "A",
+              "dependsOn": [
+                "B"
+              ]
+            },
+            {
+              "ref": "B",
+              "dependsOn": [
+                "A",
+                "MISSING"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

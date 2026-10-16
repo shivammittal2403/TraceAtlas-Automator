@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-marketint",
+  "discipline": "MARKETINT",
+  "objective": "Analyze supplied synthetic MARKETINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MARKETINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MARKETINT-R1",
+      "source_id": "MARKETINT-S1",
+      "data": {
+        "seller_id": "a",
+        "market_id": "m",
+        "period": "q1",
+        "currency": "INR",
+        "revenue": "50"
+      }
+    },
+    {
+      "record_id": "MARKETINT-R2",
+      "source_id": "MARKETINT-S1",
+      "data": {
+        "seller_id": "b",
+        "market_id": "m",
+        "period": "q1",
+        "currency": "INR",
+        "revenue": "50"
+      }
+    },
+    {
+      "record_id": "MARKETINT-R3",
+      "source_id": "MARKETINT-S1",
+      "data": {
+        "seller_id": "a",
+        "market_id": "m",
+        "period": "q1",
+        "currency": "USD",
+        "revenue": "2"
+      }
+    }
+  ],
+  "parameters": {}
+}

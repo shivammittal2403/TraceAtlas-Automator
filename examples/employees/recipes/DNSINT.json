@@ -1,0 +1,46 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-dnsint",
+  "discipline": "DNSINT",
+  "objective": "Analyze supplied synthetic DNSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DNSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DNSINT-R1",
+      "source_id": "DNSINT-S1",
+      "data": {
+        "name": "a.example.org",
+        "type": "CNAME",
+        "value": "b.example.org",
+        "ttl": 300
+      }
+    },
+    {
+      "record_id": "DNSINT-R2",
+      "source_id": "DNSINT-S1",
+      "data": {
+        "name": "b.example.org",
+        "type": "CNAME",
+        "value": "a.example.org",
+        "ttl": 300
+      }
+    },
+    {
+      "record_id": "DNSINT-R3",
+      "source_id": "DNSINT-S1",
+      "data": {
+        "name": "a.example.org",
+        "type": "A",
+        "value": "192.0.2.1",
+        "ttl": 300
+      }
+    }
+  ],
+  "parameters": {}
+}

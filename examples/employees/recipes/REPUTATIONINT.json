@@ -1,0 +1,44 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-reputationint",
+  "discipline": "REPUTATIONINT",
+  "objective": "Analyze supplied synthetic REPUTATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "REPUTATIONINT-S1",
+      "uri": "urn:synthetic:fraud:reputationint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "REPUTATIONINT-R1",
+      "source_id": "REPUTATIONINT-S1",
+      "data": {
+        "entity_id": "E",
+        "platform": "fixture",
+        "review_id": "REPUTATIONINT-R1",
+        "reviewer_id": "U1",
+        "rating": 5,
+        "scale_min": 1,
+        "scale_max": 5,
+        "text": "same submitted review"
+      }
+    },
+    {
+      "record_id": "REPUTATIONINT-R2",
+      "source_id": "REPUTATIONINT-S1",
+      "data": {
+        "entity_id": "E",
+        "platform": "fixture",
+        "review_id": "REPUTATIONINT-R2",
+        "reviewer_id": "U2",
+        "rating": 1,
+        "scale_min": 1,
+        "scale_max": 5,
+        "text": "SAME submitted review"
+      }
+    }
+  ],
+  "parameters": {}
+}

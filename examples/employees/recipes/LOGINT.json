@@ -1,0 +1,60 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-logint",
+  "discipline": "LOGINT",
+  "objective": "Analyze supplied synthetic LOGINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "LOGINT-S1",
+      "uri": "urn:traceatlas:synthetic:logint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "LOGINT-R1",
+      "source_id": "LOGINT-S1",
+      "data": {
+        "format": "structured",
+        "event": {
+          "timestamp": "2026-10-01T00:01:00Z",
+          "event_type": "authentication",
+          "src_ip": "192.0.2.10",
+          "account": "fixture-account",
+          "outcome": "failure"
+        }
+      }
+    },
+    {
+      "record_id": "LOGINT-R2",
+      "source_id": "LOGINT-S1",
+      "data": {
+        "format": "structured",
+        "event": {
+          "timestamp": "2026-10-01T00:02:00Z",
+          "event_type": "authentication",
+          "src_ip": "192.0.2.10",
+          "account": "fixture-account",
+          "outcome": "failure"
+        }
+      }
+    },
+    {
+      "record_id": "LOGINT-R3",
+      "source_id": "LOGINT-S1",
+      "data": {
+        "format": "structured",
+        "event": {
+          "timestamp": "2026-10-01T00:03:00Z",
+          "event_type": "authentication",
+          "src_ip": "192.0.2.10",
+          "account": "fixture-account",
+          "outcome": "failure"
+        }
+      }
+    }
+  ],
+  "parameters": {
+    "failure_threshold": 3
+  }
+}

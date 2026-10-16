@@ -1,0 +1,31 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-phoneint",
+  "discipline": "PHONEINT",
+  "objective": "Analyze supplied synthetic PHONEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PHONEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PHONEINT-R1",
+      "source_id": "PHONEINT-S1",
+      "data": {
+        "phone": "+1 (202) 555-0100 ext 12"
+      }
+    },
+    {
+      "record_id": "PHONEINT-R2",
+      "source_id": "PHONEINT-S1",
+      "data": {
+        "phone": "2025550100 ext12",
+        "country_calling_code": "+1"
+      }
+    }
+  ],
+  "parameters": {}
+}

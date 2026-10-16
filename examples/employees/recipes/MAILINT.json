@@ -1,0 +1,37 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-mailint",
+  "discipline": "MAILINT",
+  "objective": "Analyze supplied synthetic MAILINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MAILINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MAILINT-R1",
+      "source_id": "MAILINT-S1",
+      "data": {
+        "domain": "example.org",
+        "mx": [
+          {
+            "preference": 10,
+            "exchange": "mx.example.org"
+          }
+        ],
+        "spf": "v=spf1 include:mail.example.org -all",
+        "dmarc": "v=DMARC1; p=reject; pct=100",
+        "dkim": [
+          {
+            "selector": "retired",
+            "record": "v=DKIM1; k=rsa; p="
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

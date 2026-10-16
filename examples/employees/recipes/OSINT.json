@@ -1,0 +1,44 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-osint",
+  "discipline": "OSINT",
+  "objective": "Analyze supplied synthetic OSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "OSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "OSINT-R1",
+      "source_id": "OSINT-S1",
+      "data": {
+        "source_type": "public-report",
+        "claims": [
+          {
+            "subject": "org",
+            "predicate": "status",
+            "value": "active"
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "OSINT-R2",
+      "source_id": "OSINT-S1",
+      "data": {
+        "source_type": "public-report",
+        "claims": [
+          {
+            "subject": "org",
+            "predicate": "status",
+            "value": "closed"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

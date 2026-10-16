@@ -1,0 +1,54 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-repoint",
+  "discipline": "REPOINT",
+  "objective": "Analyze supplied synthetic REPOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "REPOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "REPOINT-R1",
+      "source_id": "REPOINT-S1",
+      "data": {
+        "kind": "repository",
+        "url": "https://github.com/Example/Repo.git"
+      }
+    },
+    {
+      "record_id": "REPOINT-R2",
+      "source_id": "REPOINT-S1",
+      "data": {
+        "kind": "commit",
+        "repository_url": "git@github.com:example/repo.git",
+        "commit_id": "abc",
+        "tree_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "record_id": "REPOINT-R3",
+      "source_id": "REPOINT-S1",
+      "data": {
+        "kind": "commit",
+        "repository_url": "https://github.com/example/repo",
+        "commit_id": "abc",
+        "tree_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "record_id": "REPOINT-R4",
+      "source_id": "REPOINT-S1",
+      "data": {
+        "kind": "branch",
+        "repository_url": "https://github.com/example/repo",
+        "name": "main",
+        "protected": false
+      }
+    }
+  ],
+  "parameters": {}
+}

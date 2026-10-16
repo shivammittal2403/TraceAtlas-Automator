@@ -1,0 +1,27 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-scamint",
+  "discipline": "SCAMINT",
+  "objective": "Analyze supplied synthetic SCAMINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "SCAMINT-S1",
+      "uri": "urn:synthetic:fraud:scamint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "SCAMINT-R1",
+      "source_id": "SCAMINT-S1",
+      "data": {
+        "text": "Guaranteed return: pay now and provide your seed phrase. Payment by gift card.",
+        "expected_domain": "brand.test",
+        "urls": [
+          "https://other.test/fixture"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

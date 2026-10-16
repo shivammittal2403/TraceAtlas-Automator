@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-addressint",
+  "discipline": "ADDRESSINT",
+  "objective": "Analyze supplied synthetic ADDRESSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ADDRESSINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ADDRESSINT-R1",
+      "source_id": "ADDRESSINT-S1",
+      "data": {
+        "address_id": "a",
+        "components": {
+          "line1": " １２ Road ",
+          "city": " DELHI",
+          "country": "IN"
+        }
+      }
+    },
+    {
+      "record_id": "ADDRESSINT-R2",
+      "source_id": "ADDRESSINT-S1",
+      "data": {
+        "address_id": "b",
+        "components": {
+          "line1": "12 road",
+          "city": "delhi",
+          "country": "in"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

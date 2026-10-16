@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-corroborationint",
+  "discipline": "CORROBORATIONINT",
+  "objective": "Analyze supplied synthetic CORROBORATIONINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "CORROBORATIONINT-s1",
+      "uri": "urn:synthetic:s1",
+      "original_source_id": "CORROBORATIONINT-synthetic-origin-a"
+    },
+    {
+      "source_id": "CORROBORATIONINT-s2",
+      "uri": "urn:synthetic:s2",
+      "original_source_id": "CORROBORATIONINT-synthetic-origin-b"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "CORROBORATIONINT-r1",
+      "source_id": "CORROBORATIONINT-s1",
+      "data": {
+        "claim_id": "synthetic-claim",
+        "stance": "support"
+      }
+    },
+    {
+      "record_id": "CORROBORATIONINT-r2",
+      "source_id": "CORROBORATIONINT-s2",
+      "data": {
+        "claim_id": "synthetic-claim",
+        "stance": "support"
+      }
+    }
+  ],
+  "parameters": {}
+}

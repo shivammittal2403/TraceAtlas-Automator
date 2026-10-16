@@ -1,0 +1,59 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-logisticsint",
+  "discipline": "LOGISTICSINT",
+  "objective": "Analyze supplied synthetic LOGISTICSINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "LOGISTICSINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "LOGISTICSINT-r1",
+      "source_id": "LOGISTICSINT-s1",
+      "data": {
+        "shipment_id": "synthetic-shipment",
+        "events": [
+          {
+            "event_id": "event-a",
+            "status": "CREATED",
+            "time": "2026-10-14T00:00:00Z"
+          },
+          {
+            "event_id": "event-b",
+            "status": "PICKED_UP",
+            "time": "2026-10-14T00:10:00Z"
+          },
+          {
+            "event_id": "event-c",
+            "status": "IN_TRANSIT",
+            "time": "2026-10-14T00:20:00Z"
+          },
+          {
+            "event_id": "event-d",
+            "status": "DELIVERED",
+            "time": "2026-10-14T03:00:00Z"
+          }
+        ],
+        "legs": [
+          {
+            "origin": "depot-a",
+            "destination": "hub-b",
+            "departed_at": "2026-10-14T00:00:00Z",
+            "arrived_at": "2026-10-14T01:00:00Z"
+          },
+          {
+            "origin": "hub-b",
+            "destination": "depot-c",
+            "departed_at": "2026-10-14T02:00:00Z",
+            "arrived_at": "2026-10-14T03:00:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

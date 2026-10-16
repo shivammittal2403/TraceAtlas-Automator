@@ -1,0 +1,62 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-paymentint",
+  "discipline": "PAYMENTINT",
+  "objective": "Analyze supplied synthetic PAYMENTINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "PAYMENTINT-S1",
+      "uri": "urn:synthetic:fraud:paymentint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "PAYMENTINT-R1",
+      "source_id": "PAYMENTINT-S1",
+      "data": {
+        "kind": "invoice",
+        "invoice_id": "I",
+        "amount": "100.00",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "PAYMENTINT-R2",
+      "source_id": "PAYMENTINT-S1",
+      "data": {
+        "kind": "payment",
+        "payment_id": "P1",
+        "invoice_id": "I",
+        "amount": "60.00",
+        "currency": "EUR",
+        "status": "SETTLED"
+      }
+    },
+    {
+      "record_id": "PAYMENTINT-R3",
+      "source_id": "PAYMENTINT-S1",
+      "data": {
+        "kind": "payment",
+        "payment_id": "P2",
+        "invoice_id": "I",
+        "amount": "50.00",
+        "currency": "EUR",
+        "status": "SETTLED"
+      }
+    },
+    {
+      "record_id": "PAYMENTINT-R4",
+      "source_id": "PAYMENTINT-S1",
+      "data": {
+        "kind": "payment",
+        "payment_id": "P3",
+        "invoice_id": "I",
+        "amount": "20.00",
+        "currency": "EUR",
+        "status": "PENDING"
+      }
+    }
+  ],
+  "parameters": {}
+}

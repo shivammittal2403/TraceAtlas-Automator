@@ -1,0 +1,30 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-dorkint",
+  "discipline": "DORKINT",
+  "objective": "Analyze supplied synthetic DORKINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DORKINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DORKINT-R1",
+      "source_id": "DORKINT-S1",
+      "data": {
+        "query": "site:example.org filetype:pdf intitle:\"Annual Report\"",
+        "provider": "brave",
+        "results": [
+          {
+            "url": "https://docs.example.org/report.pdf",
+            "title": "Annual Report 2026"
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

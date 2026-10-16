@@ -1,0 +1,37 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-routeint",
+  "discipline": "ROUTEINT",
+  "objective": "Analyze supplied synthetic ROUTEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "ROUTEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "ROUTEINT-R1",
+      "source_id": "ROUTEINT-S1",
+      "data": {
+        "destination": "192.0.2.77",
+        "routes": [
+          {
+            "prefix": "0.0.0.0/0",
+            "next_hop": "198.51.100.1",
+            "distance": 1,
+            "metric": 1
+          },
+          {
+            "prefix": "192.0.2.0/24",
+            "next_hop": "198.51.100.2",
+            "distance": 10,
+            "metric": 5
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

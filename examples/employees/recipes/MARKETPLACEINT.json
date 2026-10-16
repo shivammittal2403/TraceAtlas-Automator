@@ -1,0 +1,55 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-marketplaceint",
+  "discipline": "MARKETPLACEINT",
+  "objective": "Analyze supplied synthetic MARKETPLACEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MARKETPLACEINT-S1",
+      "uri": "urn:synthetic:fraud:marketplaceint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MARKETPLACEINT-R1",
+      "source_id": "MARKETPLACEINT-S1",
+      "data": {
+        "marketplace": "fixture",
+        "listing_id": "L1",
+        "seller_id": "MARKETPLACEINT-S1",
+        "product_id": "P",
+        "price": "10.00",
+        "currency": "EUR",
+        "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "record_id": "MARKETPLACEINT-R2",
+      "source_id": "MARKETPLACEINT-S1",
+      "data": {
+        "marketplace": "fixture",
+        "listing_id": "L2",
+        "seller_id": "S2",
+        "product_id": "P",
+        "price": "11.00",
+        "currency": "EUR",
+        "image_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "record_id": "MARKETPLACEINT-R3",
+      "source_id": "MARKETPLACEINT-S1",
+      "data": {
+        "marketplace": "fixture",
+        "listing_id": "L3",
+        "seller_id": "S3",
+        "product_id": "P",
+        "price": "100.00",
+        "currency": "EUR",
+        "image_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,76 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-fraudint",
+  "discipline": "FRAUDINT",
+  "objective": "Analyze supplied synthetic FRAUDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "FRAUDINT-S1",
+      "uri": "urn:synthetic:fraud:fraudint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "FRAUDINT-R1",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "transaction",
+        "transaction_id": "T1",
+        "amount": "1",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "FRAUDINT-R2",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "transaction",
+        "transaction_id": "T2",
+        "amount": "2",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "FRAUDINT-R3",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "transaction",
+        "transaction_id": "T3",
+        "amount": "3",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "FRAUDINT-R4",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "transaction",
+        "transaction_id": "T4",
+        "amount": "4",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "FRAUDINT-R5",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "transaction",
+        "transaction_id": "T5",
+        "amount": "100",
+        "currency": "EUR"
+      }
+    },
+    {
+      "record_id": "FRAUDINT-R6",
+      "source_id": "FRAUDINT-S1",
+      "data": {
+        "kind": "reversal",
+        "transaction_id": "T5",
+        "amount": "120",
+        "currency": "EUR"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-metadataint",
+  "discipline": "METADATAINT",
+  "objective": "Analyze supplied synthetic METADATAINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "METADATAINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "METADATAINT-r1",
+      "source_id": "METADATAINT-s1",
+      "data": {
+        "metadata": {
+          "CreationDate": "2026-10-13T12:00:00Z",
+          "ModifyDate": "2026-10-14T12:00:00Z",
+          "Creator": "Synthetic Fixture"
+        },
+        "content_text": "abc",
+        "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      }
+    }
+  ],
+  "parameters": {}
+}

@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-maritimeint",
+  "discipline": "MARITIMEINT",
+  "objective": "Analyze supplied synthetic MARITIMEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MARITIMEINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MARITIMEINT-r1",
+      "source_id": "MARITIMEINT-s1",
+      "data": {
+        "vessel": {
+          "imo": "9074729",
+          "mmsi": "234567890"
+        },
+        "positions": [
+          {
+            "timestamp": "2026-10-14T00:00:00Z",
+            "latitude": 0,
+            "longitude": 179.9,
+            "raw_sog": 1023
+          },
+          {
+            "timestamp": "2026-10-14T01:00:00Z",
+            "latitude": 0,
+            "longitude": -179.9,
+            "raw_sog": 120
+          }
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

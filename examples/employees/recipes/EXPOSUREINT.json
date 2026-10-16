@@ -1,0 +1,40 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-exposureint",
+  "discipline": "EXPOSUREINT",
+  "objective": "Analyze supplied synthetic EXPOSUREINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "EXPOSUREINT-S1",
+      "uri": "urn:synthetic:fraud:exposureint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "EXPOSUREINT-R1",
+      "source_id": "EXPOSUREINT-S1",
+      "data": {
+        "asset_id": "A",
+        "snapshot_id": "Q",
+        "visibility": "PUBLIC",
+        "authentication_required": false,
+        "sensitive_classes": [
+          "PERSONAL_DATA"
+        ]
+      }
+    },
+    {
+      "record_id": "EXPOSUREINT-R2",
+      "source_id": "EXPOSUREINT-S1",
+      "data": {
+        "asset_id": "A",
+        "snapshot_id": "Q",
+        "visibility": "PRIVATE",
+        "authentication_required": true,
+        "sensitive_classes": []
+      }
+    }
+  ],
+  "parameters": {}
+}

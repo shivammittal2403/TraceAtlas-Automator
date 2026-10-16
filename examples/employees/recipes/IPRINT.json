@@ -1,0 +1,57 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-iprint",
+  "discipline": "IPRINT",
+  "objective": "Analyze supplied synthetic IPRINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "IPRINT-S1",
+      "uri": "urn:traceatlas:synthetic:iprint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "IPRINT-R1",
+      "source_id": "IPRINT-S1",
+      "data": {
+        "record_type": "license",
+        "license_id": "fixture-license-1",
+        "asset_id": "fixture-document-1",
+        "permissions": [
+          {
+            "action": "copy",
+            "territories": [
+              "US"
+            ]
+          }
+        ],
+        "prohibitions": [
+          "resell"
+        ],
+        "conditions": [
+          "attribution"
+        ],
+        "valid_from": "2025-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "IPRINT-R2",
+      "source_id": "IPRINT-S1",
+      "data": {
+        "record_type": "usage",
+        "usage_id": "fixture-use-1",
+        "asset_id": "fixture-document-1",
+        "license_id": "fixture-license-1",
+        "action": "copy",
+        "territory": "US",
+        "conditions_satisfied": [
+          "attribution"
+        ],
+        "when": "2026-10-01T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

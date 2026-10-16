@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import sys
 from pathlib import Path
 
 from ...osint_taxonomy import GROUP_TERMS
 from .common import ENGINE_VERSION, MAX_BYTES, _json, canonical, digest, make_context
 
-FAMILIES = ("network", "software", "discovery", "economic", "social", "cyber")
+FAMILIES = ("network", "software", "discovery", "economic", "social", "cyber", "media", "evidence", "fraud", "research", "supply")
 
 
 def registered_handlers():
@@ -32,12 +33,15 @@ def engine_identity(label):
     label = str(label).strip().upper()
     if label not in handlers:
         raise ValueError("Discipline processor is not implemented: " + label)
-    handler_module = importlib.import_module(handlers[label].__module__)
-    paths = {"kernel": Path(__file__),
-             "contract": Path(__file__).with_name("common.py"),
-             "processor": Path(handler_module.__file__)}
-    return digest({name: hashlib.sha256(path.read_bytes()).hexdigest()
-                   for name, path in sorted(paths.items())})
+    paths = {"kernel": Path(__file__), "contract": Path(__file__).with_name("common.py")}
+    # Some families share temporal, measurement and graph algorithms. Bind the
+    # full processor set rather than omitting imported sibling dependencies.
+    paths.update({family: Path(__file__).with_name(family + ".py") for family in FAMILIES})
+    identity = {name: hashlib.sha256(path.read_bytes()).hexdigest()
+                for name, path in sorted(paths.items())}
+    identity["python_version"] = list(sys.version_info[:3])
+    identity["discipline"] = label
+    return digest(identity)
 
 
 def invoke_employee(payload, *, evidence_ids=()):
@@ -54,6 +58,9 @@ def invoke_employee(payload, *, evidence_ids=()):
     else:
         result = ctx.output(
             metrics={"records_received": 0}, limitations=("No supplied records were available for analysis.",))
+    # Reapply budgets after family-added artifact fields.
+    result = ctx.output(metrics=result["metrics"], artifacts=result["artifacts"],
+                        limitations=result["limitations"])
     if not ctx.records:
         status = "INSUFFICIENT_DATA"
     elif ctx.issues and not ctx.findings:

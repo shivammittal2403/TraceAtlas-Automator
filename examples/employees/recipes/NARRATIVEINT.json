@@ -1,0 +1,54 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-narrativeint",
+  "discipline": "NARRATIVEINT",
+  "objective": "Analyze supplied synthetic NARRATIVEINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "NARRATIVEINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "NARRATIVEINT-R1",
+      "source_id": "NARRATIVEINT-S1",
+      "data": {
+        "kind": "frame",
+        "narrative_id": "N",
+        "frame": "Urgent threat"
+      }
+    },
+    {
+      "record_id": "NARRATIVEINT-R2",
+      "source_id": "NARRATIVEINT-S1",
+      "data": {
+        "kind": "frame",
+        "narrative_id": "N",
+        "frame": "urgent threat"
+      }
+    },
+    {
+      "record_id": "NARRATIVEINT-R3",
+      "source_id": "NARRATIVEINT-S1",
+      "data": {
+        "kind": "event",
+        "narrative_id": "N",
+        "event_id": "E",
+        "event_time": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "NARRATIVEINT-R4",
+      "source_id": "NARRATIVEINT-S1",
+      "data": {
+        "kind": "event",
+        "narrative_id": "N",
+        "event_id": "E",
+        "event_time": "2026-01-02T00:00:00Z"
+      }
+    }
+  ],
+  "parameters": {}
+}

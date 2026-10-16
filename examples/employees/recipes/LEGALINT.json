@@ -1,0 +1,49 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-legalint",
+  "discipline": "LEGALINT",
+  "objective": "Analyze supplied synthetic LEGALINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "LEGALINT-S1",
+      "uri": "urn:traceatlas:synthetic:legalint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "LEGALINT-R1",
+      "source_id": "LEGALINT-S1",
+      "data": {
+        "decision_id": "fixture-decision-a",
+        "court": "Example Court",
+        "jurisdiction": "Example Jurisdiction",
+        "decision_at": "2025-01-01T00:00:00Z",
+        "outcome": "Synthetic motion granted",
+        "issue_tags": [
+          "reporting"
+        ],
+        "cites": []
+      }
+    },
+    {
+      "record_id": "LEGALINT-R2",
+      "source_id": "LEGALINT-S1",
+      "data": {
+        "decision_id": "fixture-decision-b",
+        "court": "Example Court",
+        "jurisdiction": "Example Jurisdiction",
+        "decision_at": "2026-01-01T00:00:00Z",
+        "outcome": "Synthetic motion denied",
+        "issue_tags": [
+          "reporting",
+          "procedure"
+        ],
+        "cites": [
+          "fixture-decision-a"
+        ]
+      }
+    }
+  ],
+  "parameters": {}
+}

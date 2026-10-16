@@ -1,0 +1,38 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-malint",
+  "discipline": "MALINT",
+  "objective": "Analyze supplied synthetic MALINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "MALINT-S1",
+      "uri": "urn:traceatlas:synthetic:malint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "MALINT-R1",
+      "source_id": "MALINT-S1",
+      "data": {
+        "file_name": "synthetic-fixture.bin",
+        "file_size": 42,
+        "hashes": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "imports": [
+          "KERNEL32!WriteProcessMemory",
+          "KERNEL32!CreateRemoteThread"
+        ],
+        "strings": [
+          "https://example.org/fixture"
+        ],
+        "signature": {
+          "verified": false,
+          "signer": "Synthetic unsigned fixture"
+        }
+      }
+    }
+  ],
+  "parameters": {}
+}

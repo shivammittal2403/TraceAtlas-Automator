@@ -1,0 +1,23 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-emailint",
+  "discipline": "EMAILINT",
+  "objective": "Analyze supplied synthetic EMAILINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "EMAILINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "EMAILINT-R1",
+      "source_id": "EMAILINT-S1",
+      "data": {
+        "raw_message": "From: a@origin.test\nReply-To: b@other.test\nReturn-Path: bounce@origin.test\nMessage-ID: <fixture@origin.test>\nAuthentication-Results: fixture.test; spf=fail\nReceived: by fixture-one; Thu, 01 Jan 2026 00:00:00 +0000\nReceived: by fixture-two; Thu, 01 Jan 2026 01:00:00 +0000\n\nSynthetic body"
+      }
+    }
+  ],
+  "parameters": {}
+}

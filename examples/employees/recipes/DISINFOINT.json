@@ -1,0 +1,56 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-disinfoint",
+  "discipline": "DISINFOINT",
+  "objective": "Analyze supplied synthetic DISINFOINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "DISINFOINT-S1",
+      "uri": "urn:synthetic:employee-example"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "DISINFOINT-R1",
+      "source_id": "DISINFOINT-S1",
+      "data": {
+        "kind": "claim",
+        "claim_id": "C",
+        "statement": "Submitted claim"
+      }
+    },
+    {
+      "record_id": "DISINFOINT-R2",
+      "source_id": "DISINFOINT-S1",
+      "data": {
+        "kind": "check",
+        "claim_id": "C",
+        "verdict": "FALSE",
+        "basis_record_ids": [
+          "DISINFOINT-R1"
+        ],
+        "checked_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "DISINFOINT-R3",
+      "source_id": "DISINFOINT-S1",
+      "data": {
+        "kind": "publication",
+        "claim_id": "C",
+        "published_at": "2026-01-02T00:00:00Z"
+      }
+    },
+    {
+      "record_id": "DISINFOINT-R4",
+      "source_id": "DISINFOINT-S1",
+      "data": {
+        "kind": "intent_record",
+        "claim_id": "C",
+        "allegation": "Source alleges deliberate conduct"
+      }
+    }
+  ],
+  "parameters": {}
+}

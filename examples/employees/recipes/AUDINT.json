@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-audint",
+  "discipline": "AUDINT",
+  "objective": "Analyze supplied synthetic AUDINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "AUDINT-s1",
+      "uri": "urn:synthetic:employee-example:s1"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "AUDINT-r1",
+      "source_id": "AUDINT-s1",
+      "data": {
+        "samples": [
+          0,
+          1,
+          -1,
+          0
+        ],
+        "sample_rate": 4
+      }
+    }
+  ],
+  "parameters": {}
+}

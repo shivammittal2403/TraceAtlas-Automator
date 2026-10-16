@@ -1,0 +1,29 @@
+{
+  "case_id": "case-employee-examples",
+  "task_id": "example-eduint",
+  "discipline": "EDUINT",
+  "objective": "Analyze supplied synthetic EDUINT evidence",
+  "as_of": "2026-10-15T00:00:00Z",
+  "sources": [
+    {
+      "source_id": "EDUINT-S1",
+      "uri": "urn:traceatlas:synthetic:eduint"
+    }
+  ],
+  "records": [
+    {
+      "record_id": "EDUINT-R1",
+      "source_id": "EDUINT-S1",
+      "data": {
+        "institution_id": "fixture-institution-1",
+        "program_id": "fixture-program-1",
+        "accreditation_body": "Example Accreditation Body",
+        "accreditation_status": "accredited",
+        "valid_from": "2025-01-01T00:00:00Z",
+        "valid_until": "2027-01-01T00:00:00Z",
+        "qualification_level": "Synthetic degree level"
+      }
+    }
+  ],
+  "parameters": {}
+}
