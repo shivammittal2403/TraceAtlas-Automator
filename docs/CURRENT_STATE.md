@@ -1,3 +1,18 @@
+# 139-discipline audit and evidence-contract repair — 2026-10-16
+
+CODED on draft feature branch: repair all 140 existing procedure templates and
+native input guidance; reject ambiguous result identities and foreign hypothesis/
+trace evidence; require canonical same-case preserved evidence, acquisition
+metadata and task-trace binding for generic completion. Existing processors,
+source permissions and case lifecycle remain. See
+[audit/TRACEATLAS_139_AUDIT_2026-10-16.md](audit/TRACEATLAS_139_AUDIT_2026-10-16.md).
+
+TESTED locally: NOT RUN (Windows sandbox startup failure). Hosted CI/CodeQL:
+pending at commit creation; consult the exact proposed head's checks.
+External 139-catalog reconciliation, canonical competing hypotheses, live
+qualification and security triage remain open. No deployment or live verification
+is claimed by this repair.
+
 # COLRF evidence-review overlay — 2026-10-13
 
 CODED on feature branch: a deterministic, source-backed mapping of the

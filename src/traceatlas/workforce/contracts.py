@@ -591,11 +591,21 @@ class ResultEnvelope(StrictContract):
             object.__setattr__(self, name, _strings(getattr(self, name), name, maximum=1000))
         if len(self.observations) > 1000 or len(self.claims) > 200 or len(self.hypotheses) > 100 or len(self.execution_trace) > 1000:
             raise ValueError("result exceeds contract bounds")
+        for name, identity in (("observations", "observation_id"), ("claims", "claim_id"),
+                               ("hypotheses", "hypothesis_id"), ("execution_trace", "span_id")):
+            identifiers = [getattr(item, identity) for item in getattr(self, name)]
+            if len(identifiers) != len(set(identifiers)):
+                raise ValueError(f"{name} cannot contain duplicate {identity} values")
         known = {item.observation_id for item in self.observations}
         if any(not set(claim.observation_ids).issubset(known) for claim in self.claims):
             raise ValueError("claim cites an unknown observation")
         if any(item.evidence_id not in self.evidence_ids for item in self.observations):
             raise ValueError("observation cites unknown evidence")
+        evidence = set(self.evidence_ids)
+        if any(not set(item.evidence_ids).issubset(evidence) for item in self.hypotheses):
+            raise ValueError("hypothesis cites unknown evidence")
+        if any(not set(item.evidence_ids).issubset(evidence) for item in self.execution_trace):
+            raise ValueError("execution trace cites unknown evidence")
         if isinstance(self.latency_ms, bool) or not isinstance(self.latency_ms, int) or not 0 <= self.latency_ms <= 86_400_000:
             raise ValueError("latency_ms is invalid")
         object.__setattr__(self, "completed_at", _utc(self.completed_at, "completed_at"))
