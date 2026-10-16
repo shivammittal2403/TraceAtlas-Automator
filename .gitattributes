@@ -2,3 +2,6 @@
 /packages/archive_sources/** -text
 /src/traceatlas/addons/** -text
 /integrations/osint-tool-typescript/** -text
+
+# Source-preserved, third-party files; not part of TraceAtlas executable package.
+/vendor_sources/anthropic_cybersecurity_skills/skills/** -text linguist-vendored
