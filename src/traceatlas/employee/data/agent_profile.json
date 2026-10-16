@@ -47,6 +47,11 @@
       "name": "skills.inspect",
       "parameter": "ref",
       "type": "read-only"
+    },
+    {
+      "name": "case.reports",
+      "parameter": "query",
+      "type": "read-only"
     }
   ],
   "boundaries": [
