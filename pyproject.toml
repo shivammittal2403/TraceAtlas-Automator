@@ -21,6 +21,7 @@ traceatlas-worker = "traceatlas.worker_cli:main"
 traceatlas-research = "traceatlas.research_cli:main"
 traceatlas-osint = "traceatlas.osint_cli:main"
 traceatlas-employees = "traceatlas.workforce.discipline_cli:main"
+traceatlas-zips = "traceatlas.capabilities.zip_workbench:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
