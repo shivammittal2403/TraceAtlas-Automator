@@ -179,6 +179,23 @@ class CoordinationCLITests(unittest.TestCase):
         self.fails(["run", "--task", manager["task"]["task_id"], "--authorized"])
         self.fails(["coordinate-replay", "--coordination", coordination_id])
 
+    def test_context_derived_case_still_rejects_foreign_nested_cases_and_embedded_authority(self):
+        context = self.authorize()
+        for patch_input in (
+                {"case_id": "foreign-case"},
+                {"sources": [{"source_id": "shared", "uri": "urn:fixture:coordination-cli",
+                              "case_id": "foreign-case"}]},
+                {"sources": [{"source_id": "shared", "uri": "urn:fixture:coordination-cli",
+                              "authority_granted": True}]}):
+            value = dict(self.payload, **patch_input)
+            self.source.write_text(json.dumps(value), encoding="utf-8")
+            self.fails(["coordinate-plan", "--context", context["context_id"], "--input", str(self.source)])
+        self.source.write_text(json.dumps(self.payload), encoding="utf-8")
+        manager = self.plan(context)
+        self.assertEqual(manager["task"]["case_id"], "coordination-cli")
+        state = self.ok(["coordinate-show", "--coordination", manager["coordination_id"]])
+        self.assertEqual(len(state["tasks"]), 1)
+
     def test_coordinate_json_duplicate_keys_and_unknown_fields_fail_closed(self):
         context = self.authorize()
         self.source.write_text('{"objective":"a","objective":"b"}', encoding="utf-8")

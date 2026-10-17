@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from uuid import uuid4
 
-from ..osint_cli import JSONArgumentParser, _emit, load_input, _json_text
+from ..osint_cli import JSONArgumentParser, _emit, load_input, load_json_object, _json_text
 from ..engine import Engine
 from ..policy import PolicyError
 from .contracts import AuthorizationContext
@@ -183,7 +183,7 @@ def execute(args):
             from .coordination import CoordinationService
             coordination = CoordinationService(runtime)
             if args.command == "coordinate-plan":
-                return coordination.plan(args.context, load_input(args.input))
+                return coordination.plan(args.context, load_json_object(args.input))
             if args.command == "coordinate-expand":
                 return coordination.materialize_children(args.task)
             if args.command == "coordinate-synthesize":
