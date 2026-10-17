@@ -1,3 +1,24 @@
+# Native capability map and approved coordination — 2026-10-17
+
+CODED for review: repository-backed mapping of 139 disciplines plus OSINT;
+persisted Manager → Team Lead → Employee plans, execution and synthesis with
+separate task approvals and conservative global budgets; independent native
+output recomputation, bound dependency receipts and offline replay. Generic
+dispatch/finalization now recheck the actual owner approval and current context.
+Existing native and default role definitions remain.
+
+Prior hypothesis/review PR #131 merged as `308e94dfdd59ed0f0227bab50a7c4a902a2c3929`;
+its exact head CI evidence is recorded in that PR. New changes have their own
+pending exact-head checks. Local execution still fails during Windows sandbox
+startup. Earlier native v2 completed reviews have a narrowly pinned compatibility
+adapter and a real old-producer/new-verifier CI fixture.
+
+See [DISCIPLINE_CAPABILITIES.md](DISCIPLINE_CAPABILITIES.md) and
+[DISCIPLINE_COORDINATION.md](DISCIPLINE_COORDINATION.md). The supplied external
+master prompt/catalog have not been read; minimum requirements remain unassessed.
+Live-source qualification, representative investigation evaluation and security
+triage remain open. This is not full-goal completion.
+
 # Canonical hypothesis and falsification review — 2026-10-16
 
 CODED on draft branch: evidence-linked competing assertions and candidate-specific

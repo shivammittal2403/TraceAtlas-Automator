@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .contracts import (Budget, CostRecord, Observation, ResultEnvelope,
-                        SemanticClass, TaskEnvelope, TraceSpan)
+                        SemanticClass, TaskEnvelope, TraceSpan, IDENTIFIER)
 from .discipline_engines.common import make_context
 from .discipline_review import project_discipline_review, REVIEWED_DISCIPLINES, REVIEWED_PRODUCT_SCHEMA
 from .documents import DOCUMENT_SCHEMA, MAX_DOCUMENT_BYTES, SourceDocument
@@ -47,6 +47,29 @@ def _identity(label):
     return digest({name: hashlib.sha256(Path(path).read_bytes()).hexdigest()
                    for name, path in (("runtime", __file__),
                                       ("registry", discipline_registry.__file__))})
+
+
+# Exact source at 8a3228703747777623db876826d3d5921030ace8, with either
+# Git checkout newline convention. Only completed v2 canonical-review replay
+# may use this adapter; planning and execution always require current identity.
+LEGACY_REVIEW_RUNTIME_SHA256 = (
+    "01b877ff05ee8deacf5f26031233dfb518db7e0a76d57a2758b8d93ae7fff565",
+    "451195bfc63583a00e9632b6e785121a2d5a973b3233edeec034d93b79d32b35",
+)
+
+
+def _review_replay_adapter(label, approved_identity):
+    if _identity(label) == approved_identity:
+        return "current-runtime"
+    from .discipline_engines import engine_identity
+    from . import discipline_review
+    processors = engine_identity(label)
+    review_hash = hashlib.sha256(Path(discipline_review.__file__).read_bytes()).hexdigest()
+    for runtime_hash in LEGACY_REVIEW_RUNTIME_SHA256:
+        if digest({"processors": processors, "runtime": runtime_hash,
+                   "canonical_review": review_hash}) == approved_identity:
+            return "pinned-runtime-8a322870"
+    raise ValueError("discipline review engine changed since approval")
 
 
 def _stamp():
@@ -113,7 +136,10 @@ class DisciplineRuntime:
                           objective=objective, parent_task_id=None,
                           tool="investigation.plan", action="propose_plan")
 
-    def _plan(self, context_id, label, employee, payload, *, objective, parent_task_id, tool, action):
+    def _plan(self, context_id, label, employee, payload, *, objective, parent_task_id, tool, action,
+              frozen=None, extra_constraints=()):
+        """Private coordinator slots bind stable IDs and budgets before capture."""
+
         if not self.service._enabled():
             raise ValueError("discipline execution is disabled")
         if not isinstance(payload, dict):
@@ -134,13 +160,36 @@ class DisciplineRuntime:
             raise ValueError("input discipline differs from the requested employee")
         validate_case_input(payload, context.case_id)
         _reject_evidence_authority(payload)
+        parent = None
         if parent_task_id is not None:
             parent = self.store.task(parent_task_id)["envelope"]
             if parent.case_id != context.case_id or parent.authorization_context_id != context_id:
                 raise ValueError("parent task belongs to another authority context")
         objective = objective if objective is not None else payload.get("objective")
-        task_id = "task-" + uuid4().hex
-        now = datetime.now(timezone.utc)
+        if not isinstance(extra_constraints, (tuple, list)):
+            raise ValueError("extra constraints require a bounded string sequence")
+        if frozen is not None:
+            if (not isinstance(frozen, dict) or set(frozen) !=
+                    {"task_id", "source_id", "trace_id", "created_at", "deadline", "budget"}):
+                raise ValueError("frozen discipline slot has invalid fields")
+            for key in ("task_id", "source_id", "trace_id"):
+                if not isinstance(frozen[key], str) or not IDENTIFIER.fullmatch(frozen[key]):
+                    raise ValueError("frozen discipline slot has an invalid identifier")
+            now = datetime.fromisoformat(frozen["created_at"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(frozen["deadline"].replace("Z", "+00:00"))
+            if now.tzinfo is None or end.tzinfo is None:
+                raise ValueError("frozen discipline slot requires timezone-aware timestamps")
+            now, end = now.astimezone(timezone.utc), end.astimezone(timezone.utc)
+            if (now < datetime.fromisoformat(context.issued_at)
+                    or end > datetime.fromisoformat(context.expires_at)):
+                raise ValueError("frozen discipline slot exceeds its authority lifetime")
+            task_id, source_id, trace_id = (frozen[key] for key in ("task_id", "source_id", "trace_id"))
+        else:
+            task_id = "task-" + uuid4().hex
+            source_id = "discipline-input-" + uuid4().hex
+            trace_id = "trace-" + uuid4().hex
+            now = datetime.now(timezone.utc)
+            end = min(now + timedelta(minutes=15), datetime.fromisoformat(context.expires_at))
         as_of = payload.get("as_of", now.isoformat())
         if not isinstance(as_of, str):
             raise ValueError("as_of requires an ISO timestamp")
@@ -156,25 +205,52 @@ class DisciplineRuntime:
         if len(encoded.encode("utf-8")) > MAX_DOCUMENT_BYTES:
             raise ValueError("discipline input exceeds the preserved-document limit")
         input_sha = digest(data)
-        source_id = "discipline-input-" + uuid4().hex
         limit = employee.budget_limit
         if limit.tool_calls < 1 or limit.runtime_seconds < 1:
             raise ValueError("employee has no execution budget")
+        budget = (Budget.from_dict(frozen["budget"]) if frozen is not None else
+                  Budget("USD", min(1.0, limit.amount), min(120, limit.runtime_seconds),
+                         min(8, limit.tool_calls), 0))
+        if frozen is not None and (
+                budget.currency not in {"USD", "NONE"} or budget.amount != 0 or budget.model_calls != 0
+                or not 1 <= budget.tool_calls <= min(8, limit.tool_calls)
+                or not 1 <= budget.runtime_seconds <= min(120, limit.runtime_seconds)):
+            raise ValueError("frozen discipline budget exceeds its deterministic allocation")
+        coordinated_parent = parent is not None and any(
+            value.startswith("coordination-") for value in parent.constraints)
+        scope = parent.scope if coordinated_parent else context.scope
+        targets = parent.target_entities if coordinated_parent else context.scope
         task = TaskEnvelope(
             schema_version="1.0", task_id=task_id, case_id=context.case_id,
-            parent_task_id=parent_task_id, trace_id="trace-" + uuid4().hex,
-            objective=objective, scope=context.scope, authorization_context_id=context_id,
-            policy_digest=context.policy_digest, target_entities=context.scope,
+            parent_task_id=parent_task_id, trace_id=trace_id,
+            objective=objective, scope=scope, authorization_context_id=context_id,
+            policy_digest=context.policy_digest, target_entities=targets,
             required_capabilities=employee.required_capabilities, evidence_context_ids=(),
             constraints=("provided_records_only", "no_external_collection", "human_release_required",
                          LABEL_PREFIX + label, INPUT_PREFIX + input_sha, SOURCE_PREFIX + source_id,
                          ENGINE_PREFIX + _identity(label)) + (
-                             (REVIEW_PREFIX + REVIEWED_PRODUCT_SCHEMA,) if label in REVIEWED_DISCIPLINES else ()),
-            budget=Budget("USD", min(1.0, limit.amount), min(120, limit.runtime_seconds),
-                          min(8, limit.tool_calls), 0),
-            deadline=min(now + timedelta(minutes=15), datetime.fromisoformat(context.expires_at)).isoformat(),
+                             (REVIEW_PREFIX + REVIEWED_PRODUCT_SCHEMA,) if label in REVIEWED_DISCIPLINES else ()) + tuple(extra_constraints),
+            budget=budget, deadline=end.isoformat(),
             stop_conditions=("deadline_reached", "budget_exhausted", "human_review_required"),
             created_by=context.actor_id, created_at=now.isoformat())
+        if task.parent_task_id or any(value.startswith("coordination-") for value in task.constraints):
+            from .coordination import validate_coordination_task
+            validate_coordination_task(self.store, task, stage="planning")
+        if frozen is not None and self.store.db.conn.execute(
+                "SELECT 1 FROM workforce_tasks WHERE task_id=?", (task_id,)).fetchone():
+            existing = self.store.task(task_id)
+            candidate = replace(task, evidence_context_ids=existing["envelope"].evidence_context_ids)
+            if (existing["envelope"] != candidate or existing["employee_id"] != employee.employee_id
+                    or existing["definition_digest"] != definition_digest(employee.to_dict())):
+                raise ValueError("frozen discipline slot conflicts with its existing task")
+            old_data, old_evidence = self._input(candidate)
+            document, _ = self.store.captured_document(candidate, source_id)
+            if old_data != data or document.retrieved_at != task.created_at:
+                raise ValueError("frozen discipline slot conflicts with its captured input")
+            return {"task": candidate.to_dict(), "employee": employee.to_dict(),
+                    "envelope_digest": existing["envelope_digest"], "input_sha256": input_sha,
+                    "input_evidence_id": old_evidence.evidence_id, "status": existing["status"]}
+        self.service._check_authority(context, task)
         document = SourceDocument(DOCUMENT_SCHEMA, source_id,
                                   "urn:traceatlas:discipline-input:" + task_id,
                                   now.isoformat(), encoded, (), None, None)
@@ -431,12 +507,14 @@ class DisciplineRuntime:
         if (versions != [REVIEWED_PRODUCT_SCHEMA] or product.get("schema") != REVIEWED_PRODUCT_SCHEMA
                 or label not in REVIEWED_DISCIPLINES):
             raise ValueError("unsupported discipline review product schema or version binding")
-        if (_identity(label) != _bound(task, ENGINE_PREFIX)
-                or product.get("engine_sha256") != _bound(task, ENGINE_PREFIX)):
+        self.store.verify_task_approval(row)
+        approved_identity = _bound(task, ENGINE_PREFIX)
+        if product.get("engine_sha256") != approved_identity:
             raise ValueError("discipline review engine changed since approval")
+        adapter = _review_replay_adapter(label, approved_identity)
         hypotheses, review, review_gaps = project_discipline_review(
             json.loads(canonical(data)), evidence.evidence_id, evidence.acquisition_id)
-        if _identity(label) != _bound(task, ENGINE_PREFIX):
+        if _review_replay_adapter(label, approved_identity) != adapter:
             raise ValueError("discipline review engine changed during replay")
         projected = [item.to_dict() for item in hypotheses]
         analysis = product.get("analysis")
@@ -447,6 +525,7 @@ class DisciplineRuntime:
                 or analysis.get("information_gaps") != product["result"]["information_gaps"]):
             raise ValueError("canonical discipline hypothesis review replay mismatch")
         return {**receipt, "status": "VERIFIED_NATIVE_REVIEW", "semantic_recomputed": True,
+                "identity_adapter": adapter,
                 "hypotheses_verified": len(hypotheses),
                 "semantics_verified_scope": "canonical_hypothesis_review",
                 "callback_draft_semantics_verified": False}

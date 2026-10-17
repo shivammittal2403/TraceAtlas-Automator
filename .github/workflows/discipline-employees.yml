@@ -8,10 +8,13 @@ on:
       - 'EMPLOYEE_INPUTS.md'
       - 'src/traceatlas/workforce/**'
       - 'src/traceatlas/skills/procedures/**'
+      - 'src/traceatlas/skills/coordination/**'
       - 'tests/test_workforce_result_integrity.py'
+      - 'tests/test_workforce_approval_binding.py'
       - 'tests/test_hypothesis_review.py'
       - 'tests/test_investigation_pipeline.py'
       - 'tests/fixtures/legacy14_replay_fixture.py'
+      - 'tests/fixtures/legacy_native_review_fixture.py'
       - 'src/traceatlas/osint_taxonomy.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
@@ -24,10 +27,13 @@ on:
     paths:
       - 'src/traceatlas/workforce/**'
       - 'src/traceatlas/skills/procedures/**'
+      - 'src/traceatlas/skills/coordination/**'
       - 'tests/test_workforce_result_integrity.py'
+      - 'tests/test_workforce_approval_binding.py'
       - 'tests/test_hypothesis_review.py'
       - 'tests/test_investigation_pipeline.py'
       - 'tests/fixtures/legacy14_replay_fixture.py'
+      - 'tests/fixtures/legacy_native_review_fixture.py'
       - 'tests/test_discipline*.py'
       - 'tests/test_*employees.py'
       - '.github/workflows/discipline-employees.yml'
@@ -72,6 +78,8 @@ jobs:
         run: python -m unittest discover -s tests -p test_ai_workforce.py -v
       - name: Canonical workforce result integrity
         run: python -m unittest discover -s tests -p test_workforce_result_integrity.py -v
+      - name: Canonical owner approval and completion binding
+        run: python -m unittest discover -s tests -p test_workforce_approval_binding.py -v
       - name: Canonical competing assertion review
         run: python -m unittest discover -s tests -p test_hypothesis_review.py -v
       - name: Investigation products and semantic replay
@@ -90,6 +98,21 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python tests/fixtures/legacy14_replay_fixture.py verify --workspace "${{ runner.temp }}/traceatlas-legacy14-case" --receipt "${{ runner.temp }}/traceatlas-legacy14-receipt.json"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: 8a3228703747777623db876826d3d5921030ace8
+          path: .prior-native-runtime
+          submodules: false
+          persist-credentials: false
+      - name: Produce genuine earlier native hypothesis and falsification products
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.prior-native-runtime/src
+        run: python tests/fixtures/legacy_native_review_fixture.py create --workspace "${{ runner.temp }}/traceatlas-prior-native-case" --receipt "${{ runner.temp }}/traceatlas-prior-native-receipt.json"
+      - name: Replay earlier native products with current runtime without rewrites
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: python tests/fixtures/legacy_native_review_fixture.py verify --workspace "${{ runner.temp }}/traceatlas-prior-native-case" --receipt "${{ runner.temp }}/traceatlas-prior-native-receipt.json"
 
       - name: Build the complete downloadable employee source bundle
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'

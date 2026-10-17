@@ -151,8 +151,11 @@ class WorkforceService:
         if current["status"] != "approved":
             raise ValueError("only an approved task can execute")
         task = current["envelope"]
-        context = self.store.authorization(task.authorization_context_id)
+        context = self.store.verify_task_approval(current)
         self._check_authority(context, task)
+        if task.parent_task_id or any(value.startswith("coordination-") for value in task.constraints):
+            from .coordination import validate_coordination_task
+            validate_coordination_task(self.store, task, stage="dispatch")
         employee = self.registry.get(current["employee_id"])
         if _digest(employee.to_dict()) != current["definition_digest"]:
             raise ValueError("employee definition changed after task creation")

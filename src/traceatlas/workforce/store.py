@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -107,11 +108,15 @@ class WorkforceStore:
 
     def authorization(self, context_id: str) -> AuthorizationContext:
         row = self.db.conn.execute(
-            "SELECT context_json FROM workforce_authorizations WHERE context_id=?", (context_id,)
+            "SELECT * FROM workforce_authorizations WHERE context_id=?", (context_id,)
         ).fetchone()
         if not row:
             raise ValueError("authorization context is not registered server-side")
-        return AuthorizationContext.from_dict(json.loads(row["context_json"]))
+        context = AuthorizationContext.from_dict(json.loads(row["context_json"]))
+        if (context.context_id != context_id or context.case_id != row["case_id"]
+                or context.policy_digest != row["policy_digest"]):
+            raise ValueError("stored authorization identity or policy binding mismatch")
+        return context
 
     def create_task(self, task: TaskEnvelope, employee_id: str, definition_digest: str) -> str:
         encoded = _json(task.to_dict())
@@ -138,11 +143,41 @@ class WorkforceStore:
         result["envelope"] = TaskEnvelope.from_dict(json.loads(result.pop("envelope_json")))
         if digest(result["envelope"].to_dict()) != result["envelope_digest"]:
             raise ValueError("stored task digest mismatch")
+        if (result["task_id"] != task_id or result["envelope"].task_id != task_id
+                or result["envelope"].case_id != result["case_id"]
+                or result["envelope"].created_at != result["created_at"]):
+            raise ValueError("stored task row and envelope identity mismatch")
         stored = self.db.conn.execute("SELECT result_json,result_digest FROM workforce_results WHERE task_id=?", (task_id,)).fetchone()
         if stored and hashlib.sha256(stored["result_json"].encode()).hexdigest() != stored["result_digest"]:
             raise ValueError("stored result digest mismatch")
         result["result"] = ResultEnvelope.from_dict(json.loads(stored["result_json"])) if stored else None
+        if result["result"] is not None and (
+                result["result"].task_id != task_id
+                or result["result"].employee_id != result["employee_id"]):
+            raise ValueError("stored result belongs to another task or employee")
         return result
+
+    def verify_task_approval(self, current) -> AuthorizationContext:
+        """Read the actual immutable task, registered authority and owner approval."""
+        fresh = self.task(current["task_id"])
+        for key in ("case_id", "employee_id", "envelope", "envelope_digest", "definition_digest"):
+            if fresh[key] != current[key]:
+                raise ValueError("task changed while checking its approval")
+        task = fresh["envelope"]
+        context = self.authorization(task.authorization_context_id)
+        receipt = self.db.conn.execute(
+            "SELECT * FROM workforce_approvals WHERE task_id=?", (task.task_id,)
+        ).fetchone()
+        if (fresh["status"] not in {"approved", "running", "completed"} or not receipt
+                or receipt["decision"] != "approved"
+                or receipt["envelope_digest"] != fresh["envelope_digest"]
+                or receipt["actor_id"] != context.actor_id
+                or task.created_by != context.actor_id
+                or task.case_id != context.case_id or task.policy_digest != context.policy_digest
+                or not set(task.scope).issubset(context.scope)
+                or not set(task.target_entities).issubset(task.scope)):
+            raise ValueError("task lacks an exact authorization-owner approval receipt")
+        return context
 
     def approve(self, task_id: str, actor_id: str, rationale: str, envelope_digest: str, approval_id: str) -> None:
         task = self.task(task_id)
@@ -185,6 +220,17 @@ class WorkforceStore:
                     raise ValueError('conflicting duplicate completion')
                 return
             self.runtime.assert_current(self.db.conn, task_id, token)
+            context = self.verify_task_approval(current)
+            from .service import WorkforceService
+            WorkforceService._check_authority(context, current["envelope"])
+            if os.environ.get("TRACEATLAS_WORKFORCE_KILL_SWITCH", "").casefold() in {"1", "true", "yes"}:
+                raise ValueError("workforce kill switch stopped completion")
+            if not set(result.tool_calls).issubset(context.allowed_tools):
+                raise ValueError("result contains a tool outside current authorization")
+            task = current["envelope"]
+            if task.parent_task_id or any(value.startswith("coordination-") for value in task.constraints):
+                from .coordination import validate_coordination_task
+                validate_coordination_task(self, task, stage="finish")
             evidence_index = {}
             for evidence_id in result.evidence_ids:
                 row = self.db.conn.execute(
