@@ -1,0 +1,70 @@
+name: ZIP Archive Readiness (no vendor execution)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.zip'
+      - 'src/traceatlas/capabilities/zip_workbench.py'
+      - 'tests/test_zip_workbench.py'
+      - '.github/workflows/zip-readiness.yml'
+  pull_request:
+    paths:
+      - '*.zip'
+      - 'src/traceatlas/capabilities/zip_workbench.py'
+      - 'tests/test_zip_workbench.py'
+      - '.github/workflows/zip-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-and-inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test staging safeguards and registry contracts
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -p test_zip_workbench.py -v
+      - name: Audit and stage all repository-root ZIPs in isolation
+        env:
+          PYTHONPATH: src
+        run: |
+          set +e
+          python -m traceatlas.capabilities.zip_workbench \
+            --repository . \
+            --stage-dir "$RUNNER_TEMP/traceatlas-zip-staging" \
+            --syntax-check \
+            --output "$RUNNER_TEMP/traceatlas-zip-report.json"
+          status=$?
+          set -e
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "traceatlas-zip-report.json").read_text())
+          for entry in report["archives"]:
+              stage = entry["stage"]
+              print(f"{entry['filename']}: {stage['state']}; capability={entry.get('capability_id')}")
+              if stage["state"] == "blocked":
+                  print("  BLOCKED:", entry.get("issues"), stage.get("reason"), entry.get("unsafe_members"))
+          assert report["summary"]["archives"] >= 1
+          assert report["summary"]["staged_unique"] + report["summary"]["blocked_staging"] + report["summary"]["duplicates"] <= report["summary"]["archives"]
+          PY
+          if [ "$status" -gt 2 ]; then exit "$status"; fi
+      - name: Upload machine-readable audit and syntax-check evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traceatlas-zip-readiness
+          path: ${{ runner.temp }}/traceatlas-zip-report.json
+          if-no-files-found: warn
+          retention-days: 14
