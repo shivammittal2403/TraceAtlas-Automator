@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from uuid import uuid4
 
-from ..osint_cli import JSONArgumentParser, _emit, load_input, _json_text
+from ..osint_cli import JSONArgumentParser, _emit, load_input, load_json_object, _json_text
 from ..engine import Engine
 from ..policy import PolicyError
 from .contracts import AuthorizationContext
@@ -20,6 +20,10 @@ def _parser():
     parser.add_argument("--workspace", type=Path, default=Path(".traceatlas"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("catalog", help="List requested and actually implemented employees")
+    commands.add_parser("capabilities", help="Map native handlers, skills, recipes and test definitions")
+    commands.add_parser("coordinate-skills", help="Validate installed manager and team lead procedures")
+    coordinated_skill = commands.add_parser("coordinate-skill", help="Read an inert coordination employee procedure")
+    coordinated_skill.add_argument("employee_id")
     external = commands.add_parser("external-skills", help="Read third-party skill ZIP as an inert catalog")
     external.add_argument("--archive", type=Path)
     external.add_argument("--directory", type=Path)
@@ -54,6 +58,8 @@ def _parser():
     auth.add_argument("--hours", type=int, default=24)
     auth.add_argument("--retention", default="case-standard")
     auth.add_argument("--authorized", action="store_true")
+    auth.add_argument("--coordination", action="store_true",
+                      help="Include explicit local plan and synthesis authority")
     plan = commands.add_parser("plan", help="Preserve input bytes and plan one specialist")
     plan.add_argument("discipline")
     plan.add_argument("--context", required=True)
@@ -63,6 +69,18 @@ def _parser():
     manager.add_argument("--context", required=True)
     manager.add_argument("--input", type=Path, required=True)
     manager.add_argument("--disciplines", nargs="+", required=True)
+    coordinated = commands.add_parser("coordinate-plan", help="Plan a persisted manager and domain team workflow")
+    coordinated.add_argument("--context", required=True)
+    coordinated.add_argument("--input", type=Path, required=True)
+    for name in ("coordinate-expand", "coordinate-synthesize"):
+        command = commands.add_parser(name, help="Create separately approved tasks from a completed plan")
+        command.add_argument("--task", required=True)
+    for name in ("coordinate-show", "coordinate-replay", "coordinate-cancel"):
+        command = commands.add_parser(name)
+        command.add_argument("--coordination", required=True)
+        if name == "coordinate-cancel":
+            command.add_argument("--actor", required=True)
+            command.add_argument("--authorized", action="store_true")
     approve = commands.add_parser("approve", help="Approve an immutable task digest")
     for key in ("task", "actor", "envelope-digest", "rationale"):
         approve.add_argument("--" + key, required=True)
@@ -84,6 +102,15 @@ def _parser():
 def execute(args):
     if args.command == "catalog":
         return employee_catalog()
+    if args.command == "capabilities":
+        from .discipline_capabilities import capability_catalog
+        return capability_catalog()
+    if args.command == "coordinate-skills":
+        from .coordination_skills import coordination_skill_inventory
+        return coordination_skill_inventory()
+    if args.command == "coordinate-skill":
+        from .coordination_skills import get_coordination_skill
+        return get_coordination_skill(args.employee_id)
     if args.command == "external-skills":
         from ..skills.external_skills import open_external_skills
         return open_external_skills(archive=args.archive, directory=args.directory).catalog(query=args.query, limit=args.limit)
@@ -136,16 +163,37 @@ def execute(args):
             if not engine.db.get_case(args.case):
                 raise ValueError("Create the canonical case before authority registration")
             now = datetime.now(timezone.utc)
+            coordinated = getattr(args, "coordination", False)
+            actions = ("propose_observation", "propose_claim", "propose_plan", "route_task")
+            tools = ("discipline.analyze", "investigation.plan")
+            if coordinated:
+                actions += ("propose_synthesis",)
+                tools += ("coordination.plan", "coordination.synthesize")
             context = AuthorizationContext(
                 "1.0", "auth-" + uuid4().hex, args.case, args.actor, args.purpose,
                 ("provided_records:" + args.case,),
-                ("propose_observation", "propose_claim", "propose_plan", "route_task"),
-                ("discipline.analyze", "investigation.plan"), args.jurisdiction, args.retention,
+                actions, tools, args.jurisdiction, args.retention,
                 now.isoformat(), (now + timedelta(hours=args.hours)).isoformat(),
                 digest({"case": args.case, "actor": args.actor, "purpose": args.purpose,
-                        "issued_at": now.isoformat(), "scope": "provided_records_only"}))
+                        "issued_at": now.isoformat(), "scope": "provided_records_only",
+                        **({"coordination": True} if coordinated else {})}))
             service.register_authorization(context)
             return {"authorization": context.to_dict(), "execution_enabled": service.enabled}
+        if args.command.startswith("coordinate-"):
+            from .coordination import CoordinationService
+            coordination = CoordinationService(runtime)
+            if args.command == "coordinate-plan":
+                return coordination.plan(args.context, load_json_object(args.input))
+            if args.command == "coordinate-expand":
+                return coordination.materialize_children(args.task)
+            if args.command == "coordinate-synthesize":
+                return coordination.plan_synthesis(args.task)
+            if args.command == "coordinate-show":
+                return coordination.describe(args.coordination)
+            if args.command == "coordinate-replay":
+                return coordination.replay(args.coordination)
+            return coordination.cancel(args.coordination, actor_id=args.actor,
+                                       authorized=args.authorized)
         if args.command == "plan":
             return runtime.plan(args.context, args.discipline, load_input(args.input), parent_task_id=args.parent)
         if args.command == "manager":
@@ -154,6 +202,10 @@ def execute(args):
             return service.approve(args.task, actor_id=args.actor, rationale=args.rationale,
                 envelope_digest=args.envelope_digest, authorized=args.authorized)
         if args.command == "run":
+            task = runtime.store.task(args.task)["envelope"]
+            if any(value.startswith("coordination-") for value in task.constraints):
+                from .coordination import CoordinationService
+                return CoordinationService(runtime).run(args.task, authorized=args.authorized)
             return runtime.run(args.task, authorized=args.authorized)
         if args.command == "replay":
             return runtime.replay(args.task)

@@ -77,6 +77,43 @@ class DisciplineHypothesisReviewTests(unittest.TestCase):
     def count(self, table):
         return self.db.conn.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]
 
+    def legacy_identity(self, label, runtime_hash):
+        from traceatlas.workforce.discipline_engines import engine_identity
+        from traceatlas.workforce import discipline_review
+        from traceatlas.workforce.discipline_runtime import digest
+        return digest({"processors": engine_identity(label), "runtime": runtime_hash,
+                       "canonical_review": hashlib.sha256(Path(discipline_review.__file__).read_bytes()).hexdigest()})
+
+    def test_replay_adapter_accepts_only_exact_pinned_runtime_with_current_processor_and_review(self):
+        from traceatlas.workforce.discipline_runtime import (
+            LEGACY_REVIEW_RUNTIME_SHA256, _review_replay_adapter, _identity)
+        for label in ("HYPOTHESISINT", "FALSIFICATIONINT"):
+            with self.subTest(label=label):
+                self.assertEqual(_review_replay_adapter(label, _identity(label)), "current-runtime")
+                for old_runtime in LEGACY_REVIEW_RUNTIME_SHA256:
+                    old_identity = self.legacy_identity(label, old_runtime)
+                    self.assertEqual(_review_replay_adapter(label, old_identity), "pinned-runtime-8a322870")
+                    with patch("traceatlas.workforce.discipline_engines.engine_identity", return_value="changed-processor"):
+                        with self.assertRaisesRegex(ValueError, "engine changed"):
+                            _review_replay_adapter(label, old_identity)
+                with self.assertRaisesRegex(ValueError, "engine changed"):
+                    _review_replay_adapter(label, self.legacy_identity(label, "0" * 64))
+
+    def test_pinned_replay_compatibility_never_authorizes_an_old_pending_engine(self):
+        from traceatlas.workforce.discipline_runtime import LEGACY_REVIEW_RUNTIME_SHA256
+        old_identity = self.legacy_identity("HYPOTHESISINT", LEGACY_REVIEW_RUNTIME_SHA256[0])
+        with patch("traceatlas.workforce.discipline_runtime._identity", return_value=old_identity):
+            plan = self.runtime.plan(self.context.context_id, "HYPOTHESISINT", self.payload())
+            self.runtime.service.approve(
+                plan["task"]["task_id"], actor_id=self.context.actor_id,
+                rationale="Approve an old engine before its simulated runtime upgrade",
+                envelope_digest=plan["envelope_digest"], authorized=True)
+        with self.assertRaisesRegex(ValueError, "engine changed"):
+            self.runtime.run(plan["task"]["task_id"], authorized=True)
+        self.assertEqual(self.runtime.store.task(plan["task"]["task_id"])["status"], "approved")
+        self.assertEqual(self.count("workforce_results"), 0)
+        self.assertEqual(self.count("workforce_products"), 0)
+
     def test_native_stance_provenance_and_copied_origins_survive_canonical_lifecycle(self):
         plan, product = self.run_payload(self.payload())
         self.assertEqual(product["schema"], "traceatlas-discipline-product/v2")

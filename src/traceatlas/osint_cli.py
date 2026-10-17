@@ -77,8 +77,8 @@ def _reject_constant(_value):
     raise CLIError("Non-finite JSON numbers are not allowed")
 
 
-def load_input(path):
-    """Read bounded UTF-8 JSON without coercion, duplicate keys, or foreign cases."""
+def load_json_object(path):
+    """Read bounded UTF-8 JSON without coercion, duplicate keys or non-finite values."""
     with path.open("rb") as source:
         raw = source.read(MAX_INPUT_BYTES + 1)
     if len(raw) > MAX_INPUT_BYTES:
@@ -90,6 +90,12 @@ def load_input(path):
         raise CLIError("Input must contain valid UTF-8 JSON") from exc
     if not isinstance(value, dict):
         raise CLIError("Input must be a JSON object")
+    return value
+
+
+def load_input(path):
+    """Require a declared case for the established standalone analysis commands."""
+    value = load_json_object(path)
     case_id = value.get("case_id")
     if not isinstance(case_id, str) or not case_id.strip():
         raise CLIError("Input requires a nonempty string case_id")
