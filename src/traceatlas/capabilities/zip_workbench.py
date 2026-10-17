@@ -97,7 +97,7 @@ def _stage(path: Path, root: Path, digest: str) -> dict:
                 if target.stat().st_size != info.file_size:
                     raise ValueError("member length mismatch")
                 target.chmod(0o444)
-        marker.write_text(json.dumps({"sha256": digest, "members": len(members),
+        (temp / ".traceatlas-stage.json").write_text(json.dumps({"sha256": digest, "members": len(members),
                                       "uncompressed_bytes": total}, indent=2) + "\n",
                           encoding="utf-8")
         os.replace(temp, destination)
