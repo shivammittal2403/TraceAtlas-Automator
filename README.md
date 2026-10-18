@@ -103,3 +103,11 @@ Start at [Documentation Index](docs/README.md). Key references:
 ## Development
 
 Install the project and run the repository's CI workflow for the full verification suite. The suite includes controlled fixture investigations, replay checks, UI/database gates, supply-chain checks, and the bundled worker runtime. Fixtures verify software contracts; they do not qualify a provider for production.
+
+## Malvex malware-analysis bridge (opt-in)
+
+A pinned upstream Malvex Git submodule and a separate, disabled-by-default,
+case-authorized Python bridge provide local diagnostics, Ollama dry-run planning,
+and unverified report intake. No malware samples are executed by TraceAtlas.
+See [Malvex integration](docs/MALVEX_INTEGRATION.md) for setup, limitations,
+safety, verification and licensing notes.
