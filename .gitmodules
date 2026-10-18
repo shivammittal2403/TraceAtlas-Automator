@@ -151,3 +151,7 @@
 [submodule "third_party/extreme-recon/sn1per"]
 	path = third_party/extreme-recon/sn1per
 	url = https://github.com/1N3/Sn1per.git
+
+[submodule "third_party/malvex"]
+	path = third_party/malvex
+	url = https://github.com/JoasASantos/Malvex.git

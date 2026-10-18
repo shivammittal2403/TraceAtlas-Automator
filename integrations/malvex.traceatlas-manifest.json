@@ -1,0 +1,22 @@
+{
+  "integration": "malvex",
+  "source_repository": "https://github.com/JoasASantos/Malvex",
+  "source_commit": "75d86748c185aea0171b38682ab6a2bf15a5240c",
+  "source_tree_files": 165,
+  "source_path": "third_party/malvex",
+  "method": "pinned_git_submodule",
+  "source_license_note": "Cargo.toml declares MIT; no LICENSE file present at inspected pin; verify before redistribution",
+  "bridge": "src/traceatlas/malvex_bridge.py",
+  "cli": "traceatlas malvex",
+  "capabilities": [
+    "doctor",
+    "coverage",
+    "authorized_dry_run_plan",
+    "offline_findings_evidence_import"
+  ],
+  "auto_install": false,
+  "executable_analysis_enabled": false,
+  "runtime_verified": false,
+  "production_qualified": false,
+  "trust_boundary": "External findings are unverified candidates even if upstream reports confirmed"
+}
