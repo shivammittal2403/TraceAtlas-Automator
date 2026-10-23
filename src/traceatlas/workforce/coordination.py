@@ -375,6 +375,10 @@ def _verified_dependency(store, root, descriptor, stack=()):
             findings_omitted=max(0, len(findings) - PREVIEW_FINDINGS),
             issues_count=len(draft["issues"]), source_artifact_count=1,
             native_draft_recomputed=True, factual_entailment_verified=False)
+        review = product.get("analysis", {}).get("hypothesis_review")
+        if review:
+            receipt["canonical_hypotheses_omitted"] = sum(
+                review.get("hypotheses_omitted", {}).values())
     else:
         summary = product["coordination"]
         receipt.update(analysis_status=summary["analysis_status"], findings_count=summary["findings_count"],
