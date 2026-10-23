@@ -99,6 +99,9 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python tests/fixtures/legacy14_replay_fixture.py verify --workspace "${{ runner.temp }}/traceatlas-legacy14-case" --receipt "${{ runner.temp }}/traceatlas-legacy14-receipt.json"
 
+      - name: Enable Git long paths for the pinned runtime checkout
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
       - uses: actions/checkout@v7
         with:
           ref: 8a3228703747777623db876826d3d5921030ace8
