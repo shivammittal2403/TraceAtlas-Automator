@@ -402,17 +402,17 @@ class CoordinationTests(unittest.TestCase):
         payload["budget"]["max_employees"] = 1
         manager, leads, employees = self.prepare_leaves(payload)
         employee = self.execute(employees[0])
-        self.assertEqual(len(employee["result"].hypotheses), 101)
+        self.assertEqual(len(employee["result"]["hypotheses"]), 101)
 
         lead_task = self.coordinator.plan_synthesis(self.task_id(leads[0]))
         lead_product = self.execute(lead_task)
         self.assertEqual(lead_product["coordination"]["canonical_hypotheses_omitted"], 1)
-        self.assertEqual(len(lead_product["result"].hypotheses), 100)
+        self.assertEqual(len(lead_product["result"]["hypotheses"]), 100)
 
         manager_task = self.coordinator.plan_synthesis(self.task_id(manager))
         manager_product = self.execute(manager_task)
         self.assertEqual(manager_product["coordination"]["canonical_hypotheses_omitted"], 1)
-        self.assertEqual(len(manager_product["result"].hypotheses), 100)
+        self.assertEqual(len(manager_product["result"]["hypotheses"]), 100)
         self.assertIn("coordination-hypotheses-omitted", manager_product["result"].information_gaps)
 
     def test_native_materialization_retry_reuses_frozen_ids_and_capture(self):
