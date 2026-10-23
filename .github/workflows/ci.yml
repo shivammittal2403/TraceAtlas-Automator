@@ -164,7 +164,7 @@ jobs:
           UV_HTTP_RETRIES: "0"
         run: |
           python -m pip install uv==0.12.17
-          timeout --signal=TERM 5m uv lock --verbose --project packages/openosint
+          timeout --kill-after=10s --signal=TERM 5m uv lock --verbose --project packages/openosint
           python -c 'import base64,pathlib; print("TRACEATLAS_LOCK_BEGIN"); print(base64.b64encode(pathlib.Path("packages/openosint/uv.lock").read_bytes()).decode()); print("TRACEATLAS_LOCK_END")'
       - name: Install locked runtime and test dependencies
         run: |
