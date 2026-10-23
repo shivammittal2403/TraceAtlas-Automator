@@ -413,7 +413,7 @@ class CoordinationTests(unittest.TestCase):
         manager_product = self.execute(manager_task)
         self.assertEqual(manager_product["coordination"]["canonical_hypotheses_omitted"], 1)
         self.assertEqual(len(manager_product["result"]["hypotheses"]), 100)
-        self.assertIn("coordination-hypotheses-omitted", manager_product["result"].information_gaps)
+        self.assertIn("coordination-hypotheses-omitted", manager_product["result"]["information_gaps"])
 
     def test_native_materialization_retry_reuses_frozen_ids_and_capture(self):
         payload = fixture()
