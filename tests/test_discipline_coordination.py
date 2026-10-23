@@ -385,6 +385,39 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(len(native["result"]["evidence_ids"]), 1)
         self.assertEqual(len(summarized["result"]["evidence_ids"]), 2)
 
+    def test_hypothesis_omissions_propagate_to_manager_synthesis(self):
+        payload = fixture()
+        payload["assignments"] = [{
+            "discipline": "HYPOTHESISINT",
+            "records": [{
+                "record_id": "hypothesis-matrix", "source_id": "shared",
+                "data": {
+                    "hypotheses": [
+                        {"id": "hypothesis-" + str(index), "statement": "Synthetic candidate " + str(index)}
+                        for index in range(101)],
+                    "evidence": [],
+                },
+            }],
+        }]
+        payload["budget"]["max_employees"] = 1
+        manager, leads, employees = self.prepare_leaves(payload)
+        employee = self.execute(employees[0])
+        self.assertEqual(len(employee["result"]["hypotheses"]), 100)
+        employee_product = self.runtime.store.product(self.task_id(employees[0]))
+        self.assertEqual(
+            employee_product["analysis"]["hypothesis_review"]["hypotheses_omitted"]["canonical_limit"], 1)
+
+        lead_task = self.coordinator.plan_synthesis(self.task_id(leads[0]))
+        lead_product = self.execute(lead_task)
+        self.assertEqual(lead_product["coordination"]["canonical_hypotheses_omitted"], 1)
+        self.assertEqual(len(lead_product["result"]["hypotheses"]), 100)
+
+        manager_task = self.coordinator.plan_synthesis(self.task_id(manager))
+        manager_product = self.execute(manager_task)
+        self.assertEqual(manager_product["coordination"]["canonical_hypotheses_omitted"], 1)
+        self.assertEqual(len(manager_product["result"]["hypotheses"]), 100)
+        self.assertIn("coordination-hypotheses-omitted", manager_product["result"]["information_gaps"])
+
     def test_native_materialization_retry_reuses_frozen_ids_and_capture(self):
         payload = fixture()
         payload["assignments"] = payload["assignments"][:2]
