@@ -157,13 +157,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Install locked runtime and test dependencies
+      - name: Regenerate and capture OpenOSINT lock
         run: |
           python -m pip install uv==0.12.17
           uv lock --project packages/openosint
+          python -c 'import base64,pathlib; print("TRACEATLAS_LOCK_BEGIN"); print(base64.b64encode(pathlib.Path("packages/openosint/uv.lock").read_bytes()).decode()); print("TRACEATLAS_LOCK_END")'
+      - name: Install locked runtime and test dependencies
+        run: |
           UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.openosint-test-venv" \
             uv sync --locked --extra dev --project packages/openosint
-          python -c 'import base64,pathlib; print("TRACEATLAS_LOCK_BEGIN"); print(base64.b64encode(pathlib.Path("packages/openosint/uv.lock").read_bytes()).decode()); print("TRACEATLAS_LOCK_END")'
       - name: Run preserved runtime suite
         env:
           PYTHONPATH: packages/openosint
