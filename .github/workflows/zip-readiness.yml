@@ -62,7 +62,7 @@ jobs:
           if [ "$status" -gt 2 ]; then exit "$status"; fi
       - name: Upload machine-readable audit and syntax-check evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: traceatlas-zip-readiness
           path: ${{ runner.temp }}/traceatlas-zip-report.json
