@@ -406,7 +406,7 @@ def main():
     parser.add_argument("--workspace", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     args = parser.parse_args()
-    {"create": create, "verify": verify}(args.workspace.resolve(), args.receipt.resolve())
+    {"create": create, "verify": verify}[args.mode](args.workspace.resolve(), args.receipt.resolve())
 
 
 if __name__ == "__main__":
