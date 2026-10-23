@@ -1,6 +1,9 @@
 name: OpenOSINT lock capture
 
 on:
+  push:
+    branches:
+      - codex/capture-openosint-lock-20261023
   pull_request:
     paths:
       - "packages/openosint/pyproject.toml"
