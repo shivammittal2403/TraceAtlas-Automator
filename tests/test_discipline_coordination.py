@@ -402,7 +402,10 @@ class CoordinationTests(unittest.TestCase):
         payload["budget"]["max_employees"] = 1
         manager, leads, employees = self.prepare_leaves(payload)
         employee = self.execute(employees[0])
-        self.assertEqual(len(employee["result"]["hypotheses"]), 101)
+        self.assertEqual(len(employee["result"]["hypotheses"]), 100)
+        employee_product = self.runtime.store.product(self.task_id(employees[0]))
+        self.assertEqual(
+            employee_product["analysis"]["hypothesis_review"]["hypotheses_omitted"]["canonical_limit"], 1)
 
         lead_task = self.coordinator.plan_synthesis(self.task_id(leads[0]))
         lead_product = self.execute(lead_task)
