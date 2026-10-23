@@ -248,6 +248,7 @@ def _basic_receipt(store, descriptor):
         "result_digest": digest(row["result"].to_dict()), "product_digest": digest(product),
         "trace_id": row["envelope"].trace_id,
         "evidence_ids": list(row["result"].evidence_ids),
+        "canonical_hypotheses_omitted": 0,
     }
 
 
@@ -379,6 +380,7 @@ def _verified_dependency(store, root, descriptor, stack=()):
         receipt.update(analysis_status=summary["analysis_status"], findings_count=summary["findings_count"],
             preview_findings=[], findings_omitted=summary["findings_count"],
             issues_count=summary["issues_count"], source_artifact_count=len(row["result"].evidence_ids),
+            canonical_hypotheses_omitted=summary["canonical_hypotheses_omitted"],
             native_draft_recomputed=True, factual_entailment_verified=False)
     return receipt
 
@@ -530,7 +532,8 @@ def _derive_control(store, root, descriptor, stack=()):
                 raise ValueError("coordination hypotheses share an ambiguous identity")
             hypotheses[hypothesis.hypothesis_id] = hypothesis
     selected = tuple(hypotheses[key] for key in sorted(hypotheses)[:100])
-    summary["canonical_hypotheses_omitted"] = max(0, len(hypotheses) - len(selected))
+    upstream_omissions = sum(item["canonical_hypotheses_omitted"] for item in dependencies)
+    summary["canonical_hypotheses_omitted"] = upstream_omissions + max(0, len(hypotheses) - len(selected))
     references = sorted({ref for item in dependencies for ref in item["evidence_ids"]})
     evidence_ids = tuple(dict.fromkeys([evidence.evidence_id] + references))
     return summary, observations, selected, evidence_ids
